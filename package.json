@@ -9,6 +9,7 @@
 		"preview": "nuxt preview",
 		"postinstall": "nuxt prepare",
 		"lint": "oxlint --fix",
+		"lint-deny": "oxlint --deny-warnings",
 		"prepare": "husky"
 	},
 	"dependencies": {
