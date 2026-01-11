@@ -1,17 +1,29 @@
 {
-  "name": "nscontinenterp-fe",
-  "type": "module",
-  "private": true,
-  "scripts": {
-    "build": "nuxt build",
-    "dev": "nuxt dev",
-    "generate": "nuxt generate",
-    "preview": "nuxt preview",
-    "postinstall": "nuxt prepare"
-  },
-  "dependencies": {
-    "nuxt": "^4.2.2",
-    "vue": "^3.5.26",
-    "vue-router": "^4.6.4"
-  }
+	"name": "nscontinenterp-fe",
+	"type": "module",
+	"private": true,
+	"scripts": {
+		"build": "nuxt build",
+		"dev": "nuxt dev",
+		"generate": "nuxt generate",
+		"preview": "nuxt preview",
+		"postinstall": "nuxt prepare",
+		"lint": "oxlint --fix",
+		"lint-deny": "oxlint --deny-warnings",
+		"prepare": "husky"
+	},
+	"dependencies": {
+		"axios": "^1.13.2",
+		"nuxt": "^4.2.2",
+		"vue": "^3.5.26",
+		"vue-router": "^4.6.4"
+	},
+	"devDependencies": {
+		"husky": "^9.1.7",
+		"lint-staged": "^16.1.0",
+		"oxlint": "latest"
+	},
+	"lint-staged": {
+		"*.{js,jsx,ts,tsx,vue,mjs,cjs}": ["pnpm run lint"]
+	}
 }

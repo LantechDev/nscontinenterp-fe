@@ -1,0 +1,26 @@
+{
+	"categories": {
+		"correctness": "error",
+		"suspicious": "warn"
+	},
+	"plugins": ["typescript"],
+	"env": {
+		"browser": true,
+		"es6": true,
+		"node": true
+	},
+	"rules": {
+		"no-unused-vars": "warn",
+		"no-console": "warn"
+	},
+	"overrides": [
+		{
+			"files": ["**/*.vue"],
+			"rules": {
+				"no-unused-vars": "off",
+				"no-console": "off"
+			}
+		}
+	],
+	"ignorePatterns": [".nuxt", "node_modules", "dist", ".output"]
+}
