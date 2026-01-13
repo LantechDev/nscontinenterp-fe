@@ -48,25 +48,25 @@ async function login() {
 </script>
 
 <template>
-  <div v-if="isLoggedIn">
-    <div>
-      Welcome, {{ user.name }}  {{ user.email }}
-      user id: {{ user.id }}
-      <div>create item</div>
-      <form @submit.prevent="createItem" action="post">
-        <input v-model="itemTitle.title" type="text" name="title">
-        <button type="submit">create</button>
-      </form>
-    </div>
-  </div>
-  <div v-else>
- <div>
-      <div>login</div>
-      <form @submit.prevent="login" action="post">
-        <input v-model="credentials.email" type="text" name="email">
-        <input v-model="credentials.password" type="text" name="password">
-        <button type="submit">login</button>
-      </form>
-    </div>
-  </div>
+	<div v-if="isLoggedIn">
+		<div>
+			Welcome, {{ user.name }} {{ user.email }}
+			user id: {{ user.id }}
+			<div>create item</div>
+			<form @submit.prevent="createItem" action="post">
+				<input v-model="itemTitle.title" type="text" name="title">
+				<button type="submit">create</button>
+			</form>
+		</div>
+	</div>
+	<div v-else>
+		<div>
+			<div>login</div>
+			<form @submit.prevent="login" action="post">
+				<input v-model="credentials.email" type="text" name="email">
+				<input v-model="credentials.password" type="text" name="password">
+				<button type="submit">login</button>
+			</form>
+		</div>
+	</div>
 </template>
