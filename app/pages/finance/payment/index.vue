@@ -18,10 +18,10 @@ const payments = [
                 <h1 class="page-title">Pembayaran</h1>
                 <p class="text-muted-foreground mt-1">Catat pembayaran dari customer</p>
             </div>
-            <button class="btn-primary">
+            <NuxtLink to="/finance/payment/create" class="btn-primary">
                 <Plus class="w-4 h-4 mr-2" />
                 Catat Pembayaran
-            </button>
+            </NuxtLink>
         </div>
 
         <div class="card-elevated p-4">
@@ -44,7 +44,8 @@ const payments = [
                     </tr>
                 </thead>
                 <tbody>
-                    <tr v-for="payment in payments" :key="payment.id">
+                    <tr v-for="payment in payments" :key="payment.id" class="cursor-pointer hover:bg-muted/50"
+                        @click="navigateTo(`/finance/payment/${payment.id}`)">
                         <td>
                             <div class="flex items-center gap-2">
                                 <CreditCard class="w-4 h-4 text-success" />

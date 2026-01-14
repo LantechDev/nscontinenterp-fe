@@ -45,10 +45,10 @@ const vendors = [
                     Kelola data vendor dan supplier
                 </p>
             </div>
-            <button class="btn-primary">
+            <NuxtLink to="/master/vendor/create" class="btn-primary">
                 <Plus class="w-4 h-4 mr-2" />
                 Tambah Vendor
-            </button>
+            </NuxtLink>
         </div>
 
         <div class="card-elevated p-4">
@@ -67,8 +67,8 @@ const vendors = [
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <div v-for="vendor in vendors" :key="vendor.id"
-                class="card-elevated p-5 hover:shadow-lg transition-shadow duration-200">
+            <NuxtLink v-for="vendor in vendors" :key="vendor.id" :to="`/master/vendor/${vendor.id}`"
+                class="card-elevated p-5 hover:shadow-lg transition-shadow duration-200 block">
                 <div class="flex items-start justify-between mb-4">
                     <div class="flex items-center gap-4">
                         <div class="w-12 h-12 rounded-xl bg-accent/10 flex items-center justify-center">
@@ -79,7 +79,7 @@ const vendors = [
                             <p class="text-sm text-muted-foreground">{{ vendor.code }}</p>
                         </div>
                     </div>
-                    <button class="p-2 rounded-lg hover:bg-muted transition-colors">
+                    <button class="p-2 rounded-lg hover:bg-muted transition-colors" @click.prevent>
                         <MoreVertical class="w-4 h-4 text-muted-foreground" />
                     </button>
                 </div>
@@ -101,7 +101,7 @@ const vendors = [
                         {{ vendor.type }}
                     </span>
                 </div>
-            </div>
+            </NuxtLink>
         </div>
     </div>
 </template>

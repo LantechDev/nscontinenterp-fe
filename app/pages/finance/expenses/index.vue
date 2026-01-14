@@ -19,10 +19,10 @@ const expenses = [
                 <h1 class="page-title">Biaya Operasional</h1>
                 <p class="text-muted-foreground mt-1">Catat pengeluaran operasional</p>
             </div>
-            <button class="btn-primary">
+            <NuxtLink to="/finance/expenses/create" class="btn-primary">
                 <Plus class="w-4 h-4 mr-2" />
                 Catat Biaya
-            </button>
+            </NuxtLink>
         </div>
 
         <div class="card-elevated p-4">
@@ -53,7 +53,8 @@ const expenses = [
                     </tr>
                 </thead>
                 <tbody>
-                    <tr v-for="expense in expenses" :key="expense.id">
+                    <tr v-for="expense in expenses" :key="expense.id" class="cursor-pointer hover:bg-muted/50"
+                        @click="navigateTo(`/finance/expenses/${expense.id}`)">
                         <td>
                             <div class="flex items-center gap-2">
                                 <Wallet class="w-4 h-4 text-destructive" />

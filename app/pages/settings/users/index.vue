@@ -20,10 +20,10 @@ const users = [
                 <h1 class="page-title">User & Role</h1>
                 <p class="text-muted-foreground mt-1">Kelola pengguna dan hak akses</p>
             </div>
-            <button class="btn-primary">
+            <NuxtLink to="/settings/users/create" class="btn-primary">
                 <Plus class="w-4 h-4 mr-2" />
                 Tambah User
-            </button>
+            </NuxtLink>
         </div>
 
         <div class="card-elevated p-4">
@@ -53,7 +53,8 @@ const users = [
                     </tr>
                 </thead>
                 <tbody>
-                    <tr v-for="user in users" :key="user.id">
+                    <tr v-for="user in users" :key="user.id" class="cursor-pointer hover:bg-muted/50"
+                        @click="navigateTo(`/settings/users/${user.id}`)">
                         <td>
                             <div class="flex items-center gap-3">
                                 <div class="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center">
@@ -80,10 +81,11 @@ const users = [
                         <td class="text-sm text-muted-foreground">{{ user.lastLogin }}</td>
                         <td>
                             <div class="flex gap-1">
-                                <button class="p-1.5 rounded hover:bg-muted transition-colors">
+                                <NuxtLink :to="`/settings/users/${user.id}`"
+                                    class="p-1.5 rounded hover:bg-muted transition-colors" @click.stop>
                                     <Edit class="w-4 h-4 text-muted-foreground" />
-                                </button>
-                                <button class="p-1.5 rounded hover:bg-muted transition-colors">
+                                </NuxtLink>
+                                <button class="p-1.5 rounded hover:bg-muted transition-colors" @click.stop>
                                     <Trash2 class="w-4 h-4 text-destructive" />
                                 </button>
                             </div>

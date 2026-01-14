@@ -6,8 +6,8 @@ definePageMeta({
 });
 
 const closingJobs = [
-    { id: "1", number: "JOB-2024-001232", customer: "PT Logistik Nusantara", totalRevenue: "Rp 32.500.000", totalCost: "Rp 24.200.000", profit: "Rp 8.300.000", status: "closed" },
-    { id: "2", number: "JOB-2024-001230", customer: "PT Maju Bersama", totalRevenue: "Rp 28.000.000", totalCost: "Rp 21.500.000", profit: "Rp 6.500.000", status: "pending" },
+    { id: "1", jobId: "3", number: "JOB-2024-001232", customer: "PT Logistik Nusantara", totalRevenue: "Rp 32.500.000", totalCost: "Rp 24.200.000", profit: "Rp 8.300.000", status: "closed" },
+    { id: "2", jobId: "4", number: "JOB-2024-001230", customer: "PT Maju Bersama", totalRevenue: "Rp 28.000.000", totalCost: "Rp 21.500.000", profit: "Rp 6.500.000", status: "pending" },
 ];
 </script>
 
@@ -40,7 +40,8 @@ const closingJobs = [
                     </tr>
                 </thead>
                 <tbody>
-                    <tr v-for="job in closingJobs" :key="job.id">
+                    <tr v-for="job in closingJobs" :key="job.id" class="cursor-pointer hover:bg-muted/50"
+                        @click="navigateTo(`/operational/jobs/${job.jobId}`)">
                         <td class="font-medium">{{ job.number }}</td>
                         <td>{{ job.customer }}</td>
                         <td class="text-success">{{ job.totalRevenue }}</td>

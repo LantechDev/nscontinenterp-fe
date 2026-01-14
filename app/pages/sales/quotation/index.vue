@@ -36,10 +36,10 @@ const statusConfig: Record<Quotation["status"], { label: string; class: string }
                 <h1 class="page-title">Penawaran</h1>
                 <p class="text-muted-foreground mt-1">Kelola quotation dan penawaran harga</p>
             </div>
-            <button class="btn-primary">
+            <NuxtLink to="/sales/quotation/create" class="btn-primary">
                 <Plus class="w-4 h-4 mr-2" />
                 Buat Penawaran
-            </button>
+            </NuxtLink>
         </div>
 
         <div class="card-elevated p-4">
@@ -71,7 +71,8 @@ const statusConfig: Record<Quotation["status"], { label: string; class: string }
                     </tr>
                 </thead>
                 <tbody>
-                    <tr v-for="quotation in quotations" :key="quotation.id">
+                    <tr v-for="quotation in quotations" :key="quotation.id" class="cursor-pointer hover:bg-muted/50"
+                        @click="navigateTo(`/sales/quotation/${quotation.id}`)">
                         <td>
                             <div class="flex items-center gap-2">
                                 <FileText class="w-4 h-4 text-primary" />
@@ -89,10 +90,12 @@ const statusConfig: Record<Quotation["status"], { label: string; class: string }
                         </td>
                         <td>
                             <div class="flex gap-1">
-                                <button class="p-1.5 rounded hover:bg-muted transition-colors" title="Lihat">
+                                <NuxtLink :to="`/sales/quotation/${quotation.id}`"
+                                    class="p-1.5 rounded hover:bg-muted transition-colors" title="Lihat" @click.stop>
                                     <Eye class="w-4 h-4 text-muted-foreground" />
-                                </button>
-                                <button class="p-1.5 rounded hover:bg-muted transition-colors" title="Kirim">
+                                </NuxtLink>
+                                <button class="p-1.5 rounded hover:bg-muted transition-colors" title="Kirim"
+                                    @click.stop>
                                     <Send class="w-4 h-4 text-accent" />
                                 </button>
                             </div>
