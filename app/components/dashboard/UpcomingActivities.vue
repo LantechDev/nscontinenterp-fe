@@ -42,7 +42,7 @@ const activities: Activity[] = [
 ];
 
 const typeConfig: Record<
-    string,
+    Activity["type"],
     { icon: typeof Ship; color: string; bg: string }
 > = {
     shipment: { icon: Ship, color: "text-chart-1", bg: "bg-chart-1/10" },
@@ -61,9 +61,9 @@ const typeConfig: Record<
         <div class="space-y-3">
             <div v-for="activity in activities" :key="activity.id"
                 class="flex items-start gap-3 p-3 rounded-lg hover:bg-muted/30 transition-colors cursor-pointer">
-                <div :class="cn('p-2 rounded-lg', typeConfig[activity.type].bg)">
-                    <component :is="typeConfig[activity.type].icon"
-                        :class="cn('w-4 h-4', typeConfig[activity.type].color)" />
+                <div :class="cn('p-2 rounded-lg', typeConfig[activity.type]?.bg)">
+                    <component :is="typeConfig[activity.type]?.icon"
+                        :class="cn('w-4 h-4', typeConfig[activity.type]?.color)" />
                 </div>
                 <div class="flex-1 min-w-0">
                     <p class="font-medium text-sm text-foreground truncate">
