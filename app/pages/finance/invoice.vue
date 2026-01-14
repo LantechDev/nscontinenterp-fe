@@ -5,13 +5,23 @@ definePageMeta({
     layout: "dashboard",
 });
 
-const invoices = [
+interface Invoice {
+    id: string;
+    number: string;
+    customer: string;
+    date: string;
+    dueDate: string;
+    amount: string;
+    status: "pending" | "paid" | "overdue";
+}
+
+const invoices: Invoice[] = [
     { id: "1", number: "INV-2024-0892", customer: "PT Maju Bersama", date: "7 Jan 2025", dueDate: "7 Feb 2025", amount: "Rp 25.500.000", status: "pending" },
     { id: "2", number: "INV-2024-0891", customer: "CV Sukses Makmur", date: "5 Jan 2025", dueDate: "5 Feb 2025", amount: "Rp 18.250.000", status: "paid" },
     { id: "3", number: "INV-2024-0890", customer: "PT Logistik Nusantara", date: "3 Jan 2025", dueDate: "3 Feb 2025", amount: "Rp 32.000.000", status: "overdue" },
 ];
 
-const statusConfig: Record<string, { label: string; class: string }> = {
+const statusConfig: Record<Invoice["status"], { label: string; class: string }> = {
     pending: { label: "Pending", class: "badge-warning" },
     paid: { label: "Lunas", class: "badge-success" },
     overdue: { label: "Jatuh Tempo", class: "badge-destructive" },
@@ -73,8 +83,8 @@ const statusConfig: Record<string, { label: string; class: string }> = {
                         <td class="font-medium">{{ invoice.amount }}</td>
                         <td>
                             <span
-                                :class="['inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium', statusConfig[invoice.status].class]">
-                                {{ statusConfig[invoice.status].label }}
+                                :class="['inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium', statusConfig[invoice.status]?.class]">
+                                {{ statusConfig[invoice.status]?.label }}
                             </span>
                         </td>
                         <td>

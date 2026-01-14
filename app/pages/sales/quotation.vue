@@ -5,14 +5,23 @@ definePageMeta({
     layout: "dashboard",
 });
 
-const quotations = [
+interface Quotation {
+    id: string;
+    number: string;
+    customer: string;
+    date: string;
+    amount: string;
+    status: "sent" | "draft" | "accepted" | "rejected";
+}
+
+const quotations: Quotation[] = [
     { id: "1", number: "QUO-2024-001", customer: "PT Maju Bersama", date: "7 Jan 2025", amount: "Rp 25.500.000", status: "sent" },
     { id: "2", number: "QUO-2024-002", customer: "CV Sukses Makmur", date: "6 Jan 2025", amount: "Rp 18.250.000", status: "draft" },
     { id: "3", number: "QUO-2024-003", customer: "PT Logistik Nusantara", date: "5 Jan 2025", amount: "Rp 32.000.000", status: "accepted" },
     { id: "4", number: "QUO-2024-004", customer: "PT Indo Shipping", date: "4 Jan 2025", amount: "Rp 15.750.000", status: "rejected" },
 ];
 
-const statusConfig: Record<string, { label: string; class: string }> = {
+const statusConfig: Record<Quotation["status"], { label: string; class: string }> = {
     draft: { label: "Draft", class: "bg-muted text-muted-foreground" },
     sent: { label: "Terkirim", class: "badge-warning" },
     accepted: { label: "Diterima", class: "badge-success" },
@@ -74,8 +83,8 @@ const statusConfig: Record<string, { label: string; class: string }> = {
                         <td class="font-medium">{{ quotation.amount }}</td>
                         <td>
                             <span
-                                :class="['inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium', statusConfig[quotation.status].class]">
-                                {{ statusConfig[quotation.status].label }}
+                                :class="['inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium', statusConfig[quotation.status]?.class]">
+                                {{ statusConfig[quotation.status]?.label }}
                             </span>
                         </td>
                         <td>

@@ -5,12 +5,21 @@ definePageMeta({
     layout: "dashboard",
 });
 
-const ebls = [
+interface Ebl {
+    id: string;
+    number: string;
+    job: string;
+    shipper: string;
+    consignee: string;
+    status: "issued" | "draft" | "surrendered";
+}
+
+const ebls: Ebl[] = [
     { id: "1", number: "EBL-2024-001", job: "JOB-2024-001234", shipper: "PT Maju Bersama", consignee: "Singapore Trading Co", status: "issued" },
     { id: "2", number: "EBL-2024-002", job: "JOB-2024-001231", shipper: "PT Indo Shipping", consignee: "Korea Import Ltd", status: "draft" },
 ];
 
-const statusConfig: Record<string, { label: string; class: string }> = {
+const statusConfig: Record<Ebl["status"], { label: string; class: string }> = {
     draft: { label: "Draft", class: "bg-muted text-muted-foreground" },
     issued: { label: "Terbit", class: "badge-success" },
     surrendered: { label: "Surrendered", class: "badge-warning" },
@@ -62,8 +71,8 @@ const statusConfig: Record<string, { label: string; class: string }> = {
                         <td>{{ ebl.consignee }}</td>
                         <td>
                             <span
-                                :class="['inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium', statusConfig[ebl.status].class]">
-                                {{ statusConfig[ebl.status].label }}
+                                :class="['inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium', statusConfig[ebl.status]?.class]">
+                                {{ statusConfig[ebl.status]?.label }}
                             </span>
                         </td>
                         <td>

@@ -5,13 +5,24 @@ definePageMeta({
     layout: "dashboard",
 });
 
-const jobs = [
+interface Job {
+    id: string;
+    number: string;
+    customer: string;
+    type: "export" | "import";
+    origin: string;
+    destination: string;
+    status: "active" | "pending" | "completed";
+    eta: string;
+}
+
+const jobs: Job[] = [
     { id: "1", number: "JOB-2024-001234", customer: "PT Maju Bersama", type: "export", origin: "Jakarta", destination: "Singapore", status: "active", eta: "12 Jan 2025" },
     { id: "2", number: "JOB-2024-001233", customer: "CV Sukses Makmur", type: "import", origin: "Shanghai", destination: "Surabaya", status: "pending", eta: "15 Jan 2025" },
     { id: "3", number: "JOB-2024-001232", customer: "PT Logistik Nusantara", type: "export", origin: "Semarang", destination: "Tokyo", status: "completed", eta: "5 Jan 2025" },
 ];
 
-const statusConfig: Record<string, { label: string; class: string }> = {
+const statusConfig: Record<Job["status"], { label: string; class: string }> = {
     active: { label: "Aktif", class: "badge-success" },
     pending: { label: "Pending", class: "badge-warning" },
     completed: { label: "Selesai", class: "bg-muted text-muted-foreground" },
@@ -77,8 +88,8 @@ const statusConfig: Record<string, { label: string; class: string }> = {
                         <td class="text-muted-foreground">{{ job.eta }}</td>
                         <td>
                             <span
-                                :class="['inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium', statusConfig[job.status].class]">
-                                {{ statusConfig[job.status].label }}
+                                :class="['inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium', statusConfig[job.status]?.class]">
+                                {{ statusConfig[job.status]?.label }}
                             </span>
                         </td>
                         <td>

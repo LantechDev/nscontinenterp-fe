@@ -56,7 +56,7 @@ const jobs: Job[] = [
     },
 ];
 
-const statusConfig: Record<string, { label: string; class: string }> = {
+const statusConfig: Record<Job["status"], { label: string; class: string }> = {
     active: { label: "Aktif", class: "badge-success" },
     pending: { label: "Pending", class: "badge-warning" },
     completed: { label: "Selesai", class: "text-muted-foreground bg-muted" },
@@ -92,10 +92,10 @@ const statusConfig: Record<string, { label: string; class: string }> = {
                         </p>
                         <span :class="cn(
                             'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium',
-                            statusConfig[job.status].class,
+                            statusConfig[job.status]?.class,
                         )
                             ">
-                            {{ statusConfig[job.status].label }}
+                            {{ statusConfig[job.status]?.label }}
                         </span>
                     </div>
                     <p class="text-sm text-muted-foreground truncate">
