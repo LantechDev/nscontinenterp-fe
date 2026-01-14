@@ -63,7 +63,9 @@ async function login() {
 		<div>
 			<div>login</div>
 			<form @submit.prevent="login" action="post">
+				<label for="email">Email</label>
 				<input v-model="credentials.email" type="text" name="email">
+				<label for="password">Password</label>
 				<input v-model="credentials.password" type="text" name="password">
 				<button type="submit">login</button>
 			</form>
