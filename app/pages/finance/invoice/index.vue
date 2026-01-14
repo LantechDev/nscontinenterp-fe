@@ -35,10 +35,10 @@ const statusConfig: Record<Invoice["status"], { label: string; class: string }> 
                 <h1 class="page-title">Invoice</h1>
                 <p class="text-muted-foreground mt-1">Kelola tagihan customer</p>
             </div>
-            <button class="btn-primary">
+            <NuxtLink to="/finance/invoice/create" class="btn-primary">
                 <Plus class="w-4 h-4 mr-2" />
                 Buat Invoice
-            </button>
+            </NuxtLink>
         </div>
 
         <div class="card-elevated p-4">
@@ -70,7 +70,8 @@ const statusConfig: Record<Invoice["status"], { label: string; class: string }> 
                     </tr>
                 </thead>
                 <tbody>
-                    <tr v-for="invoice in invoices" :key="invoice.id">
+                    <tr v-for="invoice in invoices" :key="invoice.id" class="cursor-pointer hover:bg-muted/50"
+                        @click="navigateTo(`/finance/invoice/${invoice.id}`)">
                         <td>
                             <div class="flex items-center gap-2">
                                 <Receipt class="w-4 h-4 text-primary" />
@@ -89,10 +90,11 @@ const statusConfig: Record<Invoice["status"], { label: string; class: string }> 
                         </td>
                         <td>
                             <div class="flex gap-1">
-                                <button class="p-1.5 rounded hover:bg-muted transition-colors">
+                                <NuxtLink :to="`/finance/invoice/${invoice.id}`"
+                                    class="p-1.5 rounded hover:bg-muted transition-colors" @click.stop>
                                     <Eye class="w-4 h-4 text-muted-foreground" />
-                                </button>
-                                <button class="p-1.5 rounded hover:bg-muted transition-colors">
+                                </NuxtLink>
+                                <button class="p-1.5 rounded hover:bg-muted transition-colors" @click.stop>
                                     <Download class="w-4 h-4 text-muted-foreground" />
                                 </button>
                             </div>

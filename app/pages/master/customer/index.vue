@@ -70,10 +70,10 @@ const customers = [
                     Kelola data customer dan shipper/consignee
                 </p>
             </div>
-            <button class="btn-primary">
+            <NuxtLink to="/master/customer/create" class="btn-primary">
                 <Plus class="w-4 h-4 mr-2" />
                 Tambah Customer
-            </button>
+            </NuxtLink>
         </div>
 
         <!-- Filters -->
@@ -101,8 +101,8 @@ const customers = [
 
         <!-- Customer cards -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <div v-for="customer in customers" :key="customer.id"
-                class="card-elevated p-5 hover:shadow-lg transition-shadow duration-200">
+            <NuxtLink v-for="customer in customers" :key="customer.id" :to="`/master/customer/${customer.id}`"
+                class="card-elevated p-5 hover:shadow-lg transition-shadow duration-200 block">
                 <div class="flex items-start justify-between mb-4">
                     <div class="flex items-center gap-4">
                         <div class="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
@@ -117,7 +117,7 @@ const customers = [
                             </p>
                         </div>
                     </div>
-                    <button class="p-2 rounded-lg hover:bg-muted transition-colors">
+                    <button class="p-2 rounded-lg hover:bg-muted transition-colors" @click.prevent>
                         <MoreVertical class="w-4 h-4 text-muted-foreground" />
                     </button>
                 </div>
@@ -154,7 +154,7 @@ const customers = [
                         <p class="text-xs text-muted-foreground">Total Job</p>
                     </div>
                 </div>
-            </div>
+            </NuxtLink>
         </div>
     </div>
 </template>

@@ -21,10 +21,10 @@ const services = [
                 <h1 class="page-title">Jasa</h1>
                 <p class="text-muted-foreground mt-1">Kelola daftar jasa dan harga</p>
             </div>
-            <button class="btn-primary">
+            <NuxtLink to="/master/services/create" class="btn-primary">
                 <Plus class="w-4 h-4 mr-2" />
                 Tambah Jasa
-            </button>
+            </NuxtLink>
         </div>
 
         <div class="card-elevated p-4">
@@ -46,7 +46,8 @@ const services = [
                     </tr>
                 </thead>
                 <tbody>
-                    <tr v-for="service in services" :key="service.id">
+                    <tr v-for="service in services" :key="service.id" class="cursor-pointer hover:bg-muted/50"
+                        @click="navigateTo(`/master/services/${service.id}`)">
                         <td>
                             <div class="flex items-center gap-2">
                                 <Package class="w-4 h-4 text-primary" />
@@ -58,10 +59,11 @@ const services = [
                         <td class="text-muted-foreground">{{ service.unit }}</td>
                         <td>
                             <div class="flex gap-1">
-                                <button class="p-1.5 rounded hover:bg-muted transition-colors">
+                                <NuxtLink :to="`/master/services/${service.id}`"
+                                    class="p-1.5 rounded hover:bg-muted transition-colors" @click.stop>
                                     <Edit class="w-4 h-4 text-muted-foreground" />
-                                </button>
-                                <button class="p-1.5 rounded hover:bg-muted transition-colors">
+                                </NuxtLink>
+                                <button class="p-1.5 rounded hover:bg-muted transition-colors" @click.stop>
                                     <Trash2 class="w-4 h-4 text-destructive" />
                                 </button>
                             </div>

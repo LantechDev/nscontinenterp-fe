@@ -33,10 +33,10 @@ const statusConfig: Record<Ebl["status"], { label: string; class: string }> = {
                 <h1 class="page-title">eBL (Electronic Bill of Lading)</h1>
                 <p class="text-muted-foreground mt-1">Kelola dokumen eBL</p>
             </div>
-            <button class="btn-primary">
+            <NuxtLink to="/operational/ebl/create" class="btn-primary">
                 <Plus class="w-4 h-4 mr-2" />
                 Buat eBL
-            </button>
+            </NuxtLink>
         </div>
 
         <div class="card-elevated p-4">
@@ -59,7 +59,8 @@ const statusConfig: Record<Ebl["status"], { label: string; class: string }> = {
                     </tr>
                 </thead>
                 <tbody>
-                    <tr v-for="ebl in ebls" :key="ebl.id">
+                    <tr v-for="ebl in ebls" :key="ebl.id" class="cursor-pointer hover:bg-muted/50"
+                        @click="navigateTo(`/operational/ebl/${ebl.id}`)">
                         <td>
                             <div class="flex items-center gap-2">
                                 <FileText class="w-4 h-4 text-primary" />
@@ -76,7 +77,7 @@ const statusConfig: Record<Ebl["status"], { label: string; class: string }> = {
                             </span>
                         </td>
                         <td>
-                            <button class="p-1.5 rounded hover:bg-muted transition-colors">
+                            <button class="p-1.5 rounded hover:bg-muted transition-colors" @click.stop>
                                 <Download class="w-4 h-4 text-muted-foreground" />
                             </button>
                         </td>

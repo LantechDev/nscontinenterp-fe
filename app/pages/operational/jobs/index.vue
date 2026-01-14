@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Plus, Search, Ship, Eye, FileCheck } from "lucide-vue-next";
+import { Plus, Search, Ship, Eye } from "lucide-vue-next";
 
 definePageMeta({
     layout: "dashboard",
@@ -36,10 +36,10 @@ const statusConfig: Record<Job["status"], { label: string; class: string }> = {
                 <h1 class="page-title">Job / Shipment</h1>
                 <p class="text-muted-foreground mt-1">Kelola job dan shipment</p>
             </div>
-            <button class="btn-primary">
+            <NuxtLink to="/operational/jobs/create" class="btn-primary">
                 <Plus class="w-4 h-4 mr-2" />
                 Open Job Baru
-            </button>
+            </NuxtLink>
         </div>
 
         <div class="card-elevated p-4">
@@ -70,7 +70,8 @@ const statusConfig: Record<Job["status"], { label: string; class: string }> = {
                     </tr>
                 </thead>
                 <tbody>
-                    <tr v-for="job in jobs" :key="job.id">
+                    <tr v-for="job in jobs" :key="job.id" class="cursor-pointer hover:bg-muted/50"
+                        @click="navigateTo(`/operational/jobs/${job.id}`)">
                         <td>
                             <div class="flex items-center gap-2">
                                 <Ship class="w-4 h-4 text-primary" />
@@ -93,9 +94,10 @@ const statusConfig: Record<Job["status"], { label: string; class: string }> = {
                             </span>
                         </td>
                         <td>
-                            <button class="p-1.5 rounded hover:bg-muted transition-colors">
+                            <NuxtLink :to="`/operational/jobs/${job.id}`"
+                                class="p-1.5 rounded hover:bg-muted transition-colors inline-flex" @click.stop>
                                 <Eye class="w-4 h-4 text-muted-foreground" />
-                            </button>
+                            </NuxtLink>
                         </td>
                     </tr>
                 </tbody>

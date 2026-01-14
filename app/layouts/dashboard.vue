@@ -72,7 +72,7 @@ const currentTime = computed(() => {
 
             <!-- Page content -->
             <main class="p-6">
-                <slot />
+                <NuxtPage :key="$route.fullPath" />
             </main>
         </div>
     </div>
