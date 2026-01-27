@@ -5,13 +5,13 @@ import Combobox from "~/components/ui/Combobox.vue";
 // Import types implicitly or explicitly if exported from composable
 import type { Company, ContainerType, Vessel } from "~/composables/useMasterData";
 
-
 definePageMeta({
     layout: "dashboard",
 });
 
 const { createJob, isLoading } = useJobs();
-const { fetchCompanies, fetchContainerTypes, fetchVessels, createCompany, createVessel } = useMasterData();
+const { fetchCompanies, fetchContainerTypes, fetchVessels, createCompany, createVessel } =
+    useMasterData();
 const router = useRouter();
 
 const companies = ref<Company[]>([]);
@@ -26,7 +26,7 @@ async function refreshMasterData() {
     const [comps, types, vess] = await Promise.all([
         fetchCompanies(),
         fetchContainerTypes(),
-        fetchVessels()
+        fetchVessels(),
     ]);
     companies.value = comps;
     containerTypes.value = types;
@@ -46,7 +46,7 @@ const formData = reactive({
     totalBlCount: 1,
 });
 
-async function handleCreateCompany(name: string, field: 'shipperId' | 'consigneeId') {
+async function handleCreateCompany(name: string, field: "shipperId" | "consigneeId") {
     if (!confirm(`Create new company "${name}"?`)) return;
 
     const result = await createCompany(name);
@@ -93,7 +93,10 @@ async function handleSubmit() {
     <div class="space-y-6 animate-fade-in">
         <div class="page-header">
             <div class="flex items-center gap-4">
-                <NuxtLink to="/operational/jobs" class="p-2 rounded-lg hover:bg-muted transition-colors">
+                <NuxtLink
+                    to="/operational/jobs"
+                    class="p-2 rounded-lg hover:bg-muted transition-colors"
+                >
                     <ArrowLeft class="w-5 h-5" />
                 </NuxtLink>
                 <div>
@@ -108,36 +111,72 @@ async function handleSubmit() {
                 <!-- Shipper/Consignee inputs -->
                 <div class="space-y-2">
                     <label class="text-sm font-medium">Shipper</label>
-                    <Combobox v-model="formData.shipperId" :options="companies" label-key="name" value-key="id"
-                        placeholder="Pilih atau Buat Shipper..." allow-create
-                        @create="(name) => handleCreateCompany(name, 'shipperId')" />
+                    <Combobox
+                        v-model="formData.shipperId"
+                        :options="companies"
+                        label-key="name"
+                        value-key="id"
+                        placeholder="Pilih atau Buat Shipper..."
+                        allow-create
+                        @create="(name) => handleCreateCompany(name, 'shipperId')"
+                    />
                 </div>
                 <div class="space-y-2">
                     <label class="text-sm font-medium">Consignee</label>
-                    <Combobox v-model="formData.consigneeId" :options="companies" label-key="name" value-key="id"
-                        placeholder="Pilih atau Buat Consignee..." allow-create
-                        @create="(name) => handleCreateCompany(name, 'consigneeId')" />
+                    <Combobox
+                        v-model="formData.consigneeId"
+                        :options="companies"
+                        label-key="name"
+                        value-key="id"
+                        placeholder="Pilih atau Buat Consignee..."
+                        allow-create
+                        @create="(name) => handleCreateCompany(name, 'consigneeId')"
+                    />
                 </div>
 
                 <div class="space-y-2">
                     <label class="text-sm font-medium">Komoditas</label>
-                    <input v-model="formData.commodity" type="text" placeholder="Electronics" class="input-field"
-                        required />
+                    <input
+                        v-model="formData.commodity"
+                        type="text"
+                        placeholder="Electronics"
+                        class="input-field"
+                        required
+                    />
                 </div>
 
                 <div class="space-y-2">
                     <label class="text-sm font-medium">Pelabuhan Muat (POL)</label>
-                    <input v-model="formData.pol" type="text" placeholder="Jakarta" class="input-field" required />
+                    <input
+                        v-model="formData.pol"
+                        type="text"
+                        placeholder="Jakarta"
+                        class="input-field"
+                        required
+                    />
                 </div>
                 <div class="space-y-2">
                     <label class="text-sm font-medium">Pelabuhan Bongkar (POD)</label>
-                    <input v-model="formData.pod" type="text" placeholder="Singapore" class="input-field" required />
+                    <input
+                        v-model="formData.pod"
+                        type="text"
+                        placeholder="Singapore"
+                        class="input-field"
+                        required
+                    />
                 </div>
 
                 <div class="space-y-2">
                     <label class="text-sm font-medium">Vessel / Nama Kapal</label>
-                    <Combobox v-model="formData.vesselId" :options="vessels" label-key="name" value-key="id"
-                        placeholder="Pilih atau Buat Vessel..." allow-create @create="handleCreateVessel" />
+                    <Combobox
+                        v-model="formData.vesselId"
+                        :options="vessels"
+                        label-key="name"
+                        value-key="id"
+                        placeholder="Pilih atau Buat Vessel..."
+                        allow-create
+                        @create="handleCreateVessel"
+                    />
                 </div>
 
                 <div class="grid grid-cols-2 gap-4">
@@ -162,14 +201,19 @@ async function handleSubmit() {
                 </div>
                 <div class="space-y-2">
                     <label class="text-sm font-medium">Jumlah BL</label>
-                    <input v-model.number="formData.totalBlCount" type="number" min="1" class="input-field" />
+                    <input
+                        v-model.number="formData.totalBlCount"
+                        type="number"
+                        min="1"
+                        class="input-field"
+                    />
                 </div>
             </div>
             <div class="flex justify-end gap-3 pt-4 border-t border-border">
                 <NuxtLink to="/operational/jobs" class="btn-secondary">Batal</NuxtLink>
                 <button type="submit" class="btn-primary" :disabled="isLoading">
                     <Save class="w-4 h-4 mr-2" />
-                    {{ isLoading ? 'Menyimpan...' : 'Simpan' }}
+                    {{ isLoading ? "Menyimpan..." : "Simpan" }}
                 </button>
             </div>
         </form>

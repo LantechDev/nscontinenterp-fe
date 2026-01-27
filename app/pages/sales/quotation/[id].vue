@@ -31,7 +31,10 @@ const quotation = {
     <div class="space-y-6 animate-fade-in">
         <div class="page-header">
             <div class="flex items-center gap-4">
-                <NuxtLink to="/sales/quotation" class="p-2 rounded-lg hover:bg-muted transition-colors">
+                <NuxtLink
+                    to="/sales/quotation"
+                    class="p-2 rounded-lg hover:bg-muted transition-colors"
+                >
                     <ArrowLeft class="w-5 h-5" />
                 </NuxtLink>
                 <div>
@@ -81,8 +84,11 @@ const quotation = {
             <div class="border-t border-border pt-6">
                 <h3 class="font-semibold mb-4">Detail Jasa</h3>
                 <div class="space-y-2">
-                    <div v-for="(service, index) in quotation.services" :key="index"
-                        class="flex justify-between py-2 border-b border-border last:border-0">
+                    <div
+                        v-for="(service, index) in quotation.services"
+                        :key="index"
+                        class="flex justify-between py-2 border-b border-border last:border-0"
+                    >
                         <span>{{ service.name }}</span>
                         <span class="font-medium">{{ service.price }}</span>
                     </div>

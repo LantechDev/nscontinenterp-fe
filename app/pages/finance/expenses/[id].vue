@@ -25,7 +25,10 @@ const expense = {
     <div class="space-y-6 animate-fade-in">
         <div class="page-header">
             <div class="flex items-center gap-4">
-                <NuxtLink to="/finance/expenses" class="p-2 rounded-lg hover:bg-muted transition-colors">
+                <NuxtLink
+                    to="/finance/expenses"
+                    class="p-2 rounded-lg hover:bg-muted transition-colors"
+                >
                     <ArrowLeft class="w-5 h-5" />
                 </NuxtLink>
                 <div>
@@ -37,14 +40,18 @@ const expense = {
 
         <div class="card-elevated p-6">
             <div class="flex items-center gap-4 mb-6 pb-6 border-b border-border">
-                <div class="w-14 h-14 rounded-xl bg-destructive/10 flex items-center justify-center">
+                <div
+                    class="w-14 h-14 rounded-xl bg-destructive/10 flex items-center justify-center"
+                >
                     <Wallet class="w-7 h-7 text-destructive" />
                 </div>
                 <div>
                     <h2 class="text-xl font-semibold">{{ expense.number }}</h2>
                     <p class="text-muted-foreground">{{ expense.vendor }}</p>
                 </div>
-                <span class="ml-auto text-2xl font-bold text-destructive">{{ expense.amount }}</span>
+                <span class="ml-auto text-2xl font-bold text-destructive">{{
+                    expense.amount
+                }}</span>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -62,7 +69,9 @@ const expense = {
                 </div>
                 <div class="space-y-1">
                     <p class="text-sm text-muted-foreground">Kategori</p>
-                    <span class="text-xs bg-muted px-2 py-0.5 rounded-full">{{ expense.category }}</span>
+                    <span class="text-xs bg-muted px-2 py-0.5 rounded-full">{{
+                        expense.category
+                    }}</span>
                 </div>
                 <div class="space-y-1">
                     <p class="text-sm text-muted-foreground">Keterangan</p>

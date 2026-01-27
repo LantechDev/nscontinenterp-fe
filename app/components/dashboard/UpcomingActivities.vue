@@ -47,8 +47,11 @@ const activities: Activity[] = [
         </div>
 
         <div class="space-y-4 flex-1 overflow-auto pr-2">
-            <div v-for="activity in activities" :key="activity.id"
-                class="p-4 rounded-xl border border-border bg-card hover:shadow-md transition-shadow cursor-pointer">
+            <div
+                v-for="activity in activities"
+                :key="activity.id"
+                class="p-4 rounded-xl border border-border bg-card hover:shadow-md transition-shadow cursor-pointer"
+            >
                 <div class="flex items-center justify-between mb-1">
                     <p class="font-semibold text-foreground">{{ activity.title }}</p>
                     <ChevronRight class="w-4 h-4 text-muted-foreground" />

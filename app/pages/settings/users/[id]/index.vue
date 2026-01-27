@@ -23,9 +23,9 @@ onMounted(async () => {
                 name: u.name,
                 email: u.email,
                 role: u.role,
-                status: u.banned ? 'inactive' : 'active',
-                lastLogin: u.lastLogin ? new Date(u.lastLogin).toLocaleString() : '-',
-                createdAt: u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '-'
+                status: u.banned ? "inactive" : "active",
+                lastLogin: u.lastLogin ? new Date(u.lastLogin).toLocaleString() : "-",
+                createdAt: u.createdAt ? new Date(u.createdAt).toLocaleDateString() : "-",
             };
         } else {
             errorMessage.value = result.error || "Gagal mengambil data user.";
@@ -42,26 +42,33 @@ onMounted(async () => {
     <div class="space-y-6 animate-fade-in">
         <div class="page-header">
             <div class="flex items-center gap-4">
-                <NuxtLink to="/settings/users" class="p-2 rounded-lg hover:bg-muted transition-colors">
+                <NuxtLink
+                    to="/settings/users"
+                    class="p-2 rounded-lg hover:bg-muted transition-colors"
+                >
                     <ArrowLeft class="w-5 h-5" />
                 </NuxtLink>
                 <div>
-                    <h1 class="page-title">{{ user?.name || 'Loading...' }}</h1>
+                    <h1 class="page-title">{{ user?.name || "Loading..." }}</h1>
                     <p class="text-muted-foreground mt-1">Detail user</p>
                 </div>
             </div>
-            <NuxtLink :to="`/settings/users/${userId}/edit`" class="btn-primary"
-                :class="{ 'opacity-50 pointer-events-none': isLoading || !user }">
+            <NuxtLink
+                :to="`/settings/users/${userId}/edit`"
+                class="btn-primary"
+                :class="{ 'opacity-50 pointer-events-none': isLoading || !user }"
+            >
                 <Edit class="w-4 h-4 mr-2" />
                 Edit
             </NuxtLink>
         </div>
 
-        <div v-if="isLoading" class="p-8 text-center text-muted-foreground">
-            Loading...
-        </div>
+        <div v-if="isLoading" class="p-8 text-center text-muted-foreground">Loading...</div>
 
-        <div v-else-if="errorMessage" class="bg-red-50 text-red-600 p-3 rounded-lg text-sm border border-red-200">
+        <div
+            v-else-if="errorMessage"
+            class="bg-red-50 text-red-600 p-3 rounded-lg text-sm border border-red-200"
+        >
             {{ errorMessage }}
         </div>
 
@@ -75,8 +82,14 @@ onMounted(async () => {
                     <p class="text-muted-foreground">{{ user.email }}</p>
                 </div>
                 <span
-                    :class="['ml-auto inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium', user.status === 'active' ? 'badge-success' : 'bg-muted text-muted-foreground']">
-                    {{ user.status === 'active' ? 'Aktif' : 'Tidak Aktif' }}
+                    :class="[
+                        'ml-auto inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium',
+                        user.status === 'active'
+                            ? 'badge-success'
+                            : 'bg-muted text-muted-foreground',
+                    ]"
+                >
+                    {{ user.status === "active" ? "Aktif" : "Tidak Aktif" }}
                 </span>
             </div>
 
@@ -90,7 +103,9 @@ onMounted(async () => {
                 </div>
                 <div class="space-y-1">
                     <p class="text-sm text-muted-foreground">Status</p>
-                    <p class="font-medium">{{ user.status === 'active' ? 'Aktif' : 'Tidak Aktif' }}</p>
+                    <p class="font-medium">
+                        {{ user.status === "active" ? "Aktif" : "Tidak Aktif" }}
+                    </p>
                 </div>
                 <div class="space-y-1">
                     <p class="text-sm text-muted-foreground">Login Terakhir</p>

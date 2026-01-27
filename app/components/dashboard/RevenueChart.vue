@@ -1,5 +1,4 @@
 <script setup lang="ts">
-
 // Data for the chart
 const series = [
     {
