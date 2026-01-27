@@ -10,8 +10,10 @@ definePageMeta({
     <div class="space-y-6 animate-fade-in">
         <div class="page-header">
             <div class="flex items-center gap-4">
-                <NuxtLink to="/master/customer"
-                    class="p-2 rounded-lg hover:bg-muted transition-colors">
+                <NuxtLink
+                    to="/master/customer"
+                    class="p-2 rounded-lg hover:bg-muted transition-colors"
+                >
                     <ArrowLeft class="w-5 h-5" />
                 </NuxtLink>
                 <div>
@@ -57,13 +59,15 @@ definePageMeta({
                 </div>
                 <div class="space-y-2 md:col-span-2">
                     <label class="text-sm font-medium">Alamat</label>
-                    <textarea rows="3" placeholder="Alamat lengkap..." class="input-field"></textarea>
+                    <textarea
+                        rows="3"
+                        placeholder="Alamat lengkap..."
+                        class="input-field"
+                    ></textarea>
                 </div>
             </div>
             <div class="flex justify-end gap-3 pt-4 border-t border-border">
-                <NuxtLink to="/master/customer" class="btn-secondary">
-                    Batal
-                </NuxtLink>
+                <NuxtLink to="/master/customer" class="btn-secondary"> Batal </NuxtLink>
                 <button type="submit" class="btn-primary">
                     <Save class="w-4 h-4 mr-2" />
                     Simpan

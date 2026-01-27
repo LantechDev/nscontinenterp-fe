@@ -10,8 +10,7 @@ definePageMeta({
     <div class="space-y-6 animate-fade-in">
         <div class="page-header">
             <div class="flex items-center gap-4">
-                <NuxtLink to="/finance/tax"
-                    class="p-2 rounded-lg hover:bg-muted transition-colors">
+                <NuxtLink to="/finance/tax" class="p-2 rounded-lg hover:bg-muted transition-colors">
                     <ArrowLeft class="w-5 h-5" />
                 </NuxtLink>
                 <div>
@@ -54,9 +53,7 @@ definePageMeta({
                 <textarea rows="3" placeholder="Catatan tambahan..." class="input-field"></textarea>
             </div>
             <div class="flex justify-end gap-3 pt-4 border-t border-border">
-                <NuxtLink to="/finance/tax" class="btn-secondary">
-                    Batal
-                </NuxtLink>
+                <NuxtLink to="/finance/tax" class="btn-secondary"> Batal </NuxtLink>
                 <button type="submit" class="btn-primary">
                     <Save class="w-4 h-4 mr-2" />
                     Simpan

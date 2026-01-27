@@ -27,8 +27,10 @@ const customer = {
     <div class="space-y-6 animate-fade-in">
         <div class="page-header">
             <div class="flex items-center gap-4">
-                <NuxtLink to="/master/customer"
-                    class="p-2 rounded-lg hover:bg-muted transition-colors">
+                <NuxtLink
+                    to="/master/customer"
+                    class="p-2 rounded-lg hover:bg-muted transition-colors"
+                >
                     <ArrowLeft class="w-5 h-5" />
                 </NuxtLink>
                 <div>
@@ -53,7 +55,9 @@ const customer = {
                 </div>
                 <div class="ml-auto flex items-center gap-2">
                     <span class="badge-success">Aktif</span>
-                    <span class="text-xs bg-muted px-2 py-0.5 rounded-full">{{ customer.type }}</span>
+                    <span class="text-xs bg-muted px-2 py-0.5 rounded-full">{{
+                        customer.type
+                    }}</span>
                 </div>
             </div>
 

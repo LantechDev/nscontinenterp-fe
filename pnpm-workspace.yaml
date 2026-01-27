@@ -1,4 +1,4 @@
 packages: []
 ignoredBuiltDependencies:
-  - '@parcel/watcher'
-  - esbuild
+    - "@parcel/watcher"
+    - esbuild

@@ -24,8 +24,10 @@ const vendor = {
     <div class="space-y-6 animate-fade-in">
         <div class="page-header">
             <div class="flex items-center gap-4">
-                <NuxtLink to="/master/vendor"
-                    class="p-2 rounded-lg hover:bg-muted transition-colors">
+                <NuxtLink
+                    to="/master/vendor"
+                    class="p-2 rounded-lg hover:bg-muted transition-colors"
+                >
                     <ArrowLeft class="w-5 h-5" />
                 </NuxtLink>
                 <div>

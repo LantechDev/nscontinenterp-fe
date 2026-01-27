@@ -6,10 +6,38 @@ definePageMeta({
 });
 
 const cashflow = [
-    { id: "1", date: "7 Jan 2025", description: "Pembayaran dari PT Maju Bersama", type: "in", amount: "Rp 25.500.000", balance: "Rp 125.500.000" },
-    { id: "2", date: "6 Jan 2025", description: "Pembayaran ke CV Trucking Mandiri", type: "out", amount: "Rp 3.500.000", balance: "Rp 100.000.000" },
-    { id: "3", date: "5 Jan 2025", description: "Pembayaran dari CV Sukses Makmur", type: "in", amount: "Rp 18.250.000", balance: "Rp 103.500.000" },
-    { id: "4", date: "5 Jan 2025", description: "Pembayaran ke PT Pelayaran Nusantara", type: "out", amount: "Rp 12.500.000", balance: "Rp 85.250.000" },
+    {
+        id: "1",
+        date: "7 Jan 2025",
+        description: "Pembayaran dari PT Maju Bersama",
+        type: "in",
+        amount: "Rp 25.500.000",
+        balance: "Rp 125.500.000",
+    },
+    {
+        id: "2",
+        date: "6 Jan 2025",
+        description: "Pembayaran ke CV Trucking Mandiri",
+        type: "out",
+        amount: "Rp 3.500.000",
+        balance: "Rp 100.000.000",
+    },
+    {
+        id: "3",
+        date: "5 Jan 2025",
+        description: "Pembayaran dari CV Sukses Makmur",
+        type: "in",
+        amount: "Rp 18.250.000",
+        balance: "Rp 103.500.000",
+    },
+    {
+        id: "4",
+        date: "5 Jan 2025",
+        description: "Pembayaran ke PT Pelayaran Nusantara",
+        type: "out",
+        amount: "Rp 12.500.000",
+        balance: "Rp 85.250.000",
+    },
 ];
 </script>
 
