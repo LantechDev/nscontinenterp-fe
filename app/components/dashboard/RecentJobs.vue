@@ -1,13 +1,13 @@
 <script setup lang="ts">
-import { Ship } from "lucide-vue-next";
+import { Ship, Eye } from "lucide-vue-next";
 import { cn } from "~/lib/utils";
 
 interface Job {
     id: string;
     jobNumber: string;
     customer: string;
-    type: "export" | "import";
-    status: "active" | "pending" | "completed";
+    type: "Export" | "Import";
+    status: "Active" | "Pending" | "Canceled" | "Done";
     origin: string;
     destination: string;
     date: string;
@@ -17,105 +17,110 @@ const jobs: Job[] = [
     {
         id: "1",
         jobNumber: "JOB-2024-001234",
-        customer: "PT Maju Bersama",
-        type: "export",
-        status: "active",
+        customer: "PT Maju Mundur",
+        type: "Export",
+        status: "Active",
         origin: "Jakarta",
         destination: "Singapore",
-        date: "7 Jan 2025",
+        date: "12 Jan 2026",
     },
     {
         id: "2",
-        jobNumber: "JOB-2024-001233",
-        customer: "CV Sukses Makmur",
-        type: "import",
-        status: "pending",
-        origin: "Shanghai",
-        destination: "Surabaya",
-        date: "6 Jan 2025",
+        jobNumber: "JOB-2024-001234",
+        customer: "PT Maju Mundur",
+        type: "Import",
+        status: "Pending",
+        origin: "Jakarta",
+        destination: "Singapore",
+        date: "12 Jan 2026",
     },
     {
         id: "3",
-        jobNumber: "JOB-2024-001232",
-        customer: "PT Logistik Nusantara",
-        type: "export",
-        status: "completed",
-        origin: "Semarang",
-        destination: "Tokyo",
-        date: "5 Jan 2025",
+        jobNumber: "JOB-2024-001234",
+        customer: "PT Maju Mundur",
+        type: "Import",
+        status: "Canceled",
+        origin: "Jakarta",
+        destination: "Singapore",
+        date: "12 Jan 2026",
     },
     {
         id: "4",
-        jobNumber: "JOB-2024-001231",
-        customer: "PT Indo Shipping",
-        type: "import",
-        status: "active",
-        origin: "Busan",
-        destination: "Jakarta",
-        date: "4 Jan 2025",
+        jobNumber: "JOB-2024-001234",
+        customer: "PT Maju Mundur",
+        type: "Import",
+        status: "Active",
+        origin: "Jakarta",
+        destination: "Singapore",
+        date: "12 Jan 2026",
+    },
+    {
+        id: "5",
+        jobNumber: "JOB-2024-001234",
+        customer: "PT Maju Mundur",
+        type: "Import",
+        status: "Done",
+        origin: "Jakarta",
+        destination: "Singapore",
+        date: "12 Jan 2026",
     },
 ];
 
-const statusConfig: Record<Job["status"], { label: string; class: string }> = {
-    active: { label: "Aktif", class: "badge-success" },
-    pending: { label: "Pending", class: "badge-warning" },
-    completed: { label: "Selesai", class: "text-muted-foreground bg-muted" },
+const statusConfig: Record<Job["status"], { label: string; className: string }> = {
+    Active: { label: "Active", className: "text-blue-600 border-blue-200 bg-blue-50 border" },
+    Pending: { label: "Pending", className: "text-yellow-600 border-yellow-200 bg-yellow-50 border" },
+    Canceled: { label: "Canceled", className: "text-red-600 border-red-200 bg-red-50 border" },
+    Done: { label: "Done", className: "text-emerald-600 border-emerald-200 bg-emerald-50 border" },
 };
 </script>
 
 <template>
-    <div class="card-elevated p-6">
-        <div class="flex items-center justify-between mb-4">
-            <h3 class="section-title mb-0">Job Terbaru</h3>
-            <button class="text-sm text-accent hover:text-accent/80 font-medium transition-colors">
-                Lihat Semua
-            </button>
-        </div>
-        <div class="space-y-3">
-            <div v-for="job in jobs" :key="job.id"
-                class="flex items-center gap-4 p-4 rounded-xl bg-muted/30 hover:bg-muted/50 transition-colors cursor-pointer group">
-                <div :class="cn(
-                    'p-2.5 rounded-lg',
-                    job.type === 'export' ? 'bg-chart-1/10' : 'bg-chart-2/10',
-                )
-                    ">
-                    <Ship :class="cn(
-                        'w-5 h-5',
-                        job.type === 'export' ? 'text-chart-1' : 'text-chart-2',
-                    )
-                        " />
-                </div>
-                <div class="flex-1 min-w-0">
-                    <div class="flex items-center gap-2 mb-1">
-                        <p class="font-medium text-foreground truncate">
-                            {{ job.jobNumber }}
-                        </p>
-                        <span :class="cn(
-                            'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium',
-                            statusConfig[job.status]?.class,
-                        )
-                            ">
-                            {{ statusConfig[job.status]?.label }}
-                        </span>
-                    </div>
-                    <p class="text-sm text-muted-foreground truncate">
-                        {{ job.customer }}
-                    </p>
-                    <p class="text-xs text-muted-foreground mt-1">
-                        {{ job.origin }} → {{ job.destination }}
-                    </p>
-                </div>
-                <div class="text-right">
-                    <p class="text-xs text-muted-foreground">{{ job.date }}</p>
-                    <span :class="cn(
-                        'text-xs font-medium uppercase',
-                        job.type === 'export' ? 'text-chart-1' : 'text-chart-2',
-                    )
-                        ">
-                        {{ job.type }}
-                    </span>
-                </div>
-            </div>
+    <div class="card-elevated p-6 overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full">
+                <thead>
+                    <tr class="border-b border-border text-left">
+                        <th class="pb-3 pt-1 text-sm font-medium text-muted-foreground w-[200px]">No. Job</th>
+                        <th class="pb-3 pt-1 text-sm font-medium text-muted-foreground">Customer</th>
+                        <th class="pb-3 pt-1 text-sm font-medium text-muted-foreground">Route</th>
+                        <th class="pb-3 pt-1 text-sm font-medium text-muted-foreground">ETA</th>
+                        <th class="pb-3 pt-1 text-sm font-medium text-muted-foreground">Type</th>
+                        <th class="pb-3 pt-1 text-sm font-medium text-muted-foreground">Status</th>
+                        <th class="pb-3 pt-1 text-sm font-medium text-muted-foreground w-10"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr v-for="job in jobs" :key="job.id"
+                        class="group border-b border-border last:border-0 hover:bg-muted/30 transition-colors">
+                        <td class="py-4 text-sm font-semibold">{{ job.jobNumber }}</td>
+                        <td class="py-4 text-sm">{{ job.customer }}</td>
+                        <td class="py-4 text-sm">{{ job.origin }} → {{ job.destination }}</td>
+                        <td class="py-4 text-sm">{{ job.date }}</td>
+                        <td class="py-4">
+                            <span :class="cn(
+                                'text-xs px-2 py-1 rounded font-medium',
+                                job.type === 'Export' ? 'bg-blue-100 text-blue-600' : 'bg-green-100 text-green-600'
+                            )">
+                                {{ job.type }}
+                            </span>
+                        </td>
+                        <td class="py-4">
+                            <span :class="cn(
+                                'text-xs px-3 py-1 rounded-full border font-medium',
+                                statusConfig[job.status]?.className
+                            )">
+                                {{ statusConfig[job.status]?.label }}
+                            </span>
+                        </td>
+                        <td class="py-4 text-right">
+                            <button
+                                class="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
+                                <Eye class="w-4 h-4" />
+                            </button>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
         </div>
     </div>
 </template>

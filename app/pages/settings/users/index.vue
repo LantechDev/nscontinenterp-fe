@@ -5,12 +5,45 @@ definePageMeta({
     layout: "dashboard",
 });
 
-const users = [
-    { id: "1", name: "Direktur", email: "direktur@lantech.co.id", role: "Superuser", status: "active", lastLogin: "7 Jan 2025, 09:15" },
-    { id: "2", name: "Manager Operasional", email: "ops.manager@lantech.co.id", role: "Manager", status: "active", lastLogin: "7 Jan 2025, 08:30" },
-    { id: "3", name: "Staff Finance", email: "finance@lantech.co.id", role: "Staff", status: "active", lastLogin: "6 Jan 2025, 17:45" },
-    { id: "4", name: "Staff Sales", email: "sales@lantech.co.id", role: "Staff", status: "inactive", lastLogin: "15 Des 2024, 14:20" },
-];
+const { fetchUsers } = useAuth();
+const { roles, fetchRoles } = useRoles();
+const users = ref<any[]>([]);
+const isLoading = ref(true);
+const searchQuery = ref("");
+const selectedRole = ref("");
+
+const filteredUsers = computed(() => {
+    return users.value.filter(user => {
+        const matchesSearch = searchQuery.value === "" ||
+            user.name.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
+            user.email.toLowerCase().includes(searchQuery.value.toLowerCase());
+
+        const matchesRole = selectedRole.value === "" || user.role === selectedRole.value;
+
+        return matchesSearch && matchesRole;
+    });
+});
+
+onMounted(async () => {
+    fetchRoles();
+    try {
+        const result = await fetchUsers();
+        if (result.success && result.data && Array.isArray(result.data.users)) {
+            users.value = result.data.users.map((u: any) => ({
+                id: u.id,
+                name: u.name,
+                email: u.email,
+                role: u.role,
+                status: u.banned ? 'inactive' : 'active', // mapping better-auth 'banned' to 'inactive' if applicable, or logic
+                lastLogin: u.lastLogin ? new Date(u.lastLogin).toLocaleString() : '-'
+            }));
+        }
+    } catch (e) {
+        console.error("Failed to fetch users", e);
+    } finally {
+        isLoading.value = false;
+    }
+});
 </script>
 
 <template>
@@ -20,23 +53,29 @@ const users = [
                 <h1 class="page-title">User & Role</h1>
                 <p class="text-muted-foreground mt-1">Kelola pengguna dan hak akses</p>
             </div>
-            <NuxtLink to="/settings/users/create" class="btn-primary">
-                <Plus class="w-4 h-4 mr-2" />
-                Tambah User
-            </NuxtLink>
+            <div class="flex gap-3">
+                <NuxtLink to="/settings/roles" class="btn-primary">
+                    <Shield class="w-4 h-4 mr-2" />
+                    Kelola Role
+                </NuxtLink>
+                <NuxtLink to="/settings/users/create" class="btn-primary">
+                    <Plus class="w-4 h-4 mr-2" />
+                    Tambah User
+                </NuxtLink>
+            </div>
         </div>
 
         <div class="card-elevated p-4">
             <div class="flex flex-col sm:flex-row gap-4">
                 <div class="relative flex-1">
                     <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <input type="text" placeholder="Cari user..." class="input-field pl-10" />
+                    <input v-model="searchQuery" type="text" placeholder="Cari user..." class="input-field pl-10" />
                 </div>
-                <select class="input-field w-36">
+                <select v-model="selectedRole" class="input-field w-36">
                     <option value="">Semua Role</option>
-                    <option value="superuser">Superuser</option>
-                    <option value="manager">Manager</option>
-                    <option value="staff">Staff</option>
+                    <option v-for="role in roles" :key="role.id" :value="role.code">
+                        {{ role.name }}
+                    </option>
                 </select>
             </div>
         </div>
@@ -53,7 +92,13 @@ const users = [
                     </tr>
                 </thead>
                 <tbody>
-                    <tr v-for="user in users" :key="user.id" class="cursor-pointer hover:bg-muted/50"
+                    <tr v-if="isLoading">
+                        <td colspan="5" class="text-center p-4 text-muted-foreground">Loading users...</td>
+                    </tr>
+                    <tr v-else-if="filteredUsers.length === 0">
+                        <td colspan="5" class="text-center p-4 text-muted-foreground">No users found.</td>
+                    </tr>
+                    <tr v-else v-for="user in filteredUsers" :key="user.id" class="cursor-pointer hover:bg-muted/50"
                         @click="navigateTo(`/settings/users/${user.id}`)">
                         <td>
                             <div class="flex items-center gap-3">
@@ -80,14 +125,12 @@ const users = [
                         </td>
                         <td class="text-sm text-muted-foreground">{{ user.lastLogin }}</td>
                         <td>
-                            <div class="flex gap-1">
-                                <NuxtLink :to="`/settings/users/${user.id}`"
-                                    class="p-1.5 rounded hover:bg-muted transition-colors" @click.stop>
-                                    <Edit class="w-4 h-4 text-muted-foreground" />
+                            <div class="flex items-center gap-2">
+                                <NuxtLink :to="`/settings/users/${user.id}/edit`"
+                                    class="p-2 hover:bg-muted rounded-lg transition-colors text-muted-foreground hover:text-foreground"
+                                    title="Edit user">
+                                    <Edit class="w-4 h-4" />
                                 </NuxtLink>
-                                <button class="p-1.5 rounded hover:bg-muted transition-colors" @click.stop>
-                                    <Trash2 class="w-4 h-4 text-destructive" />
-                                </button>
                             </div>
                         </td>
                     </tr>
