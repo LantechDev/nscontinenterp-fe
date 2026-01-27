@@ -11,4 +11,10 @@ export default defineNuxtConfig({
     cssPath: "~/assets/css/main.css",
     configPath: "tailwind.config.ts",
   },
+  runtimeConfig: {
+    public: {
+      apiBase:
+        process.env.NUXT_PUBLIC_API_BASE || "http://localhost:9999/api",
+    },
+  },
 });

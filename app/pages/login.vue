@@ -6,19 +6,30 @@ definePageMeta({
 });
 
 const router = useRouter();
+const { login } = useAuth();
 const showPassword = ref(false);
 const isLoading = ref(false);
 const email = ref("");
 const password = ref("");
+const errorMessage = ref("");
 
 const handleSubmit = async () => {
+    errorMessage.value = "";
     isLoading.value = true;
 
-    // Simulate login - replace with actual auth later
-    setTimeout(() => {
+    try {
+        const result = await login(email.value, password.value);
+        
+        if (result.success) {
+            router.push("/dashboard");
+        } else {
+            errorMessage.value = "Login gagal. Periksa email dan password Anda.";
+        }
+    } catch (e) {
+        errorMessage.value = "Terjadi kesalahan. Silakan coba lagi.";
+    } finally {
         isLoading.value = false;
-        router.push("/dashboard");
-    }, 1000);
+    }
 };
 </script>
 
@@ -92,6 +103,10 @@ const handleSubmit = async () => {
                     <p class="text-muted-foreground mt-2">
                         Masuk ke akun Anda untuk melanjutkan
                     </p>
+                </div>
+
+                <div v-if="errorMessage" class="bg-red-50 text-red-600 p-3 rounded-lg text-sm border border-red-200">
+                    {{ errorMessage }}
                 </div>
 
                 <form class="space-y-5" @submit.prevent="handleSubmit">

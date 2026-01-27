@@ -6,17 +6,36 @@ definePageMeta({
 });
 
 const route = useRoute();
-const userId = route.params.id;
+const userId = route.params.id as string;
+const { fetchUserById } = useAuth();
 
-const user = {
-    id: userId,
-    name: "Direktur",
-    email: "direktur@lantech.co.id",
-    role: "Superuser",
-    status: "active",
-    lastLogin: "7 Jan 2025, 09:15",
-    createdAt: "1 Des 2024",
-};
+const user = ref<any>(null);
+const isLoading = ref(true);
+const errorMessage = ref("");
+
+onMounted(async () => {
+    try {
+        const result = await fetchUserById(userId);
+        if (result.success && result.data) {
+            const u = result.data.user || result.data; // adjust based on actual response structure
+            user.value = {
+                id: u.id,
+                name: u.name,
+                email: u.email,
+                role: u.role,
+                status: u.banned ? 'inactive' : 'active',
+                lastLogin: u.lastLogin ? new Date(u.lastLogin).toLocaleString() : '-',
+                createdAt: u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '-'
+            };
+        } else {
+            errorMessage.value = result.error || "Gagal mengambil data user.";
+        }
+    } catch (e: any) {
+        errorMessage.value = e.message || "Terjadi kesalahan.";
+    } finally {
+        isLoading.value = false;
+    }
+});
 </script>
 
 <template>
@@ -27,17 +46,26 @@ const user = {
                     <ArrowLeft class="w-5 h-5" />
                 </NuxtLink>
                 <div>
-                    <h1 class="page-title">{{ user.name }}</h1>
+                    <h1 class="page-title">{{ user?.name || 'Loading...' }}</h1>
                     <p class="text-muted-foreground mt-1">Detail user</p>
                 </div>
             </div>
-            <button class="btn-secondary">
+            <NuxtLink :to="`/settings/users/${userId}/edit`" class="btn-primary"
+                :class="{ 'opacity-50 pointer-events-none': isLoading || !user }">
                 <Edit class="w-4 h-4 mr-2" />
                 Edit
-            </button>
+            </NuxtLink>
         </div>
 
-        <div class="card-elevated p-6">
+        <div v-if="isLoading" class="p-8 text-center text-muted-foreground">
+            Loading...
+        </div>
+
+        <div v-else-if="errorMessage" class="bg-red-50 text-red-600 p-3 rounded-lg text-sm border border-red-200">
+            {{ errorMessage }}
+        </div>
+
+        <div v-else-if="user" class="card-elevated p-6">
             <div class="flex items-center gap-4 mb-6 pb-6 border-b border-border">
                 <div class="w-14 h-14 rounded-xl bg-primary/10 flex items-center justify-center">
                     <User class="w-7 h-7 text-primary" />
@@ -46,7 +74,10 @@ const user = {
                     <h2 class="text-xl font-semibold">{{ user.name }}</h2>
                     <p class="text-muted-foreground">{{ user.email }}</p>
                 </div>
-                <span class="ml-auto badge-success">Aktif</span>
+                <span
+                    :class="['ml-auto inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium', user.status === 'active' ? 'badge-success' : 'bg-muted text-muted-foreground']">
+                    {{ user.status === 'active' ? 'Aktif' : 'Tidak Aktif' }}
+                </span>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">

@@ -28,57 +28,45 @@ const variantStyles: Record<string, string> = {
 </script>
 
 <template>
-    <div :class="cn('stat-card animate-slide-up', variantStyles[props.variant])">
-        <div class="flex items-start justify-between mb-4">
+    <div :class="cn(
+        'card-stat p-4 rounded-xl border border-border transition-all duration-300 hover:shadow-md',
+        props.variant === 'primary' ? 'bg-[#012D5A] text-white border-[#012D5A]' : 'bg-card text-card-foreground'
+    )">
+        <!-- Header: Icon & Title -->
+        <div class="flex items-center gap-3 mb-3">
             <div :class="cn(
-                'p-3 rounded-xl',
-                props.variant === 'default' && 'bg-muted',
-                props.variant === 'primary' && 'bg-primary-foreground/20',
-                props.variant === 'accent' && 'bg-accent-foreground/20',
-                props.variant === 'success' && 'bg-success/20',
-                props.variant === 'warning' && 'bg-warning/20',
-            )
-                ">
-                <component :is="props.icon" class="w-5 h-5" />
+                'p-2 rounded-lg',
+                props.variant === 'primary' ? 'bg-white/10' : 'bg-muted'
+            )">
+                <component :is="props.icon"
+                    :class="cn('w-5 h-5', props.variant === 'primary' ? 'text-white' : 'text-muted-foreground')" />
             </div>
-            <div v-if="props.change !== undefined" :class="cn(
-                'flex items-center gap-1 text-sm font-medium',
-                isPositive ? 'text-success' : 'text-destructive',
-            )
-                ">
-                <TrendingUp v-if="isPositive" class="w-4 h-4" />
-                <TrendingDown v-else class="w-4 h-4" />
-                <span>{{ Math.abs(props.change) }}%</span>
-            </div>
-        </div>
-        <div>
             <p :class="cn(
-                'text-sm mb-1',
-                props.variant === 'default' ||
-                    props.variant === 'success' ||
-                    props.variant === 'warning'
-                    ? 'text-muted-foreground'
-                    : 'text-primary-foreground/80',
-            )
-                ">
+                'text-sm font-medium',
+                props.variant === 'primary' ? 'text-white/80' : 'text-muted-foreground'
+            )">
                 {{ props.title }}
             </p>
-            <p :class="cn(
-                'text-2xl font-bold',
-                props.variant === 'default' && 'text-foreground',
-                props.variant === 'success' && 'text-success',
-                props.variant === 'warning' && 'text-warning',
-            )
-                ">
-                {{ props.value }}
-            </p>
+        </div>
+
+        <!-- Body: Value & Trend -->
+        <div>
+            <div class="flex items-end justify-between gap-2">
+                <h3 class="text-2xl font-bold tracking-tight">{{ props.value }}</h3>
+
+                <div v-if="props.change !== undefined" :class="cn(
+                    'flex items-center gap-1 text-xs font-medium mb-1',
+                    isPositive ? 'text-emerald-500' : 'text-rose-500'
+                )">
+                    <TrendingUp v-if="isPositive" class="w-3 h-3" />
+                    <TrendingDown v-else class="w-3 h-3" />
+                    <span>{{ Math.abs(props.change).toString().replace('.', ',') }}%</span>
+                </div>
+            </div>
             <p v-if="props.changeLabel" :class="cn(
                 'text-xs mt-1',
-                props.variant === 'default'
-                    ? 'text-muted-foreground'
-                    : 'text-primary-foreground/60',
-            )
-                ">
+                props.variant === 'primary' ? 'text-white/50' : 'text-muted-foreground'
+            )">
                 {{ props.changeLabel }}
             </p>
         </div>
