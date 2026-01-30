@@ -1,10 +1,7 @@
-<script setup lang="ts">
-// E-Report Finance - Main App Entry
-// Migrated from Vite + React to Nuxt 4
-</script>
+<script setup lang="ts"></script>
 
 <template>
-    <NuxtLayout>
-        <NuxtPage />
-    </NuxtLayout>
+  <NuxtLayout>
+    <NuxtPage />
+  </NuxtLayout>
 </template>

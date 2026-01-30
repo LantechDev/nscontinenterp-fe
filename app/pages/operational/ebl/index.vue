@@ -9,7 +9,6 @@ import {
     MoreVertical,
     ChevronLeft,
     ChevronRight,
-    ArrowRight,
 } from "lucide-vue-next";
 import { cn } from "~/lib/utils";
 
@@ -17,38 +16,54 @@ definePageMeta({
     layout: "dashboard",
 });
 
-interface Ebl {
+interface EblItem {
     id: string;
-    number: string;
-    job: string;
-    shipper: string;
-    consignee: string;
-    status: "issued" | "draft" | "surrendered";
+    blNumber: string;
+    jobId: string;
+    job?: {
+        jobNumber: string;
+    };
+    statusId: string | null;
+    status?: {
+        code: string | null;
+        name: string | null;
+    } | null;
+    containerTypeId: string | null;
+    containerType?: {
+        code: string;
+        name: string;
+    } | null;
+    grossWeight: string | null;
+    measurement: string | null;
+    createdAt: string;
 }
 
-const ebls: Ebl[] = [
-    {
-        id: "1",
-        number: "EBL-2024-001",
-        job: "JOB-2024-001234",
-        shipper: "PT Maju Bersama",
-        consignee: "Singapore Trading Co",
-        status: "issued",
-    },
-    {
-        id: "2",
-        number: "EBL-2024-002",
-        job: "JOB-2024-001231",
-        shipper: "PT Indo Shipping",
-        consignee: "Korea Import Ltd",
-        status: "draft",
-    },
-];
+const { ebls, fetchEbls, isLoading } = useEbls();
 
-const statusConfig: Record<Ebl["status"], { label: string; class: string }> = {
-    draft: { label: "Draft", class: "bg-gray-100 text-gray-700 border-gray-200" },
-    issued: { label: "Terbit", class: "bg-green-50 text-green-700 border-green-200" },
-    surrendered: { label: "Surrendered", class: "bg-yellow-50 text-yellow-700 border-yellow-200" },
+// Fetch EBLs on mount
+onMounted(async () => {
+    await fetchEbls();
+});
+
+// Map status code to display format
+const getStatusInfo = (ebl: EblItem): { label: string; class: string } => {
+    const statusCode = ebl.status?.code || ebl.statusId || "";
+    const statusMap: Record<string, { label: string; class: string }> = {
+        draft: { label: "Draft", class: "bg-gray-100 text-gray-700 border-gray-200" },
+        issued: { label: "Terbit", class: "bg-green-50 text-green-700 border-green-200" },
+        surrendered: {
+            label: "Surrendered",
+            class: "bg-yellow-50 text-yellow-700 border-yellow-200",
+        },
+        DRAFT: { label: "Draft", class: "bg-gray-100 text-gray-700 border-gray-200" },
+        ISSUED: { label: "Terbit", class: "bg-green-50 text-green-700 border-green-200" },
+    };
+    return (
+        statusMap[statusCode] || {
+            label: ebl.status?.name || statusCode || "Unknown",
+            class: "bg-gray-100 text-gray-700",
+        }
+    );
 };
 
 type ViewMode = "list" | "grid";
@@ -120,9 +135,12 @@ const viewMode = ref<ViewMode>("list");
             </div>
         </div>
 
+        <!-- Loading State -->
+        <div v-if="isLoading" class="p-8 text-center text-muted-foreground">Loading EBLs...</div>
+
         <!-- List View -->
         <div
-            v-if="viewMode === 'list'"
+            v-else-if="viewMode === 'list'"
             class="border border-border rounded-xl bg-white overflow-hidden"
         >
             <div class="overflow-x-auto">
@@ -131,8 +149,6 @@ const viewMode = ref<ViewMode>("list");
                         <tr class="border-b border-border bg-white text-left">
                             <th class="py-3 px-4 text-sm font-medium text-foreground">No. eBL</th>
                             <th class="py-3 px-4 text-sm font-medium text-foreground">No. Job</th>
-                            <th class="py-3 px-4 text-sm font-medium text-foreground">Shipper</th>
-                            <th class="py-3 px-4 text-sm font-medium text-foreground">Consignee</th>
                             <th class="py-3 px-4 text-sm font-medium text-foreground">Status</th>
                             <th class="py-3 px-4 w-10"></th>
                         </tr>
@@ -149,22 +165,22 @@ const viewMode = ref<ViewMode>("list");
                                     <div class="p-1.5 rounded bg-blue-50 text-[#012D5A]">
                                         <FileText class="w-4 h-4" />
                                     </div>
-                                    <span class="text-sm font-medium">{{ ebl.number }}</span>
+                                    <span class="text-sm font-medium">{{ ebl.blNumber }}</span>
                                 </div>
                             </td>
-                            <td class="py-3 px-4 text-sm text-muted-foreground">{{ ebl.job }}</td>
-                            <td class="py-3 px-4 text-sm">{{ ebl.shipper }}</td>
-                            <td class="py-3 px-4 text-sm">{{ ebl.consignee }}</td>
+                            <td class="py-3 px-4 text-sm text-muted-foreground">
+                                {{ ebl.job?.jobNumber || "-" }}
+                            </td>
                             <td class="py-3 px-4">
                                 <span
                                     :class="
                                         cn(
                                             'px-2 py-0.5 rounded border text-xs font-medium',
-                                            statusConfig[ebl.status]?.class
+                                            getStatusInfo(ebl).class
                                         )
                                     "
                                 >
-                                    {{ statusConfig[ebl.status]?.label }}
+                                    {{ getStatusInfo(ebl).label }}
                                 </span>
                             </td>
                             <td class="py-3 px-4 text-right">
@@ -174,6 +190,11 @@ const viewMode = ref<ViewMode>("list");
                                 >
                                     <Download class="w-4 h-4 text-muted-foreground" />
                                 </button>
+                            </td>
+                        </tr>
+                        <tr v-if="ebls.length === 0">
+                            <td colspan="4" class="p-8 text-center text-muted-foreground">
+                                Belum ada data eBL.
                             </td>
                         </tr>
                     </tbody>
@@ -197,8 +218,10 @@ const viewMode = ref<ViewMode>("list");
                             <FileText class="w-6 h-6" />
                         </div>
                         <div>
-                            <h3 class="font-bold text-base text-foreground">{{ ebl.number }}</h3>
-                            <p class="text-xs text-muted-foreground">{{ ebl.job }}</p>
+                            <h3 class="font-bold text-base text-foreground">{{ ebl.blNumber }}</h3>
+                            <p class="text-xs text-muted-foreground">
+                                {{ ebl.job?.jobNumber || "-" }}
+                            </p>
                         </div>
                     </div>
                     <button class="text-muted-foreground hover:text-foreground" @click.stop>
@@ -206,37 +229,35 @@ const viewMode = ref<ViewMode>("list");
                     </button>
                 </div>
 
-                <div class="space-y-3 mb-4">
-                    <div>
-                        <p class="text-xs text-muted-foreground mb-1">Shipper</p>
-                        <p class="text-sm font-medium">{{ ebl.shipper }}</p>
-                    </div>
-                    <div>
-                        <p class="text-xs text-muted-foreground mb-1">Consignee</p>
-                        <p class="text-sm font-medium">{{ ebl.consignee }}</p>
-                    </div>
-                </div>
-
                 <div class="flex items-center justify-between pt-4 border-t border-border">
                     <span
                         :class="
                             cn(
                                 'px-2 py-0.5 rounded border text-xs font-medium',
-                                statusConfig[ebl.status]?.class
+                                getStatusInfo(ebl).class
                             )
                         "
                     >
-                        {{ statusConfig[ebl.status]?.label }}
+                        {{ getStatusInfo(ebl).label }}
                     </span>
                     <button class="p-1.5 rounded hover:bg-muted transition-colors" @click.stop>
                         <Download class="w-4 h-4 text-muted-foreground" />
                     </button>
                 </div>
             </div>
+            <div
+                v-if="ebls.length === 0"
+                class="col-span-full p-8 text-center text-muted-foreground"
+            >
+                Belum ada data eBL.
+            </div>
         </div>
 
         <!-- Pagination -->
-        <div class="flex items-center justify-between text-sm text-muted-foreground">
+        <div
+            v-if="ebls.length > 0"
+            class="flex items-center justify-between text-sm text-muted-foreground"
+        >
             <p>{{ ebls.length }} data found.</p>
             <div class="flex items-center gap-2">
                 <button class="p-1 hover:text-foreground disabled:opacity-50">
