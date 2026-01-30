@@ -68,13 +68,20 @@ const categories = [
                     <tr v-for="category in categories" :key="category.name">
                         <td>
                             <div class="flex items-center gap-2">
-                                <TrendingUp v-if="category.type === 'income'" class="w-4 h-4 text-success" />
+                                <TrendingUp
+                                    v-if="category.type === 'income'"
+                                    class="w-4 h-4 text-success"
+                                />
                                 <TrendingDown v-else class="w-4 h-4 text-destructive" />
                                 {{ category.name }}
                             </div>
                         </td>
                         <td
-                            :class="['text-right font-medium', category.type === 'income' ? 'text-success' : 'text-destructive']">
+                            :class="[
+                                'text-right font-medium',
+                                category.type === 'income' ? 'text-success' : 'text-destructive',
+                            ]"
+                        >
                             {{ category.amount }}
                         </td>
                     </tr>

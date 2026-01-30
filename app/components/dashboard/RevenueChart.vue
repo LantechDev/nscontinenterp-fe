@@ -1,16 +1,26 @@
 <script setup lang="ts">
+import { computed } from "vue";
 
-// Data for the chart
-const series = [
+interface FinancialData {
+    income: number[];
+    outcome: number[];
+}
+
+const props = defineProps<{
+    data?: FinancialData;
+}>();
+
+// Use backend data or fallback to static data
+const series = computed(() => [
     {
         name: "Income",
-        data: [5, 15, 10, 18, 25, 22, 35, 28, 24, 30, 28, 25],
+        data: props.data?.income || [5, 15, 10, 18, 25, 22, 35, 28, 24, 30, 28, 25],
     },
     {
         name: "Outcome",
-        data: [15, 22, 20, 25, 30, 45, 55, 45, 40, 58, 62, 55],
+        data: props.data?.outcome || [15, 22, 20, 25, 30, 45, 55, 45, 40, 58, 62, 55],
     },
-];
+]);
 
 const chartOptions = computed(() => ({
     chart: {

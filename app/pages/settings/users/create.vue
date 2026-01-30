@@ -15,17 +15,19 @@ onMounted(() => {
     fetchRoles();
 });
 
-const formSchema = z.object({
-    name: z.string().min(1, "Nama wajib diisi"),
-    email: z.string().email("Format email tidak valid"),
-    password: z.string().min(8, "Password minimal 8 karakter"),
-    confirmPassword: z.string().min(8, "Konfirmasi password minimal 8 karakter"),
-    role: z.string().min(1, "Role wajib dipilih"),
-    status: z.enum(["active", "inactive"]).default("active"),
-}).refine((data) => data.password === data.confirmPassword, {
-    message: "Password dan Konfirmasi Password tidak cocok",
-    path: ["confirmPassword"],
-});
+const formSchema = z
+    .object({
+        name: z.string().min(1, "Nama wajib diisi"),
+        email: z.string().email("Format email tidak valid"),
+        password: z.string().min(8, "Password minimal 8 karakter"),
+        confirmPassword: z.string().min(8, "Konfirmasi password minimal 8 karakter"),
+        role: z.string().min(1, "Role wajib dipilih"),
+        status: z.enum(["active", "inactive"]).default("active"),
+    })
+    .refine((data) => data.password === data.confirmPassword, {
+        message: "Password dan Konfirmasi Password tidak cocok",
+        path: ["confirmPassword"],
+    });
 
 const form = ref({
     name: "",
@@ -33,7 +35,7 @@ const form = ref({
     password: "",
     confirmPassword: "",
     role: "",
-    status: "active" as "active" | "inactive"
+    status: "active" as "active" | "inactive",
 });
 
 const errors = ref<Record<string, string>>({});
@@ -67,8 +69,9 @@ const handleSubmit = async () => {
             // General error
             errors.value.root = result.error || "Gagal membuat user.";
         }
-    } catch (e: any) {
-        errors.value.root = e.message || "Terjadi kesalahan sistem.";
+    } catch (e) {
+        const error = e as Error;
+        errors.value.root = error.message || "Terjadi kesalahan sistem.";
     } finally {
         isLoading.value = false;
     }
@@ -79,7 +82,10 @@ const handleSubmit = async () => {
     <div class="space-y-6 animate-fade-in">
         <div class="page-header">
             <div class="flex items-center gap-4">
-                <NuxtLink to="/settings/users" class="p-2 rounded-lg hover:bg-muted transition-colors">
+                <NuxtLink
+                    to="/settings/users"
+                    class="p-2 rounded-lg hover:bg-muted transition-colors"
+                >
                     <ArrowLeft class="w-5 h-5" />
                 </NuxtLink>
                 <div>
@@ -89,7 +95,10 @@ const handleSubmit = async () => {
             </div>
         </div>
 
-        <div v-if="errors.root" class="bg-red-50 text-red-600 p-3 rounded-lg text-sm border border-red-200">
+        <div
+            v-if="errors.root"
+            class="bg-red-50 text-red-600 p-3 rounded-lg text-sm border border-red-200"
+        >
             {{ errors.root }}
         </div>
 
@@ -97,31 +106,57 @@ const handleSubmit = async () => {
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div class="space-y-2">
                     <label class="text-sm font-medium">Nama</label>
-                    <input v-model="form.name" type="text" placeholder="Nama lengkap" class="input-field"
-                        :class="{ 'border-red-500': errors.name }" />
+                    <input
+                        v-model="form.name"
+                        type="text"
+                        placeholder="Nama lengkap"
+                        class="input-field"
+                        :class="{ 'border-red-500': errors.name }"
+                    />
                     <p v-if="errors.name" class="text-xs text-red-500">{{ errors.name }}</p>
                 </div>
                 <div class="space-y-2">
                     <label class="text-sm font-medium">Email</label>
-                    <input v-model="form.email" type="email" placeholder="email@example.com" class="input-field"
-                        :class="{ 'border-red-500': errors.email }" />
+                    <input
+                        v-model="form.email"
+                        type="email"
+                        placeholder="email@example.com"
+                        class="input-field"
+                        :class="{ 'border-red-500': errors.email }"
+                    />
                     <p v-if="errors.email" class="text-xs text-red-500">{{ errors.email }}</p>
                 </div>
                 <div class="space-y-2">
                     <label class="text-sm font-medium">Password</label>
-                    <input v-model="form.password" type="password" placeholder="••••••••" class="input-field"
-                        :class="{ 'border-red-500': errors.password }" />
+                    <input
+                        v-model="form.password"
+                        type="password"
+                        placeholder="••••••••"
+                        class="input-field"
+                        :class="{ 'border-red-500': errors.password }"
+                    />
                     <p v-if="errors.password" class="text-xs text-red-500">{{ errors.password }}</p>
                 </div>
                 <div class="space-y-2">
                     <label class="text-sm font-medium">Konfirmasi Password</label>
-                    <input v-model="form.confirmPassword" type="password" placeholder="••••••••" class="input-field"
-                        :class="{ 'border-red-500': errors.confirmPassword }" />
-                    <p v-if="errors.confirmPassword" class="text-xs text-red-500">{{ errors.confirmPassword }}</p>
+                    <input
+                        v-model="form.confirmPassword"
+                        type="password"
+                        placeholder="••••••••"
+                        class="input-field"
+                        :class="{ 'border-red-500': errors.confirmPassword }"
+                    />
+                    <p v-if="errors.confirmPassword" class="text-xs text-red-500">
+                        {{ errors.confirmPassword }}
+                    </p>
                 </div>
                 <div class="space-y-2">
                     <label class="text-sm font-medium">Role</label>
-                    <select v-model="form.role" class="input-field" :class="{ 'border-red-500': errors.role }">
+                    <select
+                        v-model="form.role"
+                        class="input-field"
+                        :class="{ 'border-red-500': errors.role }"
+                    >
                         <option value="">Pilih role</option>
                         <option v-for="role in roles" :key="role.id" :value="role.code">
                             {{ role.name }}

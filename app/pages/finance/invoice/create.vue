@@ -10,7 +10,10 @@ definePageMeta({
     <div class="space-y-6 animate-fade-in">
         <div class="page-header">
             <div class="flex items-center gap-4">
-                <NuxtLink to="/finance/invoice" class="p-2 rounded-lg hover:bg-muted transition-colors">
+                <NuxtLink
+                    to="/finance/invoice"
+                    class="p-2 rounded-lg hover:bg-muted transition-colors"
+                >
                     <ArrowLeft class="w-5 h-5" />
                 </NuxtLink>
                 <div>
@@ -47,7 +50,11 @@ definePageMeta({
                 </div>
                 <div class="space-y-2 md:col-span-2">
                     <label class="text-sm font-medium">Deskripsi</label>
-                    <textarea rows="3" placeholder="Detail tagihan..." class="input-field"></textarea>
+                    <textarea
+                        rows="3"
+                        placeholder="Detail tagihan..."
+                        class="input-field"
+                    ></textarea>
                 </div>
                 <div class="space-y-2">
                     <label class="text-sm font-medium">Jumlah</label>

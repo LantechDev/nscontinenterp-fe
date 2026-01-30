@@ -9,7 +9,8 @@ interface Activity {
     time: string;
 }
 
-const activities: Activity[] = [
+// Default fallback activities
+const defaultActivities: Activity[] = [
     {
         id: "1",
         title: "Kapal ETD - MV Sinar Jaya",
@@ -35,20 +36,32 @@ const activities: Activity[] = [
         time: "02:30 WIB",
     },
 ];
+
+const props = defineProps<{
+    events?: Activity[];
+}>();
+
+const activities = computed(() => props.events || defaultActivities);
 </script>
 
 <template>
     <div class="h-full flex flex-col">
         <div class="flex items-center justify-between mb-4">
             <h3 class="font-semibold text-lg">Upcoming Event</h3>
-            <NuxtLink to="#" class="text-sm font-semibold text-blue-600 hover:text-blue-700">
+            <NuxtLink
+                to="/operational/jobs"
+                class="text-sm font-semibold text-blue-600 hover:text-blue-700"
+            >
                 View All
             </NuxtLink>
         </div>
 
         <div class="space-y-4 flex-1 overflow-auto pr-2">
-            <div v-for="activity in activities" :key="activity.id"
-                class="p-4 rounded-xl border border-border bg-card hover:shadow-md transition-shadow cursor-pointer">
+            <div
+                v-for="activity in activities"
+                :key="activity.id"
+                class="p-4 rounded-xl border border-border bg-card hover:shadow-md transition-shadow cursor-pointer"
+            >
                 <div class="flex items-center justify-between mb-1">
                     <p class="font-semibold text-foreground">{{ activity.title }}</p>
                     <ChevronRight class="w-4 h-4 text-muted-foreground" />

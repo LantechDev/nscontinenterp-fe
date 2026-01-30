@@ -33,7 +33,10 @@ const invoice = {
     <div class="space-y-6 animate-fade-in">
         <div class="page-header">
             <div class="flex items-center gap-4">
-                <NuxtLink to="/finance/invoice" class="p-2 rounded-lg hover:bg-muted transition-colors">
+                <NuxtLink
+                    to="/finance/invoice"
+                    class="p-2 rounded-lg hover:bg-muted transition-colors"
+                >
                     <ArrowLeft class="w-5 h-5" />
                 </NuxtLink>
                 <div>
@@ -83,8 +86,11 @@ const invoice = {
             <div class="border-t border-border pt-6">
                 <h3 class="font-semibold mb-4">Detail Item</h3>
                 <div class="space-y-2">
-                    <div v-for="(item, index) in invoice.items" :key="index"
-                        class="flex justify-between py-2 border-b border-border last:border-0">
+                    <div
+                        v-for="(item, index) in invoice.items"
+                        :key="index"
+                        class="flex justify-between py-2 border-b border-border last:border-0"
+                    >
                         <span>{{ item.description }}</span>
                         <span class="font-medium">{{ item.amount }}</span>
                     </div>
@@ -98,7 +104,9 @@ const invoice = {
                         <span class="text-muted-foreground">PPN ({{ invoice.ppnRate }})</span>
                         <span class="font-medium">{{ invoice.ppn }}</span>
                     </div>
-                    <div class="flex justify-between text-lg font-semibold pt-2 border-t border-border">
+                    <div
+                        class="flex justify-between text-lg font-semibold pt-2 border-t border-border"
+                    >
                         <span>Total</span>
                         <span class="text-primary">{{ invoice.total }}</span>
                     </div>
