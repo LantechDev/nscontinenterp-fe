@@ -48,7 +48,7 @@
   "lint-staged": {
     "*.{js,jsx,ts,tsx,vue,mjs,cjs}": [
       "bun run lint",
-      "prettier --write"
+      "oxfmt --write"
     ]
   }
 }
