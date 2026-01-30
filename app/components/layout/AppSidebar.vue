@@ -11,6 +11,7 @@ import {
     ChevronRight,
     User,
     Building2,
+    LogOut,
 } from "lucide-vue-next"; // Added User, Building2 for icons
 import { cn } from "~/lib/utils";
 import type { Organization } from "~/types/auth";
@@ -20,6 +21,14 @@ const router = useRouter();
 
 const organizations = ref<Organization[]>([]);
 const isOrgDropdownOpen = ref(false);
+const isUserDropdownOpen = ref(false);
+
+const handleLogout = async () => {
+    const res = await logout();
+    if (res.success) {
+        window.location.href = "/auth/login";
+    }
+};
 
 const currentOrg = computed(() => {
     if (!session.value?.activeOrganizationId) return null;
@@ -97,10 +106,18 @@ const navItems: NavItem[] = [
     },
     {
         title: "Reports",
-        icon: BarChart3, // Reports has > arrow in image, implies children or link. Assuming link for now or children. Image shows > on right? No, standard item.
+        icon: BarChart3,
         href: "/reports",
     },
-    // Removed Settings/Sales to match image strictly or keep if needed? Image doesn't show Sales/Settings but lists are truncated. I'll keep Reports and remove others if not in image, but user said "samain layout". I will align strictly to image visible items: Dashboard, Master Data, Operational, Finance, Reports.
+    {
+        title: "Settings",
+        icon: Settings,
+        children: [
+            { title: "Users", href: "/settings/users" },
+            { title: "Roles", href: "/settings/roles" },
+            { title: "Tenant", href: "/settings/tenant" },
+        ],
+    },
 ];
 
 const route = useRoute();
@@ -174,7 +191,7 @@ const isChildActive = (children?: NavChild[]) =>
         </div>
 
         <!-- Navigation -->
-        <nav class="flex-1 overflow-y-auto px-4 space-y-1">
+        <nav class="flex-1 overflow-y-auto px-4 space-y-1 scrollbar-hidden">
             <NuxtLink
                 to="/dashboard"
                 :class="
@@ -255,11 +272,48 @@ const isChildActive = (children?: NavChild[]) =>
         </nav>
 
         <!-- Footer / User -->
-        <div class="p-4 mt-auto">
-            <NuxtLink
+        <div class="p-4 mt-auto relative">
+            <!-- User Dropdown Menu -->
+            <div
+                v-if="isUserDropdownOpen"
+                class="absolute bottom-20 left-4 w-56 bg-white text-slate-900 rounded-lg shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200 border border-slate-200"
+            >
+                <div class="p-2 border-b border-border">
+                    <p class="font-medium text-sm truncate px-2">{{ user?.name }}</p>
+                    <p class="text-xs text-muted-foreground truncate px-2">{{ user?.email }}</p>
+                </div>
+                <div class="p-1">
+                    <NuxtLink
+                        v-if="user"
+                        :to="`/settings/users/${user.id}`"
+                        @click="isUserDropdownOpen = false"
+                        class="flex items-center gap-2 w-full px-2 py-2 text-sm rounded-md hover:bg-slate-100 transition-colors"
+                    >
+                        <User class="w-4 h-4" />
+                        <span>My Profile</span>
+                    </NuxtLink>
+                    <button
+                        @click="handleLogout"
+                        class="flex items-center gap-2 w-full px-2 py-2 text-sm rounded-md hover:bg-red-50 text-red-600 transition-colors"
+                    >
+                        <LogOut class="w-4 h-4" />
+                        <span>Log Out</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Backdrop -->
+            <div
+                v-if="isUserDropdownOpen"
+                @click="isUserDropdownOpen = false"
+                class="fixed inset-0 z-40 bg-transparent"
+            ></div>
+
+            <button
                 v-if="user"
-                :to="`/settings/users/${user.id}`"
-                class="flex items-center gap-3 p-3 rounded-lg hover:bg-white/5 transition-colors group cursor-pointer"
+                @click="isUserDropdownOpen = !isUserDropdownOpen"
+                class="flex items-center gap-3 p-3 rounded-lg hover:bg-white/5 transition-colors group cursor-pointer w-full text-left"
+                :class="{ 'bg-white/5': isUserDropdownOpen }"
             >
                 <div
                     class="w-10 h-10 rounded-lg bg-white flex items-center justify-center text-[#012D5A] shrink-0"
@@ -271,9 +325,21 @@ const isChildActive = (children?: NavChild[]) =>
                     <p class="text-xs text-white/60 truncate">{{ user.email }}</p>
                 </div>
                 <ChevronRight
-                    class="w-5 h-5 text-white/50 group-hover:text-white transition-colors"
+                    class="w-5 h-5 text-white/50 group-hover:text-white transition-transform duration-200"
+                    :class="{ '-rotate-90': isUserDropdownOpen }"
                 />
-            </NuxtLink>
+            </button>
         </div>
     </aside>
 </template>
+
+<style scoped>
+.scrollbar-hidden::-webkit-scrollbar {
+    display: none;
+}
+
+.scrollbar-hidden {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+</style>

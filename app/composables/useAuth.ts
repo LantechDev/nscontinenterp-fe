@@ -251,6 +251,8 @@ export function useAuth() {
         deleteUser,
         listOrganizations,
         setActiveOrganization,
+        updateOrganization,
+        createOrganization,
     };
 
     async function listOrganizations(): Promise<AuthResponse<Organization[]>> {
@@ -274,6 +276,45 @@ export function useAuth() {
             // Refresh session to update activeOrganizationId
             await fetchSession();
             return { success: true };
+        } catch (error: any) {
+            return handleError(error);
+        } finally {
+            isLoading.value = false;
+        }
+    }
+
+    async function createOrganization(data: {
+        name: string;
+        slug: string;
+        logo?: string;
+        metadata?: any;
+    }): Promise<AuthResponse<Organization>> {
+        isLoading.value = true;
+        try {
+            const { data: responseData } = await api.post<Organization>(
+                "/organization/create",
+                data
+            );
+            return { success: true, data: responseData };
+        } catch (error: any) {
+            return handleError(error);
+        } finally {
+            isLoading.value = false;
+        }
+    }
+
+    async function updateOrganization(
+        organizationId: string,
+        data: { name?: string; slug?: string; logo?: string; metadata?: any }
+    ): Promise<AuthResponse<Organization>> {
+        isLoading.value = true;
+        try {
+            const { data: responseData } = await api.post<Organization>("/organization/update", {
+                organizationId,
+                data,
+            });
+
+            return { success: true, data: responseData };
         } catch (error: any) {
             return handleError(error);
         } finally {
