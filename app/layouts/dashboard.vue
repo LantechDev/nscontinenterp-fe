@@ -61,5 +61,7 @@ const currentTime = computed(() => {
                 <NuxtPage :key="$route.fullPath" />
             </main>
         </div>
+
+        <UiConfirmDialog />
     </div>
 </template>

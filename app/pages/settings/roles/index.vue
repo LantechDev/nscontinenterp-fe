@@ -8,17 +8,21 @@ import {
     Loader2,
     AlertTriangle,
     ArrowLeft,
+    LayoutList,
+    ChevronDown,
+    ChevronLeft,
+    ChevronRight,
 } from "lucide-vue-next";
+import { cn } from "~/lib/utils";
 
 definePageMeta({
     layout: "dashboard",
 });
 
 const { roles, fetchRoles, deleteRole, isLoading } = useRoles();
+const { confirm } = useConfirm();
 const searchQuery = ref("");
 const isDeleting = ref(false);
-const showDeleteConfirm = ref(false);
-const roleToDelete = ref<any>(null);
 const errorRoot = ref("");
 
 // Fetch roles on mount
@@ -37,23 +41,23 @@ const filteredRoles = computed(() => {
     );
 });
 
-const confirmDelete = (role: any) => {
-    roleToDelete.value = role;
-    showDeleteConfirm.value = true;
-};
+const handleDelete = async (role: any) => {
+    const isConfirmed = await confirm({
+        title: "Hapus Role?",
+        message: `Apakah Anda yakin ingin menghapus role ${role.name}? Tindakan ini tidak dapat dibatalkan.`,
+        confirmText: "Ya, Hapus",
+        cancelText: "Batal",
+        type: "danger",
+    });
 
-const handleDelete = async () => {
-    if (!roleToDelete.value) return;
+    if (!isConfirmed) return;
 
     isDeleting.value = true;
     errorRoot.value = "";
 
     try {
-        const result = await deleteRole(roleToDelete.value.id);
-        if (result.success) {
-            showDeleteConfirm.value = false;
-            roleToDelete.value = null;
-        } else {
+        const result = await deleteRole(role.id);
+        if (!result.success) {
             errorRoot.value = result.error || "Gagal menghapus role.";
         }
     } catch (e: any) {
@@ -62,167 +66,178 @@ const handleDelete = async () => {
         isDeleting.value = false;
     }
 };
-
-const cancelDelete = () => {
-    showDeleteConfirm.value = false;
-    roleToDelete.value = null;
-    errorRoot.value = "";
-};
 </script>
 
 <template>
-    <div class="space-y-6 animate-fade-in">
-        <div class="page-header">
-            <div class="flex items-center gap-4">
+    <div class="space-y-6 animate-fade-in pb-10">
+        <!-- Page header -->
+        <div class="flex items-center justify-between">
+            <h1 class="text-2xl font-bold">Role Management</h1>
+
+            <div class="flex items-center gap-2">
                 <NuxtLink
                     to="/settings/users"
-                    class="p-2 rounded-lg hover:bg-muted transition-colors"
+                    class="flex items-center gap-2 px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors text-foreground"
                 >
-                    <ArrowLeft class="w-5 h-5" />
+                    <ArrowLeft class="w-4 h-4" />
+                    <span>Back to Users</span>
                 </NuxtLink>
-                <div>
-                    <h1 class="page-title">Role Management</h1>
-                    <p class="text-muted-foreground mt-1">Kelola role dan permission user</p>
+                <div class="flex items-center bg-white border border-border rounded-lg p-1">
+                    <button class="p-1.5 rounded transition-colors bg-[#012D5A] text-white">
+                        <LayoutList class="w-4 h-4" />
+                    </button>
+                    <!-- Grid view placeholder if needed -->
                 </div>
             </div>
-            <NuxtLink to="/settings/roles/create" class="btn-primary">
-                <Plus class="w-4 h-4 mr-2" />
-                Tambah Role
-            </NuxtLink>
         </div>
 
-        <div class="card-elevated p-4">
-            <div class="relative">
+        <div
+            v-if="errorRoot"
+            class="bg-red-50 text-red-600 p-3 rounded-lg text-sm border border-red-200"
+        >
+            {{ errorRoot }}
+        </div>
+
+        <!-- Filters -->
+        <div class="flex items-center justify-between gap-4">
+            <div class="relative w-full max-w-sm">
                 <Search
                     class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground"
                 />
                 <input
                     v-model="searchQuery"
                     type="text"
-                    placeholder="Cari role (nama, code)..."
-                    class="input-field pl-10"
+                    placeholder="Search Role..."
+                    class="w-full pl-10 pr-4 py-2 text-sm border border-border rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground"
                 />
             </div>
-        </div>
 
-        <div class="card-elevated overflow-hidden">
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th>Nama Role</th>
-                        <th>Code</th>
-                        <th>Deskripsi</th>
-                        <th>Status</th>
-                        <th class="w-28">Aksi</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr v-if="isLoading">
-                        <td colspan="5" class="text-center p-8 text-muted-foreground">
-                            <Loader2 class="w-6 h-6 mx-auto animate-spin mb-2" />
-                            Loading roles...
-                        </td>
-                    </tr>
-                    <tr v-else-if="filteredRoles.length === 0">
-                        <td colspan="5" class="text-center p-8 text-muted-foreground">
-                            Tidak ada role ditemukan.
-                        </td>
-                    </tr>
-                    <tr
-                        v-else
-                        v-for="role in filteredRoles"
-                        :key="role.id"
-                        class="hover:bg-muted/50 border-b last:border-0 border-border"
-                    >
-                        <td>
-                            <div class="flex items-center gap-3">
-                                <div
-                                    class="w-9 h-9 rounded-full bg-accent/10 flex items-center justify-center"
-                                >
-                                    <Shield class="w-4 h-4 text-accent" />
-                                </div>
-                                <span class="font-medium">{{ role.name }}</span>
-                            </div>
-                        </td>
-                        <td class="font-mono text-sm text-muted-foreground">{{ role.code }}</td>
-                        <td class="text-muted-foreground">{{ role.description || "-" }}</td>
-                        <td>
-                            <span
-                                :class="[
-                                    'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium',
-                                    role.isActive
-                                        ? 'badge-success'
-                                        : 'bg-muted text-muted-foreground',
-                                ]"
-                            >
-                                {{ role.isActive ? "Active" : "Inactive" }}
-                            </span>
-                        </td>
-                        <td>
-                            <div class="flex items-center gap-2">
-                                <NuxtLink
-                                    :to="`/settings/roles/${role.id}/edit`"
-                                    class="p-2 hover:bg-muted rounded-lg transition-colors text-muted-foreground hover:text-foreground"
-                                    title="Edit role"
-                                >
-                                    <Edit class="w-4 h-4" />
-                                </NuxtLink>
-                                <button
-                                    @click="confirmDelete(role)"
-                                    class="p-2 hover:bg-red-50 text-red-600 rounded-lg transition-colors"
-                                    title="Hapus role"
-                                >
-                                    <Trash2 class="w-4 h-4" />
-                                </button>
-                            </div>
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-    </div>
-
-    <!-- Delete Confirmation Modal -->
-    <div
-        v-if="showDeleteConfirm"
-        class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 animate-fade-in"
-    >
-        <div class="bg-background rounded-lg shadow-lg max-w-md w-full p-6 mx-4">
-            <div class="flex items-center gap-3 text-red-600 mb-4">
-                <div class="p-2 bg-red-100 rounded-full">
-                    <AlertTriangle class="w-6 h-6" />
-                </div>
-                <h3 class="text-lg font-semibold">Hapus Role?</h3>
-            </div>
-
-            <p
-                v-if="errorRoot"
-                class="bg-red-50 text-red-600 p-2 rounded text-sm mb-4 border border-red-200"
-            >
-                {{ errorRoot }}
-            </p>
-
-            <p class="text-muted-foreground mb-6">
-                Apakah Anda yakin ingin menghapus role <strong>{{ roleToDelete?.name }}</strong
-                >? Tindakan ini tidak dapat dibatalkan.
-            </p>
-            <div class="flex justify-end gap-3">
-                <button
-                    type="button"
-                    @click="cancelDelete"
-                    class="btn-secondary"
-                    :disabled="isDeleting"
+            <div class="flex items-center gap-3">
+                <NuxtLink
+                    to="/settings/roles/create"
+                    class="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-[#012D5A] text-white hover:bg-[#012D5A]/90 rounded-lg transition-colors min-w-fit whitespace-nowrap"
                 >
-                    Batal
+                    <Plus class="w-4 h-4" />
+                    <span>New Role</span>
+                </NuxtLink>
+            </div>
+        </div>
+
+        <!-- List View -->
+        <div class="border border-border rounded-xl bg-white overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="w-full">
+                    <thead>
+                        <tr class="border-b border-border bg-white text-left">
+                            <th class="py-3 px-4 w-10">
+                                <UiCheckbox disabled />
+                            </th>
+                            <th class="py-3 px-4 text-sm font-medium text-foreground">Name</th>
+                            <th class="py-3 px-4 text-sm font-medium text-foreground">Code</th>
+                            <th class="py-3 px-4 text-sm font-medium text-foreground">
+                                Description
+                            </th>
+                            <th class="py-3 px-4 text-sm font-medium text-foreground">Status</th>
+                            <th class="py-3 px-4 w-28">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-if="isLoading">
+                            <td colspan="6" class="text-center p-8 text-muted-foreground">
+                                <Loader2 class="w-6 h-6 mx-auto animate-spin mb-2" />
+                                Loading roles...
+                            </td>
+                        </tr>
+                        <tr v-else-if="filteredRoles.length === 0">
+                            <td colspan="6" class="text-center p-8 text-muted-foreground">
+                                No roles found.
+                            </td>
+                        </tr>
+                        <tr
+                            v-else
+                            v-for="role in filteredRoles"
+                            :key="role.id"
+                            class="border-b border-border last:border-0 hover:bg-muted/30 transition-colors"
+                        >
+                            <td class="py-3 px-4">
+                                <UiCheckbox />
+                            </td>
+                            <td class="py-3 px-4 text-sm font-medium">
+                                <div class="flex items-center gap-3">
+                                    <div
+                                        class="w-8 h-8 rounded-full bg-accent/10 flex items-center justify-center"
+                                    >
+                                        <Shield class="w-4 h-4 text-accent" />
+                                    </div>
+                                    <span>{{ role.name }}</span>
+                                </div>
+                            </td>
+                            <td class="py-3 px-4 text-sm font-mono text-muted-foreground">
+                                {{ role.code }}
+                            </td>
+                            <td class="py-3 px-4 text-sm text-muted-foreground">
+                                {{ role.description || "-" }}
+                            </td>
+                            <td class="py-3 px-4">
+                                <span
+                                    :class="
+                                        cn(
+                                            'px-2 py-0.5 rounded border text-xs font-medium bg-white',
+                                            role.isActive
+                                                ? 'text-blue-500 border-blue-200'
+                                                : 'text-gray-500 border-gray-200'
+                                        )
+                                    "
+                                >
+                                    {{ role.isActive ? "Active" : "Inactive" }}
+                                </span>
+                            </td>
+                            <td class="py-3 px-4">
+                                <div class="flex items-center gap-2">
+                                    <NuxtLink
+                                        :to="`/settings/roles/${role.id}/edit`"
+                                        class="text-muted-foreground hover:text-foreground"
+                                        title="Edit role"
+                                    >
+                                        <Edit class="w-4 h-4" />
+                                    </NuxtLink>
+                                    <button
+                                        @click="handleDelete(role)"
+                                        :disabled="isDeleting"
+                                        class="text-red-500 hover:text-red-700 transition-colors disabled:opacity-50"
+                                        title="Delete role"
+                                    >
+                                        <Loader2 v-if="isDeleting" class="w-4 h-4 animate-spin" />
+                                        <Trash2 v-else class="w-4 h-4" />
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Pagination -->
+        <div class="flex items-center justify-between text-sm text-muted-foreground">
+            <p>{{ filteredRoles.length }} data found.</p>
+            <div class="flex items-center gap-2">
+                <button class="p-1 hover:text-foreground disabled:opacity-50" disabled>
+                    <ChevronLeft class="w-4 h-4" />
+                    <span class="sr-only">Previous</span>
                 </button>
                 <button
-                    type="button"
-                    @click="handleDelete"
-                    class="btn-destructive"
-                    :disabled="isDeleting"
+                    class="w-8 h-8 flex items-center justify-center rounded border border-border bg-white text-foreground font-medium"
                 >
-                    <Loader2 v-if="isDeleting" class="w-4 h-4 mr-2 animate-spin" />
-                    <span v-else>Ya, Hapus</span>
+                    1
+                </button>
+                <span class="px-1 text-muted-foreground/50">...</span>
+                <button
+                    class="flex items-center gap-1 hover:text-foreground disabled:opacity-50"
+                    disabled
+                >
+                    Next
+                    <ChevronRight class="w-4 h-4" />
                 </button>
             </div>
         </div>
