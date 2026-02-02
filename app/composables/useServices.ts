@@ -34,6 +34,7 @@ export interface CreateService {
   unitId?: string;
   vendorPrice?: number;
   customerPrice?: number;
+  isActive?: boolean;
 }
 
 export interface UpdateService {
@@ -50,6 +51,8 @@ type ErrorResponse = {
   message?: string;
   error?: string;
 };
+
+type ApiResponse<T> = { success: boolean; data?: T; error?: string };
 
 function handleApiError(error: unknown): { success: false; error: string } {
   const axiosError = error as AxiosError<ErrorResponse>;
@@ -73,7 +76,10 @@ export function useServices() {
     withCredentials: true,
   });
 
-  async function fetchServices(search?: string, categoryId?: string) {
+  async function fetchServices(
+    search?: string,
+    categoryId?: string,
+  ): Promise<ApiResponse<Service[]>> {
     isLoading.value = true;
     try {
       const { data } = await api.get<Service[]>("/", { params: { search, categoryId } });
@@ -86,7 +92,7 @@ export function useServices() {
     }
   }
 
-  async function getService(id: string) {
+  async function getService(id: string): Promise<ApiResponse<Service>> {
     isLoading.value = true;
     try {
       const { data } = await api.get<Service>(`/${id}`);
@@ -99,7 +105,7 @@ export function useServices() {
     }
   }
 
-  async function createService(payload: CreateService) {
+  async function createService(payload: CreateService): Promise<ApiResponse<Service>> {
     isLoading.value = true;
     try {
       const { data } = await api.post<Service>("/", payload);
@@ -112,7 +118,7 @@ export function useServices() {
     }
   }
 
-  async function updateService(id: string, payload: UpdateService) {
+  async function updateService(id: string, payload: UpdateService): Promise<ApiResponse<Service>> {
     isLoading.value = true;
     try {
       const { data } = await api.put<Service>(`/${id}`, payload);
@@ -128,7 +134,7 @@ export function useServices() {
     }
   }
 
-  async function deleteService(id: string) {
+  async function deleteService(id: string): Promise<ApiResponse<void>> {
     isLoading.value = true;
     try {
       await api.delete(`/${id}`);

@@ -102,6 +102,8 @@ export function usePayments() {
       const { data } = await api.get<Payment[]>("/finance/payment");
       return { success: true, data };
     } catch (error) {
+      const axiosError = error as AxiosError<ErrorResponse>;
+      console.error("[Payments] Failed to fetch:", axiosError.response?.data || axiosError.message);
       return handleApiError(error);
     } finally {
       isLoading.value = false;

@@ -10,6 +10,7 @@ import {
   ChevronRight,
   ChevronDown,
   Save,
+  Loader2,
 } from "lucide-vue-next";
 import { cn } from "~/lib/utils";
 import type { Service } from "~/composables/useServices";
@@ -18,12 +19,17 @@ definePageMeta({
   layout: "dashboard",
 });
 
-const { services: servicesList, isLoading, fetchServices } = useServices();
+const { services: servicesList, isLoading, fetchServices, createService } = useServices();
 
 // Fetch services on mount
 onMounted(async () => {
   await fetchServices();
 });
+
+// Search and filter state
+const searchQuery = ref("");
+const selectedStatus = ref<string>("all");
+const selectedUnit = ref<string>("all");
 
 // Format currency
 function formatPrice(price: number | null | undefined): string {
@@ -35,22 +41,147 @@ function formatPrice(price: number | null | undefined): string {
   }).format(price);
 }
 
-// Transform API services to view format
+// Parse price input
+function parsePrice(value: string): number {
+  const cleaned = value.replace(/[^\d]/g, "");
+  return parseInt(cleaned) || 0;
+}
+
+// Transform API services to view format with filtering
 const services = computed(() => {
-  return servicesList.value.map((s: Service) => ({
+  let filtered = servicesList.value.map((s: Service) => ({
     id: s.id,
     name: s.name,
     code: s.code,
     price: formatPrice(s.customerPrice),
+    rawPrice: s.customerPrice || 0,
     unit: s.unit?.name || "-",
+    unitId: s.unit?.id || "",
     selected: false,
     status: s.isActive ? "Active" : "Inactive",
   }));
+
+  // Apply search filter
+  if (searchQuery.value) {
+    const query = searchQuery.value.toLowerCase();
+    filtered = filtered.filter(
+      (s) => s.name.toLowerCase().includes(query) || s.code.toLowerCase().includes(query),
+    );
+  }
+
+  // Apply status filter
+  if (selectedStatus.value !== "all") {
+    filtered = filtered.filter(
+      (s) => s.status.toLowerCase() === selectedStatus.value.toLowerCase(),
+    );
+  }
+
+  // Apply unit filter
+  if (selectedUnit.value !== "all") {
+    filtered = filtered.filter((s) => s.unit === selectedUnit.value);
+  }
+
+  return filtered;
 });
+
+// Sorting state
+const sortField = ref<string>("name");
+const sortDirection = ref<"asc" | "desc">("asc");
+
+const sortedServices = computed(() => {
+  const sorted = [...services.value];
+  sorted.sort((a, b) => {
+    let comparison = 0;
+    switch (sortField.value) {
+      case "name":
+        comparison = a.name.localeCompare(b.name);
+        break;
+      case "code":
+        comparison = a.code.localeCompare(b.code);
+        break;
+      case "price":
+        comparison = a.rawPrice - b.rawPrice;
+        break;
+      case "status":
+        comparison = a.status.localeCompare(b.status);
+        break;
+      default:
+        comparison = a.name.localeCompare(b.name);
+    }
+    return sortDirection.value === "asc" ? comparison : -comparison;
+  });
+  return sorted;
+});
+
+const toggleSort = (field: string) => {
+  if (sortField.value === field) {
+    sortDirection.value = sortDirection.value === "asc" ? "desc" : "asc";
+  } else {
+    sortField.value = field;
+    sortDirection.value = "asc";
+  }
+};
 
 type ViewMode = "list" | "grid";
 const viewMode = ref<ViewMode>("list");
 const isCreateOpen = ref(false);
+const isSubmitting = ref(false);
+const formError = ref<string | null>(null);
+
+// Form state
+const formData = ref({
+  name: "",
+  code: "",
+  price: "",
+  status: "Active",
+  unit: "Per Container",
+});
+
+const resetForm = () => {
+  formData.value = {
+    name: "",
+    code: "",
+    price: "",
+    status: "Active",
+    unit: "Per Container",
+  };
+  formError.value = null;
+};
+
+const handleCreateService = async () => {
+  // Validation
+  if (!formData.value.name || !formData.value.code) {
+    formError.value = "Please fill in all required fields (Name, Code)";
+    return;
+  }
+
+  isSubmitting.value = true;
+  formError.value = null;
+
+  const serviceData = {
+    name: formData.value.name,
+    code: formData.value.code,
+    customerPrice: parsePrice(formData.value.price),
+    isActive: formData.value.status === "Active",
+    // Note: unitId should come from a proper unit selection
+    // For now we'll use the name as-is
+  };
+
+  const result = await createService(serviceData);
+
+  if (result.success) {
+    // Close modal and reset form
+    isCreateOpen.value = false;
+    resetForm();
+
+    // Refresh service list
+    await fetchServices();
+  } else {
+    formError.value = result.error || "Failed to create service";
+  }
+
+  isSubmitting.value = false;
+};
 
 const selectAll = computed({
   get: () => services.value.length > 0 && services.value.every((s) => s.selected),
@@ -101,6 +232,7 @@ const selectAll = computed({
       <div class="relative w-full max-w-sm">
         <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
         <input
+          v-model="searchQuery"
           type="text"
           placeholder="Search Service..."
           class="w-full pl-10 pr-4 py-2 text-sm border border-border rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground"
@@ -108,14 +240,24 @@ const selectAll = computed({
       </div>
 
       <div class="flex items-center gap-3">
+        <div class="relative">
+          <select
+            v-model="selectedStatus"
+            class="flex items-center justify-between gap-2 px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors min-w-[140px] text-foreground appearance-none cursor-pointer"
+          >
+            <option value="all">All Status</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+          </select>
+          <ChevronDown
+            class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none"
+          />
+        </div>
         <button
-          class="flex items-center justify-between gap-2 px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors min-w-[140px] text-foreground"
-        >
-          <span>Select Unit</span>
-          <ChevronDown class="w-4 h-4 text-muted-foreground" />
-        </button>
-        <button
-          @click="isCreateOpen = true"
+          @click="
+            isCreateOpen = true;
+            resetForm();
+          "
           class="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-[#012D5A] text-white hover:bg-[#012D5A]/90 rounded-lg transition-colors min-w-fit whitespace-nowrap"
         >
           <Plus class="w-4 h-4" />
@@ -124,9 +266,14 @@ const selectAll = computed({
       </div>
     </div>
 
+    <!-- Loading State -->
+    <div v-if="isLoading" class="flex items-center justify-center py-12">
+      <Loader2 class="w-8 h-8 animate-spin text-[#012D5A]" />
+    </div>
+
     <!-- List View -->
     <div
-      v-if="viewMode === 'list'"
+      v-else-if="viewMode === 'list'"
       class="border border-border rounded-xl bg-white overflow-hidden"
     >
       <div class="overflow-x-auto">
@@ -136,17 +283,65 @@ const selectAll = computed({
               <th class="py-3 px-4 w-10">
                 <UiCheckbox v-model="selectAll" />
               </th>
-              <th class="py-3 px-4 text-sm font-medium text-foreground">Code</th>
-              <th class="py-3 px-4 text-sm font-medium text-foreground">Service Name</th>
-              <th class="py-3 px-4 text-sm font-medium text-foreground">Price</th>
+              <th
+                class="py-3 px-4 text-sm font-medium text-foreground cursor-pointer hover:bg-muted/50"
+                @click="toggleSort('code')"
+              >
+                <div class="flex items-center gap-1">
+                  Code
+                  <ChevronDown
+                    v-if="sortField === 'code'"
+                    class="w-4 h-4"
+                    :class="{ 'rotate-180': sortDirection === 'desc' }"
+                  />
+                </div>
+              </th>
+              <th
+                class="py-3 px-4 text-sm font-medium text-foreground cursor-pointer hover:bg-muted/50"
+                @click="toggleSort('name')"
+              >
+                <div class="flex items-center gap-1">
+                  Service Name
+                  <ChevronDown
+                    v-if="sortField === 'name'"
+                    class="w-4 h-4"
+                    :class="{ 'rotate-180': sortDirection === 'desc' }"
+                  />
+                </div>
+              </th>
+              <th
+                class="py-3 px-4 text-sm font-medium text-foreground cursor-pointer hover:bg-muted/50"
+                @click="toggleSort('price')"
+              >
+                <div class="flex items-center gap-1">
+                  Price
+                  <ChevronDown
+                    v-if="sortField === 'price'"
+                    class="w-4 h-4"
+                    :class="{ 'rotate-180': sortDirection === 'desc' }"
+                  />
+                </div>
+              </th>
               <th class="py-3 px-4 text-sm font-medium text-foreground">Unit</th>
-              <th class="py-3 px-4 text-sm font-medium text-foreground">Status</th>
+              <th
+                class="py-3 px-4 text-sm font-medium text-foreground cursor-pointer hover:bg-muted/50"
+                @click="toggleSort('status')"
+              >
+                <div class="flex items-center gap-1">
+                  Status
+                  <ChevronDown
+                    v-if="sortField === 'status'"
+                    class="w-4 h-4"
+                    :class="{ 'rotate-180': sortDirection === 'desc' }"
+                  />
+                </div>
+              </th>
               <th class="py-3 px-4 w-10"></th>
             </tr>
           </thead>
           <tbody>
             <tr
-              v-for="service in services"
+              v-for="service in sortedServices"
               :key="service.id"
               class="border-b border-border last:border-0 hover:bg-muted/30 transition-colors cursor-pointer"
               @click="navigateTo(`/master/services/${service.id}`)"
@@ -180,6 +375,9 @@ const selectAll = computed({
                 </button>
               </td>
             </tr>
+            <tr v-if="sortedServices.length === 0">
+              <td colspan="7" class="py-8 text-center text-muted-foreground">No services found</td>
+            </tr>
           </tbody>
         </table>
       </div>
@@ -188,7 +386,7 @@ const selectAll = computed({
     <!-- Grid View -->
     <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
       <div
-        v-for="service in services"
+        v-for="service in sortedServices"
         :key="service.id"
         class="border border-border rounded-xl bg-white p-5 hover:shadow-sm transition-shadow cursor-pointer"
         @click="navigateTo(`/master/services/${service.id}`)"
@@ -230,11 +428,17 @@ const selectAll = computed({
           </span>
         </div>
       </div>
+      <div
+        v-if="sortedServices.length === 0"
+        class="col-span-3 py-8 text-center text-muted-foreground"
+      >
+        No services found
+      </div>
     </div>
 
     <!-- Pagination -->
     <div class="flex items-center justify-between text-sm text-muted-foreground">
-      <p>{{ services.length }} data found.</p>
+      <p>{{ sortedServices.length }} data found.</p>
       <div class="flex items-center gap-2">
         <button class="p-1 hover:text-foreground disabled:opacity-50">
           <ChevronLeft class="w-4 h-4" />
@@ -270,15 +474,22 @@ const selectAll = computed({
       description="Register your new Service"
       width="max-w-xl"
     >
-      <form class="space-y-4">
+      <form class="space-y-4" @submit.prevent="handleCreateService">
+        <!-- Error Message -->
+        <div v-if="formError" class="p-4 bg-red-50 border border-red-200 rounded-lg">
+          <p class="text-sm text-red-600">{{ formError }}</p>
+        </div>
+
         <div class="space-y-1.5">
           <label class="text-sm font-medium text-foreground"
             >Service Name <span class="text-red-500">*</span></label
           >
           <input
+            v-model="formData.name"
             type="text"
             placeholder="e.g. Ocean Freight"
             class="w-full px-3 py-2 rounded-lg border border-border focus:outline-none focus:ring-1 focus:ring-primary"
+            required
           />
         </div>
         <div class="grid grid-cols-2 gap-4">
@@ -287,17 +498,18 @@ const selectAll = computed({
               >Code <span class="text-red-500">*</span></label
             >
             <input
+              v-model="formData.code"
               type="text"
               placeholder="SVC-XXX"
               class="w-full px-3 py-2 rounded-lg border border-border focus:outline-none focus:ring-1 focus:ring-primary"
+              required
             />
           </div>
           <div class="space-y-1.5">
-            <label class="text-sm font-medium text-foreground"
-              >Status <span class="text-red-500">*</span></label
-            >
+            <label class="text-sm font-medium text-foreground">Status</label>
             <div class="relative">
               <select
+                v-model="formData.status"
                 class="w-full px-3 py-2 rounded-lg border border-border bg-white focus:outline-none focus:ring-1 focus:ring-primary appearance-none"
               >
                 <option value="Active">Active</option>
@@ -311,21 +523,19 @@ const selectAll = computed({
         </div>
         <div class="grid grid-cols-2 gap-4">
           <div class="space-y-1.5">
-            <label class="text-sm font-medium text-foreground"
-              >Price <span class="text-red-500">*</span></label
-            >
+            <label class="text-sm font-medium text-foreground">Price</label>
             <input
+              v-model="formData.price"
               type="text"
               placeholder="Rp 0"
               class="w-full px-3 py-2 rounded-lg border border-border focus:outline-none focus:ring-1 focus:ring-primary"
             />
           </div>
           <div class="space-y-1.5">
-            <label class="text-sm font-medium text-foreground"
-              >Unit <span class="text-red-500">*</span></label
-            >
+            <label class="text-sm font-medium text-foreground">Unit</label>
             <div class="relative">
               <select
+                v-model="formData.unit"
                 class="w-full px-3 py-2 rounded-lg border border-border bg-white focus:outline-none focus:ring-1 focus:ring-primary appearance-none"
               >
                 <option>Per Container</option>
@@ -345,15 +555,19 @@ const selectAll = computed({
           type="button"
           @click="isCreateOpen = false"
           class="px-4 py-2 text-sm font-medium bg-white border border-gray-300 rounded-lg text-foreground hover:bg-gray-50 transition-colors"
+          :disabled="isSubmitting"
         >
           Cancel
         </button>
         <button
           type="button"
-          class="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-[#012D5A] text-white rounded-lg hover:bg-[#012D5A]/90 transition-colors"
+          @click="handleCreateService"
+          :disabled="isSubmitting"
+          class="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-[#012D5A] text-white rounded-lg hover:bg-[#012D5A]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          <Save class="w-4 h-4" />
-          Save
+          <Loader2 v-if="isSubmitting" class="w-4 h-4 animate-spin" />
+          <Save v-else class="w-4 h-4" />
+          {{ isSubmitting ? "Saving..." : "Save" }}
         </button>
       </template>
     </UiModal>

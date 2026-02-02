@@ -28,13 +28,18 @@ const handleSubmit = async () => {
         if (firstOrg?.id) {
           await setActiveOrganization(firstOrg.id);
         }
+      } else {
+        console.warn("[Login] No organizations found for user");
       }
       router.push("/dashboard");
     } else {
-      errorMessage.value = "Login gagal. Periksa email dan password Anda.";
+      // Show specific error message from API
+      errorMessage.value = result.error || "Login gagal. Periksa email dan password Anda.";
+      console.error("[Login] Login failed:", result.error);
     }
   } catch (e) {
-    errorMessage.value = "Terjadi kesalahan. Silakan coba lagi.";
+    console.error("[Login] Unexpected error:", e);
+    errorMessage.value = "Terjadi kesalahan koneksi. Pastikan server berjalan.";
   } finally {
     isLoading.value = false;
   }

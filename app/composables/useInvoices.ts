@@ -85,6 +85,8 @@ export function useInvoices() {
       const { data } = await api.get<Invoice[]>("/finance/invoice");
       return { success: true, data };
     } catch (error) {
+      const axiosError = error as AxiosError<ErrorResponse>;
+      console.error("[Invoices] Failed to fetch:", axiosError.response?.data || axiosError.message);
       return handleApiError(error);
     } finally {
       isLoading.value = false;

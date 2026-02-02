@@ -56,6 +56,8 @@ type ErrorResponse = {
   error?: string;
 };
 
+type ApiResponse<T> = { success: boolean; data?: T; error?: string };
+
 function handleApiError(error: unknown): { success: false; error: string } {
   const axiosError = error as AxiosError<ErrorResponse>;
   const apiError = axiosError.response?.data;
@@ -78,7 +80,7 @@ export function useVendors() {
     withCredentials: true,
   });
 
-  async function fetchVendors(search?: string) {
+  async function fetchVendors(search?: string): Promise<ApiResponse<Vendor[]>> {
     isLoading.value = true;
     try {
       const { data } = await api.get<Vendor[]>("/", { params: { search } });
@@ -91,7 +93,7 @@ export function useVendors() {
     }
   }
 
-  async function getVendor(id: string) {
+  async function getVendor(id: string): Promise<ApiResponse<Vendor>> {
     isLoading.value = true;
     try {
       const { data } = await api.get<Vendor>(`/${id}`);
@@ -104,7 +106,7 @@ export function useVendors() {
     }
   }
 
-  async function createVendor(payload: CreateVendor) {
+  async function createVendor(payload: CreateVendor): Promise<ApiResponse<Vendor>> {
     isLoading.value = true;
     try {
       const { data } = await api.post<Vendor>("/", payload);
@@ -117,7 +119,7 @@ export function useVendors() {
     }
   }
 
-  async function updateVendor(id: string, payload: UpdateVendor) {
+  async function updateVendor(id: string, payload: UpdateVendor): Promise<ApiResponse<Vendor>> {
     isLoading.value = true;
     try {
       const { data } = await api.put<Vendor>(`/${id}`, payload);
@@ -133,7 +135,7 @@ export function useVendors() {
     }
   }
 
-  async function deleteVendor(id: string) {
+  async function deleteVendor(id: string): Promise<ApiResponse<void>> {
     isLoading.value = true;
     try {
       await api.delete(`/${id}`);
