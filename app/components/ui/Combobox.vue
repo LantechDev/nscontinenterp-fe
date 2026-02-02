@@ -79,7 +79,7 @@ watch(open, (isOpen) => {
 });
 
 // Click outside to close
-onClickOutside(containerRef, () => {
+onClickOutside(containerRef as Ref<HTMLElement>, () => {
   open.value = false;
 });
 </script>

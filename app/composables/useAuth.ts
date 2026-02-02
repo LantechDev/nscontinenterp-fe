@@ -71,6 +71,8 @@ export function useAuth() {
       user.value = data.user || null;
       return { success: true, data };
     } catch (error) {
+      const axiosError = error as AxiosError<ErrorResponse>;
+      console.error("[Auth] Login failed:", axiosError.response?.data || axiosError.message);
       return handleApiError<LoginResponse>(error);
     } finally {
       isLoading.value = false;

@@ -34,6 +34,7 @@ export interface Job {
   cargoMovement?: { name: string; code: string } | null;
   deliveryMovement?: { name: string; code: string } | null;
   jobParties?: JobParty[];
+  status?: { name: string; code: string } | null;
 }
 
 export interface JobParty {

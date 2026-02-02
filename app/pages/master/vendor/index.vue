@@ -12,6 +12,7 @@ import {
   ChevronRight,
   ChevronDown,
   Save,
+  Loader2,
 } from "lucide-vue-next";
 import { cn } from "~/lib/utils";
 
@@ -19,42 +20,174 @@ definePageMeta({
   layout: "dashboard",
 });
 
+const { vendors: vendorsList, isLoading, fetchVendors, createVendor } = useVendors();
+
+// Fetch vendors on mount
+onMounted(async () => {
+  await fetchVendors();
+});
+
+// Search and filter state
+const searchQuery = ref("");
+const selectedType = ref<string>("all");
+const selectedStatus = ref<string>("all");
+
+// Transform API vendors to view format with filtering
+const vendors = computed(() => {
+  let filtered = vendorsList.value.map((v) => ({
+    id: v.id,
+    name: v.name,
+    code: `VND-${v.id.slice(0, 6).toUpperCase()}`,
+    email: v.email || "-",
+    phone: v.phone || "-",
+    type: v.addresses?.[0]?.label || "Vendor",
+    status: v.isActive ? "Active" : "Inactive",
+    selected: false,
+  }));
+
+  // Apply search filter
+  if (searchQuery.value) {
+    const query = searchQuery.value.toLowerCase();
+    filtered = filtered.filter(
+      (v) =>
+        v.name.toLowerCase().includes(query) ||
+        v.code.toLowerCase().includes(query) ||
+        v.email.toLowerCase().includes(query),
+    );
+  }
+
+  // Apply type filter
+  if (selectedType.value !== "all") {
+    filtered = filtered.filter((v) => v.type.toLowerCase() === selectedType.value.toLowerCase());
+  }
+
+  // Apply status filter
+  if (selectedStatus.value !== "all") {
+    filtered = filtered.filter(
+      (v) => v.status.toLowerCase() === selectedStatus.value.toLowerCase(),
+    );
+  }
+
+  return filtered;
+});
+
+// Sorting state
+const sortField = ref<string>("name");
+const sortDirection = ref<"asc" | "desc">("asc");
+
+const sortedVendors = computed(() => {
+  const sorted = [...vendors.value];
+  sorted.sort((a, b) => {
+    let comparison = 0;
+    switch (sortField.value) {
+      case "name":
+        comparison = a.name.localeCompare(b.name);
+        break;
+      case "code":
+        comparison = a.code.localeCompare(b.code);
+        break;
+      case "type":
+        comparison = a.type.localeCompare(b.type);
+        break;
+      case "status":
+        comparison = a.status.localeCompare(b.status);
+        break;
+      default:
+        comparison = a.name.localeCompare(b.name);
+    }
+    return sortDirection.value === "asc" ? comparison : -comparison;
+  });
+  return sorted;
+});
+
+const toggleSort = (field: string) => {
+  if (sortField.value === field) {
+    sortDirection.value = sortDirection.value === "asc" ? "desc" : "asc";
+  } else {
+    sortField.value = field;
+    sortDirection.value = "asc";
+  }
+};
+
 type ViewMode = "list" | "grid";
 const viewMode = ref<ViewMode>("list");
 const isCreateOpen = ref(false);
+const isSubmitting = ref(false);
+const formError = ref<string | null>(null);
 
-const vendors = ref([
-  {
-    id: "1",
-    name: "PT Pelayaran Nusantara",
-    code: "VND-001",
-    email: "ops@pelayanusantara.co.id",
-    phone: "+62 21 5551234",
-    type: "Shipping Line",
-    status: "Active",
-    selected: false,
-  },
-  {
-    id: "2",
-    name: "CV Trucking Mandiri",
-    code: "VND-002",
-    email: "admin@truckingmandiri.com",
-    phone: "+62 31 7771234",
-    type: "Trucking",
-    status: "Active",
-    selected: false,
-  },
-  {
-    id: "3",
-    name: "PT Bea Cukai Partner",
-    code: "VND-003",
-    email: "contact@bcpartner.id",
-    phone: "+62 21 8881234",
-    type: "Customs",
-    status: "Active",
-    selected: false,
-  },
-]);
+// Form state
+const formData = ref({
+  name: "",
+  email: "",
+  phone: "",
+  countryCode: "ID",
+  type: "",
+  status: "active",
+  country: "",
+  city: "",
+  fullAddress: "",
+  postalCode: "",
+  state: "",
+  eoriNo: "",
+});
+
+const resetForm = () => {
+  formData.value = {
+    name: "",
+    email: "",
+    phone: "",
+    countryCode: "ID",
+    type: "",
+    status: "active",
+    country: "",
+    city: "",
+    fullAddress: "",
+    postalCode: "",
+    state: "",
+    eoriNo: "",
+  };
+  formError.value = null;
+};
+
+const handleCreateVendor = async () => {
+  // Validation
+  if (!formData.value.name || !formData.value.email || !formData.value.phone) {
+    formError.value = "Please fill in all required fields (Name, Email, Phone)";
+    return;
+  }
+
+  isSubmitting.value = true;
+  formError.value = null;
+
+  const vendorData = {
+    name: formData.value.name,
+    email: formData.value.email,
+    phone: formData.value.phone,
+    address: {
+      fullAddress: formData.value.fullAddress,
+      country: formData.value.country,
+      city: formData.value.city,
+      state: formData.value.state,
+      postalCode: formData.value.postalCode,
+      eori: formData.value.eoriNo,
+    },
+  };
+
+  const result = await createVendor(vendorData);
+
+  if (result.success) {
+    // Close modal and reset form
+    isCreateOpen.value = false;
+    resetForm();
+
+    // Refresh vendor list
+    await fetchVendors();
+  } else {
+    formError.value = result.error || "Failed to create vendor";
+  }
+
+  isSubmitting.value = false;
+};
 
 const selectAll = computed({
   get: () => vendors.value.length > 0 && vendors.value.every((v) => v.selected),
@@ -105,6 +238,7 @@ const selectAll = computed({
       <div class="relative w-full max-w-sm">
         <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
         <input
+          v-model="searchQuery"
           type="text"
           placeholder="Search Vendor..."
           class="w-full pl-10 pr-4 py-2 text-sm border border-border rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground"
@@ -112,14 +246,25 @@ const selectAll = computed({
       </div>
 
       <div class="flex items-center gap-3">
+        <div class="relative">
+          <select
+            v-model="selectedType"
+            class="flex items-center justify-between gap-2 px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors min-w-[140px] text-foreground appearance-none cursor-pointer"
+          >
+            <option value="all">All Types</option>
+            <option value="shipping">Shipping Line</option>
+            <option value="trucking">Trucking</option>
+            <option value="customs">Customs</option>
+          </select>
+          <ChevronDown
+            class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none"
+          />
+        </div>
         <button
-          class="flex items-center justify-between gap-2 px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors min-w-[140px] text-foreground"
-        >
-          <span>Select Type</span>
-          <ChevronDown class="w-4 h-4 text-muted-foreground" />
-        </button>
-        <button
-          @click="isCreateOpen = true"
+          @click="
+            isCreateOpen = true;
+            resetForm();
+          "
           class="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-[#012D5A] text-white hover:bg-[#012D5A]/90 rounded-lg transition-colors min-w-fit whitespace-nowrap"
         >
           <Plus class="w-4 h-4" />
@@ -128,9 +273,14 @@ const selectAll = computed({
       </div>
     </div>
 
+    <!-- Loading State -->
+    <div v-if="isLoading" class="flex items-center justify-center py-12">
+      <Loader2 class="w-8 h-8 animate-spin text-[#012D5A]" />
+    </div>
+
     <!-- List View -->
     <div
-      v-if="viewMode === 'list'"
+      v-else-if="viewMode === 'list'"
       class="border border-border rounded-xl bg-white overflow-hidden"
     >
       <div class="overflow-x-auto">
@@ -140,18 +290,66 @@ const selectAll = computed({
               <th class="py-3 px-4 w-10">
                 <UiCheckbox v-model="selectAll" />
               </th>
-              <th class="py-3 px-4 text-sm font-medium text-foreground">No. Vendor</th>
-              <th class="py-3 px-4 text-sm font-medium text-foreground">Vendor</th>
+              <th
+                class="py-3 px-4 text-sm font-medium text-foreground cursor-pointer hover:bg-muted/50"
+                @click="toggleSort('code')"
+              >
+                <div class="flex items-center gap-1">
+                  No. Vendor
+                  <ChevronDown
+                    v-if="sortField === 'code'"
+                    class="w-4 h-4"
+                    :class="{ 'rotate-180': sortDirection === 'desc' }"
+                  />
+                </div>
+              </th>
+              <th
+                class="py-3 px-4 text-sm font-medium text-foreground cursor-pointer hover:bg-muted/50"
+                @click="toggleSort('name')"
+              >
+                <div class="flex items-center gap-1">
+                  Vendor
+                  <ChevronDown
+                    v-if="sortField === 'name'"
+                    class="w-4 h-4"
+                    :class="{ 'rotate-180': sortDirection === 'desc' }"
+                  />
+                </div>
+              </th>
               <th class="py-3 px-4 text-sm font-medium text-foreground">Email</th>
               <th class="py-3 px-4 text-sm font-medium text-foreground">Phone</th>
-              <th class="py-3 px-4 text-sm font-medium text-foreground">Type</th>
-              <th class="py-3 px-4 text-sm font-medium text-foreground">Status</th>
+              <th
+                class="py-3 px-4 text-sm font-medium text-foreground cursor-pointer hover:bg-muted/50"
+                @click="toggleSort('type')"
+              >
+                <div class="flex items-center gap-1">
+                  Type
+                  <ChevronDown
+                    v-if="sortField === 'type'"
+                    class="w-4 h-4"
+                    :class="{ 'rotate-180': sortDirection === 'desc' }"
+                  />
+                </div>
+              </th>
+              <th
+                class="py-3 px-4 text-sm font-medium text-foreground cursor-pointer hover:bg-muted/50"
+                @click="toggleSort('status')"
+              >
+                <div class="flex items-center gap-1">
+                  Status
+                  <ChevronDown
+                    v-if="sortField === 'status'"
+                    class="w-4 h-4"
+                    :class="{ 'rotate-180': sortDirection === 'desc' }"
+                  />
+                </div>
+              </th>
               <th class="py-3 px-4 w-10"></th>
             </tr>
           </thead>
           <tbody>
             <tr
-              v-for="vendor in vendors"
+              v-for="vendor in sortedVendors"
               :key="vendor.id"
               class="border-b border-border last:border-0 hover:bg-muted/30 transition-colors cursor-pointer"
               @click="navigateTo(`/master/vendor/${vendor.id}`)"
@@ -188,6 +386,9 @@ const selectAll = computed({
                 </button>
               </td>
             </tr>
+            <tr v-if="sortedVendors.length === 0">
+              <td colspan="8" class="py-8 text-center text-muted-foreground">No vendors found</td>
+            </tr>
           </tbody>
         </table>
       </div>
@@ -196,7 +397,7 @@ const selectAll = computed({
     <!-- Grid View -->
     <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4">
       <div
-        v-for="vendor in vendors"
+        v-for="vendor in sortedVendors"
         :key="vendor.id"
         class="border border-border rounded-xl bg-white p-5 hover:shadow-sm transition-shadow cursor-pointer"
         @click="navigateTo(`/master/vendor/${vendor.id}`)"
@@ -245,11 +446,17 @@ const selectAll = computed({
           </span>
         </div>
       </div>
+      <div
+        v-if="sortedVendors.length === 0"
+        class="col-span-2 py-8 text-center text-muted-foreground"
+      >
+        No vendors found
+      </div>
     </div>
 
     <!-- Pagination -->
     <div class="flex items-center justify-between text-sm text-muted-foreground">
-      <p>{{ vendors.length }} data found.</p>
+      <p>{{ sortedVendors.length }} data found.</p>
       <div class="flex items-center gap-2">
         <button class="p-1 hover:text-foreground disabled:opacity-50">
           <ChevronLeft class="w-4 h-4" />
@@ -285,29 +492,26 @@ const selectAll = computed({
       description="Register your new Vendor"
       width="max-w-4xl"
     >
-      <form class="space-y-6">
+      <form class="space-y-6" @submit.prevent="handleCreateVendor">
+        <!-- Error Message -->
+        <div v-if="formError" class="p-4 bg-red-50 border border-red-200 rounded-lg">
+          <p class="text-sm text-red-600">{{ formError }}</p>
+        </div>
+
         <!-- Vendor Detail -->
         <div>
           <h3 class="text-base font-bold text-foreground mb-4">Vendor Detail</h3>
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div class="space-y-1.5">
               <label class="text-sm font-medium text-foreground"
-                >Vendor Code <span class="text-red-500">*</span></label
-              >
-              <input
-                type="text"
-                placeholder="VND-XXX"
-                class="w-full px-3 py-2 rounded-lg border border-border focus:outline-none focus:ring-1 focus:ring-primary"
-              />
-            </div>
-            <div class="space-y-1.5">
-              <label class="text-sm font-medium text-foreground"
                 >Name <span class="text-red-500">*</span></label
               >
               <input
+                v-model="formData.name"
                 type="text"
                 placeholder="Input name"
                 class="w-full px-3 py-2 rounded-lg border border-border focus:outline-none focus:ring-1 focus:ring-primary"
+                required
               />
             </div>
             <div class="space-y-1.5">
@@ -315,9 +519,11 @@ const selectAll = computed({
                 >Email <span class="text-red-500">*</span></label
               >
               <input
+                v-model="formData.email"
                 type="email"
                 placeholder="Input email"
                 class="w-full px-3 py-2 rounded-lg border border-border focus:outline-none focus:ring-1 focus:ring-primary"
+                required
               />
             </div>
             <div class="space-y-1.5">
@@ -326,27 +532,31 @@ const selectAll = computed({
               >
               <div class="flex gap-2">
                 <select
+                  v-model="formData.countryCode"
                   class="w-24 px-2 py-2 rounded-lg border border-border bg-white focus:outline-none focus:ring-1 focus:ring-primary"
                 >
-                  <option>US</option>
-                  <option>ID</option>
+                  <option value="ID">ID</option>
+                  <option value="US">US</option>
+                  <option value="SG">SG</option>
+                  <option value="MY">MY</option>
                 </select>
                 <input
-                  type="text"
-                  placeholder="+1 (333) 000-0000"
+                  v-model="formData.phone"
+                  type="tel"
+                  placeholder="+62 812-3456-7890"
                   class="flex-1 px-3 py-2 rounded-lg border border-border focus:outline-none focus:ring-1 focus:ring-primary"
+                  required
                 />
               </div>
             </div>
             <div class="space-y-1.5">
-              <label class="text-sm font-medium text-foreground"
-                >Type <span class="text-red-500">*</span></label
-              >
+              <label class="text-sm font-medium text-foreground">Type</label>
               <div class="relative">
                 <select
+                  v-model="formData.type"
                   class="w-full px-3 py-2 rounded-lg border border-border bg-white focus:outline-none focus:ring-1 focus:ring-primary appearance-none"
                 >
-                  <option value="" disabled selected>Select Type</option>
+                  <option value="">Select Type</option>
                   <option value="shipping">Shipping Line</option>
                   <option value="trucking">Trucking</option>
                   <option value="customs">Customs</option>
@@ -357,11 +567,10 @@ const selectAll = computed({
               </div>
             </div>
             <div class="space-y-1.5">
-              <label class="text-sm font-medium text-foreground"
-                >Status <span class="text-red-500">*</span></label
-              >
+              <label class="text-sm font-medium text-foreground">Status</label>
               <div class="relative">
                 <select
+                  v-model="formData.status"
                   class="w-full px-3 py-2 rounded-lg border border-border bg-white focus:outline-none focus:ring-1 focus:ring-primary appearance-none"
                 >
                   <option value="active">Active</option>
@@ -382,88 +591,58 @@ const selectAll = computed({
           <h3 class="text-base font-bold text-foreground mb-4">Address</h3>
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div class="space-y-1.5">
-              <label class="text-sm font-medium text-foreground"
-                >Country <span class="text-red-500">*</span></label
-              >
+              <label class="text-sm font-medium text-foreground">Country</label>
               <input
+                v-model="formData.country"
                 type="text"
                 placeholder="Input country"
                 class="w-full px-3 py-2 rounded-lg border border-border focus:outline-none focus:ring-1 focus:ring-primary"
               />
             </div>
             <div class="space-y-1.5">
-              <label class="text-sm font-medium text-foreground"
-                >City <span class="text-red-500">*</span></label
-              >
+              <label class="text-sm font-medium text-foreground">City</label>
               <input
+                v-model="formData.city"
                 type="text"
                 placeholder="Input city"
                 class="w-full px-3 py-2 rounded-lg border border-border focus:outline-none focus:ring-1 focus:ring-primary"
               />
             </div>
-            <div class="space-y-1.5">
-              <label class="text-sm font-medium text-foreground"
-                >Street/ P.O. Box <span class="text-red-500">*</span></label
-              >
-              <div class="flex gap-2">
-                <select
-                  class="w-24 px-2 py-2 rounded-lg border border-border bg-white focus:outline-none focus:ring-1 focus:ring-primary"
-                >
-                  <option>US</option>
-                </select>
-                <input
-                  type="text"
-                  placeholder="+1 (333) 000-0000"
-                  class="flex-1 px-3 py-2 rounded-lg border border-border focus:outline-none focus:ring-1 focus:ring-primary"
-                />
-              </div>
+            <div class="space-y-1.5 md:col-span-2">
+              <label class="text-sm font-medium text-foreground">Full Address</label>
+              <textarea
+                v-model="formData.fullAddress"
+                placeholder="Enter full address"
+                rows="3"
+                class="w-full px-3 py-2 rounded-lg border border-border focus:outline-none focus:ring-1 focus:ring-primary resize-none"
+              ></textarea>
             </div>
             <div class="space-y-1.5">
-              <label class="text-sm font-medium text-foreground"
-                >Postal/ Zip code <span class="text-red-500">*</span></label
-              >
-              <div class="relative">
-                <select
-                  class="w-full px-3 py-2 rounded-lg border border-border bg-white focus:outline-none focus:ring-1 focus:ring-primary appearance-none"
-                >
-                  <option value="" disabled selected>Select Type</option>
-                </select>
-                <ChevronDown
-                  class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none"
-                />
-              </div>
+              <label class="text-sm font-medium text-foreground">Postal/ Zip code</label>
+              <input
+                v-model="formData.postalCode"
+                type="text"
+                placeholder="Input postal code"
+                class="w-full px-3 py-2 rounded-lg border border-border focus:outline-none focus:ring-1 focus:ring-primary"
+              />
             </div>
             <div class="space-y-1.5">
-              <label class="text-sm font-medium text-foreground"
-                >State <span class="text-red-500">*</span></label
-              >
-              <div class="flex gap-2">
-                <select
-                  class="w-24 px-2 py-2 rounded-lg border border-border bg-white focus:outline-none focus:ring-1 focus:ring-primary"
-                >
-                  <option>US</option>
-                </select>
-                <input
-                  type="text"
-                  placeholder="+1 (333) 000-0000"
-                  class="flex-1 px-3 py-2 rounded-lg border border-border focus:outline-none focus:ring-1 focus:ring-primary"
-                />
-              </div>
+              <label class="text-sm font-medium text-foreground">State</label>
+              <input
+                v-model="formData.state"
+                type="text"
+                placeholder="Input state"
+                class="w-full px-3 py-2 rounded-lg border border-border focus:outline-none focus:ring-1 focus:ring-primary"
+              />
             </div>
             <div class="space-y-1.5">
-              <label class="text-sm font-medium text-foreground"
-                >EORI No. <span class="text-red-500">*</span></label
-              >
-              <div class="relative">
-                <select
-                  class="w-full px-3 py-2 rounded-lg border border-border bg-white focus:outline-none focus:ring-1 focus:ring-primary appearance-none"
-                >
-                  <option value="" disabled selected>Select Type</option>
-                </select>
-                <ChevronDown
-                  class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none"
-                />
-              </div>
+              <label class="text-sm font-medium text-foreground">EORI No.</label>
+              <input
+                v-model="formData.eoriNo"
+                type="text"
+                placeholder="Input EORI number"
+                class="w-full px-3 py-2 rounded-lg border border-border focus:outline-none focus:ring-1 focus:ring-primary"
+              />
             </div>
           </div>
         </div>
@@ -474,15 +653,19 @@ const selectAll = computed({
           type="button"
           @click="isCreateOpen = false"
           class="px-4 py-2 text-sm font-medium bg-white border border-gray-300 rounded-lg text-foreground hover:bg-gray-50 transition-colors"
+          :disabled="isSubmitting"
         >
           Cancel
         </button>
         <button
           type="button"
-          class="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-[#012D5A] text-white rounded-lg hover:bg-[#012D5A]/90 transition-colors"
+          @click="handleCreateVendor"
+          :disabled="isSubmitting"
+          class="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-[#012D5A] text-white rounded-lg hover:bg-[#012D5A]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          <Save class="w-4 h-4" />
-          Save
+          <Loader2 v-if="isSubmitting" class="w-4 h-4 animate-spin" />
+          <Save v-else class="w-4 h-4" />
+          {{ isSubmitting ? "Saving..." : "Save" }}
         </button>
       </template>
     </UiModal>

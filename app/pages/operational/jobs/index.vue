@@ -28,7 +28,6 @@ onMounted(async () => {
 });
 
 const searchQuery = ref("");
-const typeFilter = ref("");
 type ViewMode = "list" | "grid";
 const viewMode = ref<ViewMode>("list");
 
@@ -170,11 +169,11 @@ const getStatusClass = (statusId: string | null | undefined) => {
                   :class="
                     cn(
                       'px-2 py-0.5 rounded border text-xs font-medium',
-                      getStatusClass(job.statusId),
+                      getStatusClass(job.status?.code),
                     )
                   "
                 >
-                  {{ job.statusId || "Active" }}
+                  {{ job.status?.name || "Active" }}
                 </span>
               </td>
               <td class="py-3 px-4 text-right">
@@ -232,10 +231,10 @@ const getStatusClass = (statusId: string | null | undefined) => {
         <div class="flex items-center justify-between pt-4 border-t border-border">
           <span
             :class="
-              cn('px-2 py-0.5 rounded border text-xs font-medium', getStatusClass(job.statusId))
+              cn('px-2 py-0.5 rounded border text-xs font-medium', getStatusClass(job.status?.code))
             "
           >
-            {{ job.statusId || "Active" }}
+            {{ job.status?.name || "Active" }}
           </span>
         </div>
       </div>
