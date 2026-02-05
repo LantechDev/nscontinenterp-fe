@@ -1,26 +1,26 @@
 name: Check Quality On PR
 
 on:
-    push:
-        branches: [main, staging, develop]
-    pull_request:
-        branches: [main, staging, develop]
+  push:
+    branches: [main, staging, develop]
+  pull_request:
+    branches: [main, staging, develop]
 
 jobs:
-    quality-check:
-        runs-on: ubuntu-latest
+  quality-check:
+    runs-on: ubuntu-latest
 
-        steps:
-            - uses: actions/checkout@v4
+    steps:
+      - uses: actions/checkout@v4
 
-            - uses: pnpm/action-setup@v4
-              with:
-                  version: 9
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
 
-            - uses: actions/setup-node@v4
-              with:
-                  node-version: 20
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
 
-            - run: pnpm install --frozen-lockfile
-            - run: pnpm lint --deny-warnings
-            - run: pnpm build
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint --deny-warnings
+      - run: pnpm build
