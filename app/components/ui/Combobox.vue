@@ -60,7 +60,7 @@ function handleCreate() {
 }
 
 // Click outside to close
-onClickOutside(containerRef, () => {
+onClickOutside(containerRef as any, () => {
     open.value = false;
 });
 </script>

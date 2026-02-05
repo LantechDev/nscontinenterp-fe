@@ -17,8 +17,11 @@ export function useAuth() {
     const config = useRuntimeConfig();
 
     // Create an axios instance with base URL and credentials
+    const apiBase = config.public.apiBase;
+    const baseURL = apiBase.endsWith("/api") ? apiBase : `${apiBase}/api`;
+
     const api = axios.create({
-        baseURL: `${config.public.apiBase}/auth`,
+        baseURL: `${baseURL}/auth`,
         withCredentials: true,
     });
 

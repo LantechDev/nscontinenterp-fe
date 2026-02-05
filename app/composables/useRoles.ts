@@ -6,8 +6,11 @@ export function useRoles() {
     const roles = useState<any[]>("roles-list", () => []);
 
     // API instance for Role Management (Directly under /api based on spec)
+    const apiBase = config.public.apiBase;
+    const baseURL = apiBase.endsWith("/api") ? apiBase : `${apiBase}/api`;
+
     const api = axios.create({
-        baseURL: config.public.apiBase, // Expecting http://localhost:9999/api
+        baseURL: baseURL,
         withCredentials: true,
     });
 

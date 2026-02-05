@@ -93,8 +93,11 @@ export function useJobs() {
     const jobs = useState<JobWithBls[]>("jobs-list", () => []);
     const currentJob = useState<JobWithBls | null>("jobs-current", () => null);
 
+    const apiBase = config.public.apiBase;
+    const baseURL = apiBase.endsWith("/api") ? apiBase : `${apiBase}/api`;
+
     const api = axios.create({
-        baseURL: config.public.apiBase,
+        baseURL: baseURL,
         withCredentials: true,
     });
 

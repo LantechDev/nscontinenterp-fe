@@ -28,8 +28,11 @@ export function useMasterData() {
     const config = useRuntimeConfig();
     const isLoading = useState<boolean>("master-loading", () => false);
 
+    const apiBase = config.public.apiBase;
+    const baseURL = apiBase.endsWith("/api") ? apiBase : `${apiBase}/api`;
+
     const api = axios.create({
-        baseURL: config.public.apiBase,
+        baseURL: baseURL,
         withCredentials: true,
     });
 
