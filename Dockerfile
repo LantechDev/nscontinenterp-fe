@@ -1,6 +1,9 @@
 # Stage 1: Build
 FROM node:22-slim AS builder
 
+# Install ca-certificates for trusted requests
+RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 # Enable pnpm
@@ -22,6 +25,9 @@ RUN pnpm run build
 
 # Stage 2: Production
 FROM node:22-slim
+
+# Install ca-certificates for trusted requests
+RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
