@@ -46,14 +46,29 @@ export function useAuth() {
     };
   }
 
+  async function waitAndRetry<T>(fn: () => Promise<T>, retries = 3, delay = 1000): Promise<T> {
+    try {
+      return await fn();
+    } catch (error) {
+      if (retries > 0) {
+        console.warn(`[Auth] Request failed, retrying in ${delay}ms... (${retries} retries left)`);
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        return waitAndRetry(fn, retries - 1, delay * 1.5);
+      }
+      throw error;
+    }
+  }
+
   async function fetchSession(): Promise<AuthSession | null> {
     isLoading.value = true;
     try {
-      const { data } = await api.get<AuthSession>("/get-session");
+      // Wrap the API call with retry logic to handle cold starts
+      const { data } = await waitAndRetry(() => api.get<AuthSession>("/get-session"));
       user.value = data.user || null;
       session.value = data.session || null;
       return data;
-    } catch {
+    } catch (error) {
+      console.warn("[Auth] Session fetch failed:", error);
       user.value = null;
       return null;
     } finally {
@@ -64,10 +79,13 @@ export function useAuth() {
   async function login(email: string, password: string): Promise<AuthResponse<LoginResponse>> {
     isLoading.value = true;
     try {
-      const { data } = await api.post<LoginResponse>("/sign-in/email", {
-        email,
-        password,
-      });
+      // Wrap login with retry logic as well for robustness
+      const { data } = await waitAndRetry(() =>
+        api.post<LoginResponse>("/sign-in/email", {
+          email,
+          password,
+        }),
+      );
       user.value = data.user || null;
       return { success: true, data };
     } catch (error) {
