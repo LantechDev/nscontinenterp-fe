@@ -4,12 +4,18 @@ import { type AuthResponse } from "../types/auth";
 
 export interface Address {
   id: string;
+  label: string;
   fullAddress: string;
-  country?: string;
+  country: string;
   city?: string;
   street?: string;
   postalCode?: string;
   state?: string;
+  eori?: string;
+  taxId?: string;
+  isDefault: boolean;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Company {

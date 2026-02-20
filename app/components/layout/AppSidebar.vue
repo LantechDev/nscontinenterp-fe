@@ -79,8 +79,7 @@ const navItems: NavItem[] = [
     title: "Master Data",
     icon: Package,
     children: [
-      { title: "Customer", href: "/master/customer" },
-      { title: "Vendor", href: "/master/vendor" },
+      { title: "Company", href: "/master/company" },
       { title: "Service", href: "/master/services" },
     ],
   },
