@@ -1,5 +1,3 @@
-import type { AxiosError } from "axios";
-
 interface ApiErrorResponse {
   message?: string;
   error?: string;
@@ -25,20 +23,15 @@ export function useErrorHandler() {
       return error;
     }
 
-    // Handle Axios errors
-    if (isAxiosError(error)) {
-      const apiError = error.response?.data as ApiErrorResponse | undefined;
-      if (apiError?.message) {
-        return apiError.message;
-      }
-      if (apiError?.error) {
-        return apiError.error;
-      }
-      return `HTTP ${error.response?.status || "Error"}: ${error.message}`;
-    }
-
-    // Handle fetch errors
+    // Handle $fetch errors (Nuxt)
     if (isFetchError(error)) {
+      const data = (error as { data?: ApiErrorResponse }).data;
+      if (data?.message) {
+        return data.message;
+      }
+      if (data?.error) {
+        return data.error;
+      }
       return error.message || "Network error occurred";
     }
 
@@ -106,16 +99,7 @@ export function useErrorHandler() {
 }
 
 // Type guards
-function isAxiosError(error: unknown): error is AxiosError {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "isAxiosError" in error &&
-    (error as Record<string, unknown>).isAxiosError === true
-  );
-}
-
-function isFetchError(error: unknown): error is { message: string } {
+function isFetchError(error: unknown): error is { message: string; data?: ApiErrorResponse } {
   return (
     typeof error === "object" &&
     error !== null &&

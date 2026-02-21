@@ -1,5 +1,3 @@
-import axios, { type AxiosError } from "axios";
-
 import { type AuthResponse } from "../types/auth";
 
 export interface Role {
@@ -18,31 +16,31 @@ type ErrorResponse = {
   error?: string;
 };
 
-function handleApiError<T = unknown>(error: unknown): AuthResponse<T> {
-  const axiosError = error as AxiosError<ErrorResponse>;
-  const apiError = axiosError.response?.data;
-  const errorMessage =
-    typeof apiError === "string"
-      ? apiError
-      : apiError?.message || apiError?.error || axiosError.message || "An error occurred";
+function getErrorMessage(error: unknown): string {
+  if (error && typeof error === "object" && "data" in error) {
+    const errorData = (error as { data?: ErrorResponse }).data;
+    if (errorData?.message) return errorData.message;
+    if (errorData?.error) return errorData.error;
+  }
+  if (error instanceof Error) return error.message;
+  return "An error occurred";
+}
 
-  return { success: false, error: errorMessage };
+function handleApiError<T = unknown>(error: unknown): AuthResponse<T> {
+  return { success: false, error: getErrorMessage(error) };
 }
 
 export function useRoles() {
   const config = useRuntimeConfig();
-  const isLoading = useState<boolean>("roles-loading", () => false);
+  const isLoading = ref(false);
   const roles = useState<Role[]>("roles-list", () => []);
-
-  const api = axios.create({
-    baseURL: `${config.public.apiBase}`,
-    withCredentials: true,
-  });
 
   async function fetchRoles(): Promise<AuthResponse<Role[]>> {
     isLoading.value = true;
     try {
-      const { data } = await api.get<Role[]>("/admin/roles");
+      const data = await $fetch<Role[]>(`${config.public.apiBase}/admin/roles`, {
+        credentials: "include",
+      });
       roles.value = data || [];
       return { success: true, data: roles.value };
     } catch (error) {
@@ -60,7 +58,11 @@ export function useRoles() {
   }): Promise<AuthResponse<Role>> {
     isLoading.value = true;
     try {
-      const { data } = await api.post<Role>("/admin/roles", roleData);
+      const data = await $fetch<Role>(`${config.public.apiBase}/admin/roles`, {
+        method: "POST",
+        body: roleData,
+        credentials: "include",
+      });
       roles.value = [...roles.value, data];
       return { success: true, data };
     } catch (error) {
@@ -81,7 +83,11 @@ export function useRoles() {
   ): Promise<AuthResponse<Role>> {
     isLoading.value = true;
     try {
-      const { data } = await api.put<Role>(`/admin/roles/${id}`, roleData);
+      const data = await $fetch<Role>(`${config.public.apiBase}/admin/roles/${id}`, {
+        method: "PUT",
+        body: roleData,
+        credentials: "include",
+      });
       roles.value = roles.value.map((r) => (r.id === id ? { ...r, ...data } : r));
       return { success: true, data };
     } catch (error) {
@@ -94,7 +100,10 @@ export function useRoles() {
   async function deleteRole(id: string): Promise<AuthResponse> {
     isLoading.value = true;
     try {
-      await api.delete(`/admin/roles/${id}`);
+      await $fetch(`${config.public.apiBase}/admin/roles/${id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
       roles.value = roles.value.filter((r) => r.id !== id);
       return { success: true };
     } catch (error) {

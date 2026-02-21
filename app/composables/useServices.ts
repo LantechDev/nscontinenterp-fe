@@ -1,5 +1,3 @@
-import axios, { type AxiosError } from "axios";
-
 export interface ServiceCategory {
   id: string;
   code: string;
@@ -54,27 +52,21 @@ type ErrorResponse = {
 
 type ApiResponse<T> = { success: boolean; data?: T; error?: string };
 
-function handleApiError(error: unknown): { success: false; error: string } {
-  const axiosError = error as AxiosError<ErrorResponse>;
-  const apiError = axiosError.response?.data;
-  const errorMessage =
-    typeof apiError === "string"
-      ? apiError
-      : apiError?.message || apiError?.error || axiosError.message || "An error occurred";
-
-  return { success: false, error: errorMessage };
+function getErrorMessage(error: unknown): string {
+  if (error && typeof error === "object" && "data" in error) {
+    const errorData = (error as { data?: ErrorResponse }).data;
+    if (errorData?.message) return errorData.message;
+    if (errorData?.error) return errorData.error;
+  }
+  if (error instanceof Error) return error.message;
+  return "An error occurred";
 }
 
 export function useServices() {
   const config = useRuntimeConfig();
-  const isLoading = useState<boolean>("services-loading", () => false);
+  const isLoading = ref(false);
   const services = useState<Service[]>("services-list", () => []);
   const currentService = useState<Service | null>("services-current", () => null);
-
-  const api = axios.create({
-    baseURL: `${config.public.apiBase}/master/services`,
-    withCredentials: true,
-  });
 
   async function fetchServices(
     search?: string,
@@ -82,11 +74,14 @@ export function useServices() {
   ): Promise<ApiResponse<Service[]>> {
     isLoading.value = true;
     try {
-      const { data } = await api.get<Service[]>("/", { params: { search, categoryId } });
+      const data = await $fetch<Service[]>(`${config.public.apiBase}/master/services`, {
+        params: { search, categoryId },
+        credentials: "include",
+      });
       services.value = data || [];
       return { success: true, data: services.value };
     } catch (error) {
-      return handleApiError(error);
+      return { success: false, error: getErrorMessage(error) };
     } finally {
       isLoading.value = false;
     }
@@ -95,11 +90,13 @@ export function useServices() {
   async function getService(id: string): Promise<ApiResponse<Service>> {
     isLoading.value = true;
     try {
-      const { data } = await api.get<Service>(`/${id}`);
+      const data = await $fetch<Service>(`${config.public.apiBase}/master/services/${id}`, {
+        credentials: "include",
+      });
       currentService.value = data;
       return { success: true, data };
     } catch (error) {
-      return handleApiError(error);
+      return { success: false, error: getErrorMessage(error) };
     } finally {
       isLoading.value = false;
     }
@@ -108,11 +105,15 @@ export function useServices() {
   async function createService(payload: CreateService): Promise<ApiResponse<Service>> {
     isLoading.value = true;
     try {
-      const { data } = await api.post<Service>("/", payload);
+      const data = await $fetch<Service>(`${config.public.apiBase}/master/services`, {
+        method: "POST",
+        body: payload,
+        credentials: "include",
+      });
       services.value = [...services.value, data];
       return { success: true, data };
     } catch (error) {
-      return handleApiError(error);
+      return { success: false, error: getErrorMessage(error) };
     } finally {
       isLoading.value = false;
     }
@@ -121,14 +122,18 @@ export function useServices() {
   async function updateService(id: string, payload: UpdateService): Promise<ApiResponse<Service>> {
     isLoading.value = true;
     try {
-      const { data } = await api.put<Service>(`/${id}`, payload);
+      const data = await $fetch<Service>(`${config.public.apiBase}/master/services/${id}`, {
+        method: "PUT",
+        body: payload,
+        credentials: "include",
+      });
       if (currentService.value?.id === id) {
         currentService.value = data;
       }
       services.value = services.value.map((s) => (s.id === id ? { ...s, ...data } : s));
       return { success: true, data };
     } catch (error) {
-      return handleApiError(error);
+      return { success: false, error: getErrorMessage(error) };
     } finally {
       isLoading.value = false;
     }
@@ -137,14 +142,17 @@ export function useServices() {
   async function deleteService(id: string): Promise<ApiResponse<void>> {
     isLoading.value = true;
     try {
-      await api.delete(`/${id}`);
+      await $fetch(`${config.public.apiBase}/master/services/${id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
       services.value = services.value.filter((s) => s.id !== id);
       if (currentService.value?.id === id) {
         currentService.value = null;
       }
       return { success: true };
     } catch (error) {
-      return handleApiError(error);
+      return { success: false, error: getErrorMessage(error) };
     } finally {
       isLoading.value = false;
     }
