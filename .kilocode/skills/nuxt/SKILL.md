@@ -28,6 +28,7 @@ Read specific files based on current work:
 - **[references/nuxt-composables.md](references/nuxt-composables.md)** - Nuxt composables (useRequestURL, useFetch, navigation)
 - **[references/nuxt-components.md](references/nuxt-components.md)** - NuxtLink, NuxtImg, NuxtTime (prefer over HTML elements)
 - **[references/nuxt-config.md](references/nuxt-config.md)** - Configuration, modules, auto-imports, layers
+- **[references/nuxt-performance.md](references/nuxt-performance.md)** - Performance optimization, lazy loading, profiling tools
 
 **For Vue composables:** See `vue` skill composables.md (VueUse, Composition API patterns)
 **For UI components:** use `nuxt-ui` skill
@@ -47,6 +48,7 @@ Read specific files based on current work:
 - [ ] [references/nuxt-components.md](references/nuxt-components.md) - if using Nuxt components (NuxtLink, NuxtImg, etc.)
 - [ ] [references/nuxt-config.md](references/nuxt-config.md) - if editing nuxt.config.ts
 - [ ] [references/project-setup.md](references/project-setup.md) - if setting up CI/ESLint/build tools
+- [ ] [references/nuxt-performance.md](references/nuxt-performance.md) - if optimizing performance, lazy loading, or profiling
 
 **DO NOT load all files at once.** Load only what's relevant to your current task.
 

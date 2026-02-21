@@ -150,7 +150,11 @@ const isChildActive = (children?: NavChild[]): boolean =>
           <div
             class="w-8 h-8 rounded-md bg-white flex items-center justify-center shrink-0 overflow-hidden"
           >
-            <img src="/images/logo2.png" alt="NS Continent" class="w-full h-full object-contain" />
+            <NuxtImg
+              src="/images/logo2.png"
+              alt="NS Continent"
+              class="w-full h-full object-contain"
+            />
           </div>
           <span class="font-medium text-sm truncate">{{ currentOrg?.name || "NS Continent" }}</span>
         </div>
