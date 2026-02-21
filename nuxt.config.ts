@@ -6,7 +6,7 @@ export default defineNuxtConfig({
   alias: {
     "@": "~/",
   },
-  modules: [],
+  modules: ["@nuxt/image"],
   css: ["~/assets/css/main.css"],
   postcss: {
     plugins: {
@@ -35,6 +35,31 @@ export default defineNuxtConfig({
   runtimeConfig: {
     public: {
       apiBase: process.env.NUXT_PUBLIC_API_BASE || "http://localhost:9999/api",
+    },
+  },
+  // Performance optimization: Hybrid rendering with route rules
+  routeRules: {
+    // Static pages - prerender at build time
+    "/": { prerender: true },
+    "/login": { prerender: true },
+    // Dashboard and data pages - SWR caching for 1 hour
+    "/dashboard": { swr: 3600 },
+    "/master/**": { swr: 3600 },
+    "/operational/**": { swr: 3600 },
+    "/finance/**": { swr: 3600 },
+    "/sales/**": { swr: 3600 },
+    "/reports/**": { swr: 3600 },
+    "/settings/**": { swr: 3600 },
+  },
+  // NuxtLink performance optimization
+  experimental: {
+    defaults: {
+      nuxtLink: {
+        // Prefetch on interaction instead of visibility for better performance
+        prefetchOn: {
+          interaction: true,
+        },
+      },
     },
   },
 });

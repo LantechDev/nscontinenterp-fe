@@ -31,6 +31,8 @@ const formData = ref({
   postalCode: "",
   state: "",
   eoriNo: "",
+  description: "",
+  notes: "",
 });
 
 const resetForm = () => {
@@ -48,6 +50,8 @@ const resetForm = () => {
     postalCode: "",
     state: "",
     eoriNo: "",
+    description: "",
+    notes: "",
   };
   formError.value = null;
 };
@@ -71,6 +75,8 @@ const handleCreateCompany = async () => {
     city: formData.value.city,
     isCustomer: formData.value.isCustomer,
     isVendor: formData.value.isVendor,
+    description: formData.value.description,
+    notes: formData.value.notes,
   });
   if (result.success) {
     isOpen.value = false;
@@ -235,6 +241,33 @@ const handleCreateCompany = async () => {
               placeholder="Input state"
               class="w-full px-3 py-2 rounded-lg border border-border focus:outline-none focus:ring-1 focus:ring-primary"
             />
+          </div>
+        </div>
+      </div>
+
+      <div class="border-t border-border"></div>
+
+      <!-- Additional Info -->
+      <div>
+        <h3 class="text-base font-bold text-foreground mb-4">Additional Information</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="space-y-1.5">
+            <label class="text-sm font-medium text-foreground">Description</label>
+            <textarea
+              v-model="formData.description"
+              placeholder="Enter company description"
+              rows="3"
+              class="w-full px-3 py-2 rounded-lg border border-border focus:outline-none focus:ring-1 focus:ring-primary resize-none"
+            ></textarea>
+          </div>
+          <div class="space-y-1.5">
+            <label class="text-sm font-medium text-foreground">Notes</label>
+            <textarea
+              v-model="formData.notes"
+              placeholder="Enter notes"
+              rows="3"
+              class="w-full px-3 py-2 rounded-lg border border-border focus:outline-none focus:ring-1 focus:ring-primary resize-none"
+            ></textarea>
           </div>
         </div>
       </div>

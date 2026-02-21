@@ -4,6 +4,8 @@ export type CreateCompanyInput = {
   name: string;
   email?: string;
   phone?: string;
+  description?: string;
+  notes?: string;
   fullAddress?: string;
   country?: string;
   city?: string;
