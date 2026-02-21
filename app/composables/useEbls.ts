@@ -1,5 +1,3 @@
-import axios, { type AxiosError } from "axios";
-
 interface EblStatus {
   code: string | null;
   name: string | null;
@@ -28,28 +26,39 @@ export interface EblData {
   createdAt: string;
 }
 
+type ErrorResponse = {
+  message?: string;
+  error?: string;
+};
+
+function getErrorMessage(error: unknown): string {
+  if (error && typeof error === "object" && "data" in error) {
+    const errorData = (error as { data?: ErrorResponse }).data;
+    if (errorData?.message) return errorData.message;
+    if (errorData?.error) return errorData.error;
+  }
+  if (error instanceof Error) return error.message;
+  return "An error occurred";
+}
+
 export function useEbls() {
   const config = useRuntimeConfig();
   const ebls = ref<EblData[]>([]);
   const isLoading = ref(false);
   const error = ref<string | null>(null);
 
-  const api = axios.create({
-    baseURL: config.public.apiBase,
-    withCredentials: true,
-  });
-
   async function fetchEbls(): Promise<EblData[]> {
     isLoading.value = true;
     error.value = null;
 
     try {
-      const { data } = await api.get<EblData[]>("/operational/jobs/bls");
+      const data = await $fetch<EblData[]>(`${config.public.apiBase}/operational/jobs/bls`, {
+        credentials: "include",
+      });
       ebls.value = data || [];
       return ebls.value;
     } catch (err) {
-      const axiosError = err as AxiosError<{ message?: string }>;
-      error.value = axiosError.response?.data?.message || "Failed to fetch EBLs";
+      error.value = getErrorMessage(err);
       console.error("Error fetching EBLs:", err);
       return [];
     } finally {
@@ -62,11 +71,12 @@ export function useEbls() {
     error.value = null;
 
     try {
-      const { data } = await api.get<EblData>(`/operational/jobs/bl/${id}`);
+      const data = await $fetch<EblData>(`${config.public.apiBase}/operational/jobs/bl/${id}`, {
+        credentials: "include",
+      });
       return data;
     } catch (err) {
-      const axiosError = err as AxiosError<{ message?: string }>;
-      error.value = axiosError.response?.data?.message || "Failed to fetch EBL";
+      error.value = getErrorMessage(err);
       console.error("Error fetching EBL:", err);
       return null;
     } finally {

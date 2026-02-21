@@ -1,5 +1,3 @@
-import axios, { type AxiosError } from "axios";
-
 export interface QuotationItem {
   id?: string;
   serviceId?: string | null;
@@ -53,15 +51,14 @@ type ErrorResponse = {
   error?: string;
 };
 
-function handleApiError(error: unknown): { success: false; error: string } {
-  const axiosError = error as AxiosError<ErrorResponse>;
-  const apiError = axiosError.response?.data;
-  const errorMessage =
-    typeof apiError === "string"
-      ? apiError
-      : apiError?.message || apiError?.error || axiosError.message || "An error occurred";
-
-  return { success: false, error: errorMessage };
+function getErrorMessage(error: unknown): string {
+  if (error && typeof error === "object" && "data" in error) {
+    const errorData = (error as { data?: ErrorResponse }).data;
+    if (errorData?.message) return errorData.message;
+    if (errorData?.error) return errorData.error;
+  }
+  if (error instanceof Error) return error.message;
+  return "An error occurred";
 }
 
 function calculateItemAmount(quantity: number, unitPrice: number): number {
@@ -82,25 +79,21 @@ function calculateTotals(items: { quantity: number; unitPrice: number }[]): {
 
 export function useQuotations() {
   const config = useRuntimeConfig();
-  const isLoading = useState<boolean>("quotations-loading", () => false);
+  const isLoading = ref(false);
   const quotations = useState<Quotation[]>("quotations-list", () => []);
   const currentQuotation = useState<Quotation | null>("quotations-current", () => null);
-
-  const api = axios.create({
-    baseURL: `${config.public.apiBase}/marketing`,
-    withCredentials: true,
-  });
 
   async function fetchQuotations(search?: string, status?: string) {
     isLoading.value = true;
     try {
-      const { data } = await api.get<Quotation[]>("/quotations", {
+      const data = await $fetch<Quotation[]>(`${config.public.apiBase}/marketing/quotations`, {
         params: { search, status },
+        credentials: "include",
       });
       quotations.value = data || [];
       return { success: true, data: quotations.value };
     } catch (error) {
-      return handleApiError(error);
+      return { success: false, error: getErrorMessage(error) };
     } finally {
       isLoading.value = false;
     }
@@ -109,11 +102,13 @@ export function useQuotations() {
   async function getQuotation(id: string) {
     isLoading.value = true;
     try {
-      const { data } = await api.get<Quotation>(`/quotations/${id}`);
+      const data = await $fetch<Quotation>(`${config.public.apiBase}/marketing/quotations/${id}`, {
+        credentials: "include",
+      });
       currentQuotation.value = data;
       return { success: true, data };
     } catch (error) {
-      return handleApiError(error);
+      return { success: false, error: getErrorMessage(error) };
     } finally {
       isLoading.value = false;
     }
@@ -122,11 +117,15 @@ export function useQuotations() {
   async function createQuotation(payload: CreateQuotation) {
     isLoading.value = true;
     try {
-      const { data } = await api.post<Quotation>("/quotations", payload);
+      const data = await $fetch<Quotation>(`${config.public.apiBase}/marketing/quotations`, {
+        method: "POST",
+        body: payload,
+        credentials: "include",
+      });
       quotations.value = [...quotations.value, data];
       return { success: true, data };
     } catch (error) {
-      return handleApiError(error);
+      return { success: false, error: getErrorMessage(error) };
     } finally {
       isLoading.value = false;
     }
@@ -135,14 +134,18 @@ export function useQuotations() {
   async function updateQuotation(id: string, payload: UpdateQuotation) {
     isLoading.value = true;
     try {
-      const { data } = await api.put<Quotation>(`/quotations/${id}`, payload);
+      const data = await $fetch<Quotation>(`${config.public.apiBase}/marketing/quotations/${id}`, {
+        method: "PUT",
+        body: payload,
+        credentials: "include",
+      });
       if (currentQuotation.value?.id === id) {
         currentQuotation.value = data;
       }
       quotations.value = quotations.value.map((q) => (q.id === id ? { ...q, ...data } : q));
       return { success: true, data };
     } catch (error) {
-      return handleApiError(error);
+      return { success: false, error: getErrorMessage(error) };
     } finally {
       isLoading.value = false;
     }
@@ -151,14 +154,17 @@ export function useQuotations() {
   async function deleteQuotation(id: string) {
     isLoading.value = true;
     try {
-      await api.delete(`/quotations/${id}`);
+      await $fetch(`${config.public.apiBase}/marketing/quotations/${id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
       quotations.value = quotations.value.filter((q) => q.id !== id);
       if (currentQuotation.value?.id === id) {
         currentQuotation.value = null;
       }
       return { success: true };
     } catch (error) {
-      return handleApiError(error);
+      return { success: false, error: getErrorMessage(error) };
     } finally {
       isLoading.value = false;
     }

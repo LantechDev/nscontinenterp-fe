@@ -81,6 +81,7 @@ const navItems: NavItem[] = [
     children: [
       { title: "Company", href: "/master/company" },
       { title: "Service", href: "/master/services" },
+      { title: "Vessel", href: "/master/vessel" },
     ],
   },
   {
@@ -146,8 +147,10 @@ const isChildActive = (children?: NavChild[]): boolean =>
         class="flex items-center justify-between w-full px-3 py-2.5 bg-[#1e4a7a]/50 rounded-lg hover:bg-[#1e4a7a]/70 transition-colors border border-white/10"
       >
         <div class="flex items-center gap-3 min-w-0">
-          <div class="w-8 h-8 rounded-md bg-white flex items-center justify-center shrink-0">
-            <div class="text-[#012D5A] font-bold text-xs">NS</div>
+          <div
+            class="w-8 h-8 rounded-md bg-white flex items-center justify-center shrink-0 overflow-hidden"
+          >
+            <img src="/images/logo2.png" alt="NS Continent" class="w-full h-full object-contain" />
           </div>
           <span class="font-medium text-sm truncate">{{ currentOrg?.name || "NS Continent" }}</span>
         </div>
