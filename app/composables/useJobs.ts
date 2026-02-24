@@ -1,5 +1,3 @@
-import axios, { type AxiosError } from "axios";
-
 import { type AuthResponse } from "../types/auth";
 
 // TypeScript Interfaces based on OpenAPI spec
@@ -95,32 +93,32 @@ type ErrorResponse = {
   error?: string;
 };
 
-function handleApiError<T = unknown>(error: unknown): AuthResponse<T> {
-  const axiosError = error as AxiosError<ErrorResponse>;
-  const apiError = axiosError.response?.data;
-  const errorMessage =
-    typeof apiError === "string"
-      ? apiError
-      : apiError?.message || apiError?.error || axiosError.message || "An error occurred";
+function getErrorMessage(error: unknown): string {
+  if (error && typeof error === "object" && "data" in error) {
+    const errorData = (error as { data?: ErrorResponse }).data;
+    if (errorData?.message) return errorData.message;
+    if (errorData?.error) return errorData.error;
+  }
+  if (error instanceof Error) return error.message;
+  return "An error occurred";
+}
 
-  return { success: false, error: errorMessage };
+function handleApiError<T = unknown>(error: unknown): AuthResponse<T> {
+  return { success: false, error: getErrorMessage(error) };
 }
 
 export function useJobs() {
   const config = useRuntimeConfig();
-  const isLoading = useState<boolean>("jobs-loading", () => false);
+  const isLoading = ref(false);
   const jobs = useState<JobWithBls[]>("jobs-list", () => []);
   const currentJob = useState<JobWithBls | null>("jobs-current", () => null);
-
-  const api = axios.create({
-    baseURL: config.public.apiBase,
-    withCredentials: true,
-  });
 
   async function fetchJobs(): Promise<AuthResponse<JobWithBls[]>> {
     isLoading.value = true;
     try {
-      const { data } = await api.get<JobWithBls[]>("/operational/jobs");
+      const data = await $fetch<JobWithBls[]>(`${config.public.apiBase}/operational/jobs`, {
+        credentials: "include",
+      });
       jobs.value = data || [];
       return { success: true, data: jobs.value };
     } catch (error) {
@@ -133,7 +131,11 @@ export function useJobs() {
   async function createJob(payload: CreateJob): Promise<AuthResponse<JobWithBls>> {
     isLoading.value = true;
     try {
-      const { data } = await api.post<JobWithBls>("/operational/jobs", payload);
+      const data = await $fetch<JobWithBls>(`${config.public.apiBase}/operational/jobs`, {
+        method: "POST",
+        body: payload,
+        credentials: "include",
+      });
       jobs.value = [...jobs.value, data];
       return { success: true, data };
     } catch (error) {
@@ -146,7 +148,9 @@ export function useJobs() {
   async function getJob(id: string): Promise<AuthResponse<JobWithBls>> {
     isLoading.value = true;
     try {
-      const { data } = await api.get<JobWithBls>(`/operational/jobs/${id}`);
+      const data = await $fetch<JobWithBls>(`${config.public.apiBase}/operational/jobs/${id}`, {
+        credentials: "include",
+      });
       currentJob.value = data;
       return { success: true, data };
     } catch (error) {
@@ -159,7 +163,14 @@ export function useJobs() {
   async function updateBl(id: string, payload: UpdateBl): Promise<AuthResponse<BillOfLading>> {
     isLoading.value = true;
     try {
-      const { data } = await api.put<BillOfLading>(`/operational/jobs/bl/${id}`, payload);
+      const data = await $fetch<BillOfLading>(
+        `${config.public.apiBase}/operational/jobs/bl/${id}`,
+        {
+          method: "PUT",
+          body: payload,
+          credentials: "include",
+        },
+      );
       if (currentJob.value && currentJob.value.billsOfLading) {
         const blIndex = currentJob.value.billsOfLading.findIndex((bl) => bl.id === id);
         if (blIndex !== -1) {
@@ -177,7 +188,10 @@ export function useJobs() {
   async function deleteBl(id: string): Promise<AuthResponse> {
     isLoading.value = true;
     try {
-      await api.delete(`/operational/jobs/bl/${id}`);
+      await $fetch(`${config.public.apiBase}/operational/jobs/bl/${id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
       if (currentJob.value && currentJob.value.billsOfLading) {
         currentJob.value.billsOfLading = currentJob.value.billsOfLading.filter(
           (bl) => bl.id !== id,

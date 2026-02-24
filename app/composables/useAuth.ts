@@ -1,4 +1,3 @@
-import axios, { type AxiosError } from "axios";
 import type {
   User,
   Session,
@@ -10,60 +9,37 @@ import type {
   Organization,
 } from "../types/auth";
 
+type ErrorResponse = {
+  message?: string;
+  error?: string;
+};
+
+function getErrorMessage(error: unknown): string {
+  if (error && typeof error === "object" && "data" in error) {
+    const errorData = (error as { data?: ErrorResponse }).data;
+    if (errorData?.message) return errorData.message;
+    if (errorData?.error) return errorData.error;
+  }
+  if (error instanceof Error) return error.message;
+  return "An error occurred";
+}
+
+function handleApiError<T = unknown>(error: unknown): AuthResponse<T> {
+  return { success: false, error: getErrorMessage(error) };
+}
+
 export function useAuth() {
   const user = useState<User | null>("auth-user", () => null);
   const session = useState<Session | null>("auth-session", () => null);
-  const isLoading = useState<boolean>("auth-loading", () => true);
+  const isLoading = ref(true);
   const config = useRuntimeConfig();
-
-  const api = axios.create({
-    baseURL: `${config.public.apiBase}/auth`,
-    withCredentials: true,
-  });
-
-  // Separate axios instance for admin routes (not under /auth)
-  const adminApi = axios.create({
-    baseURL: config.public.apiBase,
-    withCredentials: true,
-  });
-
-  type ErrorResponse = {
-    message?: string;
-    error?: string;
-  };
-
-  function handleApiError<T = unknown>(error: unknown): AuthResponse<T> {
-    const axiosError = error as AxiosError<ErrorResponse>;
-    const apiError = axiosError.response?.data;
-    const errorMessage =
-      typeof apiError === "string"
-        ? apiError
-        : apiError?.message || apiError?.error || axiosError.message || "An error occurred";
-
-    return {
-      success: false,
-      error: errorMessage,
-    };
-  }
-
-  async function waitAndRetry<T>(fn: () => Promise<T>, retries = 3, delay = 1000): Promise<T> {
-    try {
-      return await fn();
-    } catch (error) {
-      if (retries > 0) {
-        console.warn(`[Auth] Request failed, retrying in ${delay}ms... (${retries} retries left)`);
-        await new Promise((resolve) => setTimeout(resolve, delay));
-        return waitAndRetry(fn, retries - 1, delay * 1.5);
-      }
-      throw error;
-    }
-  }
 
   async function fetchSession(): Promise<AuthSession | null> {
     isLoading.value = true;
     try {
-      // Wrap the API call with retry logic to handle cold starts
-      const { data } = await waitAndRetry(() => api.get<AuthSession>("/get-session"));
+      const data = await $fetch<AuthSession>(`${config.public.apiBase}/auth/get-session`, {
+        credentials: "include",
+      });
       user.value = data.user || null;
       session.value = data.session || null;
       return data;
@@ -79,18 +55,15 @@ export function useAuth() {
   async function login(email: string, password: string): Promise<AuthResponse<LoginResponse>> {
     isLoading.value = true;
     try {
-      // Wrap login with retry logic as well for robustness
-      const { data } = await waitAndRetry(() =>
-        api.post<LoginResponse>("/sign-in/email", {
-          email,
-          password,
-        }),
-      );
+      const data = await $fetch<LoginResponse>(`${config.public.apiBase}/auth/sign-in/email`, {
+        method: "POST",
+        body: { email, password },
+        credentials: "include",
+      });
       user.value = data.user || null;
       return { success: true, data };
     } catch (error) {
-      const axiosError = error as AxiosError<ErrorResponse>;
-      console.error("[Auth] Login failed:", axiosError.response?.data || axiosError.message);
+      console.error("[Auth] Login failed:", error);
       return handleApiError<LoginResponse>(error);
     } finally {
       isLoading.value = false;
@@ -100,7 +73,10 @@ export function useAuth() {
   async function logout(): Promise<AuthResponse> {
     isLoading.value = true;
     try {
-      await api.post("/sign-out", {});
+      await $fetch(`${config.public.apiBase}/auth/sign-out`, {
+        method: "POST",
+        credentials: "include",
+      });
       user.value = null;
       return { success: true };
     } catch (error) {
@@ -118,11 +94,10 @@ export function useAuth() {
   ): Promise<AuthResponse<SignUpResponse>> {
     isLoading.value = true;
     try {
-      const { data } = await api.post<SignUpResponse>("/admin/create-user", {
-        name,
-        email,
-        password,
-        role,
+      const data = await $fetch<SignUpResponse>(`${config.public.apiBase}/auth/admin/create-user`, {
+        method: "POST",
+        body: { name, email, password, role },
+        credentials: "include",
       });
       return { success: true, data };
     } catch (error) {
@@ -135,9 +110,10 @@ export function useAuth() {
   async function requestPasswordReset(email: string, redirectTo?: string): Promise<AuthResponse> {
     isLoading.value = true;
     try {
-      await api.post("/request-password-reset", {
-        email,
-        redirectTo,
+      await $fetch(`${config.public.apiBase}/auth/request-password-reset`, {
+        method: "POST",
+        body: { email, redirectTo },
+        credentials: "include",
       });
       return { success: true };
     } catch (error) {
@@ -150,9 +126,10 @@ export function useAuth() {
   async function resetPassword(newPassword: string, token: string): Promise<AuthResponse> {
     isLoading.value = true;
     try {
-      await api.post("/reset-password", {
-        newPassword,
-        token,
+      await $fetch(`${config.public.apiBase}/auth/reset-password`, {
+        method: "POST",
+        body: { newPassword, token },
+        credentials: "include",
       });
       return { success: true };
     } catch (error) {
@@ -168,9 +145,10 @@ export function useAuth() {
   ): Promise<AuthResponse> {
     isLoading.value = true;
     try {
-      await api.post("/change-password", {
-        currentPassword,
-        newPassword,
+      await $fetch(`${config.public.apiBase}/auth/change-password`, {
+        method: "POST",
+        body: { currentPassword, newPassword },
+        credentials: "include",
       });
       return { success: true };
     } catch (error) {
@@ -186,7 +164,14 @@ export function useAuth() {
   }): Promise<AuthResponse<{ user: User }>> {
     isLoading.value = true;
     try {
-      const { data: responseData } = await api.post<{ user: User }>("/update-user", data);
+      const responseData = await $fetch<{ user: User }>(
+        `${config.public.apiBase}/auth/update-user`,
+        {
+          method: "POST",
+          body: data,
+          credentials: "include",
+        },
+      );
       if (responseData.user) {
         user.value = { ...user.value, ...responseData.user } as User;
       }
@@ -201,8 +186,9 @@ export function useAuth() {
   async function fetchUsers(): Promise<AuthResponse<UserListResponse>> {
     isLoading.value = true;
     try {
-      // Use custom admin endpoint that allows owner role
-      const { data } = await adminApi.get<UserListResponse>("/admin/users");
+      const data = await $fetch<UserListResponse>(`${config.public.apiBase}/admin/users`, {
+        credentials: "include",
+      });
       return { success: true, data };
     } catch (error) {
       return handleApiError<UserListResponse>(error);
@@ -214,9 +200,9 @@ export function useAuth() {
   async function fetchUserById(id: string): Promise<AuthResponse<{ user: User }>> {
     isLoading.value = true;
     try {
-      // Use custom admin endpoint
-      const { data } = await adminApi.get<{ user: User }>("/admin/users", {
+      const data = await $fetch<{ user: User }>(`${config.public.apiBase}/admin/users`, {
         params: { id },
+        credentials: "include",
       });
       return { success: true, data };
     } catch (error) {
@@ -238,10 +224,14 @@ export function useAuth() {
   ): Promise<AuthResponse<{ user: User }>> {
     isLoading.value = true;
     try {
-      const { data: responseData } = await api.post<{ user: User }>("/admin/update-user", {
-        userId,
-        data: data,
-      });
+      const responseData = await $fetch<{ user: User }>(
+        `${config.public.apiBase}/auth/admin/update-user`,
+        {
+          method: "POST",
+          body: { userId, data },
+          credentials: "include",
+        },
+      );
       return { success: true, data: responseData };
     } catch (error) {
       return handleApiError<{ user: User }>(error);
@@ -253,7 +243,11 @@ export function useAuth() {
   async function deleteUser(userId: string): Promise<AuthResponse> {
     isLoading.value = true;
     try {
-      await api.post("/admin/delete-user", { userId });
+      await $fetch(`${config.public.apiBase}/auth/admin/delete-user`, {
+        method: "POST",
+        body: { userId },
+        credentials: "include",
+      });
       return { success: true };
     } catch (error) {
       return handleApiError(error);
@@ -265,7 +259,9 @@ export function useAuth() {
   async function listOrganizations(): Promise<AuthResponse<Organization[]>> {
     isLoading.value = true;
     try {
-      const { data } = await api.get<Organization[]>("/organization/list");
+      const data = await $fetch<Organization[]>(`${config.public.apiBase}/auth/organization/list`, {
+        credentials: "include",
+      });
       return { success: true, data };
     } catch (error) {
       return handleApiError<Organization[]>(error);
@@ -277,8 +273,10 @@ export function useAuth() {
   async function setActiveOrganization(organizationId: string): Promise<AuthResponse> {
     isLoading.value = true;
     try {
-      await api.post("/organization/set-active", {
-        organizationId,
+      await $fetch(`${config.public.apiBase}/auth/organization/set-active`, {
+        method: "POST",
+        body: { organizationId },
+        credentials: "include",
       });
       await fetchSession();
       return { success: true };
@@ -297,7 +295,14 @@ export function useAuth() {
   }): Promise<AuthResponse<Organization>> {
     isLoading.value = true;
     try {
-      const { data: responseData } = await api.post<Organization>("/organization/create", data);
+      const responseData = await $fetch<Organization>(
+        `${config.public.apiBase}/auth/organization/create`,
+        {
+          method: "POST",
+          body: data,
+          credentials: "include",
+        },
+      );
       return { success: true, data: responseData };
     } catch (error) {
       return handleApiError<Organization>(error);
@@ -312,11 +317,14 @@ export function useAuth() {
   ): Promise<AuthResponse<Organization>> {
     isLoading.value = true;
     try {
-      const { data: responseData } = await api.post<Organization>("/organization/update", {
-        organizationId,
-        data,
-      });
-
+      const responseData = await $fetch<Organization>(
+        `${config.public.apiBase}/auth/organization/update`,
+        {
+          method: "POST",
+          body: { organizationId, data },
+          credentials: "include",
+        },
+      );
       return { success: true, data: responseData };
     } catch (error) {
       return handleApiError<Organization>(error);

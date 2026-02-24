@@ -253,7 +253,7 @@ const handleSubmit = async () => {
                 v-if="form.logo"
                 class="w-12 h-12 rounded border border-border overflow-hidden bg-white flex-shrink-0"
               >
-                <img :src="form.logo" alt="Logo" class="w-full h-full object-contain" />
+                <NuxtImg :src="form.logo" alt="Logo" class="w-full h-full object-contain" />
               </div>
               <input
                 v-model="form.logo"

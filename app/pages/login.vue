@@ -59,7 +59,7 @@ const handleSubmit = async () => {
           <div
             class="flex items-center justify-center w-14 h-14 rounded-2xl bg-white/20 backdrop-blur-sm"
           >
-            <img src="/favicon.png" alt="Logo" class="w-9 h-9" />
+            <NuxtImg src="/favicon.png" alt="Logo" class="w-9 h-9" />
           </div>
           <div>
             <h1 class="text-3xl font-bold text-white">NSContinent</h1>
@@ -104,7 +104,7 @@ const handleSubmit = async () => {
           <div
             class="flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-primary/20 backdrop-blur-sm"
           >
-            <img src="/favicon.png" alt="Logo" class="w-8 h-8" />
+            <NuxtImg src="/favicon.png" alt="Logo" class="w-8 h-8" />
           </div>
           <div>
             <h1 class="text-2xl font-bold text-foreground">Lantech</h1>

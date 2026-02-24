@@ -1,5 +1,3 @@
-import axios, { type AxiosError } from "axios";
-
 export interface Payment {
   id: string;
   paymentNumber: string;
@@ -63,33 +61,35 @@ export interface PaymentDetail {
   createdAt: string;
 }
 
-const deletePayment = async (id: string) => {
-  await axios.delete(`${useRuntimeConfig().public.apiBase}/finance/payment/${id}`);
+type ErrorResponse = {
+  message?: string;
+  error?: string;
 };
+
+function getErrorMessage(error: unknown): string {
+  if (error && typeof error === "object" && "data" in error) {
+    const errorData = (error as { data?: ErrorResponse }).data;
+    if (errorData?.message) return errorData.message;
+    if (errorData?.error) return errorData.error;
+  }
+  if (error instanceof Error) return error.message;
+  return "An error occurred";
+}
 
 export function usePayments() {
   const config = useRuntimeConfig();
-  const isLoading = useState<boolean>("payments-loading", () => false);
+  const isLoading = ref(false);
 
-  const api = axios.create({
-    baseURL: config.public.apiBase,
-    withCredentials: true,
-  });
-
-  type ErrorResponse = {
-    message?: string;
-    error?: string;
-  };
-
-  function handleApiError(error: unknown): { success: false; error: string } {
-    const axiosError = error as AxiosError<ErrorResponse>;
-    const apiError = axiosError.response?.data;
-    const errorMessage =
-      typeof apiError === "string"
-        ? apiError
-        : apiError?.message || apiError?.error || axiosError.message || "An error occurred";
-
-    return { success: false, error: errorMessage };
+  async function deletePayment(id: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      await $fetch(`${config.public.apiBase}/finance/payment/${id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: getErrorMessage(error) };
+    }
   }
 
   async function fetchPayments(): Promise<{
@@ -99,12 +99,13 @@ export function usePayments() {
   }> {
     isLoading.value = true;
     try {
-      const { data } = await api.get<Payment[]>("/finance/payment");
+      const data = await $fetch<Payment[]>(`${config.public.apiBase}/finance/payment`, {
+        credentials: "include",
+      });
       return { success: true, data };
     } catch (error) {
-      const axiosError = error as AxiosError<ErrorResponse>;
-      console.error("[Payments] Failed to fetch:", axiosError.response?.data || axiosError.message);
-      return handleApiError(error);
+      console.error("[Payments] Failed to fetch:", error);
+      return { success: false, error: getErrorMessage(error) };
     } finally {
       isLoading.value = false;
     }
@@ -115,10 +116,12 @@ export function usePayments() {
   ): Promise<{ success: boolean; data?: PaymentDetail; error?: string }> {
     isLoading.value = true;
     try {
-      const { data } = await api.get<PaymentDetail>(`/finance/payment/${id}`);
+      const data = await $fetch<PaymentDetail>(`${config.public.apiBase}/finance/payment/${id}`, {
+        credentials: "include",
+      });
       return { success: true, data };
     } catch (error) {
-      return handleApiError(error);
+      return { success: false, error: getErrorMessage(error) };
     } finally {
       isLoading.value = false;
     }
@@ -134,10 +137,14 @@ export function usePayments() {
   }): Promise<{ success: boolean; data?: Payment; error?: string }> {
     isLoading.value = true;
     try {
-      const { data: responseData } = await api.post<Payment>("/finance/payment", data);
+      const responseData = await $fetch<Payment>(`${config.public.apiBase}/finance/payment`, {
+        method: "POST",
+        body: data,
+        credentials: "include",
+      });
       return { success: true, data: responseData };
     } catch (error) {
-      return handleApiError(error);
+      return { success: false, error: getErrorMessage(error) };
     } finally {
       isLoading.value = false;
     }
@@ -155,10 +162,14 @@ export function usePayments() {
   ): Promise<{ success: boolean; data?: Payment; error?: string }> {
     isLoading.value = true;
     try {
-      const { data: responseData } = await api.patch<Payment>(`/finance/payment/${id}`, data);
+      const responseData = await $fetch<Payment>(`${config.public.apiBase}/finance/payment/${id}`, {
+        method: "PATCH",
+        body: data,
+        credentials: "include",
+      });
       return { success: true, data: responseData };
     } catch (error) {
-      return handleApiError(error);
+      return { success: false, error: getErrorMessage(error) };
     } finally {
       isLoading.value = false;
     }

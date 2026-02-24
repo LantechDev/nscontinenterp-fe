@@ -3,6 +3,29 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Critical CSS for initial load - prevents FOUC */
+html {
+  background-color: #f9fafb;
+}
+
+html.loading {
+  visibility: hidden;
+}
+
+html.loading::after {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: #ffffff;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 @layer base {
   :root {
     --background: 210 20% 98%;
