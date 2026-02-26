@@ -39,9 +39,9 @@ export default defineNuxtConfig({
   },
   // Performance optimization: Hybrid rendering with route rules
   routeRules: {
-    // Static pages - prerender at build time
-    "/": { prerender: true },
-    "/login": { prerender: true },
+    // Static pages - disabled prerender so we can use runtime config for API
+    // "/": { prerender: true },
+    // "/login": { prerender: true },
     // Dashboard and data pages - SWR caching for 1 hour
     "/dashboard": { swr: 3600 },
     "/master/**": { swr: 3600 },
