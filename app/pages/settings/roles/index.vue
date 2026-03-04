@@ -10,8 +10,6 @@ import {
   ArrowLeft,
   LayoutList,
   ChevronDown,
-  ChevronLeft,
-  ChevronRight,
 } from "lucide-vue-next";
 import { cn } from "~/lib/utils";
 import type { Role } from "~/composables/useRoles";
@@ -30,6 +28,19 @@ const errorRoot = ref("");
 onMounted(() => {
   fetchRoles();
 });
+
+// Pagination
+const currentPage = ref(1);
+const pagination = ref({
+  total: 0,
+  limit: 10,
+  page: 1,
+});
+
+const handlePageChange = (page: number) => {
+  currentPage.value = page;
+  fetchRoles();
+};
 
 const filteredRoles = computed(() => {
   if (!searchQuery.value) return roles.value;
@@ -216,22 +227,12 @@ const handleDelete = async (role: Role) => {
     <!-- Pagination -->
     <div class="flex items-center justify-between text-sm text-muted-foreground">
       <p>{{ filteredRoles.length }} data found.</p>
-      <div class="flex items-center gap-2">
-        <button class="p-1 hover:text-foreground disabled:opacity-50" disabled>
-          <ChevronLeft class="w-4 h-4" />
-          <span class="sr-only">Previous</span>
-        </button>
-        <button
-          class="w-8 h-8 flex items-center justify-center rounded border border-border bg-white text-foreground font-medium"
-        >
-          1
-        </button>
-        <span class="px-1 text-muted-foreground/50">...</span>
-        <button class="flex items-center gap-1 hover:text-foreground disabled:opacity-50" disabled>
-          Next
-          <ChevronRight class="w-4 h-4" />
-        </button>
-      </div>
+      <UiPagination
+        v-model:page="currentPage"
+        :total="pagination.total"
+        :items-per-page="pagination.limit"
+        @update:page="handlePageChange"
+      />
     </div>
   </div>
 </template>

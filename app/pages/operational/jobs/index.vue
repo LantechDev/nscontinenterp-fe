@@ -11,8 +11,6 @@ import {
   LayoutGrid,
   ArrowRight,
   MoreVertical,
-  ChevronLeft,
-  ChevronRight,
 } from "lucide-vue-next";
 import { cn } from "~/lib/utils";
 
@@ -45,6 +43,19 @@ const getStatusClass = (statusId: string | null | undefined) => {
   if (statusId === "completed") return "bg-gray-100 text-gray-700 border-gray-200";
   if (statusId === "pending") return "bg-yellow-50 text-yellow-700 border-yellow-200";
   return "bg-blue-50 text-blue-700 border-blue-200";
+};
+
+// Pagination
+const currentPage = ref(1);
+const pagination = ref({
+  total: 0,
+  limit: 10,
+  page: 1,
+});
+
+const handlePageChange = (page: number) => {
+  currentPage.value = page;
+  fetchJobs();
 };
 </script>
 
@@ -243,22 +254,12 @@ const getStatusClass = (statusId: string | null | undefined) => {
     <!-- Pagination -->
     <div class="flex items-center justify-between text-sm text-muted-foreground">
       <p>{{ filteredJobs.length }} data found.</p>
-      <div class="flex items-center gap-2">
-        <button class="p-1 hover:text-foreground disabled:opacity-50">
-          <ChevronLeft class="w-4 h-4" />
-          <span class="sr-only">Previous</span>
-        </button>
-        <button
-          class="w-8 h-8 flex items-center justify-center rounded border border-border bg-white text-foreground font-medium"
-        >
-          1
-        </button>
-        <span class="px-1">...</span>
-        <button class="flex items-center gap-1 hover:text-foreground">
-          Next
-          <ChevronRight class="w-4 h-4" />
-        </button>
-      </div>
+      <UiPagination
+        v-model:page="currentPage"
+        :total="pagination.total"
+        :items-per-page="pagination.limit"
+        @update:page="handlePageChange"
+      />
     </div>
   </div>
 </template>
