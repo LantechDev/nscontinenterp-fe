@@ -5,6 +5,8 @@ import Combobox from "~/components/ui/Combobox.vue";
 // Import types implicitly or explicitly if exported from composable
 import type { Company, ContainerType, Vessel } from "~/composables/useMasterData";
 
+const { confirm } = useConfirm();
+
 definePageMeta({
   layout: "dashboard",
 });
@@ -47,33 +49,53 @@ const formData = reactive({
 });
 
 async function handleCreateCompany(name: string, field: "shipperId" | "consigneeId") {
-  if (!confirm(`Create new company "${name}"?`)) return;
+  const confirmed = await confirm({
+    title: "Create Company",
+    message: `Create new company "${name}"?`,
+  });
+  if (!confirmed) return;
 
   const result = await createCompany(name);
   if (result.success && result.data) {
     await refreshMasterData(); // Refresh list to include new company
     formData[field] = result.data.id; // Select the new company
   } else {
-    alert("Failed to create company: " + (result.error || "Unknown error"));
+    await confirm({
+      title: "Error",
+      message: "Failed to create company: " + (result.error || "Unknown error"),
+      type: "danger",
+    });
   }
 }
 
 async function handleCreateVessel(name: string) {
-  if (!confirm(`Create new vessel "${name}"?`)) return;
+  const confirmed = await confirm({
+    title: "Create Vessel",
+    message: `Create new vessel "${name}"?`,
+  });
+  if (!confirmed) return;
 
   const result = await createVessel(name);
   if (result.success && result.data) {
     await refreshMasterData();
     formData.vesselId = result.data.id;
   } else {
-    alert("Failed to create vessel: " + (result.error || "Unknown error"));
+    await confirm({
+      title: "Error",
+      message: "Failed to create vessel: " + (result.error || "Unknown error"),
+      type: "danger",
+    });
   }
 }
 
 async function handleSubmit() {
   // Basic validation
   if (!formData.shipperId || !formData.consigneeId) {
-    alert("Shipper and Consignee are required");
+    await confirm({
+      title: "Validation Error",
+      message: "Shipper and Consignee are required",
+      type: "danger",
+    });
     return;
   }
 
@@ -84,7 +106,11 @@ async function handleSubmit() {
   if (success) {
     router.push("/operational/jobs");
   } else {
-    alert("Failed to create job: " + (error || JSON.stringify(error)));
+    await confirm({
+      title: "Error",
+      message: "Failed to create job: " + (error || JSON.stringify(error)),
+      type: "danger",
+    });
   }
 }
 </script>
