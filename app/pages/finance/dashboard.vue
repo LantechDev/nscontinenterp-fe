@@ -28,6 +28,15 @@ definePageMeta({
   title: "Finance Dashboard",
 });
 
+// Helper function for formatting currency
+const formatCurrency = (val: number) =>
+  new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(val);
+
 // Composables
 const {
   isLoading,
@@ -242,13 +251,6 @@ const transactionStatsCards = computed<StatCardData[]>(() => {
     ];
   }
   const t = transactionStats.value;
-  const formatCurrency = (val: number) =>
-    new Intl.NumberFormat("id-ID", {
-      style: "currency",
-      currency: "IDR",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(val);
   return [
     { title: "Journal", value: formatCurrency(t.totalJournal), isPrimary: true },
     {
