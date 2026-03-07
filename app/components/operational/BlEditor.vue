@@ -3,6 +3,8 @@ import { X, Save, Copy, Loader2 } from "lucide-vue-next";
 import Combobox from "~/components/ui/Combobox.vue";
 import type { Company, ContainerType, PackageType } from "~/composables/useMasterData";
 
+const { confirm } = useConfirm();
+
 interface BlParty {
   id: string;
   companyId?: string | null;
@@ -121,7 +123,11 @@ async function loadBlData() {
     formData.notifyPartyId = notify?.companyId || "";
   } catch (error) {
     console.error("Failed to load BL", error);
-    alert("Failed to load BL details");
+    await confirm({
+      title: "Error",
+      message: "Failed to load BL details",
+      type: "danger",
+    });
   } finally {
     isLoading.value = false;
   }
@@ -148,7 +154,11 @@ watch(
 );
 
 async function handleCopyFromJob() {
-  if (!confirm("This will overwrite existing parties with data from the Job. Continue?")) return;
+  const confirmed = await confirm({
+    title: "Copy from Job",
+    message: "This will overwrite existing parties with data from the Job. Continue?",
+  });
+  if (!confirmed) return;
 
   isLoading.value = true;
   try {
@@ -156,10 +166,17 @@ async function handleCopyFromJob() {
       method: "POST",
     });
     await loadBlData();
-    alert("Data copied from Job. You can now edit it for this BL.");
+    await confirm({
+      title: "Success",
+      message: "Data copied from Job. You can now edit it for this BL.",
+    });
   } catch (error) {
     console.error("Copy failed", error);
-    alert("Failed to copy data");
+    await confirm({
+      title: "Error",
+      message: "Failed to copy data",
+      type: "danger",
+    });
   } finally {
     isLoading.value = false;
   }
@@ -186,7 +203,11 @@ async function handleSave() {
     emit("update:modelValue", false);
   } catch (error) {
     console.error("Save failed", error);
-    alert("Failed to save BL");
+    await confirm({
+      title: "Error",
+      message: "Failed to save BL",
+      type: "danger",
+    });
   } finally {
     isSaving.value = false;
   }

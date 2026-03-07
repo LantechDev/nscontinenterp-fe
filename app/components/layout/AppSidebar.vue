@@ -97,6 +97,7 @@ const navItems: NavItem[] = [
     title: "Finance",
     icon: Wallet,
     children: [
+      { title: "Dashboard", href: "/finance/dashboard" },
       { title: "Invoice", href: "/finance/invoice" },
       { title: "Pembayaran", href: "/finance/payment" },
       { title: "Biaya Operasional", href: "/finance/expenses" },

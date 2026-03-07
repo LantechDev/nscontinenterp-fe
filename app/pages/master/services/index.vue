@@ -6,8 +6,6 @@ import {
   Package,
   LayoutList,
   LayoutGrid,
-  ChevronLeft,
-  ChevronRight,
   ChevronDown,
   Save,
   Loader2,
@@ -187,6 +185,19 @@ const selectAll = computed({
   get: () => services.value.length > 0 && services.value.every((s) => s.selected),
   set: (val) => services.value.forEach((s) => (s.selected = val)),
 });
+
+// Pagination
+const currentPage = ref(1);
+const pagination = ref({
+  total: 0,
+  limit: 10,
+  page: 1,
+});
+
+const handlePageChange = (page: number) => {
+  currentPage.value = page;
+  fetchServices();
+};
 </script>
 
 <template>
@@ -439,32 +450,12 @@ const selectAll = computed({
     <!-- Pagination -->
     <div class="flex items-center justify-between text-sm text-muted-foreground">
       <p>{{ sortedServices.length }} data found.</p>
-      <div class="flex items-center gap-2">
-        <button class="p-1 hover:text-foreground disabled:opacity-50">
-          <ChevronLeft class="w-4 h-4" />
-          <span class="sr-only">Previous</span>
-        </button>
-        <button
-          class="w-8 h-8 flex items-center justify-center rounded border border-border bg-white text-foreground font-medium"
-        >
-          1
-        </button>
-        <button
-          class="w-8 h-8 flex items-center justify-center rounded hover:bg-muted text-muted-foreground"
-        >
-          2
-        </button>
-        <button
-          class="w-8 h-8 flex items-center justify-center rounded hover:bg-muted text-muted-foreground"
-        >
-          3
-        </button>
-        <span class="px-1">...</span>
-        <button class="flex items-center gap-1 hover:text-foreground">
-          Next
-          <ChevronRight class="w-4 h-4" />
-        </button>
-      </div>
+      <UiPagination
+        v-model:page="currentPage"
+        :total="pagination.total"
+        :items-per-page="pagination.limit"
+        @update:page="handlePageChange"
+      />
     </div>
 
     <!-- Create Modal -->

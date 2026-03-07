@@ -412,4 +412,150 @@ if (error.value) {
 
 ---
 
+## 11. File Length Limits
+
+### 11.1. Maximum 300 Lines Per File (Mandatory)
+
+- **Standard:** No single file should exceed 300 lines of code.
+- **Reasoning:**
+  - **Readability:** Smaller files are easier to understand, navigate, and review.
+  - **Maintainability:** Large files often indicate god classes that do too much.
+  - **Collaboration:** Smaller files reduce merge conflicts in team environments.
+  - **Performance:** Faster parsing and type-checking in large codebases.
+  - **Testing:** Easier to unit test focused, single-responsibility modules.
+- **Reviewer Action:** Flag any file exceeding 300 lines. Request refactoring before merging.
+
+### 11.2. Refactoring Strategies
+
+When a file approaches or exceeds 300 lines, apply these strategies:
+
+#### A. Extract to Composables
+
+Move reusable stateful logic into composables:
+
+```typescript
+// ❌ BAD - Component with 400+ lines
+// app/pages/finance/dashboard.vue
+
+<script setup lang="ts">
+const jobs = ref([]);
+const invoices = ref([]);
+const payments = ref([]);
+
+const fetchJobs = async () => { ... };
+const fetchInvoices = async () => { ... };
+const fetchPayments = async () => { ... };
+
+const calculateRevenue = () => { ... };
+const calculateExpenses = () => { ... };
+const calculateProfit = () => { ... };
+
+const jobStats = computed(() => { ... });
+const invoiceStats = computed(() => { ... });
+const paymentStats = computed(() => { ... });
+// ... 300+ more lines
+</script>
+
+// ✅ GOOD - Extracted composables
+// app/composables/useFinanceDashboard.ts
+
+export const useFinanceDashboard = () => {
+  const jobs = ref([]);
+  const fetchJobs = async () => { ... };
+  const jobStats = computed(() => { ... });
+
+  return { jobs, fetchJobs, jobStats };
+};
+
+// app/pages/finance/dashboard.vue (now ~80 lines)
+<script setup lang="ts">
+const { jobs, fetchJobs, jobStats } = useFinanceDashboard();
+</script>
+```
+
+#### B. Split Large Components
+
+Break down monolithic components into smaller, focused sub-components:
+
+```text
+// ❌ BAD
+// app/pages/master/company/index.vue (800+ lines)
+
+// ✅ GOOD - Split into focused components
+// app/pages/master/company/index.vue (~50 lines)
+// app/pages/master/company/components/CompanyList.vue
+// app/pages/master/company/components/CompanyCreateModal.vue
+// app/pages/master/company/components/CompanyDetailModal.vue
+// app/pages/master/company/components/CompanySidebar.vue
+```
+
+#### C. Use Component Composition
+
+Leverage slots and props for component reusability:
+
+```vue
+// ❌ BAD - One massive data table component with all features // components/DataTable.vue (500+
+lines with all edge cases) // ✅ GOOD - Generic base + feature-specific wrappers //
+components/ui/DataTable.vue (base functionality) // components/finance/InvoiceTable.vue
+(domain-specific extension)
+```
+
+#### D. Extract Utility Functions
+
+Move pure functions to utility files:
+
+```typescript
+// ❌ BAD - Utility functions in component
+// app/pages/reports/profit-loss.vue
+
+const formatCurrency = (value: number) => { ... };
+const formatDate = (date: Date) => { ... };
+const calculatePercentage = (a: number, b: number) => { ... };
+
+// ✅ GOOD - Shared utilities
+// app/lib/utils.ts
+export const formatCurrency = (value: number) => { ... };
+export const formatDate = (date: Date) => { ... };
+export const calculatePercentage = (a: number, b: number) => { ... };
+```
+
+#### E. Split Type Definitions
+
+Separate large type definitions into dedicated files:
+
+```typescript
+// ❌ BAD - All types in one file
+// app/types/all.ts (300+ lines of interfaces)
+
+// ✅ GOOD - Organized type files
+// app/types/finance.ts (finance-related types)
+// app/types/auth.ts (authentication types)
+// app/types/job.ts (job-related types)
+```
+
+### 11.3. Line Counting Guidelines
+
+- **Count includes:** All lines in the file (script, template, styles)
+- **Excludes:** Empty lines at the end of file
+- **Tooling:** Use `wc -l` or IDE line count to verify
+- **Graceful limit:** Target 250 lines, hard limit at 300 lines
+
+### 11.4. Exceptions
+
+Some files may legitimately exceed 300 lines:
+
+- Generated code (auto-generated from schemas)
+- Third-party library wrappers
+- Complex configuration files
+- Test files with extensive test cases
+
+For exceptions, add a comment at the top:
+
+```typescript
+// NOTE: This file exceeds 300 lines due to [reason]
+// Consider refactoring in future iterations
+```
+
+---
+
 **End of Guide**
