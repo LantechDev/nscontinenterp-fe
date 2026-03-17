@@ -1,9 +1,13 @@
 export interface DashboardStats {
   totalIncome: string;
   totalIncomeRaw: number;
+  totalIncomeChange: number;
   activeJobs: number;
+  activeJobsChange: number;
   pendingInvoices: number;
+  pendingInvoicesChange: number;
   activeOffers: number;
+  activeOffersChange: number;
 }
 
 export interface RecentJob {
@@ -34,13 +38,32 @@ export interface DashboardData {
   };
 }
 
+export interface DashboardQueryParams {
+  startDate?: string;
+  endDate?: string;
+}
+
 export const useDashboard = () => {
   const config = useRuntimeConfig();
   const baseUrl = config.public.apiBase || "";
 
-  const fetchDashboard = async (): Promise<DashboardData | null> => {
+  const fetchDashboard = async (params?: DashboardQueryParams): Promise<DashboardData | null> => {
     try {
-      const response = await $fetch<DashboardData>(`${baseUrl}/admin/dashboard`, {
+      // Build query string from params
+      const queryParams = new URLSearchParams();
+      if (params?.startDate) {
+        queryParams.append("startDate", params.startDate);
+      }
+      if (params?.endDate) {
+        queryParams.append("endDate", params.endDate);
+      }
+
+      const queryString = queryParams.toString();
+      const url = queryString
+        ? `${baseUrl}/admin/dashboard?${queryString}`
+        : `${baseUrl}/admin/dashboard`;
+
+      const response = await $fetch<DashboardData>(url, {
         method: "GET",
         credentials: "include",
       });

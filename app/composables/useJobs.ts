@@ -1,4 +1,6 @@
 import { type AuthResponse } from "../types/auth";
+export type { BlParty } from "~/types/operational";
+import { getErrorMessage } from "~/lib/utils";
 
 // TypeScript Interfaces based on OpenAPI spec
 export interface Job {
@@ -43,12 +45,6 @@ export interface JobParty {
   company?: { name: string };
 }
 
-export interface BlParty {
-  id: string;
-  partyRoleCode?: string;
-  companyName?: string;
-}
-
 export interface BillOfLading {
   id: string;
   blNumber: string;
@@ -86,21 +82,6 @@ export interface UpdateBl {
   sealNumber?: string;
   grossWeight?: number;
   cargoDescription?: string;
-}
-
-type ErrorResponse = {
-  message?: string;
-  error?: string;
-};
-
-function getErrorMessage(error: unknown): string {
-  if (error && typeof error === "object" && "data" in error) {
-    const errorData = (error as { data?: ErrorResponse }).data;
-    if (errorData?.message) return errorData.message;
-    if (errorData?.error) return errorData.error;
-  }
-  if (error instanceof Error) return error.message;
-  return "An error occurred";
 }
 
 function handleApiError<T = unknown>(error: unknown): AuthResponse<T> {

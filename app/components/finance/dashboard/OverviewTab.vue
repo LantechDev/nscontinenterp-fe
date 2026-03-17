@@ -31,16 +31,6 @@ const props = defineProps<{
       <div class="lg:col-span-2 bg-white rounded-xl border border-border p-4">
         <div class="flex items-center justify-between mb-4">
           <h3 class="text-sm font-semibold text-gray-900">Financial Overview</h3>
-          <div class="flex items-center gap-4">
-            <div class="flex items-center gap-2">
-              <div class="w-2 h-2 rounded-full bg-[#012D5A]"></div>
-              <span class="text-[10px] text-neutral-700">Income</span>
-            </div>
-            <div class="flex items-center gap-2">
-              <div class="w-2 h-2 rounded-full bg-red-500"></div>
-              <span class="text-[10px] text-neutral-700">Outcome</span>
-            </div>
-          </div>
         </div>
         <div class="h-72 w-full">
           <ClientOnly>

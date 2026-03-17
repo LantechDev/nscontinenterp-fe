@@ -1,7 +1,7 @@
 export interface Invoice {
   id: string;
   invoiceNumber: string;
-  invoiceDate: string;
+  issuedDate: string;
   dueDate: string;
   total: number;
   balanceDue: number;
@@ -23,13 +23,18 @@ export interface InvoiceDetail extends Invoice {
     phone: string;
     address: string;
   };
+  job?: {
+    id: string;
+    jobNumber: string;
+  };
   items: Array<{
     id: string;
     description: string;
     quantity: number;
     unitPrice: number;
-    total: number;
+    amount: number;
     service?: {
+      id: string;
       name: string;
     };
   }>;
@@ -42,6 +47,9 @@ export interface InvoiceDetail extends Invoice {
     };
   }>;
   notes?: string;
+  issuedDate: string;
+  subTotal: number;
+  taxAmount: number;
 }
 
 type ErrorResponse = {
@@ -75,16 +83,20 @@ export function useInvoices() {
     }
   }
 
-  async function fetchInvoices(): Promise<{
+  async function fetchInvoices(status?: string): Promise<{
     success: boolean;
     data?: Invoice[];
     error?: string;
   }> {
     isLoading.value = true;
     try {
-      const data = await $fetch<Invoice[]>(`${config.public.apiBase}/finance/invoice`, {
-        credentials: "include",
-      });
+      const queryParams = status ? `?status=${status}` : "";
+      const data = await $fetch<Invoice[]>(
+        `${config.public.apiBase}/finance/invoice${queryParams}`,
+        {
+          credentials: "include",
+        },
+      );
       return { success: true, data };
     } catch (error) {
       console.error("[Invoices] Failed to fetch:", error);
@@ -112,7 +124,7 @@ export function useInvoices() {
 
   async function createInvoice(data: {
     companyId: string;
-    invoiceDate: string;
+    issuedDate: string;
     dueDate: string;
     items: Array<{
       serviceId?: string;
@@ -140,10 +152,25 @@ export function useInvoices() {
   async function updateInvoice(
     id: string,
     data: Partial<{
-      invoiceDate: string;
+      invoiceNumber: string;
+      issuedDate: string;
       dueDate: string;
-      statusId: string;
+      companyId: string;
+      jobId: string;
       notes: string;
+      subTotal: number;
+      taxAmount: number;
+      total: number;
+      balanceDue: number;
+      statusId: string;
+      items: Array<{
+        id?: string;
+        serviceId?: string;
+        description: string;
+        quantity: number;
+        unitPrice: number;
+        amount: number;
+      }>;
     }>,
   ): Promise<{ success: boolean; data?: Invoice; error?: string }> {
     isLoading.value = true;

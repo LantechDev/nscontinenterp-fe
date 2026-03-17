@@ -164,7 +164,7 @@ const localShowSortDropdown = computed({
         <div class="relative">
           <select
             v-model="localSelectedYear"
-            @change="emit('yearChange', localSelectedYear)"
+            @change="emit('yearChange', ($event.target as HTMLSelectElement).value)"
             class="appearance-none px-3 py-2 pr-8 text-sm border border-border rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
           >
             <option value="">All Years</option>
@@ -180,7 +180,7 @@ const localShowSortDropdown = computed({
         <!-- Customer Filter -->
         <select
           v-model="localCustomerId"
-          @change="emit('customerChange', localCustomerId)"
+          @change="emit('customerChange', ($event.target as HTMLSelectElement).value)"
           class="px-3 py-2 text-sm border border-border rounded-lg bg-white"
           :disabled="isLoadingCustomers"
         >
@@ -193,7 +193,7 @@ const localShowSortDropdown = computed({
         <!-- Service Filter -->
         <select
           v-model="localServiceId"
-          @change="emit('serviceChange', localServiceId)"
+          @change="emit('serviceChange', ($event.target as HTMLSelectElement).value)"
           class="px-3 py-2 text-sm border border-border rounded-lg bg-white"
           :disabled="isLoadingServices"
         >

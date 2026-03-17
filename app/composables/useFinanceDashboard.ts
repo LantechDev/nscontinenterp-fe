@@ -1,163 +1,47 @@
-/**
- * Finance Dashboard Types
- */
-export interface FinanceDashboardStats {
-  totalCogs: number;
-  totalCogsFormatted: string;
-  averageCostPerJob: number;
-  averageCostPerJobFormatted: string;
-  highestJob: {
-    jobNumber: string;
-    cogs: number;
-    cogsFormatted: string;
-  };
-  costGrowth: number;
-  previousPeriodCogs: number;
-  currentPeriodCogs: number;
-}
-
-export interface OverviewStats {
-  totalIncome: number;
-  totalIncomeFormatted: string;
-  totalOutcome: number;
-  totalOutcomeFormatted: string;
-  netProfit: number;
-  netProfitFormatted: string;
-  margins: number;
-  incomeGrowth: number;
-  outcomeGrowth: number;
-}
-
-export interface ChartData {
-  incomeData: number[];
-  expenseData: number[];
-  marginData: number[];
-  months: string[];
-  top5: { name: string; value: number }[];
-}
-
-export interface JobCostItem {
-  id: string;
-  jobNumber: string;
-  polPod: string;
-  customer: string;
-  revenue: number;
-  revenueFormatted: string;
-  cogs: number;
-  cogsFormatted: string;
-  profit: number;
-  profitFormatted: string;
-  margin: number;
-  status: "active" | "closed" | "pending";
-}
-
-export interface PaginationInfo {
-  page: number;
-  limit: number;
-  total: number;
-  totalPages: number;
-}
-
-export interface JobCostBreakdownResponse {
-  data: JobCostItem[];
-  pagination: PaginationInfo;
-}
-
-export interface TransactionItem {
-  id: string;
-  jobNumber: string;
-  date: string;
-  customer: string;
-  type: "Customer Invoice" | "Payment Out";
-  total: number;
-  isIncome: boolean;
-}
-
-export interface TransactionStats {
-  totalJournal: number;
-  totalIncome: number;
-  totalOutcome: number;
-  todayTransactions: number;
-}
-
-export interface TransactionsResponse {
-  data: TransactionItem[];
-  pagination: PaginationInfo;
-  stats: TransactionStats;
-}
-
-export interface FinanceCloseStats {
-  id?: string;
-  period: string;
-  status: "Open" | "Closed";
-  description: string;
-  revenue: string;
-  cogs: string;
-  nettPL: string;
-  readinessScore: number;
-  periodStart?: string;
-  periodEnd?: string;
-}
-
-export interface FinanceClosePeriod {
-  id: string;
-  period: string;
-  status: "Open" | "Closed";
-  description: string;
-  revenue: string;
-  cogs: string;
-  nettPL: string;
-  readinessScore: number;
-  periodStart?: string;
-  periodEnd?: string;
-  closedAt?: string;
-}
-
-export interface FinanceDashboardFilters {
-  period?: "day" | "week" | "month" | "year";
-  serviceId?: string;
-  companyId?: string;
-  page?: number;
-  limit?: number;
-  search?: string;
-  sortBy?: "jobNumber" | "revenue" | "cogs" | "profit" | "margin" | "createdAt";
-  sortOrder?: "asc" | "desc";
-  year?: number;
-}
-
-/**
- * Error response type
- */
-interface ErrorResponse {
-  message?: string;
-  error?: string;
-}
-
-function getErrorMessage(error: unknown): string {
-  if (error && typeof error === "object" && "data" in error) {
-    const errorData = (error as { data?: ErrorResponse }).data;
-    if (errorData?.message) return errorData.message;
-    if (errorData?.error) return errorData.error;
-  }
-  if (error instanceof Error) return error.message;
-  return "An error occurred";
-}
+import {
+  getErrorMessage,
+  type FinanceDashboardStats,
+  type OverviewStats,
+  type ChartData,
+  type JobCostItem,
+  type PaginationInfo,
+  type JobCostBreakdownResponse,
+  type TransactionItem,
+  type TransactionStats,
+  type TransactionsResponse,
+  type FinanceCloseStats,
+  type FinanceClosePeriod,
+} from "~/types/finance-dashboard";
 
 /**
  * Finance Dashboard Composable
  * Provides functions to fetch finance dashboard data from the API
  *
- * IMPORTANT: Use useState or provide unique key to prevent multiple instances
- * from being created during SSR/hydration which can cause data loss
+ * This composable combines multiple data fetching concerns:
+ * - Stats (COGS)
+ * - Overview
+ * - Charts
+ * - Job Costs
+ * - Transactions
+ * - Finance Close
  */
 export function useFinanceDashboard() {
   const config = useRuntimeConfig();
   const baseUrl = config.public.apiBase || "";
 
-  // Request tracking to prevent race conditions
-  let currentRequestId = 0;
+  // Request tracking for each data type to support parallel calls
+  const requestIds = {
+    stats: ref(0),
+    overview: ref(0),
+    charts: ref(0),
+    jobCosts: ref(0),
+    transactions: ref(0),
+    transactionStats: ref(0),
+    financeClose: ref(0),
+    closedPeriods: ref(0),
+  };
 
-  // Reactive state - preserve data during refetches
+  // Reactive state
   const isLoading = ref(false);
   const stats = ref<FinanceDashboardStats | null>(null);
   const overviewStats = ref<OverviewStats | null>(null);
@@ -181,42 +65,32 @@ export function useFinanceDashboard() {
   async function fetchStats(
     period: "day" | "week" | "month" | "year" = "month",
     year?: number,
-    forcedRequestId?: number,
   ): Promise<FinanceDashboardStats | null> {
-    const requestId = forcedRequestId ?? ++currentRequestId;
+    const requestId = ++requestIds.stats.value;
 
-    if (requestId === currentRequestId) {
-      isLoading.value = true;
-      error.value = null;
-    }
+    isLoading.value = true;
+    error.value = null;
 
     try {
       const queryParams: Record<string, string | number> = { period };
-      if (year) {
-        queryParams.year = year;
-      }
+      if (year) queryParams.year = year;
 
       const data = await $fetch<FinanceDashboardStats>(`${baseUrl}/finance/dashboard`, {
         method: "GET",
         query: queryParams,
         credentials: "include",
       });
+      console.log("[FE_TRACE] Stats response:", data);
 
-      if (requestId === currentRequestId) {
-        stats.value = data;
-      }
+      if (requestId === requestIds.stats.value) stats.value = data;
       return data;
     } catch (err) {
       const message = getErrorMessage(err);
-      console.error("Failed to fetch finance dashboard stats:", message);
-      if (requestId === currentRequestId) {
-        error.value = message;
-      }
+      console.error("Failed to fetch stats:", message);
+      if (requestId === requestIds.stats.value) error.value = message;
       return null;
     } finally {
-      if (requestId === currentRequestId) {
-        isLoading.value = false;
-      }
+      if (requestId === requestIds.stats.value) isLoading.value = false;
     }
   }
 
@@ -227,18 +101,14 @@ export function useFinanceDashboard() {
     period: "day" | "week" | "month" | "year" = "month",
     year?: number,
   ): Promise<OverviewStats | null> {
-    const requestId = ++currentRequestId;
+    const requestId = ++requestIds.overview.value;
 
-    if (requestId === currentRequestId) {
-      isLoading.value = true;
-      error.value = null;
-    }
+    isLoading.value = true;
+    error.value = null;
 
     try {
       const queryParams: Record<string, string | number> = { period };
-      if (year) {
-        queryParams.year = year;
-      }
+      if (year) queryParams.year = year;
 
       const data = await $fetch<OverviewStats>(`${baseUrl}/finance/dashboard/overview`, {
         method: "GET",
@@ -246,21 +116,15 @@ export function useFinanceDashboard() {
         credentials: "include",
       });
 
-      if (requestId === currentRequestId) {
-        overviewStats.value = data;
-      }
+      if (requestId === requestIds.overview.value) overviewStats.value = data;
       return data;
     } catch (err) {
       const message = getErrorMessage(err);
       console.error("Failed to fetch overview stats:", message);
-      if (requestId === currentRequestId) {
-        error.value = message;
-      }
+      if (requestId === requestIds.overview.value) error.value = message;
       return null;
     } finally {
-      if (requestId === currentRequestId) {
-        isLoading.value = false;
-      }
+      if (requestId === requestIds.overview.value) isLoading.value = false;
     }
   }
 
@@ -269,113 +133,94 @@ export function useFinanceDashboard() {
    */
   async function fetchChartData(
     period: "day" | "week" | "month" | "year" = "month",
+    year?: number,
   ): Promise<ChartData | null> {
-    const requestId = ++currentRequestId;
+    const requestId = ++requestIds.charts.value;
 
-    if (requestId === currentRequestId) {
-      isLoading.value = true;
-      error.value = null;
-    }
+    isLoading.value = true;
+    error.value = null;
 
     try {
+      const queryParams: Record<string, string | number> = { period };
+      if (year) queryParams.year = year;
+
       const data = await $fetch<ChartData>(`${baseUrl}/finance/dashboard/charts`, {
-        method: "GET",
-        query: { period },
-        credentials: "include",
-      });
-
-      if (requestId === currentRequestId) {
-        chartData.value = data;
-      }
-      return data;
-    } catch (err) {
-      const message = getErrorMessage(err);
-      console.error("Failed to fetch chart data:", message);
-      if (requestId === currentRequestId) {
-        error.value = message;
-      }
-      return null;
-    } finally {
-      if (requestId === currentRequestId) {
-        isLoading.value = false;
-      }
-    }
-  }
-
-  /**
-   * Fetch job cost breakdown
-   */
-  async function fetchJobCosts(
-    filters: FinanceDashboardFilters,
-    forcedRequestId?: number,
-  ): Promise<JobCostBreakdownResponse | null> {
-    const requestId = forcedRequestId ?? ++currentRequestId;
-
-    if (requestId === currentRequestId) {
-      isLoading.value = true;
-      error.value = null;
-    }
-
-    try {
-      const {
-        period = "month",
-        serviceId,
-        companyId,
-        page = 1,
-        limit = 10,
-        search,
-        sortBy = "createdAt",
-        sortOrder = "desc",
-        year,
-      } = filters;
-
-      const queryParams: Record<string, string | number> = {
-        period,
-        page,
-        limit,
-      };
-
-      if (serviceId) {
-        queryParams.serviceId = serviceId;
-      }
-      if (companyId) {
-        queryParams.companyId = companyId;
-      }
-      if (search) {
-        queryParams.search = search;
-      }
-      if (sortBy) {
-        queryParams.sortBy = sortBy;
-      }
-      if (sortOrder) {
-        queryParams.sortOrder = sortOrder;
-      }
-      if (year) {
-        queryParams.year = year;
-      }
-
-      const data = await $fetch<JobCostBreakdownResponse>(`${baseUrl}/finance/dashboard/jobs`, {
         method: "GET",
         query: queryParams,
         credentials: "include",
       });
 
-      if (requestId === currentRequestId) {
-        jobCosts.value = data.data;
-        pagination.value = data.pagination;
+      if (requestId === requestIds.charts.value) chartData.value = data;
+      return data;
+    } catch (err) {
+      const message = getErrorMessage(err);
+      console.error("Failed to fetch chart data:", message);
+      if (requestId === requestIds.charts.value) error.value = message;
+      return null;
+    } finally {
+      if (requestId === requestIds.charts.value) isLoading.value = false;
+    }
+  }
+
+  /**
+   * Fetch job costs
+   */
+  async function fetchJobCosts(
+    period: "day" | "week" | "month" | "year" = "month",
+    filters?: Record<string, string | number>,
+  ): Promise<JobCostBreakdownResponse | null> {
+    const requestId = ++requestIds.jobCosts.value;
+
+    isLoading.value = true;
+    error.value = null;
+
+    try {
+      // Ensure pagination params are included
+      const queryParams: Record<string, string | number> = {
+        period,
+        page: filters?.page || 1,
+        limit: filters?.limit || 10,
+        ...filters,
+      };
+      // Remove page/limit from filters to avoid duplication
+      delete queryParams.page;
+      delete queryParams.limit;
+      // Re-add with correct values
+      queryParams.page = filters?.page || 1;
+      queryParams.limit = filters?.limit || 10;
+
+      const data = await $fetch<JobCostBreakdownResponse>(
+        `${baseUrl}/finance/dashboard/job-costs`,
+        {
+          method: "GET",
+          query: queryParams,
+          credentials: "include",
+        },
+      );
+      console.log("[FE_TRACE] Job costs response:", {
+        itemCount: data.items?.length,
+        total: data.pagination?.total,
+      });
+
+      if (requestId === requestIds.jobCosts.value) {
+        jobCosts.value = data.items || [];
+        if (data.pagination) {
+          pagination.value = {
+            page: data.pagination.page,
+            limit: data.pagination.limit,
+            total: data.pagination.total,
+            totalPages: data.pagination.totalPages,
+          };
+        }
       }
       return data;
     } catch (err) {
       const message = getErrorMessage(err);
-      console.error("Failed to fetch job cost breakdown:", message);
-      if (requestId === currentRequestId) {
-        error.value = message;
-      }
+      console.error("Failed to fetch job costs:", message);
+      if (requestId === requestIds.jobCosts.value) error.value = message;
       return null;
     } finally {
-      if (requestId === currentRequestId) {
-        isLoading.value = false;
-      }
+      if (requestId === requestIds.jobCosts.value) isLoading.value = false;
     }
   }
 
@@ -386,79 +231,78 @@ export function useFinanceDashboard() {
     period: "day" | "week" | "month" | "year" = "month",
     page: number = 1,
     limit: number = 10,
-    filters?: {
-      companyId?: string;
-      type?: "invoice" | "payment" | "all";
-      search?: string;
-      sortBy?: "date" | "jobNumber" | "customer" | "total";
-      sortOrder?: "asc" | "desc";
-      year?: number;
-      startDate?: string;
-      endDate?: string;
-    },
+    filters?: Record<string, string | number>,
   ): Promise<TransactionsResponse | null> {
-    const requestId = ++currentRequestId;
+    const requestId = ++requestIds.transactions.value;
 
-    if (requestId === currentRequestId) {
-      isLoading.value = true;
-      error.value = null;
-    }
+    isLoading.value = true;
+    error.value = null;
 
     try {
       const queryParams: Record<string, string | number> = {
         period,
         page,
         limit,
+        ...filters,
       };
-
-      if (filters?.companyId) {
-        queryParams.companyId = filters.companyId;
-      }
-      if (filters?.type) {
-        queryParams.type = filters.type;
-      }
-      if (filters?.search) {
-        queryParams.search = filters.search;
-      }
-      if (filters?.sortBy) {
-        queryParams.sortBy = filters.sortBy;
-      }
-      if (filters?.sortOrder) {
-        queryParams.sortOrder = filters.sortOrder;
-      }
-      if (filters?.year) {
-        queryParams.year = filters.year;
-      }
-      if (filters?.startDate) {
-        queryParams.startDate = filters.startDate;
-      }
-      if (filters?.endDate) {
-        queryParams.endDate = filters.endDate;
-      }
-
       const data = await $fetch<TransactionsResponse>(`${baseUrl}/finance/dashboard/transactions`, {
         method: "GET",
         query: queryParams,
         credentials: "include",
       });
 
-      if (requestId === currentRequestId) {
-        transactions.value = data.data;
-        pagination.value = data.pagination;
-        transactionStats.value = data.stats;
+      if (requestId === requestIds.transactions.value) {
+        transactions.value = data.items;
+        if (data.pagination) {
+          pagination.value = {
+            page: data.pagination.page,
+            limit: data.pagination.limit,
+            total: data.pagination.total,
+            totalPages: data.pagination.totalPages,
+          };
+        }
       }
       return data;
     } catch (err) {
       const message = getErrorMessage(err);
       console.error("Failed to fetch transactions:", message);
-      if (requestId === currentRequestId) {
-        error.value = message;
-      }
+      if (requestId === requestIds.transactions.value) error.value = message;
       return null;
     } finally {
-      if (requestId === currentRequestId) {
-        isLoading.value = false;
-      }
+      if (requestId === requestIds.transactions.value) isLoading.value = false;
+    }
+  }
+
+  /**
+   * Fetch transaction stats
+   */
+  async function fetchTransactionStats(
+    period: "day" | "week" | "month" | "year" = "month",
+  ): Promise<TransactionStats | null> {
+    const requestId = ++requestIds.transactionStats.value;
+
+    isLoading.value = true;
+    error.value = null;
+
+    try {
+      const data = await $fetch<TransactionStats>(
+        `${baseUrl}/finance/dashboard/transactions/stats`,
+        {
+          method: "GET",
+          query: { period },
+          credentials: "include",
+        },
+      );
+
+      if (requestId === requestIds.transactionStats.value) transactionStats.value = data;
+      return data;
+    } catch (err) {
+      const message = getErrorMessage(err);
+      console.error("Failed to fetch transaction stats:", message);
+      if (requestId === requestIds.transactionStats.value) error.value = message;
+      return null;
+    } finally {
+      if (requestId === requestIds.transactionStats.value) isLoading.value = false;
     }
   }
 
@@ -469,97 +313,41 @@ export function useFinanceDashboard() {
     period: "day" | "week" | "month" | "year" = "month",
     year?: number,
   ): Promise<FinanceCloseStats | null> {
-    const requestId = ++currentRequestId;
+    const requestId = ++requestIds.financeClose.value;
 
-    if (requestId === currentRequestId) {
-      isLoading.value = true;
-      error.value = null;
-    }
+    isLoading.value = true;
+    error.value = null;
 
     try {
-      const query: Record<string, string | number> = { period };
-      if (year) {
-        query.year = year;
-      }
+      const queryParams: Record<string, string | number> = { period };
+      if (year) queryParams.year = year;
 
       const data = await $fetch<FinanceCloseStats>(`${baseUrl}/finance/dashboard/finance-close`, {
         method: "GET",
-        query,
+        query: queryParams,
         credentials: "include",
       });
 
-      if (requestId === currentRequestId) {
-        financeCloseStats.value = data;
-      }
+      if (requestId === requestIds.financeClose.value) financeCloseStats.value = data;
       return data;
     } catch (err) {
       const message = getErrorMessage(err);
       console.error("Failed to fetch finance close stats:", message);
-      if (requestId === currentRequestId) {
-        error.value = message;
-      }
+      if (requestId === requestIds.financeClose.value) error.value = message;
       return null;
     } finally {
-      if (requestId === currentRequestId) {
-        isLoading.value = false;
-      }
+      if (requestId === requestIds.financeClose.value) isLoading.value = false;
     }
   }
 
   /**
-   * Close period
-   */
-  async function closePeriod(
-    period: "day" | "week" | "month" | "year" = "month",
-  ): Promise<{ success: boolean; message: string } | null> {
-    const requestId = ++currentRequestId;
-
-    if (requestId === currentRequestId) {
-      isLoading.value = true;
-      error.value = null;
-    }
-
-    try {
-      const data = await $fetch<{ success: boolean; message: string }>(
-        `${baseUrl}/finance/dashboard/finance-close`,
-        {
-          method: "POST",
-          query: { period },
-          credentials: "include",
-        },
-      );
-
-      if (requestId === currentRequestId && data.success) {
-        // Refresh stats after closing
-        await fetchFinanceCloseStats(period);
-        // Also refresh closed periods list
-        await fetchClosedPeriods();
-      }
-      return data;
-    } catch (err) {
-      const message = getErrorMessage(err);
-      console.error("Failed to close period:", message);
-      if (requestId === currentRequestId) {
-        error.value = message;
-      }
-      return null;
-    } finally {
-      if (requestId === currentRequestId) {
-        isLoading.value = false;
-      }
-    }
-  }
-
-  /**
-   * Fetch closed periods list
+   * Fetch closed periods
    */
   async function fetchClosedPeriods(): Promise<FinanceClosePeriod[] | null> {
-    const requestId = ++currentRequestId;
+    const requestId = ++requestIds.closedPeriods.value;
 
-    if (requestId === currentRequestId) {
-      isLoading.value = true;
-      error.value = null;
-    }
+    isLoading.value = true;
+    error.value = null;
 
     try {
       const data = await $fetch<FinanceClosePeriod[]>(
@@ -570,145 +358,101 @@ export function useFinanceDashboard() {
         },
       );
 
-      if (requestId === currentRequestId) {
-        closedPeriods.value = data;
-      }
+      if (requestId === requestIds.closedPeriods.value) closedPeriods.value = data;
       return data;
     } catch (err) {
       const message = getErrorMessage(err);
       console.error("Failed to fetch closed periods:", message);
-      if (requestId === currentRequestId) {
-        error.value = message;
-      }
+      if (requestId === requestIds.closedPeriods.value) error.value = message;
       return null;
     } finally {
-      if (requestId === currentRequestId) {
-        isLoading.value = false;
-      }
+      if (requestId === requestIds.closedPeriods.value) isLoading.value = false;
     }
   }
 
   /**
-   * Reopen a closed period
+   * Close a period
    */
-  async function reopenPeriod(
-    periodCloseId: string,
-  ): Promise<{ success: boolean; message: string } | null> {
-    const requestId = ++currentRequestId;
-
-    if (requestId === currentRequestId) {
-      isLoading.value = true;
-      error.value = null;
-    }
-
-    try {
-      const data = await $fetch<{ success: boolean; message: string }>(
-        `${baseUrl}/finance/dashboard/finance-close/reopen`,
-        {
-          method: "POST",
-          body: { periodCloseId },
-          credentials: "include",
-        },
-      );
-
-      if (requestId === currentRequestId && data.success) {
-        // Refresh stats and closed periods list after reopening
-        await fetchFinanceCloseStats();
-        await fetchClosedPeriods();
-      }
-      return data;
-    } catch (err) {
-      const message = getErrorMessage(err);
-      console.error("Failed to reopen period:", message);
-      if (requestId === currentRequestId) {
-        error.value = message;
-      }
-      return null;
-    } finally {
-      if (requestId === currentRequestId) {
-        isLoading.value = false;
-      }
-    }
-  }
-
-  /**
-   * Fetch all dashboard data (stats + job costs)
-   * Uses sequential fetching to ensure proper loading states
-   */
-  async function fetchAll(
-    period: "day" | "week" | "month" | "year" = "month",
-    filters?: Omit<FinanceDashboardFilters, "period">,
-  ): Promise<void> {
-    const requestId = ++currentRequestId;
-
+  async function closePeriod(
+    periodId: string,
+    notes?: string,
+  ): Promise<{ success: boolean; message: string }> {
     isLoading.value = true;
     error.value = null;
 
     try {
-      // Extract year from filters
-      const year = filters?.year;
-
-      // Fetch sequentially to avoid race conditions and ensure proper state updates
-      // First fetch stats
-      const statsData = await fetchStats(period, year, requestId);
-
-      if (requestId !== currentRequestId) {
-        return;
-      }
-
-      // Then fetch job costs
-      const jobCostsData = await fetchJobCosts({ period, ...filters }, requestId);
-
-      if (requestId !== currentRequestId) {
-        return;
-      }
-
-      if (!statsData || !jobCostsData) {
-        error.value = "Failed to fetch some dashboard data";
-      }
+      await $fetch(`${baseUrl}/finance/dashboard/finance-close/periods/${periodId}/close`, {
+        method: "POST",
+        body: { notes },
+        credentials: "include",
+      });
+      await fetchClosedPeriods();
+      return { success: true, message: "Period closed successfully" };
     } catch (err) {
       const message = getErrorMessage(err);
-      console.error("Failed to fetch all dashboard data:", message);
-      if (requestId === currentRequestId) {
-        error.value = message;
-      }
+      console.error("Failed to close period:", message);
+      error.value = message;
+      return { success: false, message };
     } finally {
-      if (requestId === currentRequestId) {
-        isLoading.value = false;
-      }
+      isLoading.value = false;
     }
   }
 
   /**
-   * Change page for job costs
+   * Reopen a period
    */
-  async function changePage(
-    newPage: number,
-    period: "day" | "week" | "month" | "year" = "month",
-    filters?: Omit<FinanceDashboardFilters, "period" | "page">,
-  ): Promise<void> {
-    await fetchJobCosts({ period, page: newPage, ...filters });
-  }
-
-  /**
-   * Change period and reset pagination
-   */
-  async function changePeriod(
-    newPeriod: "day" | "week" | "month" | "year",
-    filters?: Omit<FinanceDashboardFilters, "period">,
-  ): Promise<void> {
-    await fetchAll(newPeriod, filters);
-  }
-
-  /**
-   * Clear error
-   */
-  function clearError(): void {
+  async function reopenPeriod(periodId: string): Promise<{ success: boolean; message: string }> {
+    isLoading.value = true;
     error.value = null;
+
+    try {
+      await $fetch(`${baseUrl}/finance/dashboard/finance-close/periods/${periodId}/reopen`, {
+        method: "POST",
+        credentials: "include",
+      });
+      await fetchClosedPeriods();
+      return { success: true, message: "Period reopened successfully" };
+    } catch (err) {
+      const message = getErrorMessage(err);
+      console.error("Failed to reopen period:", message);
+      error.value = message;
+      return { success: false, message };
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  /**
+   * Fetch all dashboard data
+   */
+  async function fetchAll(
+    period: "day" | "week" | "month" | "year" = "month",
+    filters?: Record<string, string | number>,
+  ): Promise<void> {
+    isLoading.value = true;
+    error.value = null;
+
+    // Extract year from filters for use in stats calls
+    const year = filters?.year as number | undefined;
+
+    try {
+      // Each fetch should handle its own loading if called individually,
+      // but for fetchAll we want a single loading state.
+      // We'll temporarily override the individual loading states or just
+      // rely on the fact that we set isLoading=true here.
+
+      await Promise.all([
+        fetchStats(period, year),
+        fetchOverviewStats(period, year),
+        fetchJobCosts(period, filters),
+        fetchTransactionStats(period),
+      ]);
+    } finally {
+      isLoading.value = false;
+    }
   }
 
   return {
-    // State
     isLoading,
     stats,
     overviewStats,
@@ -720,20 +464,15 @@ export function useFinanceDashboard() {
     closedPeriods,
     pagination,
     error,
-
-    // Methods
-    fetchStats,
+    fetchAll,
     fetchOverviewStats,
     fetchChartData,
     fetchJobCosts,
     fetchTransactions,
+    fetchTransactionStats,
     fetchFinanceCloseStats,
-    closePeriod,
     fetchClosedPeriods,
+    closePeriod,
     reopenPeriod,
-    fetchAll,
-    changePage,
-    changePeriod,
-    clearError,
   };
 }

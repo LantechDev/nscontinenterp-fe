@@ -37,10 +37,23 @@ const periodDisplay = computed(() => {
   return `${start} - ${end}, ${selectedYear.value}`;
 });
 
-const applyPeriod = () => {
+const applyPeriod = async () => {
   showPeriodDropdown.value = false;
-  // TODO: Fetch dashboard data with new period
-  // fetchDashboard({ startDate, endDate });
+  loading.value = true;
+
+  // Calculate start and end dates from selected period
+  const startDate = new Date(selectedYear.value, selectedStartMonth.value, 1);
+  const endDate = new Date(selectedYear.value, selectedEndMonth.value + 1, 0, 23, 59, 59);
+
+  // Format dates as ISO strings for API
+  const params = {
+    startDate: startDate.toISOString(),
+    endDate: endDate.toISOString(),
+  };
+
+  // Fetch dashboard data with new period
+  dashboardData.value = await fetchDashboard(params);
+  loading.value = false;
 };
 
 // Close dropdown when clicking outside
@@ -178,7 +191,7 @@ onMounted(async () => {
       <DashboardStatCard
         title="Total Income"
         :value="dashboardData?.stats?.totalIncome || 'Rp0'"
-        :change="18.7"
+        :change="dashboardData?.stats?.totalIncomeChange ?? 0"
         icon-name="Wallet"
         :icon="Wallet"
         variant="primary"
@@ -186,21 +199,21 @@ onMounted(async () => {
       <DashboardStatCard
         title="Active Job"
         :value="String(dashboardData?.stats?.activeJobs || 0)"
-        :change="8.2"
+        :change="dashboardData?.stats?.activeJobsChange ?? 0"
         change-label="vs Last Year"
         :icon="Ship"
       />
       <DashboardStatCard
         title="Invoice Pending"
         :value="String(dashboardData?.stats?.pendingInvoices || 0)"
-        :change="-3.4"
+        :change="dashboardData?.stats?.pendingInvoicesChange ?? 0"
         change-label="vs Last Year"
         :icon="Receipt"
       />
       <DashboardStatCard
         title="Active Offer"
         :value="String(dashboardData?.stats?.activeOffers || 0)"
-        :change="18.7"
+        :change="dashboardData?.stats?.activeOffersChange ?? 0"
         change-label="vs Last Year"
         :icon="FileText"
       />

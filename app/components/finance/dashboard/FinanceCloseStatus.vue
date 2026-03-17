@@ -77,27 +77,6 @@ const formattedClosedDate = computed(() => {
           <p class="text-white/40 text-[10px]">Closed on: {{ formattedClosedDate }}</p>
         </div>
       </div>
-      <div class="flex flex-col justify-end lg:w-64">
-        <div class="mb-4">
-          <div class="flex justify-between mb-1">
-            <span class="text-white/60 text-[10px]">Readiness Score</span>
-            <span class="text-white text-[10px]">{{ financeCloseData.readinessScore }}%</span>
-          </div>
-          <div class="h-2 bg-white/10 rounded-full overflow-hidden">
-            <div
-              class="h-full bg-white rounded-full transition-all"
-              :style="{ width: `${financeCloseData.readinessScore}%` }"
-            ></div>
-          </div>
-        </div>
-        <button
-          class="w-full px-4 py-2 bg-white text-[#012D5A] text-xs font-semibold rounded-md hover:bg-gray-100"
-          @click="emit('closePeriod')"
-          :disabled="financeCloseData.status === 'Closed'"
-        >
-          {{ financeCloseData.status === "Open" ? "Close Period" : "Period Closed" }}
-        </button>
-      </div>
     </div>
   </div>
 </template>

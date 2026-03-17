@@ -1,16 +1,17 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from "vue";
 import { ChevronRight } from "lucide-vue-next";
-import type { MappedCompany, CompanyDetails } from "~/composables/useCompanies";
+import type { MappedCompany, CompanyDetails, CompanyActivityLog } from "~/composables/useCompanies";
 import type { Address } from "~/composables/useMasterData";
 import CompanySidebar from "./CompanySidebar.vue";
 import CompanyMainContent from "./CompanyMainContent.vue";
 import CompanyAddressForm from "./CompanyAddressForm.vue";
+import { useCompanyAddressForm } from "./useCompanyAddressForm";
 
 const props = defineProps<{ modelValue: boolean; company: MappedCompany | null }>();
 const emit = defineEmits<{ (e: "update:modelValue", value: boolean): void }>();
 
-const { getCompanyDetails, createAddress, updateAddress, deleteAddress } = useCompanies();
+const { getCompanyDetails } = useCompanies();
 
 const isOpen = computed({
   get: () => props.modelValue,
@@ -23,6 +24,23 @@ const tabList = ["Activity", "Job", "Invoice", "Address", "Notes"];
 // Company details state
 const companyDetails = ref<CompanyDetails | null>(null);
 const isLoading = ref(false);
+
+// Use the address form composable
+const {
+  activeAddressMenu,
+  showAddressMenu,
+  closeAddressMenu,
+  addressMode,
+  editingAddress,
+  openAddAddressMode,
+  openEditAddressMode,
+  closeAddressMode,
+  handleAddressSave,
+  handleDeleteAddress,
+  companyAddresses,
+} = useCompanyAddressForm(
+  companyDetails as unknown as { value: { id: string; addresses: Address[] } | null },
+);
 
 // Fetch company details when modal opens
 watch(
@@ -39,132 +57,6 @@ watch(
     }
   },
 );
-
-// Get company addresses
-const companyAddresses = computed<Address[]>(() => {
-  return companyDetails.value?.addresses || [];
-});
-
-// Address popup menu state
-const activeAddressMenu = ref<string | null>(null);
-const showAddressMenu = (addressId: string) => {
-  activeAddressMenu.value = activeAddressMenu.value === addressId ? null : addressId;
-};
-const closeAddressMenu = () => {
-  activeAddressMenu.value = null;
-};
-
-// Address edit/add mode state
-const addressMode = ref<"view" | "edit" | "add">("view");
-const editingAddressId = ref<string | null>(null);
-const isSaving = ref(false);
-
-// Get the address being edited
-const editingAddress = computed<Address | null>(() => {
-  if (!editingAddressId.value || !companyAddresses.value.length) return null;
-  return companyAddresses.value.find((addr) => addr.id === editingAddressId.value) || null;
-});
-
-const openAddAddressMode = () => {
-  addressMode.value = "add";
-  editingAddressId.value = null;
-  closeAddressMenu();
-};
-
-const openEditAddressMode = (addressId: string) => {
-  addressMode.value = "edit";
-  // Remove 'tab-' prefix if present
-  editingAddressId.value = addressId.replace("tab-", "");
-  closeAddressMenu();
-};
-
-const closeAddressMode = () => {
-  addressMode.value = "view";
-  editingAddressId.value = null;
-};
-
-// Handle address save (create or update)
-const handleAddressSave = async (formData: {
-  label: string;
-  fullAddress: string;
-  street?: string;
-  city?: string;
-  state?: string;
-  postalCode?: string;
-  country?: string;
-  eori?: string;
-}) => {
-  if (!companyDetails.value) return;
-
-  isSaving.value = true;
-  try {
-    if (addressMode.value === "add") {
-      const { success, data } = await createAddress(companyDetails.value.id, {
-        label: formData.label,
-        fullAddress: formData.fullAddress,
-        street: formData.street,
-        city: formData.city,
-        state: formData.state,
-        postalCode: formData.postalCode,
-        country: formData.country || "Indonesia",
-        eori: formData.eori,
-        isDefault: companyAddresses.value.length === 0,
-      });
-      if (success && data) {
-        // Add the new address to the list
-        companyDetails.value = {
-          ...companyDetails.value,
-          addresses: [...companyAddresses.value, data],
-        };
-      }
-    } else if (addressMode.value === "edit" && editingAddressId.value) {
-      const { success, data } = await updateAddress(
-        companyDetails.value.id,
-        editingAddressId.value,
-        {
-          label: formData.label,
-          fullAddress: formData.fullAddress,
-          street: formData.street,
-          city: formData.city,
-          state: formData.state,
-          postalCode: formData.postalCode,
-          country: formData.country,
-          eori: formData.eori,
-        },
-      );
-      if (success && data) {
-        // Update the address in the list
-        companyDetails.value = {
-          ...companyDetails.value,
-          addresses: companyAddresses.value.map((addr) =>
-            addr.id === editingAddressId.value ? { ...addr, ...data } : addr,
-          ),
-        };
-      }
-    }
-    closeAddressMode();
-  } finally {
-    isSaving.value = false;
-  }
-};
-
-// Handle address delete
-const handleDeleteAddress = async (addressId: string) => {
-  if (!companyDetails.value) return;
-
-  // Remove 'tab-' prefix if present
-  const cleanId = addressId.replace("tab-", "");
-
-  const { success } = await deleteAddress(companyDetails.value.id, cleanId);
-  if (success) {
-    // Remove the address from the list
-    companyDetails.value = {
-      ...companyDetails.value,
-      addresses: companyAddresses.value.filter((addr) => addr.id !== cleanId),
-    };
-  }
-  closeAddressMenu();
-};
 
 // Reset state when modal closes
 watch(
@@ -268,7 +160,7 @@ onUnmounted(() => {
 
           <!-- Body -->
           <div class="self-stretch flex-1 flex justify-start items-stretch overflow-hidden">
-            <!-- Sidebar / Left Panel - Hidden in edit/add address mode -->
+            <!-- Sidebar / Left Panel -->
             <CompanySidebar
               v-if="addressMode === 'view'"
               :company="companyDetails"
@@ -282,7 +174,7 @@ onUnmounted(() => {
               @delete-address="handleDeleteAddress"
             />
 
-            <!-- Address Edit/Add Form - Shows when in edit/add mode -->
+            <!-- Address Edit/Add Form -->
             <CompanyAddressForm
               v-if="addressMode !== 'view'"
               :mode="addressMode"
@@ -292,7 +184,7 @@ onUnmounted(() => {
               @save="handleAddressSave"
             />
 
-            <!-- Main Content Area - Hidden in edit/add address mode -->
+            <!-- Main Content Area -->
             <CompanyMainContent
               v-if="addressMode === 'view'"
               :company="companyDetails"

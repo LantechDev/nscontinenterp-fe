@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Plus, Search, CreditCard, LayoutList, LayoutGrid, MoreVertical } from "lucide-vue-next";
-import { cn } from "~/lib/utils";
+import { cn, toNumber } from "~/lib/utils";
 import { usePayments } from "~/composables/usePayments";
 
 definePageMeta({
@@ -29,13 +29,15 @@ const error = ref<string | null>(null);
 type ViewMode = "list" | "grid";
 const viewMode = ref<ViewMode>("list");
 
-const formatCurrency = (value: number) => {
+// Format currency - handles Prisma Decimal conversion
+const formatCurrency = (value: unknown) => {
+  const num = toNumber(value);
   return new Intl.NumberFormat("id-ID", {
     style: "currency",
     currency: "IDR",
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
-  }).format(value);
+  }).format(num);
 };
 
 const formatDate = (dateStr: string) => {

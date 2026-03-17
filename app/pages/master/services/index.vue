@@ -1,17 +1,8 @@
 <script setup lang="ts">
-import {
-  Plus,
-  Search,
-  MoreVertical,
-  Package,
-  LayoutList,
-  LayoutGrid,
-  ChevronDown,
-  Save,
-  Loader2,
-} from "lucide-vue-next";
+import { Plus, Search, LayoutList, LayoutGrid, Loader2 } from "lucide-vue-next";
 import { cn } from "~/lib/utils";
 import type { Service } from "~/composables/useServices";
+import { ServiceListView, ServiceGridView, ServiceCreateModal } from "./components";
 
 definePageMeta({
   layout: "dashboard",
@@ -27,23 +18,22 @@ onMounted(async () => {
 // Search and filter state
 const searchQuery = ref("");
 const selectedStatus = ref<string>("all");
-const selectedUnit = ref<string>("all");
 
 // Format currency
-function formatPrice(price: number | null | undefined): string {
+const formatPrice = (price: number | null | undefined): string => {
   if (!price) return "Rp 0";
   return new Intl.NumberFormat("id-ID", {
     style: "currency",
     currency: "IDR",
     minimumFractionDigits: 0,
   }).format(price);
-}
+};
 
 // Parse price input
-function parsePrice(value: string): number {
+const parsePrice = (value: string): number => {
   const cleaned = value.replace(/[^\d]/g, "");
   return parseInt(cleaned) || 0;
-}
+};
 
 // Transform API services to view format with filtering
 const services = computed(() => {
@@ -72,11 +62,6 @@ const services = computed(() => {
     filtered = filtered.filter(
       (s) => s.status.toLowerCase() === selectedStatus.value.toLowerCase(),
     );
-  }
-
-  // Apply unit filter
-  if (selectedUnit.value !== "all") {
-    filtered = filtered.filter((s) => s.unit === selectedUnit.value);
   }
 
   return filtered;
@@ -126,29 +111,25 @@ const isCreateOpen = ref(false);
 const isSubmitting = ref(false);
 const formError = ref<string | null>(null);
 
-// Form state
-const formData = ref({
-  name: "",
-  code: "",
-  price: "",
-  status: "Active",
-  unit: "Per Container",
-});
+// Modal ref for resetting form
+const createModalRef = ref<{ resetForm: () => void } | null>(null);
 
-const resetForm = () => {
-  formData.value = {
-    name: "",
-    code: "",
-    price: "",
-    status: "Active",
-    unit: "Per Container",
-  };
-  formError.value = null;
+const openCreateModal = () => {
+  if (createModalRef.value) {
+    createModalRef.value.resetForm();
+  }
+  isCreateOpen.value = true;
 };
 
-const handleCreateService = async () => {
+const handleCreateService = async (formData: {
+  name: string;
+  code: string;
+  price: string;
+  status: string;
+  unit: string;
+}) => {
   // Validation
-  if (!formData.value.name || !formData.value.code) {
+  if (!formData.name || !formData.code) {
     formError.value = "Please fill in all required fields (Name, Code)";
     return;
   }
@@ -157,22 +138,16 @@ const handleCreateService = async () => {
   formError.value = null;
 
   const serviceData = {
-    name: formData.value.name,
-    code: formData.value.code,
-    customerPrice: parsePrice(formData.value.price),
-    isActive: formData.value.status === "Active",
-    // Note: unitId should come from a proper unit selection
-    // For now we'll use the name as-is
+    name: formData.name,
+    code: formData.code,
+    customerPrice: parsePrice(formData.price),
+    isActive: formData.status === "Active",
   };
 
   const result = await createService(serviceData);
 
   if (result.success) {
-    // Close modal and reset form
     isCreateOpen.value = false;
-    resetForm();
-
-    // Refresh service list
     await fetchServices();
   } else {
     formError.value = result.error || "Failed to create service";
@@ -181,10 +156,10 @@ const handleCreateService = async () => {
   isSubmitting.value = false;
 };
 
-const selectAll = computed({
-  get: () => services.value.length > 0 && services.value.every((s) => s.selected),
-  set: (val) => services.value.forEach((s) => (s.selected = val)),
-});
+// Row click handler
+const handleRowClick = (id: string) => {
+  navigateTo(`/master/services/${id}`);
+};
 
 // Pagination
 const currentPage = ref(1);
@@ -251,24 +226,16 @@ const handlePageChange = (page: number) => {
       </div>
 
       <div class="flex items-center gap-3">
-        <div class="relative">
-          <select
-            v-model="selectedStatus"
-            class="flex items-center justify-between gap-2 px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors min-w-[140px] text-foreground appearance-none cursor-pointer"
-          >
-            <option value="all">All Status</option>
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-          </select>
-          <ChevronDown
-            class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none"
-          />
-        </div>
+        <select
+          v-model="selectedStatus"
+          class="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors min-w-[140px] text-foreground border border-border"
+        >
+          <option value="all">All Status</option>
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+        </select>
         <button
-          @click="
-            isCreateOpen = true;
-            resetForm();
-          "
+          @click="openCreateModal"
           class="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-[#012D5A] text-white hover:bg-[#012D5A]/90 rounded-lg transition-colors min-w-fit whitespace-nowrap"
         >
           <Plus class="w-4 h-4" />
@@ -283,169 +250,17 @@ const handlePageChange = (page: number) => {
     </div>
 
     <!-- List View -->
-    <div
+    <ServiceListView
       v-else-if="viewMode === 'list'"
-      class="border border-border rounded-xl bg-white overflow-hidden"
-    >
-      <div class="overflow-x-auto">
-        <table class="w-full">
-          <thead>
-            <tr class="border-b border-border bg-white text-left">
-              <th class="py-3 px-4 w-10">
-                <UiCheckbox v-model="selectAll" />
-              </th>
-              <th
-                class="py-3 px-4 text-sm font-medium text-foreground cursor-pointer hover:bg-muted/50"
-                @click="toggleSort('code')"
-              >
-                <div class="flex items-center gap-1">
-                  Code
-                  <ChevronDown
-                    v-if="sortField === 'code'"
-                    class="w-4 h-4"
-                    :class="{ 'rotate-180': sortDirection === 'desc' }"
-                  />
-                </div>
-              </th>
-              <th
-                class="py-3 px-4 text-sm font-medium text-foreground cursor-pointer hover:bg-muted/50"
-                @click="toggleSort('name')"
-              >
-                <div class="flex items-center gap-1">
-                  Service Name
-                  <ChevronDown
-                    v-if="sortField === 'name'"
-                    class="w-4 h-4"
-                    :class="{ 'rotate-180': sortDirection === 'desc' }"
-                  />
-                </div>
-              </th>
-              <th
-                class="py-3 px-4 text-sm font-medium text-foreground cursor-pointer hover:bg-muted/50"
-                @click="toggleSort('price')"
-              >
-                <div class="flex items-center gap-1">
-                  Price
-                  <ChevronDown
-                    v-if="sortField === 'price'"
-                    class="w-4 h-4"
-                    :class="{ 'rotate-180': sortDirection === 'desc' }"
-                  />
-                </div>
-              </th>
-              <th class="py-3 px-4 text-sm font-medium text-foreground">Unit</th>
-              <th
-                class="py-3 px-4 text-sm font-medium text-foreground cursor-pointer hover:bg-muted/50"
-                @click="toggleSort('status')"
-              >
-                <div class="flex items-center gap-1">
-                  Status
-                  <ChevronDown
-                    v-if="sortField === 'status'"
-                    class="w-4 h-4"
-                    :class="{ 'rotate-180': sortDirection === 'desc' }"
-                  />
-                </div>
-              </th>
-              <th class="py-3 px-4 w-10"></th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr
-              v-for="service in sortedServices"
-              :key="service.id"
-              class="border-b border-border last:border-0 hover:bg-muted/30 transition-colors cursor-pointer"
-              @click="navigateTo(`/master/services/${service.id}`)"
-            >
-              <td class="py-3 px-4" @click.stop>
-                <UiCheckbox v-model="service.selected" />
-              </td>
-              <td class="py-3 px-4 text-sm font-medium">{{ service.code }}</td>
-              <td class="py-3 px-4 text-sm font-medium">{{ service.name }}</td>
-              <td class="py-3 px-4 text-sm font-medium">{{ service.price }}</td>
-              <td class="py-3 px-4 text-sm text-muted-foreground">
-                {{ service.unit }}
-              </td>
-              <td class="py-3 px-4">
-                <span
-                  :class="
-                    cn(
-                      'px-2 py-0.5 rounded border text-xs font-medium bg-white',
-                      service.status === 'Active'
-                        ? 'text-blue-500 border-blue-200'
-                        : 'text-red-500 border-red-200',
-                    )
-                  "
-                >
-                  {{ service.status }}
-                </span>
-              </td>
-              <td class="py-3 px-4 text-right">
-                <button class="text-muted-foreground hover:text-foreground">
-                  <MoreVertical class="w-4 h-4" />
-                </button>
-              </td>
-            </tr>
-            <tr v-if="sortedServices.length === 0">
-              <td colspan="7" class="py-8 text-center text-muted-foreground">No services found</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
+      :services="sortedServices"
+      :sort-field="sortField"
+      :sort-direction="sortDirection"
+      @toggle-sort="toggleSort"
+      @row-click="handleRowClick"
+    />
 
     <!-- Grid View -->
-    <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      <div
-        v-for="service in sortedServices"
-        :key="service.id"
-        class="border border-border rounded-xl bg-white p-5 hover:shadow-sm transition-shadow cursor-pointer"
-        @click="navigateTo(`/master/services/${service.id}`)"
-      >
-        <div class="flex items-start justify-between mb-4">
-          <div class="flex items-start gap-4">
-            <div class="w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
-              <Package class="w-6 h-6 text-[#012D5A]" />
-            </div>
-            <div>
-              <h3 class="font-bold text-base text-foreground">{{ service.name }}</h3>
-              <p class="text-xs text-muted-foreground">{{ service.code }}</p>
-            </div>
-          </div>
-          <button class="text-muted-foreground hover:text-foreground" @click.stop>
-            <MoreVertical class="w-4 h-4" />
-          </button>
-        </div>
-
-        <div class="space-y-1 mb-6">
-          <div class="flex items-baseline gap-1">
-            <span class="text-lg font-bold text-foreground">{{ service.price }}</span>
-          </div>
-          <p class="text-xs text-muted-foreground">{{ service.unit }}</p>
-        </div>
-
-        <div class="flex items-center justify-between pt-4 border-t border-border">
-          <span
-            :class="
-              cn(
-                'px-2 py-0.5 rounded border text-xs font-medium bg-white',
-                service.status === 'Active'
-                  ? 'text-blue-500 border-blue-200'
-                  : 'text-red-500 border-red-200',
-              )
-            "
-          >
-            {{ service.status }}
-          </span>
-        </div>
-      </div>
-      <div
-        v-if="sortedServices.length === 0"
-        class="col-span-3 py-8 text-center text-muted-foreground"
-      >
-        No services found
-      </div>
-    </div>
+    <ServiceGridView v-else :services="sortedServices" @row-click="handleRowClick" />
 
     <!-- Pagination -->
     <div class="flex items-center justify-between text-sm text-muted-foreground">
@@ -459,108 +274,13 @@ const handlePageChange = (page: number) => {
     </div>
 
     <!-- Create Modal -->
-    <UiModal
-      v-model="isCreateOpen"
-      title="Add new Service"
-      description="Register your new Service"
-      width="max-w-xl"
-    >
-      <form class="space-y-4" @submit.prevent="handleCreateService">
-        <!-- Error Message -->
-        <div v-if="formError" class="p-4 bg-red-50 border border-red-200 rounded-lg">
-          <p class="text-sm text-red-600">{{ formError }}</p>
-        </div>
-
-        <div class="space-y-1.5">
-          <label class="text-sm font-medium text-foreground"
-            >Service Name <span class="text-red-500">*</span></label
-          >
-          <input
-            v-model="formData.name"
-            type="text"
-            placeholder="e.g. Ocean Freight"
-            class="w-full px-3 py-2 rounded-lg border border-border focus:outline-none focus:ring-1 focus:ring-primary"
-            required
-          />
-        </div>
-        <div class="grid grid-cols-2 gap-4">
-          <div class="space-y-1.5">
-            <label class="text-sm font-medium text-foreground"
-              >Code <span class="text-red-500">*</span></label
-            >
-            <input
-              v-model="formData.code"
-              type="text"
-              placeholder="SVC-XXX"
-              class="w-full px-3 py-2 rounded-lg border border-border focus:outline-none focus:ring-1 focus:ring-primary"
-              required
-            />
-          </div>
-          <div class="space-y-1.5">
-            <label class="text-sm font-medium text-foreground">Status</label>
-            <div class="relative">
-              <select
-                v-model="formData.status"
-                class="w-full px-3 py-2 rounded-lg border border-border bg-white focus:outline-none focus:ring-1 focus:ring-primary appearance-none"
-              >
-                <option value="Active">Active</option>
-                <option value="Inactive">Inactive</option>
-              </select>
-              <ChevronDown
-                class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none"
-              />
-            </div>
-          </div>
-        </div>
-        <div class="grid grid-cols-2 gap-4">
-          <div class="space-y-1.5">
-            <label class="text-sm font-medium text-foreground">Price</label>
-            <input
-              v-model="formData.price"
-              type="text"
-              placeholder="Rp 0"
-              class="w-full px-3 py-2 rounded-lg border border-border focus:outline-none focus:ring-1 focus:ring-primary"
-            />
-          </div>
-          <div class="space-y-1.5">
-            <label class="text-sm font-medium text-foreground">Unit</label>
-            <div class="relative">
-              <select
-                v-model="formData.unit"
-                class="w-full px-3 py-2 rounded-lg border border-border bg-white focus:outline-none focus:ring-1 focus:ring-primary appearance-none"
-              >
-                <option>Per Container</option>
-                <option>Per CBM</option>
-                <option>Per Trip</option>
-              </select>
-              <ChevronDown
-                class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none"
-              />
-            </div>
-          </div>
-        </div>
-      </form>
-
-      <template #footer>
-        <button
-          type="button"
-          @click="isCreateOpen = false"
-          class="px-4 py-2 text-sm font-medium bg-white border border-gray-300 rounded-lg text-foreground hover:bg-gray-50 transition-colors"
-          :disabled="isSubmitting"
-        >
-          Cancel
-        </button>
-        <button
-          type="button"
-          @click="handleCreateService"
-          :disabled="isSubmitting"
-          class="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-[#012D5A] text-white rounded-lg hover:bg-[#012D5A]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <Loader2 v-if="isSubmitting" class="w-4 h-4 animate-spin" />
-          <Save v-else class="w-4 h-4" />
-          {{ isSubmitting ? "Saving..." : "Save" }}
-        </button>
-      </template>
-    </UiModal>
+    <ServiceCreateModal
+      ref="createModalRef"
+      :is-open="isCreateOpen"
+      :is-submitting="isSubmitting"
+      :error="formError"
+      @update:is-open="(val) => (isCreateOpen = val)"
+      @submit="handleCreateService"
+    />
   </div>
 </template>
