@@ -1,22 +1,31 @@
 <script setup lang="ts">
-import { ArrowUpDown, Download, Filter, Search, ChevronDown } from "lucide-vue-next";
+import { ArrowUpDown, Download, Filter, Search, ChevronDown, Plus } from "lucide-vue-next";
 import { cn, formatRupiah } from "~/lib/utils";
-import type { StatCardData, JobItem, JobStatus } from "~/types/finance";
-import { STATUS_CONFIG } from "~/types/finance";
+import type { StatCardData } from "~/types/finance";
+
+export interface AssetItem {
+  id: string;
+  name: string;
+  date: string;
+  description: string;
+  price: number;
+  service?: string;
+  company?: string;
+}
 
 const props = defineProps<{
   statsCards: StatCardData[];
-  jobs: JobItem[];
+  assets: AssetItem[];
   isLoading: boolean;
-  isLoadingCustomers: boolean;
   isLoadingServices: boolean;
+  isLoadingCompanies: boolean;
   pagination: { page: number; limit: number; total: number };
-  companies: { id: string; name: string }[];
   services: { id: string; name: string }[];
-  selectedYear: string;
+  companies: { id: string; name: string }[];
   searchQuery: string;
-  customerId: string;
+  selectedYear: string;
   serviceId: string;
+  companyId: string;
   sortBy: string;
   sortOrder: "asc" | "desc";
   showSortDropdown: boolean;
@@ -25,29 +34,35 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  (e: "update:selectedYear", value: string): void;
   (e: "update:searchQuery", value: string): void;
-  (e: "update:customerId", value: string): void;
+  (e: "update:selectedYear", value: string): void;
   (e: "update:serviceId", value: string): void;
+  (e: "update:companyId", value: string): void;
   (e: "update:sortBy", value: string): void;
   (e: "update:sortOrder", value: "asc" | "desc"): void;
   (e: "update:showSortDropdown", value: boolean): void;
   (e: "yearChange", year: string): void;
-  (e: "customerChange", customerId: string): void;
   (e: "serviceChange", serviceId: string): void;
+  (e: "companyChange", companyId: string): void;
   (e: "search"): void;
   (e: "searchInput", event: Event): void;
   (e: "searchKeydown", event: KeyboardEvent): void;
   (e: "sort", field: string): void;
   (e: "toggleSortDropdown"): void;
   (e: "pageChange", page: number): void;
+  (e: "export"): void;
+  (e: "addAsset"): void;
 }>();
 
 const formatCurrency = formatRupiah;
 
-const formatPercent = (value: number): string => `${value.toFixed(1)}%`;
-
-const getStatusConfig = (status: JobStatus) => STATUS_CONFIG[status];
+const formatDate = (dateStr: string): string => {
+  return new Date(dateStr).toLocaleDateString("id-ID", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+};
 
 // Local refs for v-model binding
 const localSearchQuery = computed({
@@ -60,14 +75,14 @@ const localSelectedYear = computed({
   set: (val) => emit("update:selectedYear", val),
 });
 
-const localCustomerId = computed({
-  get: () => props.customerId,
-  set: (val) => emit("update:customerId", val),
-});
-
 const localServiceId = computed({
   get: () => props.serviceId,
   set: (val) => emit("update:serviceId", val),
+});
+
+const localCompanyId = computed({
+  get: () => props.companyId,
+  set: (val) => emit("update:companyId", val),
 });
 
 const localShowSortDropdown = computed({
@@ -78,21 +93,22 @@ const localShowSortDropdown = computed({
 
 <template>
   <div class="space-y-4 px-6">
-    <!-- Stat Cards -->
+    <!-- Stat Cards - First two cards are full width (Total Assets and Asset Count) -->
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
       <FinanceStatCard
         v-for="(card, index) in statsCards"
         :key="index"
         :card="card"
         :index="index"
+        :class="index < 2 ? 'md:col-span-2' : ''"
       />
     </div>
 
-    <!-- Job Cost Table -->
+    <!-- Assets Table -->
     <div class="border border-border rounded-xl bg-white mt-4">
       <!-- First Row: Title + Search/Sort/Export -->
       <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 p-5">
-        <h2 class="text-lg font-semibold">Job Cost Breakdown</h2>
+        <h2 class="text-lg font-semibold">Assets</h2>
         <div class="flex flex-wrap items-center gap-2">
           <!-- Search Input -->
           <div class="relative flex items-center">
@@ -101,7 +117,7 @@ const localShowSortDropdown = computed({
               @input="emit('searchInput', $event)"
               @keydown="emit('searchKeydown', $event)"
               type="text"
-              placeholder="Search job or customer..."
+              placeholder="Search assets..."
               class="w-48 px-3 py-2 pl-9 text-sm border border-border rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-primary"
             />
             <Search
@@ -146,19 +162,29 @@ const localShowSortDropdown = computed({
 
           <button
             class="flex items-center gap-2 px-3 py-2 text-sm border border-border bg-white hover:bg-gray-50 rounded-lg"
+            @click="emit('export')"
           >
             <Download class="w-4 h-4" /><span>Export</span>
           </button>
+
+          <!-- Add Asset Button -->
+          <button
+            class="flex items-center gap-2 px-3 py-2 text-sm bg-[#012D5A] text-white hover:bg-[#012D5A]/90 rounded-lg"
+            @click="emit('addAsset')"
+          >
+            <Plus class="w-4 h-4" /><span>Add Asset</span>
+          </button>
         </div>
       </div>
-      <!-- Second Row: Year/Customer/Service Filters -->
-      <div class="flex flex-wrap items-center gap-2 p-5 border-b border-border bg-gray-50/30">
+
+      <!-- Second Row: Year/Service/Company Filters (full width) -->
+      <div class="flex items-center gap-2 p-5 border-b border-border bg-gray-50/30">
         <!-- Year Filter -->
-        <div class="relative">
+        <div class="relative flex-1">
           <select
             v-model="localSelectedYear"
             @change="emit('yearChange', ($event.target as HTMLSelectElement).value)"
-            class="appearance-none px-3 py-2 pr-8 text-sm border border-border rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
+            class="w-full px-3 py-2 pr-8 text-sm border border-border rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
           >
             <option value="">All Years</option>
             <option v-for="year in availableYears" :key="year" :value="year">
@@ -170,24 +196,11 @@ const localShowSortDropdown = computed({
           />
         </div>
 
-        <!-- Customer Filter -->
-        <select
-          v-model="localCustomerId"
-          @change="emit('customerChange', ($event.target as HTMLSelectElement).value)"
-          class="px-3 py-2 text-sm border border-border rounded-lg bg-white"
-          :disabled="isLoadingCustomers"
-        >
-          <option value="">All Customers</option>
-          <option v-for="customer in companies" :key="customer.id" :value="customer.id">
-            {{ customer.name }}
-          </option>
-        </select>
-
         <!-- Service Filter -->
         <select
           v-model="localServiceId"
-          @change="emit('serviceChange', ($event.target as HTMLSelectElement).value)"
-          class="px-3 py-2 text-sm border border-border rounded-lg bg-white"
+          @change="emit('serviceChange', localServiceId)"
+          class="flex-1 px-3 py-2 text-sm border border-border rounded-lg bg-white"
           :disabled="isLoadingServices"
         >
           <option value="">All Services</option>
@@ -195,62 +208,55 @@ const localShowSortDropdown = computed({
             {{ service.name }}
           </option>
         </select>
+
+        <!-- Company Filter (full width) -->
+        <select
+          v-model="localCompanyId"
+          @change="emit('companyChange', ($event.target as HTMLSelectElement).value)"
+          class="w-full flex-1 px-3 py-2 text-sm border border-border rounded-lg bg-white"
+          :disabled="isLoadingCompanies"
+        >
+          <option value="">All Companies</option>
+          <option v-for="company in companies" :key="company.id" :value="company.id">
+            {{ company.name }}
+          </option>
+        </select>
       </div>
+
+      <!-- Table -->
       <div class="overflow-x-auto">
         <table class="w-full">
           <thead>
             <tr class="border-b border-border bg-gray-50/50">
-              <th class="py-3 px-4 text-left text-sm font-medium text-gray-500">JOB</th>
-              <th class="py-3 px-4 text-left text-sm font-medium text-gray-500">POL - POD</th>
-              <th class="py-3 px-4 text-left text-sm font-medium text-gray-500">Customer</th>
-              <th class="py-3 px-4 text-right text-sm font-medium text-gray-500">Revenue</th>
-              <th class="py-3 px-4 text-right text-sm font-medium text-gray-500">COGS</th>
-              <th class="py-3 px-4 text-right text-sm font-medium text-gray-500">Profit</th>
-              <th class="py-3 px-4 text-right text-sm font-medium text-gray-500">Margin</th>
-              <th class="py-3 px-4 text-center text-sm font-medium text-gray-500">Status</th>
+              <th class="py-3 px-4 text-left text-sm font-medium text-gray-500">Name</th>
+              <th class="py-3 px-4 text-left text-sm font-medium text-gray-500">Date</th>
+              <th class="py-3 px-4 text-left text-sm font-medium text-gray-500">Description</th>
+              <th class="py-3 px-4 text-right text-sm font-medium text-gray-500">Price</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-if="!jobs.length && !isLoading">
-              <td colspan="8" class="py-8 text-center text-muted-foreground">No data available</td>
+            <tr v-if="!assets.length && !isLoading">
+              <td colspan="4" class="py-8 text-center text-muted-foreground">No data available</td>
             </tr>
             <tr
-              v-for="job in jobs"
-              :key="job.id"
+              v-for="asset in assets"
+              :key="asset.id"
               class="border-b border-gray-100 hover:bg-gray-50/50"
             >
               <td class="py-3 px-4">
-                <span class="text-sm font-medium text-[#012D5A]">{{ job.jobNumber }}</span>
+                <span class="text-sm font-medium text-[#012D5A]">{{ asset.name }}</span>
               </td>
-              <td class="py-3 px-4 text-sm">{{ job.polPod }}</td>
-              <td class="py-3 px-4 text-sm">{{ job.customer }}</td>
+              <td class="py-3 px-4 text-sm">{{ formatDate(asset.date) }}</td>
+              <td class="py-3 px-4 text-sm">{{ asset.description }}</td>
               <td class="py-3 px-4 text-sm text-right font-medium">
-                {{ formatCurrency(job.revenue) }}
-              </td>
-              <td class="py-3 px-4 text-sm text-right">
-                {{ formatCurrency(job.cogs) }}
-              </td>
-              <td class="py-3 px-4 text-sm text-right">
-                {{ formatCurrency(job.profit) }}
-              </td>
-              <td class="py-3 px-4 text-sm text-right">
-                {{ formatPercent(job.margin) }}
-              </td>
-              <td class="py-3 px-4 text-center">
-                <span
-                  :class="
-                    cn(
-                      'px-2 py-1 rounded border text-xs font-medium',
-                      getStatusConfig(job.status).class,
-                    )
-                  "
-                  >{{ getStatusConfig(job.status).label }}</span
-                >
+                {{ formatCurrency(asset.price) }}
               </td>
             </tr>
           </tbody>
         </table>
       </div>
+
+      <!-- Pagination -->
       <div class="flex items-center justify-between p-4 border-t border-border">
         <p class="text-sm text-muted-foreground">
           <template v-if="pagination.total > 0"

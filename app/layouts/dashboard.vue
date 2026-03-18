@@ -510,7 +510,7 @@ onUnmounted(() => {
       </header>
 
       <!-- Page content -->
-      <main class="p-6">
+      <main>
         <NuxtPage :key="$route.fullPath" />
       </main>
     </div>

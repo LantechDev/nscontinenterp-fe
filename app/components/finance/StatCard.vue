@@ -14,6 +14,7 @@ export interface StatCardData {
 defineProps<{
   card: StatCardData;
   index: number;
+  class?: string;
 }>();
 </script>
 
@@ -23,6 +24,7 @@ defineProps<{
       cn(
         'border border-border rounded-xl p-5',
         card.isPrimary ? 'bg-[#012D5A] border-[#012D5A] text-white' : 'bg-white border-border',
+        $props.class,
       )
     "
   >

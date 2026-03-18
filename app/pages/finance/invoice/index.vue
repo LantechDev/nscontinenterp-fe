@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Plus, Search, Receipt, LayoutList, LayoutGrid } from "lucide-vue-next";
-import { cn, toNumber } from "~/lib/utils";
+import { cn, toNumber, formatRupiah } from "~/lib/utils";
 import { useInvoices } from "~/composables/useInvoices";
 import { InvoiceListView, InvoiceGridView } from "./components";
 
@@ -55,16 +55,7 @@ const statusOptions = [
   { value: "OVERDUE", label: "Jatuh Tempo" },
 ];
 
-// Format currency - handles Prisma Decimal conversion
-const formatCurrency = (value: unknown) => {
-  const num = toNumber(value);
-  return new Intl.NumberFormat("id-ID", {
-    style: "currency",
-    currency: "IDR",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(num);
-};
+const formatCurrency = formatRupiah;
 
 const formatDate = (dateStr: string) => {
   return new Date(dateStr).toLocaleDateString("id-ID", {

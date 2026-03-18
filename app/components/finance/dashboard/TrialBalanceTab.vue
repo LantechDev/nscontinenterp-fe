@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, onMounted } from "vue";
 import { Search, ChevronDown, ChevronUp } from "lucide-vue-next";
-import { cn } from "~/lib/utils";
+import { cn, formatRupiah } from "~/lib/utils";
 import type { TrialBalanceGroup } from "~/types/finance-dashboard";
 
 const props = defineProps<{
@@ -29,15 +29,7 @@ const expandedGroups = ref<string[]>([
   "EXPENSE",
 ]);
 
-// Format currency
-const formatCurrency = (value: number): string => {
-  return new Intl.NumberFormat("id-ID", {
-    style: "currency",
-    currency: "IDR",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(value);
-};
+const formatCurrency = formatRupiah;
 
 // Get API base URL
 const config = useRuntimeConfig();
@@ -150,7 +142,7 @@ const totalCredit = computed(() => {
 </script>
 
 <template>
-  <div>
+  <div class="space-y-4 px-6">
     <!-- Loading State -->
     <div v-if="isLoading" class="flex items-center justify-center py-12">
       <div class="flex items-center gap-2">

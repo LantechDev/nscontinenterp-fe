@@ -4,7 +4,7 @@ import { useInvoices, type InvoiceDetail } from "~/composables/useInvoices";
 import { useCompanies } from "~/composables/useCompanies";
 import { useJobs } from "~/composables/useJobs";
 import { useServices } from "~/composables/useServices";
-import { toNumber } from "~/lib/utils";
+import { toNumber, formatRupiah } from "~/lib/utils";
 
 definePageMeta({
   layout: "dashboard",
@@ -79,16 +79,7 @@ const getStatusBadge = (statusCode: string) => {
   return statusMap[statusCode] || { label: statusCode, class: "badge-warning" };
 };
 
-// Format currency - handles Prisma Decimal conversion
-const formatCurrency = (value: unknown) => {
-  const num = toNumber(value);
-  return new Intl.NumberFormat("id-ID", {
-    style: "currency",
-    currency: "IDR",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(num);
-};
+const formatCurrency = formatRupiah;
 
 // Format date for input
 const formatDateForInput = (dateStr: string) => {

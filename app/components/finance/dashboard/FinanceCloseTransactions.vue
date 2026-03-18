@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ArrowUpDown, Download, Filter, Search, ChevronDown } from "lucide-vue-next";
-import { cn } from "~/lib/utils";
+import { cn, formatRupiah } from "~/lib/utils";
 import type { TransactionItem } from "~/types/finance";
 
 const props = defineProps<{
@@ -37,14 +37,7 @@ const emit = defineEmits<{
   (e: "pageChange", page: number): void;
 }>();
 
-const formatCurrency = (value: number): string => {
-  return new Intl.NumberFormat("id-ID", {
-    style: "currency",
-    currency: "IDR",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(value);
-};
+const formatCurrency = formatRupiah;
 
 // Local refs for v-model binding
 const localSearchQuery = computed({

@@ -69,7 +69,7 @@ function handleRowClick(period: FinanceClosePeriod) {
 </script>
 
 <template>
-  <div>
+  <div class="space-y-4 px-6">
     <!-- Closed Periods List -->
     <div v-if="closedPeriods && closedPeriods.length > 0" class="mb-6">
       <h3 class="text-sm font-semibold text-gray-700 mb-3">Closed Periods History</h3>

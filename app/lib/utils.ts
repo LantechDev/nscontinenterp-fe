@@ -27,32 +27,45 @@ export function toNumber(value: unknown): number {
 }
 
 /**
- * Format number as Indonesian Rupiah currency
+ * Format number as Indonesian Rupiah currency (abbreviated format)
  * @param value - The numeric value to format (handles Prisma Decimal)
- * @returns Formatted string like "Rp 19.360.000,00"
+ * @returns Formatted string like "Rp238jt", "Rp1,5M", "Rp2,3T"
+ * - ribu (rb) = 1.000
+ * - juta (jt) = 1.000.000
+ * - miliar (M) = 1.000.000.000
+ * - triliun (T) = 1.000.000.000.000
  */
 export function formatRupiah(value: unknown): string {
   const num = toNumber(value);
-  if (isNaN(num)) return "Rp 0";
+  if (isNaN(num)) return "Rp0";
 
-  // Round to maximum 2 decimal places
-  const rounded = Math.round(num * 100) / 100;
-
-  // Split into integer and decimal parts
-  const parts = rounded.toString().split(".");
-  const integerPart = parts[0] ?? "0";
-  const decimalPart = parts[1];
-
-  // Add thousand separators to integer part
-  const formattedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-
-  // Combine with decimal part (max 2 digits)
-  if (decimalPart) {
-    const decimal = decimalPart.padEnd(2, "0").slice(0, 2);
-    return `Rp ${formattedInteger},${decimal}`;
+  // Trilyun (1_000_000_000_000)
+  if (num >= 1_000_000_000_000) {
+    return `Rp${(num / 1_000_000_000_000).toFixed(1).replace(".", ",")}T`;
   }
 
-  return `Rp ${formattedInteger},00`;
+  // Miliar (1_000_000_000)
+  if (num >= 1_000_000_000) {
+    return `Rp${(num / 1_000_000_000).toFixed(1).replace(".", ",")}M`;
+  }
+
+  // Juta (1_000_000)
+  if (num >= 1_000_000) {
+    return `Rp${(num / 1_000_000).toFixed(1).replace(".", ",")}jt`;
+  }
+
+  // Ribu (1_000)
+  if (num >= 1_000) {
+    return `Rp${(num / 1_000).toFixed(1).replace(".", ",")}rb`;
+  }
+
+  // Regular format for smaller amounts
+  return new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(num);
 }
 /**
  * Get error message from unknown error

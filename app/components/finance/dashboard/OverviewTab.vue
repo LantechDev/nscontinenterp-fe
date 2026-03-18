@@ -1,5 +1,11 @@
 <script setup lang="ts">
+import Top5Chart from "~/components/finance/Top5Chart.vue";
 import type { StatCardData } from "~/types/finance";
+
+interface OverviewChartData {
+  top5?: Array<{ name: string; value: number }>;
+  [key: string]: unknown;
+}
 
 // Props from parent
 const props = defineProps<{
@@ -8,13 +14,14 @@ const props = defineProps<{
   financialChartSeries: unknown[];
   top5ChartOptions: Record<string, unknown>;
   top5ChartSeries: unknown[];
+  chartData: OverviewChartData;
   marginTrendChartOptions: Record<string, unknown>;
   marginTrendChartSeries: unknown[];
 }>();
 </script>
 
 <template>
-  <div class="space-y-4">
+  <div class="space-y-4 px-6">
     <!-- Stat Cards -->
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
       <FinanceStatCard
@@ -45,21 +52,7 @@ const props = defineProps<{
       </div>
 
       <!-- Top 5 Chart -->
-      <div class="bg-white rounded-xl border border-border p-4">
-        <div class="flex items-center justify-between mb-4">
-          <h3 class="text-sm font-semibold text-gray-900">Top 5 Customers</h3>
-        </div>
-        <div class="h-72 w-full">
-          <ClientOnly>
-            <apexchart
-              type="donut"
-              height="280"
-              :options="top5ChartOptions"
-              :series="top5ChartSeries"
-            />
-          </ClientOnly>
-        </div>
-      </div>
+      <Top5Chart :chart-data="chartData" :options="top5ChartOptions" :series="top5ChartSeries" />
     </div>
 
     <!-- Margin Trend Chart -->

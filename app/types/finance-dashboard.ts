@@ -68,6 +68,7 @@ export interface TransactionItem {
   type: string;
   total: number;
   isIncome: boolean;
+  paymentMethod?: string;
 }
 
 export interface TransactionStats {

@@ -2,7 +2,7 @@
 import { ref, watch, onMounted, computed } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { ArrowLeft, X } from "lucide-vue-next";
-import { cn, toNumber } from "~/lib/utils";
+import { cn, toNumber, formatRupiah } from "~/lib/utils";
 import type { TrialBalanceAccountDetail, JournalEntryDetail } from "~/types/finance-dashboard";
 
 definePageMeta({
@@ -33,16 +33,7 @@ const availableYears = computed(() => {
   return years;
 });
 
-// Format currency - handles Prisma Decimal conversion
-const formatCurrency = (value: unknown): string => {
-  const num = toNumber(value);
-  return new Intl.NumberFormat("id-ID", {
-    style: "currency",
-    currency: "IDR",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(num);
-};
+const formatCurrency = formatRupiah;
 
 // Get API base URL
 const config = useRuntimeConfig();

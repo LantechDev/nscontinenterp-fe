@@ -31,6 +31,7 @@ export interface TransactionItem {
   type: string;
   total: number;
   isIncome: boolean;
+  paymentMethod?: string;
 }
 
 export interface FinanceCloseStats {
@@ -84,6 +85,7 @@ export const TABS = [
   "Overview",
   "COGS",
   "Transaction",
+  "Assets",
   "Accounts Receivable",
   "Trial Balance",
   "Finance Close",

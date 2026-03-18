@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ArrowUpDown, Download, Filter, Search, ChevronDown } from "lucide-vue-next";
-import { cn } from "~/lib/utils";
+import { cn, formatRupiah } from "~/lib/utils";
 import type { StatCardData, TransactionItem } from "~/types/finance";
 
 const props = defineProps<{
@@ -39,16 +39,10 @@ const emit = defineEmits<{
   (e: "sort", field: string): void;
   (e: "toggleSortDropdown"): void;
   (e: "pageChange", page: number): void;
+  (e: "export"): void;
 }>();
 
-const formatCurrency = (value: number): string => {
-  return new Intl.NumberFormat("id-ID", {
-    style: "currency",
-    currency: "IDR",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(value);
-};
+const formatCurrency = formatRupiah;
 
 // Local refs for v-model binding
 const localSearchQuery = computed({
@@ -78,7 +72,7 @@ const localShowSortDropdown = computed({
 </script>
 
 <template>
-  <div>
+  <div class="space-y-4 px-6">
     <!-- Stat Cards -->
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
       <FinanceStatCard
@@ -147,19 +141,20 @@ const localShowSortDropdown = computed({
 
           <button
             class="flex items-center gap-2 px-3 py-2 text-sm border border-border bg-white hover:bg-gray-50 rounded-lg"
+            @click="emit('export')"
           >
             <Download class="w-4 h-4" /><span>Export</span>
           </button>
         </div>
       </div>
       <!-- Second Row: Year/Type/Customer Filters -->
-      <div class="flex flex-wrap items-center gap-2 p-5 border-b border-border bg-gray-50/30">
+      <div class="flex items-center gap-2 p-5 border-b border-border bg-gray-50/30">
         <!-- Year Filter -->
         <div class="relative">
           <select
             v-model="localSelectedYear"
             @change="emit('yearChange', ($event.target as HTMLSelectElement).value)"
-            class="appearance-none px-3 py-2 pr-8 text-sm border border-border rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
+            class="w-full flex-1 px-3 py-2 pr-8 text-sm border border-border rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
           >
             <option value="">All Years</option>
             <option v-for="year in availableYears" :key="year" :value="year">
@@ -175,7 +170,7 @@ const localShowSortDropdown = computed({
         <select
           v-model="localTransactionType"
           @change="emit('typeChange', localTransactionType)"
-          class="px-3 py-2 text-sm border border-border rounded-lg bg-white"
+          class="px-3 py-2 flex-1 text-sm border border-border rounded-lg bg-white"
         >
           <option v-for="type in typeOptions" :key="type.value" :value="type.value">
             {{ type.label }}
@@ -186,7 +181,7 @@ const localShowSortDropdown = computed({
         <select
           v-model="localCustomerId"
           @change="emit('customerChange', ($event.target as HTMLSelectElement).value)"
-          class="px-3 py-2 text-sm border border-border rounded-lg bg-white"
+          class="px-3 py-2 flex-1 text-sm border border-border rounded-lg bg-white"
           :disabled="isLoadingCustomers"
         >
           <option value="">All Customers</option>
@@ -203,12 +198,13 @@ const localShowSortDropdown = computed({
               <th class="py-3 px-4 text-left text-sm font-medium text-gray-500">Tanggal</th>
               <th class="py-3 px-4 text-left text-sm font-medium text-gray-500">Customer</th>
               <th class="py-3 px-4 text-left text-sm font-medium text-gray-500">Type</th>
+              <th class="py-3 px-4 text-left text-sm font-medium text-gray-500">Payment Method</th>
               <th class="py-3 px-4 text-right text-sm font-medium text-gray-500">Total</th>
             </tr>
           </thead>
           <tbody>
             <tr v-if="!transactions.length && !isLoading">
-              <td colspan="5" class="py-8 text-center text-muted-foreground">No data available</td>
+              <td colspan="6" class="py-8 text-center text-muted-foreground">No data available</td>
             </tr>
             <tr
               v-for="t in transactions"
@@ -232,6 +228,22 @@ const localShowSortDropdown = computed({
                   "
                   >{{ t.type }}</span
                 >
+              </td>
+              <td class="py-3 px-4 text-sm">
+                <span
+                  v-if="t.paymentMethod"
+                  :class="
+                    cn(
+                      'px-2 py-1 rounded text-xs font-medium',
+                      t.paymentMethod === 'Cash'
+                        ? 'bg-green-50 text-green-700 border border-green-200'
+                        : 'bg-purple-50 text-purple-700 border border-purple-200',
+                    )
+                  "
+                >
+                  {{ t.paymentMethod }}
+                </span>
+                <span v-else class="text-muted-foreground">-</span>
               </td>
               <td class="py-3 px-4 text-sm text-right font-semibold">
                 <span :class="t.isIncome ? 'text-green-700' : 'text-red-600'">{{
