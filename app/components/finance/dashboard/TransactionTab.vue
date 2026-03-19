@@ -1,5 +1,15 @@
 <script setup lang="ts">
-import { ArrowUpDown, Download, Filter, Search, ChevronDown } from "lucide-vue-next";
+import {
+  ArrowUpDown,
+  Download,
+  Filter,
+  Search,
+  ChevronDown,
+  Lock,
+  Pencil,
+  Trash2,
+  Plus,
+} from "lucide-vue-next";
 import { cn, formatRupiah } from "~/lib/utils";
 import type { StatCardData, TransactionItem } from "~/types/finance";
 
@@ -40,9 +50,22 @@ const emit = defineEmits<{
   (e: "toggleSortDropdown"): void;
   (e: "pageChange", page: number): void;
   (e: "export"): void;
+  (e: "create"): void;
+  (e: "edit", transaction: TransactionItem): void;
+  (e: "delete", transaction: TransactionItem): void;
 }>();
 
 const formatCurrency = formatRupiah;
+
+// Helper to check if transaction is auto-created (from invoice or payment)
+function isAutoCreated(transaction: TransactionItem): boolean {
+  return transaction.referenceType === "INVOICE" || transaction.referenceType === "PAYMENT";
+}
+
+// Helper to check if transaction is manual
+function isManualTransaction(transaction: TransactionItem): boolean {
+  return transaction.referenceType === "MANUAL" || !transaction.referenceType;
+}
 
 // Local refs for v-model binding
 const localSearchQuery = computed({
@@ -145,6 +168,14 @@ const localShowSortDropdown = computed({
           >
             <Download class="w-4 h-4" /><span>Export</span>
           </button>
+
+          <!-- Create Manual Transaction Button -->
+          <button
+            class="flex items-center gap-2 px-3 py-2 text-sm bg-[#012D5A] text-white hover:bg-[#012D5A]/90 rounded-lg"
+            @click="emit('create')"
+          >
+            <Plus class="w-4 h-4" /><span>Add Transaction</span>
+          </button>
         </div>
       </div>
       <!-- Second Row: Year/Type/Customer Filters -->
@@ -200,11 +231,12 @@ const localShowSortDropdown = computed({
               <th class="py-3 px-4 text-left text-sm font-medium text-gray-500">Type</th>
               <th class="py-3 px-4 text-left text-sm font-medium text-gray-500">Payment Method</th>
               <th class="py-3 px-4 text-right text-sm font-medium text-gray-500">Total</th>
+              <th class="py-3 px-4 text-center text-sm font-medium text-gray-500">Actions</th>
             </tr>
           </thead>
           <tbody>
             <tr v-if="!transactions.length && !isLoading">
-              <td colspan="6" class="py-8 text-center text-muted-foreground">No data available</td>
+              <td colspan="7" class="py-8 text-center text-muted-foreground">No data available</td>
             </tr>
             <tr
               v-for="t in transactions"
@@ -249,6 +281,29 @@ const localShowSortDropdown = computed({
                 <span :class="t.isIncome ? 'text-green-700' : 'text-red-600'">{{
                   formatCurrency(t.total)
                 }}</span>
+              </td>
+              <td class="py-3 px-4 text-center">
+                <!-- Auto-created indicator (lock icon) -->
+                <div v-if="isAutoCreated(t)" class="flex items-center justify-center gap-1">
+                  <Lock class="w-4 h-4 text-gray-400" title="Auto-created from invoice" />
+                </div>
+                <!-- Manual transaction actions -->
+                <div v-else class="flex items-center justify-center gap-1">
+                  <button
+                    class="p-1.5 text-gray-500 hover:text-[#012D5A] hover:bg-gray-100 rounded transition-colors"
+                    title="Edit transaction"
+                    @click="emit('edit', t)"
+                  >
+                    <Pencil class="w-4 h-4" />
+                  </button>
+                  <button
+                    class="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                    title="Delete transaction"
+                    @click="emit('delete', t)"
+                  >
+                    <Trash2 class="w-4 h-4" />
+                  </button>
+                </div>
               </td>
             </tr>
           </tbody>

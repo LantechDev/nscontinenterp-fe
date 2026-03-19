@@ -11,6 +11,7 @@ definePageMeta({
 });
 
 const route = useRoute();
+const router = useRouter();
 const invoiceId = route.params.id as string;
 
 const { fetchInvoiceById, updateInvoice, isLoading } = useInvoices();
@@ -304,7 +305,7 @@ onMounted(() => {
   </div>
 
   <!-- Invoice Detail -->
-  <div v-else-if="invoice" class="space-y-6 animate-fade-in">
+  <div v-else-if="invoice" class="space-y-6 animate-fade-in p-6">
     <div class="page-header">
       <div class="flex items-center gap-4">
         <NuxtLink to="/finance/invoice" class="p-2 rounded-lg hover:bg-muted transition-colors">

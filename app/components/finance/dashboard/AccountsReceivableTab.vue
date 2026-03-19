@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ArrowUpDown, Search, ChevronDown } from "lucide-vue-next";
+import { ArrowUpDown, Search, ChevronDown, CheckCircle } from "lucide-vue-next";
 import { cn, formatRupiah } from "~/lib/utils";
 import type { StatCardData } from "~/types/finance";
+import { usePayments } from "~/composables/usePayments";
 
 export interface ArApItem {
   id: string;
@@ -50,6 +51,8 @@ const emit = defineEmits<{
   (e: "sort", field: string): void;
   (e: "toggleSortDropdown"): void;
   (e: "pageChange", page: number): void;
+  (e: "statusFilterChange", status: string): void;
+  (e: "refresh"): void;
 }>();
 
 const formatCurrency = formatRupiah;
@@ -114,6 +117,14 @@ const localStatusFilter = computed({
   set: (val) => emit("update:statusFilter", val),
 });
 
+// Watch for status filter changes and trigger data fetch
+watch(
+  () => props.statusFilter,
+  (newStatus) => {
+    emit("statusFilterChange", newStatus);
+  },
+);
+
 const getStatusBadgeClass = (status: ArApItem["status"]): string => {
   switch (status) {
     case "paid":
@@ -153,6 +164,119 @@ const getAgingLabel = (aging: number | null): string => {
   }
   return `+${aging}d`;
 };
+
+// Payment modal state
+const { createPayment, isLoading: isPaymentLoading } = usePayments();
+const showPaymentModal = ref(false);
+const selectedInvoice = ref<ArApItem | null>(null);
+const paymentError = ref<string | null>(null);
+const paymentSuccess = ref(false);
+
+// Payment form data
+interface PaymentFormData {
+  amount: number;
+  paymentDate: string;
+  paymentMethodId: string;
+  reference: string;
+  notes: string;
+}
+
+function getCurrentDateString(): string {
+  return new Date().toISOString().split("T")[0] || "";
+}
+
+const paymentForm = ref<PaymentFormData>({
+  amount: 0,
+  paymentDate: getCurrentDateString(),
+  paymentMethodId: "",
+  reference: "",
+  notes: "",
+});
+
+// Payment methods (static for now - could be fetched from API)
+const paymentMethods = [
+  { id: "cash", name: "Cash" },
+  { id: "bank_transfer", name: "Bank Transfer" },
+  { id: "cheque", name: "Cheque" },
+  { id: "credit_card", name: "Credit Card" },
+];
+
+function openPaymentModal(item: ArApItem) {
+  selectedInvoice.value = item;
+  paymentForm.value = {
+    amount: item.remaining,
+    paymentDate: getCurrentDateString(),
+    paymentMethodId: "",
+    reference: "",
+    notes: "",
+  };
+  paymentError.value = null;
+  paymentSuccess.value = false;
+  showPaymentModal.value = true;
+}
+
+function closePaymentModal() {
+  showPaymentModal.value = false;
+  selectedInvoice.value = null;
+  paymentError.value = null;
+  paymentSuccess.value = false;
+}
+
+async function submitPayment() {
+  if (!selectedInvoice.value) return;
+
+  paymentError.value = null;
+  paymentSuccess.value = false;
+
+  const result = await createPayment({
+    invoiceId: selectedInvoice.value.id,
+    paymentDate: paymentForm.value.paymentDate,
+    amount: paymentForm.value.amount,
+    paymentMethodId: paymentForm.value.paymentMethodId || undefined,
+    reference: paymentForm.value.reference || undefined,
+    notes: paymentForm.value.notes || undefined,
+  });
+
+  if (result.success) {
+    paymentSuccess.value = true;
+    // Close modal after short delay and refresh data
+    setTimeout(() => {
+      closePaymentModal();
+      emit("refresh");
+    }, 1500);
+  } else {
+    paymentError.value = result.error || "Failed to create payment";
+  }
+}
+
+function handleAmountChange(event: Event) {
+  const target = event.target as HTMLInputElement;
+  paymentForm.value.amount = Number(target.value) || 0;
+}
+
+function handlePaymentDateChange(event: Event) {
+  const target = event.target as HTMLInputElement;
+  paymentForm.value.paymentDate = target.value;
+}
+
+function handlePaymentMethodChange(event: Event) {
+  const target = event.target as HTMLSelectElement;
+  paymentForm.value.paymentMethodId = target.value;
+}
+
+function handleReferenceChange(event: Event) {
+  const target = event.target as HTMLInputElement;
+  paymentForm.value.reference = target.value;
+}
+
+function handleNotesChange(event: Event) {
+  const target = event.target as HTMLTextAreaElement;
+  paymentForm.value.notes = target.value;
+}
+
+function isFullyPaid(item: ArApItem): boolean {
+  return item.remaining <= 0;
+}
 </script>
 
 <template>
@@ -285,11 +409,12 @@ const getAgingLabel = (aging: number | null): string => {
               <th class="py-3 px-4 text-left text-sm font-medium text-gray-500">Due Date</th>
               <th class="py-3 px-4 text-center text-sm font-medium text-gray-500">Aging</th>
               <th class="py-3 px-4 text-center text-sm font-medium text-gray-500">Status</th>
+              <th class="py-3 px-4 text-center text-sm font-medium text-gray-500">Aksi</th>
             </tr>
           </thead>
           <tbody>
             <tr v-if="!items.length && !isLoading">
-              <td colspan="8" class="py-8 text-center text-muted-foreground">No data available</td>
+              <td colspan="9" class="py-8 text-center text-muted-foreground">No data available</td>
             </tr>
             <tr
               v-for="item in items"
@@ -334,6 +459,19 @@ const getAgingLabel = (aging: number | null): string => {
                   {{ getStatusLabel(item.status) }}
                 </span>
               </td>
+              <td class="py-3 px-4 text-center">
+                <button
+                  v-if="!isFullyPaid(item)"
+                  @click="openPaymentModal(item)"
+                  class="px-3 py-1.5 text-xs font-medium bg-[#012D5A] text-white rounded-md hover:bg-[#012D5A]/90 transition-colors focus:outline-none focus:ring-2 focus:ring-[#012D5A] focus:ring-offset-2"
+                >
+                  Lunasi
+                </button>
+                <span v-else class="text-xs text-green-600 flex items-center justify-center gap-1">
+                  <CheckCircle class="w-3 h-3" />
+                  Lunas
+                </span>
+              </td>
             </tr>
           </tbody>
         </table>
@@ -357,5 +495,157 @@ const getAgingLabel = (aging: number | null): string => {
         />
       </div>
     </div>
+
+    <!-- Payment Modal -->
+    <UiModal
+      v-model="showPaymentModal"
+      title="Lunasi Invoice"
+      description="Record payment for the invoice"
+      width="max-w-md"
+    >
+      <div v-if="selectedInvoice" class="space-y-4">
+        <!-- Invoice Info -->
+        <div class="p-3 bg-gray-50 rounded-lg">
+          <div class="flex justify-between items-center mb-2">
+            <span class="text-sm text-muted-foreground">Invoice</span>
+            <span class="text-sm font-medium text-[#012D5A]">{{
+              selectedInvoice.invoiceNumber
+            }}</span>
+          </div>
+          <div class="flex justify-between items-center mb-2">
+            <span class="text-sm text-muted-foreground">Company</span>
+            <span class="text-sm font-medium">{{ selectedInvoice.company }}</span>
+          </div>
+          <div class="flex justify-between items-center">
+            <span class="text-sm text-muted-foreground">Sisa</span>
+            <span class="text-sm font-medium text-red-600">{{
+              formatCurrency(selectedInvoice.remaining)
+            }}</span>
+          </div>
+        </div>
+
+        <!-- Success Message -->
+        <div
+          v-if="paymentSuccess"
+          class="p-4 bg-green-50 border border-green-200 rounded-lg flex items-center gap-3"
+        >
+          <CheckCircle class="w-5 h-5 text-green-600" />
+          <span class="text-sm text-green-700">Payment recorded successfully!</span>
+        </div>
+
+        <!-- Error Message -->
+        <div v-if="paymentError" class="p-3 bg-red-50 border border-red-200 rounded-lg">
+          <span class="text-sm text-red-600">{{ paymentError }}</span>
+        </div>
+
+        <!-- Payment Form -->
+        <div v-if="!paymentSuccess" class="space-y-4">
+          <!-- Amount -->
+          <div>
+            <label for="payment-amount" class="block text-sm font-medium text-gray-700 mb-1">
+              Amount
+            </label>
+            <input
+              id="payment-amount"
+              type="number"
+              :value="paymentForm.amount"
+              @input="handleAmountChange"
+              class="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
+              placeholder="Enter amount"
+              min="0"
+              :max="selectedInvoice.remaining"
+            />
+          </div>
+
+          <!-- Payment Date -->
+          <div>
+            <label for="payment-date" class="block text-sm font-medium text-gray-700 mb-1">
+              Payment Date
+            </label>
+            <input
+              id="payment-date"
+              type="date"
+              :value="paymentForm.paymentDate"
+              @input="handlePaymentDateChange"
+              class="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
+            />
+          </div>
+
+          <!-- Payment Method -->
+          <div>
+            <label for="payment-method" class="block text-sm font-medium text-gray-700 mb-1">
+              Payment Method
+            </label>
+            <select
+              id="payment-method"
+              :value="paymentForm.paymentMethodId"
+              @change="handlePaymentMethodChange"
+              class="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
+            >
+              <option value="">Select method</option>
+              <option v-for="method in paymentMethods" :key="method.id" :value="method.id">
+                {{ method.name }}
+              </option>
+            </select>
+          </div>
+
+          <!-- Reference -->
+          <div>
+            <label for="payment-reference" class="block text-sm font-medium text-gray-700 mb-1">
+              Reference (Optional)
+            </label>
+            <input
+              id="payment-reference"
+              type="text"
+              :value="paymentForm.reference"
+              @input="handleReferenceChange"
+              class="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
+              placeholder="Transaction number, cheque number, etc."
+            />
+          </div>
+
+          <!-- Notes -->
+          <div>
+            <label for="payment-notes" class="block text-sm font-medium text-gray-700 mb-1">
+              Notes (Optional)
+            </label>
+            <textarea
+              id="payment-notes"
+              :value="paymentForm.notes"
+              @input="handleNotesChange"
+              class="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary resize-none"
+              placeholder="Additional notes..."
+              rows="2"
+            ></textarea>
+          </div>
+        </div>
+      </div>
+
+      <template #footer>
+        <button
+          v-if="!paymentSuccess"
+          @click="closePaymentModal"
+          class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-border rounded-lg hover:bg-gray-50 transition-colors"
+        >
+          Cancel
+        </button>
+        <button
+          v-if="!paymentSuccess"
+          @click="submitPayment"
+          :disabled="isPaymentLoading || paymentForm.amount <= 0"
+          class="px-4 py-2 text-sm font-medium text-white bg-[#012D5A] rounded-lg hover:bg-[#012D5A]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <span v-if="isPaymentLoading">Processing...</span>
+          <span v-else>Save Payment</span>
+        </button>
+        <button
+          v-else
+          @click="closePaymentModal"
+          class="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors"
+        >
+          Close
+        </button>
+      </template>
+    </UiModal>
   </div>
 </template>

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { jsPDF } from "jspdf";
 import { useFinanceDashboardPage } from "~/composables/useFinanceDashboardPage";
 import {
   useFinanceDashboardFilters,
@@ -102,6 +103,7 @@ const {
   handleCogsSearchInput,
   handleCogsSearchKeydown,
   handleCogsSort,
+  handleCogsSortDropdownToggle,
   handleTransactionYearChange,
   handleTransactionTypeChange,
   handleTransactionCustomerChange,
@@ -111,6 +113,9 @@ const {
   handleTransactionSort,
   handleTransactionSortDropdownToggle,
   handleTransactionExport,
+  handleTransactionCreate,
+  handleTransactionEdit,
+  handleTransactionDelete,
   handleFinanceCloseYearChange,
   handleFinanceCloseTypeChange,
   handleFinanceCloseCustomerChange,
@@ -118,6 +123,7 @@ const {
   handleFinanceCloseSearchInput,
   handleFinanceCloseSearchKeydown,
   handleFinanceCloseSort,
+  handleFinanceCloseSortDropdownToggle,
   handleArApToggleChange,
   handleArApSearch,
   handleArApSearchInput,
@@ -125,6 +131,7 @@ const {
   handleArApSort,
   handleArApSortDropdownToggle,
   handleArApStatusFilterChange,
+  handleArApRefresh,
 } = useFinanceDashboardPage();
 
 // Filter options
@@ -246,22 +253,142 @@ function handleAssetsPageChange(page: number) {
 }
 
 function handleAssetsExport() {
-  // Generate PDF export with filter values
-  const config = useRuntimeConfig();
-  const baseUrl = config.public.apiBase || "";
+  // Generate PDF export with filter values using jsPDF
+  try {
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 20;
+    const contentWidth = pageWidth - margin * 2;
+    let yPos = margin;
 
-  // Build query params from current filters
-  const queryParams = new URLSearchParams({
-    format: "pdf",
-  });
+    // Colors
+    const primaryColor: [number, number, number] = [1, 45, 90]; // #012D5A
+    const textColor: [number, number, number] = [31, 41, 55]; // #1f2937
+    const grayColor: [number, number, number] = [107, 114, 128]; // #6b7280
+    const lightGrayColor: [number, number, number] = [229, 231, 235]; // #e5e7eb
 
-  if (assetsYear.value) queryParams.append("year", assetsYear.value);
-  if (assetsServiceId.value) queryParams.append("serviceId", assetsServiceId.value);
-  if (assetsCompanyId.value) queryParams.append("companyId", assetsCompanyId.value);
+    // Company Header
+    doc.setFillColor(...primaryColor);
+    doc.rect(0, 0, pageWidth, 40, "F");
 
-  // Open export URL in new tab to trigger download
-  const exportUrl = `${baseUrl}/finance/dashboard/assets/export?${queryParams.toString()}`;
-  window.open(exportUrl, "_blank");
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(24);
+    doc.setFont("helvetica", "bold");
+    doc.text("ASSETS REPORT", margin, 25);
+
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "normal");
+    const yearLabel = assetsYear.value ? `Year: ${assetsYear.value}` : "All Years";
+    doc.text(yearLabel, pageWidth - margin, 20, { align: "right" });
+    const dateLabel = new Date().toLocaleDateString("id-ID");
+    doc.text(`Generated: ${dateLabel}`, pageWidth - margin, 30, { align: "right" });
+
+    yPos = 55;
+
+    // Filter info
+    doc.setTextColor(...textColor);
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "bold");
+    doc.text("Filters:", margin, yPos);
+    doc.setFont("helvetica", "normal");
+    yPos += 7;
+
+    const filters: string[] = [];
+    if (assetsYear.value) filters.push(`Year: ${assetsYear.value}`);
+    if (assetsServiceId.value) filters.push(`Service ID: ${assetsServiceId.value}`);
+    if (assetsCompanyId.value) filters.push(`Company ID: ${assetsCompanyId.value}`);
+    if (filters.length === 0) filters.push("None (All Data)");
+
+    doc.setTextColor(...grayColor);
+    filters.forEach((filter) => {
+      doc.text(filter, margin, yPos);
+      yPos += 6;
+    });
+
+    yPos += 10;
+
+    // Table Header
+    doc.setFillColor(...primaryColor);
+    doc.rect(margin, yPos, contentWidth, 10, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "bold");
+    doc.text("No.", margin + 2, yPos + 7);
+    doc.text("Name", margin + 20, yPos + 7);
+    doc.text("Date", margin + 80, yPos + 7);
+    doc.text("Service", margin + 110, yPos + 7);
+    doc.text("Price", margin + 160, yPos + 7);
+
+    yPos += 10;
+
+    // Table Content
+    doc.setTextColor(...textColor);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+
+    const assetsList = assetsData.value || [];
+    let totalValue = 0;
+
+    assetsList.forEach(
+      (asset: { name: string; date: string; service?: string; price: number }, index: number) => {
+        // Check if we need a new page
+        if (yPos > pageHeight - 30) {
+          doc.addPage();
+          yPos = margin;
+        }
+
+        // Alternate row colors
+        if (index % 2 === 0) {
+          doc.setFillColor(249, 250, 251);
+          doc.rect(margin, yPos, contentWidth, 10, "F");
+        }
+
+        doc.setTextColor(...textColor);
+        doc.text((index + 1).toString(), margin + 2, yPos + 7);
+        doc.text(asset.name?.substring(0, 25) || "-", margin + 20, yPos + 7);
+        doc.text(
+          asset.date ? new Date(asset.date).toLocaleDateString("id-ID") : "-",
+          margin + 80,
+          yPos + 7,
+        );
+        doc.text(asset.service?.substring(0, 20) || "-", margin + 110, yPos + 7);
+        doc.text(formatRupiah(asset.price || 0), margin + 160, yPos + 7);
+
+        totalValue += asset.price || 0;
+        yPos += 10;
+      },
+    );
+
+    // Total row
+    yPos += 5;
+    doc.setFillColor(...lightGrayColor);
+    doc.rect(margin, yPos, contentWidth, 12, "F");
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(...textColor);
+    doc.text("TOTAL", margin + 2, yPos + 8);
+    doc.text(formatRupiah(totalValue), margin + 160, yPos + 8);
+
+    // Footer
+    const footerY = pageHeight - 15;
+    doc.setFillColor(...primaryColor);
+    doc.rect(0, footerY - 5, pageWidth, 20, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.text("PT. Nusantara Continent - Assets Report", pageWidth / 2, footerY + 5, {
+      align: "center",
+    });
+
+    // Generate filename
+    const filename = `Assets_Report${assetsYear.value ? `_${assetsYear.value}` : ""}.pdf`;
+
+    // Download the PDF directly
+    doc.save(filename);
+  } catch (error) {
+    console.error("Failed to export assets PDF:", error);
+    alert("Failed to export PDF. Please try again.");
+  }
 }
 
 async function handleAssetsAdd() {
@@ -275,7 +402,7 @@ async function handleAssetsAdd() {
   <div class="pb-10 relative">
     <div class="bg-white border-b border-border mb-6">
       <!-- Page Header -->
-      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 px-6 pt-6 pb-6">
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 p-6">
         <div>
           <h1 class="text-2xl font-bold">Dashboard</h1>
           <p class="text-muted-foreground mt-1">
@@ -385,7 +512,7 @@ async function handleAssetsAdd() {
           @search-input="handleCogsSearchInput"
           @search-keydown="handleCogsSearchKeydown"
           @sort="handleCogsSort"
-          @toggle-sort-dropdown="() => {}"
+          @toggle-sort-dropdown="handleCogsSortDropdownToggle"
           @page-change="handlePageChange"
         />
 
@@ -417,6 +544,9 @@ async function handleAssetsAdd() {
           @toggle-sort-dropdown="handleTransactionSortDropdownToggle"
           @export="handleTransactionExport"
           @page-change="handlePageChange"
+          @create="handleTransactionCreate"
+          @edit="handleTransactionEdit"
+          @delete="handleTransactionDelete"
         />
 
         <FinanceCloseTab
@@ -445,7 +575,7 @@ async function handleAssetsAdd() {
           @search-input="handleFinanceCloseSearchInput"
           @search-keydown="handleFinanceCloseSearchKeydown"
           @sort="handleFinanceCloseSort"
-          @toggle-sort-dropdown="() => {}"
+          @toggle-sort-dropdown="handleFinanceCloseSortDropdownToggle"
           @page-change="handlePageChange"
           @reopen-period="handleReopenPeriod"
         />
@@ -477,7 +607,9 @@ async function handleAssetsAdd() {
           @search-keydown="handleArApSearchKeydown"
           @sort="handleArApSort"
           @toggle-sort-dropdown="handleArApSortDropdownToggle"
+          @status-filter-change="handleArApStatusFilterChange"
           @page-change="handlePageChange"
+          @refresh="handleArApRefresh"
         />
 
         <AssetsTab

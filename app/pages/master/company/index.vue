@@ -134,7 +134,7 @@ const selectAll = computed({
 </script>
 
 <template>
-  <div class="space-y-6 animate-fade-in pb-10">
+  <div class="space-y-6 animate-fade-in p-6">
     <!-- Page header -->
     <div class="flex items-center justify-between">
       <h1 class="text-2xl font-bold">Company</h1>

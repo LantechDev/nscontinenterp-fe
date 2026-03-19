@@ -79,7 +79,7 @@ const handleSubmit = async () => {
 </script>
 
 <template>
-  <div class="space-y-6 animate-fade-in">
+  <div class="space-y-6 animate-fade-in p-6">
     <div class="page-header">
       <div class="flex items-center gap-4">
         <NuxtLink to="/settings/users" class="p-2 rounded-lg hover:bg-muted transition-colors">

@@ -127,6 +127,11 @@ export function useFinanceDashboardPageCogs() {
     await fetchAll(selectedPeriod.value, getCogsFilters());
   }
 
+  // Toggle sort dropdown
+  function handleSortDropdownToggle() {
+    showSortDropdown.value = !showSortDropdown.value;
+  }
+
   // Fetch COGS data
   async function fetchCogs(period: "day" | "week" | "month" | "year") {
     await fetchAll(period, getCogsFilters());
@@ -151,6 +156,7 @@ export function useFinanceDashboardPageCogs() {
     handleCustomerChange,
     handleServiceChange,
     handleSort,
+    handleSortDropdownToggle,
     fetchCogs,
   };
 }

@@ -57,6 +57,21 @@ type ErrorResponse = {
   error?: string;
 };
 
+/**
+ * Format invoice for display in dropdown
+ * Format: INV-001 | Company Name | Rp 1,000,000
+ */
+function formatInvoiceDisplay(invoice: Invoice): string {
+  const formattedAmount = new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(invoice.total);
+
+  return `${invoice.invoiceNumber} | ${invoice.company.name} | ${formattedAmount}`;
+}
+
 function getErrorMessage(error: unknown): string {
   if (error && typeof error === "object" && "data" in error) {
     const errorData = (error as { data?: ErrorResponse }).data;
@@ -188,6 +203,51 @@ export function useInvoices() {
     }
   }
 
+  /**
+   * Search invoices with a query string
+   * Uses client-side filtering from fetched invoices
+   */
+  async function searchInvoices(
+    query: string,
+    invoices?: Invoice[],
+  ): Promise<{ success: boolean; data?: Invoice[]; error?: string }> {
+    if (!query || query.trim() === "") {
+      // If no query, return all invoices or fetch if not provided
+      if (invoices && invoices.length > 0) {
+        return { success: true, data: invoices };
+      }
+      return fetchInvoices();
+    }
+
+    // If we already have invoices, filter client-side
+    if (invoices && invoices.length > 0) {
+      const lowerQuery = query.toLowerCase().trim();
+      const filtered = invoices.filter((invoice) => {
+        const invoiceNumberMatch = invoice.invoiceNumber.toLowerCase().includes(lowerQuery);
+        const companyNameMatch = invoice.company.name.toLowerCase().includes(lowerQuery);
+        const totalMatch = invoice.total.toString().includes(lowerQuery);
+        const statusMatch = invoice.status.name.toLowerCase().includes(lowerQuery);
+        return invoiceNumberMatch || companyNameMatch || totalMatch || statusMatch;
+      });
+      return { success: true, data: filtered };
+    }
+
+    // Otherwise fetch and then filter
+    const result = await fetchInvoices();
+    if (result.success && result.data) {
+      const lowerQuery = query.toLowerCase().trim();
+      const filtered = result.data.filter((invoice) => {
+        const invoiceNumberMatch = invoice.invoiceNumber.toLowerCase().includes(lowerQuery);
+        const companyNameMatch = invoice.company.name.toLowerCase().includes(lowerQuery);
+        const totalMatch = invoice.total.toString().includes(lowerQuery);
+        const statusMatch = invoice.status.name.toLowerCase().includes(lowerQuery);
+        return invoiceNumberMatch || companyNameMatch || totalMatch || statusMatch;
+      });
+      return { success: true, data: filtered };
+    }
+    return result;
+  }
+
   return {
     isLoading,
     fetchInvoices,
@@ -195,5 +255,7 @@ export function useInvoices() {
     createInvoice,
     updateInvoice,
     deleteInvoice,
+    searchInvoices,
+    formatInvoiceDisplay,
   };
 }

@@ -32,6 +32,9 @@ export interface TransactionItem {
   total: number;
   isIncome: boolean;
   paymentMethod?: string;
+  // Reference info for identifying auto-created transactions
+  referenceType?: string | null;
+  referenceId?: string | null;
 }
 
 export interface FinanceCloseStats {

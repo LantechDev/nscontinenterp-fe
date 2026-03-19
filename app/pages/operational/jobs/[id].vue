@@ -44,7 +44,7 @@ function handleBlSaved() {
 </script>
 
 <template>
-  <div v-if="job" class="space-y-6 animate-fade-in pb-20">
+  <div v-if="job" class="space-y-6 animate-fade-in p-6 pb-20">
     <!-- Header -->
     <div class="page-header">
       <div class="flex items-center gap-4">

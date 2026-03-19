@@ -120,6 +120,19 @@ export function useFinanceDashboardPageArAp() {
     ]);
   }
 
+  // Refresh handler (for after payment is made)
+  async function handleRefresh() {
+    await Promise.all([
+      fetchArApItems(
+        selectedPeriod.value,
+        currentPage.value,
+        pagination.value.limit,
+        getArApFilters(),
+      ),
+      fetchArApStats(selectedPeriod.value),
+    ]);
+  }
+
   return {
     arApItems,
     arApStats,
@@ -139,5 +152,6 @@ export function useFinanceDashboardPageArAp() {
     handleSortDropdownToggle,
     handleStatusFilterChange,
     fetchArAp,
+    handleRefresh,
   };
 }

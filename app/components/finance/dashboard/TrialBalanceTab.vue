@@ -143,6 +143,13 @@ const totalCredit = computed(() => {
 
 <template>
   <div class="space-y-4 px-6">
+    <!-- Header with Action Button -->
+    <div class="flex justify-end">
+      <NuxtLink to="/finance/journal/create" class="btn-primary">
+        <span>Input Jurnal</span>
+      </NuxtLink>
+    </div>
+
     <!-- Loading State -->
     <div v-if="isLoading" class="flex items-center justify-center py-12">
       <div class="flex items-center gap-2">

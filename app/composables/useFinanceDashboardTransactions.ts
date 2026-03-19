@@ -33,6 +33,119 @@ export function useFinanceDashboardTransactions() {
   } = useFinanceDashboardApi();
 
   /**
+   * Create a manual transaction
+   */
+  async function createManualTransaction(data: {
+    journalDate: string;
+    description: string;
+    entries: {
+      accountId: string;
+      debit: number;
+      credit: number;
+      jobId?: string;
+    }[];
+  }): Promise<TransactionItem | null> {
+    const requestId = getNextRequestId("transactions");
+
+    setLoading(true);
+    clearError("transactions", requestId);
+
+    try {
+      const result = await $fetch<TransactionItem>(`${baseUrl}/finance/dashboard/transactions`, {
+        method: "POST",
+        body: data,
+        credentials: "include",
+      });
+
+      // Refresh transactions after creation
+      await fetchTransactions("month", 1, pagination.value.limit);
+
+      return result;
+    } catch (err) {
+      const message = getErrorMessage(err);
+      console.error("Failed to create manual transaction:", message);
+      setError("transactions", requestId, message);
+      return null;
+    } finally {
+      if (isLatestRequest("transactions", requestId)) setLoading(false);
+    }
+  }
+
+  /**
+   * Update a manual transaction
+   */
+  async function updateManualTransaction(
+    id: string,
+    data: {
+      journalDate?: string;
+      description?: string;
+      entries?: {
+        accountId: string;
+        debit: number;
+        credit: number;
+        jobId?: string;
+      }[];
+    },
+  ): Promise<TransactionItem | null> {
+    const requestId = getNextRequestId("transactions");
+
+    setLoading(true);
+    clearError("transactions", requestId);
+
+    try {
+      const result = await $fetch<TransactionItem>(
+        `${baseUrl}/finance/dashboard/transactions/${id}`,
+        {
+          method: "PUT",
+          body: data,
+          credentials: "include",
+        },
+      );
+
+      // Refresh transactions after update
+      await fetchTransactions("month", pagination.value.page, pagination.value.limit);
+
+      return result;
+    } catch (err) {
+      const message = getErrorMessage(err);
+      console.error("Failed to update manual transaction:", message);
+      setError("transactions", requestId, message);
+      return null;
+    } finally {
+      if (isLatestRequest("transactions", requestId)) setLoading(false);
+    }
+  }
+
+  /**
+   * Delete a manual transaction
+   */
+  async function deleteManualTransaction(id: string): Promise<boolean> {
+    const requestId = getNextRequestId("transactions");
+
+    setLoading(true);
+    clearError("transactions", requestId);
+
+    try {
+      await $fetch(`${baseUrl}/finance/dashboard/transactions/${id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+
+      // Refresh transactions after deletion
+      await fetchTransactions("month", pagination.value.page, pagination.value.limit);
+
+      return true;
+    } catch (err) {
+      const message = getErrorMessage(err);
+      console.error("Failed to delete manual transaction:", message);
+      setError("transactions", requestId, message);
+      return false;
+    } finally {
+      if (isLatestRequest("transactions", requestId)) setLoading(false);
+    }
+  }
+
+  /**
    * Fetch transactions
    */
   async function fetchTransactions(
@@ -133,5 +246,8 @@ export function useFinanceDashboardTransactions() {
     pagination,
     fetchTransactions,
     fetchTransactionStats,
+    createManualTransaction,
+    updateManualTransaction,
+    deleteManualTransaction,
   };
 }

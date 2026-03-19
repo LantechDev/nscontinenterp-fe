@@ -86,7 +86,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="space-y-6 pb-10">
+  <div class="space-y-6 p-6">
     <!-- Page Header -->
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
       <div class="flex items-center gap-4">

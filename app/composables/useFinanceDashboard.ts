@@ -80,6 +80,9 @@ export function useFinanceDashboard() {
     transactionPagination: transactions.pagination,
     fetchTransactions: transactions.fetchTransactions,
     fetchTransactionStats: transactions.fetchTransactionStats,
+    createManualTransaction: transactions.createManualTransaction,
+    updateManualTransaction: transactions.updateManualTransaction,
+    deleteManualTransaction: transactions.deleteManualTransaction,
 
     // Finance Close data
     financeCloseStats: financeClose.financeCloseStats,

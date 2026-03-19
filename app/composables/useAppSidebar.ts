@@ -40,7 +40,6 @@ export const NAV_ITEMS: NavItem[] = [
     children: [
       { title: "Dashboard", href: "/finance/dashboard" },
       { title: "Invoice", href: "/finance/invoice" },
-      { title: "Pembayaran", href: "/finance/payment" },
       { title: "Biaya Operasional", href: "/finance/expenses" },
       { title: "Pajak", href: "/finance/tax" },
     ],

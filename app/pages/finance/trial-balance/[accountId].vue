@@ -121,7 +121,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="space-y-6 animate-fade-in pb-10">
+  <div class="space-y-6 animate-fade-in p-6">
     <!-- Page Header -->
     <div class="flex items-center gap-4">
       <button class="p-2 hover:bg-gray-100 rounded-lg transition-colors" @click="goBack">

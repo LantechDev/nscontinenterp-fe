@@ -16,7 +16,7 @@ function openBlEditor(blId: string) {
 </script>
 
 <template>
-  <div class="space-y-6 animate-fade-in-up">
+  <div class="space-y-6 animate-fade-in p-6-up">
     <div class="flex justify-between items-center">
       <h2 class="text-lg font-semibold">Managed Bills of Lading</h2>
       <button class="btn-primary text-sm" disabled>

@@ -47,7 +47,7 @@ const viewMode = ref<ViewMode>("list");
 </script>
 
 <template>
-  <div class="space-y-6 animate-fade-in pb-10">
+  <div class="space-y-6 animate-fade-in p-6">
     <!-- Page header -->
     <div class="flex items-center justify-between">
       <div>

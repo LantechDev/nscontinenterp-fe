@@ -8,7 +8,7 @@ defineProps<{
 </script>
 
 <template>
-  <div class="space-y-6 animate-fade-in-up">
+  <div class="space-y-6 animate-fade-in p-6-up">
     <div class="card-elevated p-6">
       <div class="flex items-center gap-4 mb-6 pb-6 border-b border-border">
         <div class="w-14 h-14 rounded-xl bg-primary/10 flex items-center justify-center">

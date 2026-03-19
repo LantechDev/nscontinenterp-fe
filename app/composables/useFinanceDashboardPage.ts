@@ -4,8 +4,14 @@
  */
 import { onMounted, onUnmounted, watch } from "vue";
 import type { TabName, PeriodType } from "~/types/finance";
+import type { TransactionItem } from "~/types/finance-dashboard";
+import { jsPDF } from "jspdf";
+import { formatRupiah } from "~/lib/utils";
 
 export function useFinanceDashboardPage() {
+  // Router
+  const router = useRouter();
+
   // State
   const pageState = useFinanceDashboardPageState();
   const { activeTab, selectedPeriod, currentPage, resetPage } = pageState;
@@ -53,6 +59,11 @@ export function useFinanceDashboardPage() {
   const dashboard = useFinanceDashboard();
   const { isLoading, error, jobCosts, cogsPagination, transactionPagination, arApPagination } =
     dashboard;
+
+  // API utilities for exports
+  const api = useFinanceDashboardApi();
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { baseUrl: _baseUrl } = api;
 
   // Computed pagination bridge for component compatibility
   const pagination = computed(() => {
@@ -172,12 +183,6 @@ export function useFinanceDashboardPage() {
   // Lifecycle
   onMounted(async () => {
     document.addEventListener("click", handleClickOutside);
-    try {
-      const { session } = useAuth();
-      console.log("[FE_TRACE] Active Org ID:", session.value?.activeOrganizationId);
-    } catch {
-      /* ignore */
-    }
     await Promise.all([loadCustomers(), loadServices()]);
     await fetchDataForTab(activeTab.value, selectedPeriod.value);
   });
@@ -271,6 +276,7 @@ export function useFinanceDashboardPage() {
     handleCogsSearchInput: cogs.handleSearchInput,
     handleCogsSearchKeydown: cogs.handleSearchKeydown,
     handleCogsSort: cogs.handleSort,
+    handleCogsSortDropdownToggle: cogs.handleSortDropdownToggle,
     handleTransactionYearChange: transactions.handleYearChange,
     handleTransactionTypeChange: transactions.handleTypeChange,
     handleTransactionCustomerChange: transactions.handleCustomerChange,
@@ -279,7 +285,166 @@ export function useFinanceDashboardPage() {
     handleTransactionSearchKeydown: transactions.handleSearchKeydown,
     handleTransactionSort: transactions.handleSort,
     handleTransactionSortDropdownToggle: transactions.handleSortDropdownToggle,
-    handleTransactionExport: () => {},
+    handleTransactionExport: () => {
+      // Generate PDF export with filter values using jsPDF
+      try {
+        const doc = new jsPDF();
+        const pageWidth = doc.internal.pageSize.getWidth();
+        const pageHeight = doc.internal.pageSize.getHeight();
+        const margin = 20;
+        const contentWidth = pageWidth - margin * 2;
+        let yPos = margin;
+
+        // Colors
+        const primaryColor: [number, number, number] = [1, 45, 90]; // #012D5A
+        const textColor: [number, number, number] = [31, 41, 55]; // #1f2937
+        const grayColor: [number, number, number] = [107, 114, 128]; // #6b7280
+        const lightGrayColor: [number, number, number] = [229, 231, 235]; // #e5e7eb
+
+        // Company Header
+        doc.setFillColor(...primaryColor);
+        doc.rect(0, 0, pageWidth, 40, "F");
+
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(24);
+        doc.setFont("helvetica", "bold");
+        doc.text("TRANSACTIONS REPORT", margin, 25);
+
+        doc.setFontSize(12);
+        doc.setFont("helvetica", "normal");
+        const yearLabel = transactionYear.value ? `Year: ${transactionYear.value}` : "All Years";
+        doc.text(yearLabel, pageWidth - margin, 20, { align: "right" });
+        const dateLabel = new Date().toLocaleDateString("id-ID");
+        doc.text(`Generated: ${dateLabel}`, pageWidth - margin, 30, { align: "right" });
+
+        yPos = 55;
+
+        // Filter info
+        doc.setTextColor(...textColor);
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "bold");
+        doc.text("Filters:", margin, yPos);
+        doc.setFont("helvetica", "normal");
+        yPos += 7;
+
+        const filters: string[] = [];
+        if (transactionYear.value) filters.push(`Year: ${transactionYear.value}`);
+        if (transactionType.value) filters.push(`Type: ${transactionType.value}`);
+        if (transactionCustomerId.value)
+          filters.push(`Customer ID: ${transactionCustomerId.value}`);
+        if (transactionSearch.value) filters.push(`Search: ${transactionSearch.value}`);
+        if (filters.length === 0) filters.push("None (All Data)");
+
+        doc.setTextColor(...grayColor);
+        filters.forEach((filter) => {
+          doc.text(filter, margin, yPos);
+          yPos += 6;
+        });
+
+        yPos += 10;
+
+        // Table Header
+        doc.setFillColor(...primaryColor);
+        doc.rect(margin, yPos, contentWidth, 10, "F");
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "bold");
+        doc.text("No.", margin + 2, yPos + 7);
+        doc.text("Date", margin + 20, yPos + 7);
+        doc.text("Job Number", margin + 45, yPos + 7);
+        doc.text("Customer", margin + 85, yPos + 7);
+        doc.text("Type", margin + 130, yPos + 7);
+        doc.text("Amount", margin + 160, yPos + 7);
+
+        yPos += 10;
+
+        // Table Content
+        doc.setTextColor(...textColor);
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(8);
+
+        const transactionsList = transactions.transactions.value || [];
+        let totalAmount = 0;
+
+        transactionsList.forEach((tx: TransactionItem, index: number) => {
+          // Check if we need a new page
+          if (yPos > pageHeight - 30) {
+            doc.addPage();
+            yPos = margin;
+          }
+
+          // Alternate row colors
+          if (index % 2 === 0) {
+            doc.setFillColor(249, 250, 251);
+            doc.rect(margin, yPos, contentWidth, 10, "F");
+          }
+
+          doc.setTextColor(...textColor);
+          doc.text((index + 1).toString(), margin + 2, yPos + 7);
+          doc.text(
+            tx.date ? new Date(tx.date).toLocaleDateString("id-ID") : "-",
+            margin + 20,
+            yPos + 7,
+          );
+          doc.text(tx.jobNumber?.substring(0, 15) || "-", margin + 45, yPos + 7);
+          doc.text(tx.customer?.substring(0, 18) || "-", margin + 85, yPos + 7);
+          doc.text(tx.type?.substring(0, 10) || "-", margin + 130, yPos + 7);
+          doc.text(formatRupiah(tx.total || 0), margin + 160, yPos + 7);
+
+          totalAmount += tx.total || 0;
+          yPos += 10;
+        });
+
+        // Total row
+        yPos += 5;
+        doc.setFillColor(...lightGrayColor);
+        doc.rect(margin, yPos, contentWidth, 12, "F");
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(...textColor);
+        doc.text("TOTAL", margin + 2, yPos + 8);
+        doc.text(formatRupiah(totalAmount), margin + 160, yPos + 8);
+
+        // Footer
+        const footerY = pageHeight - 15;
+        doc.setFillColor(...primaryColor);
+        doc.rect(0, footerY - 5, pageWidth, 20, "F");
+        doc.setTextColor(255, 255, 255);
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(8);
+        doc.text("PT. Nusantara Continent - Transactions Report", pageWidth / 2, footerY + 5, {
+          align: "center",
+        });
+
+        // Generate filename
+        const filename = `Transactions_Report${transactionYear.value ? `_${transactionYear.value}` : ""}.pdf`;
+
+        // Download the PDF directly
+        doc.save(filename);
+      } catch (error) {
+        console.error("Failed to export transactions PDF:", error);
+        alert("Failed to export PDF. Please try again.");
+      }
+    },
+    handleTransactionCreate: () => {
+      router.push("/finance/transaction/create");
+    },
+    handleTransactionEdit: (transaction: TransactionItem) => {
+      router.push(`/finance/transaction/${transaction.id}/edit`);
+    },
+    handleTransactionDelete: async (transaction: TransactionItem) => {
+      const { confirm } = useConfirm();
+      const confirmed = await confirm({
+        title: "Delete Transaction",
+        message: `Are you sure you want to delete this transaction?`,
+        type: "danger",
+        confirmText: "Delete",
+        cancelText: "Cancel",
+      });
+
+      if (confirmed) {
+        await dashboard.deleteManualTransaction(transaction.id);
+      }
+    },
     handleFinanceCloseYearChange: financeClose.handleYearChange,
     handleFinanceCloseTypeChange: financeClose.handleTypeChange,
     handleFinanceCloseCustomerChange: financeClose.handleCustomerChange,
@@ -287,6 +452,7 @@ export function useFinanceDashboardPage() {
     handleFinanceCloseSearchInput: financeClose.handleSearchInput,
     handleFinanceCloseSearchKeydown: financeClose.handleSearchKeydown,
     handleFinanceCloseSort: financeClose.handleSort,
+    handleFinanceCloseSortDropdownToggle: financeClose.handleSortDropdownToggle,
     handleArApToggleChange: arAp.handleToggleChange,
     handleArApSearch: arAp.handleSearch,
     handleArApSearchInput: arAp.handleSearchInput,
@@ -294,5 +460,6 @@ export function useFinanceDashboardPage() {
     handleArApSort: arAp.handleSort,
     handleArApSortDropdownToggle: arAp.handleSortDropdownToggle,
     handleArApStatusFilterChange: arAp.handleStatusFilterChange,
+    handleArApRefresh: arAp.handleRefresh,
   };
 }

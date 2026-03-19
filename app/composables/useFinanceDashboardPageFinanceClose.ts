@@ -129,6 +129,11 @@ export function useFinanceDashboardPageFinanceClose() {
     );
   }
 
+  // Toggle sort dropdown
+  function handleSortDropdownToggle() {
+    showFinanceCloseSortDropdown.value = !showFinanceCloseSortDropdown.value;
+  }
+
   // Close period handler
   async function handleClosePeriod() {
     const confirmed = await confirm({
@@ -201,6 +206,7 @@ export function useFinanceDashboardPageFinanceClose() {
     handleTypeChange,
     handleCustomerChange,
     handleSort,
+    handleSortDropdownToggle,
     handleClosePeriod,
     handleReopenPeriod,
     fetchFinanceClose,
