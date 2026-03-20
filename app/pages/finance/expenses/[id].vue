@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ArrowLeft, Wallet, Edit, Trash2, Download } from "lucide-vue-next";
 import { useFinanceExpense, type Expense } from "~/composables/useFinanceExpense";
+import { useExpensePage } from "~/composables/useExpensePage";
+import { ExpenseEditModal } from "./components";
 import { jsPDF } from "jspdf";
 
 definePageMeta({
@@ -10,6 +12,22 @@ definePageMeta({
 const route = useRoute();
 const expenseId = route.params.id as string;
 const { fetchExpenseById, deleteExpense, isLoading } = useFinanceExpense();
+
+// Use expense page composable for modal
+const {
+  isEditModalOpen,
+  isSubmitting,
+  editError,
+  editingExpenseId,
+  formData,
+  categoryOptions,
+  companies,
+  jobs,
+  openEditModal,
+  closeEditModal,
+  handleUpdate,
+  initialize,
+} = useExpensePage();
 
 const expense = ref<Expense | null>(null);
 
@@ -159,6 +177,7 @@ function handleDownloadPdf() {
 
 onMounted(() => {
   loadExpense();
+  initialize();
 });
 </script>
 
@@ -197,13 +216,13 @@ onMounted(() => {
             >
               <Trash2 class="w-5 h-5" />
             </button>
-            <NuxtLink
-              :to="`/finance/expenses/edit/${expense.id}`"
+            <button
+              @click="openEditModal(expense.id)"
               class="flex items-center gap-2 px-4 py-2 bg-white border border-border rounded-lg hover:bg-muted transition-colors font-medium"
             >
               <Edit class="w-4 h-4" />
               <span>Edit</span>
-            </NuxtLink>
+            </button>
           </div>
         </div>
       </div>
@@ -259,4 +278,18 @@ onMounted(() => {
       </div>
     </template>
   </div>
+
+  <!-- Edit Modal -->
+  <ExpenseEditModal
+    :is-open="isEditModalOpen"
+    :is-submitting="isSubmitting"
+    :edit-error="editError"
+    :editing-expense-id="editingExpenseId"
+    :form-data="formData"
+    :category-options="categoryOptions"
+    :companies="companies"
+    :jobs="jobs"
+    @close="closeEditModal"
+    @submit="handleUpdate"
+  />
 </template>

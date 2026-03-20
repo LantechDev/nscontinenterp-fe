@@ -5,6 +5,16 @@ import type { JobWithBls } from "~/composables/useJobs";
 defineProps<{
   job: JobWithBls;
 }>();
+
+// Helper for date formatting
+const formatDate = (date: string | Date | null | undefined) => {
+  if (!date) return "-";
+  return new Intl.DateTimeFormat("id-ID", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(new Date(date));
+};
 </script>
 
 <template>
@@ -38,14 +48,14 @@ defineProps<{
                 <p class="text-xs text-muted-foreground">POL (Port of Loading)</p>
                 <p class="font-medium text-lg">{{ job.pol }}</p>
                 <p class="text-sm text-muted-foreground">
-                  {{ job.etd || "TBA" }}
+                  {{ formatDate(job.etd) || "TBA" }}
                 </p>
               </div>
               <div>
                 <p class="text-xs text-muted-foreground">POD (Port of Discharge)</p>
                 <p class="font-medium text-lg">{{ job.pod }}</p>
                 <p class="text-sm text-muted-foreground">
-                  {{ job.eta || "TBA" }}
+                  {{ formatDate(job.eta) || "TBA" }}
                 </p>
               </div>
             </div>

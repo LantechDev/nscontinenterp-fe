@@ -5,6 +5,7 @@ import { useCompanies } from "~/composables/useCompanies";
 import { useJobs } from "~/composables/useJobs";
 import { useServices } from "~/composables/useServices";
 import { toNumber, formatRupiah } from "~/lib/utils";
+import { generateInvoicePdf } from "./utils/pdf-generator";
 
 definePageMeta({
   layout: "dashboard",
@@ -70,6 +71,12 @@ const taxOptions = [
 const selectedTaxRate = ref(0);
 
 // Status badge configuration
+// Handle download invoice PDF
+const handleDownload = async () => {
+  if (!invoice.value) return;
+  await generateInvoicePdf(invoice.value);
+};
+
 const getStatusBadge = (statusCode: string) => {
   const statusMap: Record<string, { label: string; class: string }> = {
     PAID: { label: "Lunas", class: "badge-success" },
@@ -317,7 +324,7 @@ onMounted(() => {
         </div>
       </div>
       <div class="flex gap-2">
-        <button class="btn-secondary">
+        <button class="btn-secondary" @click="handleDownload">
           <Download class="w-4 h-4 mr-2" />
           Download
         </button>

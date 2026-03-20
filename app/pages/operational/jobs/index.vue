@@ -38,6 +38,16 @@ const filteredJobs = computed(() => {
   });
 });
 
+// Helper for date formatting
+const formatDate = (date: string | Date | null | undefined) => {
+  if (!date) return "-";
+  return new Intl.DateTimeFormat("id-ID", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(new Date(date));
+};
+
 // Helper for status badge class
 const getStatusClass = (statusId: string | null | undefined) => {
   if (statusId === "completed") return "bg-gray-100 text-gray-700 border-gray-200";
@@ -172,7 +182,7 @@ const handlePageChange = (page: number) => {
               <td class="py-3 px-4">
                 <div class="flex items-center gap-2 text-sm text-gray-600">
                   <Calendar class="w-3 h-3" />
-                  {{ job.eta || "-" }}
+                  {{ formatDate(job.eta) }}
                 </div>
               </td>
               <td class="py-3 px-4">
@@ -235,7 +245,7 @@ const handlePageChange = (page: number) => {
           </div>
           <div class="flex items-center gap-2 text-sm text-gray-600">
             <Calendar class="w-4 h-4 text-muted-foreground" />
-            <span>ETA: {{ job.eta || "-" }}</span>
+            <span>ETA: {{ formatDate(job.eta) }}</span>
           </div>
         </div>
 
