@@ -8,13 +8,6 @@ export interface Tax {
   createdAt: string;
 }
 
-export interface Pagination {
-  total: number;
-  limit: number;
-  page: number;
-  totalPages: number;
-}
-
 export interface TaxFilters {
   search?: string;
   type?: string;

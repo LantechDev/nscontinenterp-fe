@@ -6,14 +6,12 @@
  * for better code organization.
  */
 
-import { useFinanceDashboardApi, getErrorMessage } from "./useFinanceDashboardApi";
+import { useFinanceDashboardApi } from "./useFinanceDashboardApi";
 import { useFinanceDashboardOverview } from "./useFinanceDashboardOverview";
 import { useFinanceDashboardCogs } from "./useFinanceDashboardCogs";
 import { useFinanceDashboardTransactions } from "./useFinanceDashboardTransactions";
 import { useFinanceDashboardFinanceClose } from "./useFinanceDashboardFinanceClose";
 import { useFinanceDashboardArAp } from "./useFinanceDashboardArAp";
-
-export { getErrorMessage };
 
 /**
  * Finance Dashboard Composable

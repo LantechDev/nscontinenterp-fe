@@ -10,195 +10,38 @@ import {
   Trash2,
 } from "lucide-vue-next";
 import { cn } from "~/lib/utils";
-import {
-  useFinanceTax,
-  type Tax,
-  type TaxFilters,
-  type Pagination,
-} from "~/composables/useFinanceTax";
-import { useConfirm } from "~/composables/useConfirm";
+import { useTaxPage } from "~/composables/useTaxPage";
+import { TaxEditModal } from "./components";
 
 definePageMeta({
   layout: "dashboard",
 });
 
-const { fetchTaxes, fetchTaxById, deleteTax, updateTax, isLoading: isTaxLoading } = useFinanceTax();
-const { confirm } = useConfirm();
-
-// Filters & Pagination
-const filters = ref<TaxFilters>({
-  search: "",
-  type: "",
-  page: 1,
-  limit: 10,
-});
-
-const taxes = ref<Tax[]>([]);
-const pagination = ref<Pagination>({
-  total: 0,
-  limit: 10,
-  page: 1,
-  totalPages: 0,
-});
-
-const viewMode = ref<"list" | "grid">("list");
-
-// Load data
-async function loadTaxes() {
-  try {
-    const result = await fetchTaxes(filters.value);
-    taxes.value = result.items;
-    pagination.value = result.pagination;
-  } catch (error) {
-    console.error("Failed to load taxes:", error);
-  }
-}
-
-// Debounced search
-const searchQuery = ref("");
-let searchTimeout: ReturnType<typeof setTimeout>;
-watch(searchQuery, (val) => {
-  clearTimeout(searchTimeout);
-  searchTimeout = setTimeout(() => {
-    filters.value.search = val;
-    filters.value.page = 1;
-  }, 500);
-});
-
-// Watch filter changes
-watch(
-  () => [filters.value.search, filters.value.type, filters.value.page],
-  () => {
-    loadTaxes();
-  },
-  { deep: true },
-);
-
-const handlePageChange = (page: number) => {
-  filters.value.page = page;
-};
-
-const formatCurrency = (value: number) => {
-  return new Intl.NumberFormat("id-ID", {
-    style: "currency",
-    currency: "IDR",
-    minimumFractionDigits: 0,
-  }).format(value);
-};
-
-const deleteTaxAction = async (id: string) => {
-  const tax = taxes.value.find((t) => t.id === id);
-  const taxName = tax?.name || id;
-
-  const confirmed = await confirm({
-    title: "Hapus Pajak",
-    message: `Apakah Anda yakin ingin menghapus pajak ${taxName}? Tindakan ini tidak dapat dibatalkan.`,
-    confirmText: "Hapus",
-    cancelText: "Batal",
-    type: "danger",
-  });
-
-  if (confirmed) {
-    await deleteTax(id);
-    loadTaxes();
-  }
-};
-
-// Edit modal state
-const isEditModalOpen = ref(false);
-const isSubmitting = ref(false);
-const editError = ref<string | null>(null);
-const editingTaxId = ref<string>("");
-
-// Form state for tax edit
-const formData = ref({
-  name: "",
-  rate: 0,
-  type: "",
-  description: "",
-  isActive: true,
-});
-
-// Tax type options
-const taxTypeOptions = [
-  { value: "ppn", label: "PPN" },
-  { value: "pph", label: "PPh" },
-];
-
-// Open edit modal with form
-const openEditModal = async (id: string) => {
-  try {
-    editingTaxId.value = id;
-
-    const taxData = await fetchTaxById(id);
-    if (!taxData) {
-      throw new Error("Failed to load tax data");
-    }
-
-    const tax = taxData as Tax;
-
-    formData.value = {
-      name: tax.name || "",
-      rate: Number(tax.rate) || 0,
-      type: tax.type || "",
-      description: tax.description || "",
-      isActive: tax.isActive ?? true,
-    };
-
-    isEditModalOpen.value = true;
-    editError.value = null;
-  } catch (e) {
-    console.error("Failed to open edit modal:", e);
-    editError.value = "Failed to load tax data";
-  }
-};
-
-// Close edit modal
-const closeEditModal = () => {
-  isEditModalOpen.value = false;
-  editError.value = null;
-  editingTaxId.value = "";
-};
-
-// Handle edit - open inline edit modal
-const handleEdit = (id: string) => {
-  openEditModal(id);
-};
-
-// Submit tax update
-const handleUpdate = async () => {
-  if (!editingTaxId.value) return;
-
-  try {
-    isSubmitting.value = true;
-    editError.value = null;
-
-    const result = await updateTax(editingTaxId.value, {
-      name: formData.value.name,
-      rate: formData.value.rate,
-      type: formData.value.type,
-      description: formData.value.description,
-      isActive: formData.value.isActive,
-    });
-
-    if (result) {
-      closeEditModal();
-      await loadTaxes();
-    } else {
-      throw new Error("Failed to update tax");
-    }
-  } catch (e) {
-    console.error("Failed to update tax:", e);
-    editError.value = "Failed to update tax";
-  } finally {
-    isSubmitting.value = false;
-  }
-};
-
-const isLoading = computed(() => isTaxLoading.value);
+const {
+  taxes,
+  filters,
+  pagination,
+  viewMode,
+  searchQuery,
+  isEditModalOpen,
+  isSubmitting,
+  editError,
+  editingTaxId,
+  formData,
+  taxTypeOptions,
+  formatCurrency,
+  isLoading,
+  handlePageChange,
+  handleRowClick,
+  openEditModal,
+  closeEditModal,
+  handleUpdate,
+  handleDelete,
+  initialize,
+} = useTaxPage();
 
 onMounted(() => {
-  loadTaxes();
+  initialize();
 });
 </script>
 
@@ -339,13 +182,13 @@ onMounted(() => {
                   <div class="flex gap-1 justify-end">
                     <button
                       class="p-1.5 rounded hover:bg-muted transition-colors"
-                      @click.stop="handleEdit(tax.id)"
+                      @click.stop="openEditModal(tax.id)"
                     >
                       <Pencil class="w-4 h-4 text-muted-foreground" />
                     </button>
                     <button
                       class="p-1.5 rounded hover:bg-muted transition-colors"
-                      @click.stop="deleteTaxAction(tax.id)"
+                      @click.stop="handleDelete(tax.id)"
                     >
                       <Trash2 class="w-4 h-4 text-muted-foreground" />
                     </button>
@@ -368,7 +211,7 @@ onMounted(() => {
           v-for="tax in taxes"
           :key="tax.id"
           class="border border-border rounded-xl bg-white p-5 hover:shadow-sm transition-shadow cursor-pointer"
-          @click="navigateTo(`/finance/tax/${tax.id}`)"
+          @click="handleRowClick(tax.id)"
         >
           <div class="flex items-start justify-between mb-4">
             <div class="flex items-start gap-4">
@@ -438,119 +281,14 @@ onMounted(() => {
   </div>
 
   <!-- Edit Modal -->
-  <Teleport to="body">
-    <div v-if="isEditModalOpen" class="fixed inset-0 z-50 flex items-center justify-center">
-      <!-- Backdrop -->
-      <div class="absolute inset-0 bg-black/50" @click="closeEditModal"></div>
-
-      <!-- Modal Content -->
-      <div
-        class="relative bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto"
-      >
-        <!-- Modal Header -->
-        <div class="flex items-center justify-between p-6 border-b border-border">
-          <h2 class="text-xl font-bold">Edit Pajak</h2>
-          <button @click="closeEditModal" class="p-1 hover:bg-muted rounded-lg transition-colors">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <path d="M18 6 6 18" />
-              <path d="m6 6 12 12" />
-            </svg>
-          </button>
-        </div>
-
-        <!-- Modal Body -->
-        <form @submit.prevent="handleUpdate" class="p-6 space-y-4">
-          <div v-if="editError" class="p-3 rounded-lg bg-red-50 text-red-700 text-sm">
-            {{ editError }}
-          </div>
-
-          <div>
-            <label class="block text-sm font-medium mb-1">Nama Pajak</label>
-            <input
-              v-model="formData.name"
-              type="text"
-              required
-              class="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
-            />
-          </div>
-
-          <div class="grid grid-cols-2 gap-4">
-            <div>
-              <label class="block text-sm font-medium mb-1">Tipe</label>
-              <select
-                v-model="formData.type"
-                required
-                class="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
-              >
-                <option value="" disabled>Pilih Tipe</option>
-                <option v-for="opt in taxTypeOptions" :key="opt.value" :value="opt.value">
-                  {{ opt.label }}
-                </option>
-              </select>
-            </div>
-
-            <div>
-              <label class="block text-sm font-medium mb-1">Rate (%)</label>
-              <input
-                v-model.number="formData.rate"
-                type="number"
-                step="0.01"
-                min="0"
-                max="100"
-                required
-                class="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label class="block text-sm font-medium mb-1">Deskripsi</label>
-            <textarea
-              v-model="formData.description"
-              rows="2"
-              class="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
-            ></textarea>
-          </div>
-
-          <div class="flex items-center gap-2">
-            <input
-              v-model="formData.isActive"
-              type="checkbox"
-              id="isActive"
-              class="w-4 h-4 rounded border-border text-[#012D5A] focus:ring-[#012D5A]"
-            />
-            <label for="isActive" class="text-sm font-medium">Pajak Aktif</label>
-          </div>
-
-          <!-- Modal Footer -->
-          <div class="flex justify-end gap-3 pt-4 border-t border-border">
-            <button
-              type="button"
-              @click="closeEditModal"
-              class="px-4 py-2 text-sm font-medium border border-border rounded-lg hover:bg-muted transition-colors"
-            >
-              Batal
-            </button>
-            <button
-              type="submit"
-              :disabled="isSubmitting"
-              class="px-4 py-2 text-sm font-medium bg-[#012D5A] text-white rounded-lg hover:bg-[#012D5A]/90 transition-colors disabled:opacity-50"
-            >
-              {{ isSubmitting ? "Menyimpan..." : "Simpan" }}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  </Teleport>
+  <TaxEditModal
+    :is-open="isEditModalOpen"
+    :is-submitting="isSubmitting"
+    :edit-error="editError"
+    :editing-tax-id="editingTaxId"
+    :form-data="formData"
+    :tax-type-options="taxTypeOptions"
+    @close="closeEditModal"
+    @submit="handleUpdate"
+  />
 </template>
