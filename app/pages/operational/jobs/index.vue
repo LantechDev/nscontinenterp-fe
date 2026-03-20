@@ -12,7 +12,7 @@ import {
   ArrowRight,
   MoreVertical,
 } from "lucide-vue-next";
-import { cn } from "~/lib/utils";
+import { cn, formatDate } from "~/lib/utils";
 
 definePageMeta({
   layout: "dashboard",
@@ -37,16 +37,6 @@ const filteredJobs = computed(() => {
     return matchesSearch;
   });
 });
-
-// Helper for date formatting
-const formatDate = (date: string | Date | null | undefined) => {
-  if (!date) return "-";
-  return new Intl.DateTimeFormat("id-ID", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  }).format(new Date(date));
-};
 
 // Helper for status badge class
 const getStatusClass = (statusId: string | null | undefined) => {

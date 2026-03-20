@@ -6,6 +6,32 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
+ * Format date to Indonesian format: DD MMM YYYY
+ */
+export const formatDate = (date: string | Date | null | undefined): string => {
+  if (!date) return "-";
+  return new Intl.DateTimeFormat("id-ID", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(new Date(date));
+};
+
+/**
+ * Format date to datetime: MMM DD, YYYY, HH:mm
+ */
+export const formatDateTime = (date: string | Date | null | undefined): string => {
+  if (!date) return "-";
+  return new Date(date).toLocaleString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
+
+/**
  * Convert a Prisma Decimal or unknown value to a number
  * Prisma returns Decimal objects that need explicit conversion
  */
@@ -67,6 +93,7 @@ export function formatRupiah(value: unknown): string {
     maximumFractionDigits: 0,
   }).format(num);
 }
+
 /**
  * Get error message from unknown error
  */

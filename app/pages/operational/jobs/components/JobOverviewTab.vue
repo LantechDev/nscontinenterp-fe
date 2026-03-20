@@ -1,20 +1,11 @@
 <script setup lang="ts">
 import { Ship } from "lucide-vue-next";
 import type { JobWithBls } from "~/composables/useJobs";
+import { formatDate } from "~/lib/utils";
 
 defineProps<{
   job: JobWithBls;
 }>();
-
-// Helper for date formatting
-const formatDate = (date: string | Date | null | undefined) => {
-  if (!date) return "-";
-  return new Intl.DateTimeFormat("id-ID", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  }).format(new Date(date));
-};
 </script>
 
 <template>

@@ -55,6 +55,7 @@ export const NAV_ITEMS: NavItem[] = [
     children: [
       { title: "Users", href: "/settings/users" },
       { title: "Roles", href: "/settings/roles" },
+      { title: "Activity Logs", href: "/settings/activity-logs" },
       { title: "Tenant", href: "/settings/tenant" },
     ],
   },
