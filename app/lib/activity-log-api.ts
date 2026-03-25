@@ -68,6 +68,7 @@ export interface ActivityLogFilters {
   targetModel?: string;
   startDate?: string;
   endDate?: string;
+  search?: string;
   page?: number;
   limit?: number;
 }
@@ -96,6 +97,7 @@ export async function getActivityLogs(filters: ActivityLogFilters = {}) {
   if (filters.targetModel) params.append("targetModel", filters.targetModel);
   if (filters.startDate) params.append("startDate", filters.startDate);
   if (filters.endDate) params.append("endDate", filters.endDate);
+  if (filters.search) params.append("search", filters.search);
   if (filters.page) params.append("page", String(filters.page));
   if (filters.limit) params.append("limit", String(filters.limit));
 

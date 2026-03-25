@@ -426,7 +426,7 @@ export function useFinanceDashboardPage() {
       }
     },
     handleTransactionCreate: () => {
-      router.push("/finance/transaction/create");
+      router.push("/finance/transactions/create");
     },
     handleTransactionEdit: (transaction: TransactionItem) => {
       router.push(`/finance/transaction/${transaction.id}/edit`);
