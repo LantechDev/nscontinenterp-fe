@@ -1,4 +1,6 @@
-import axios from "axios";
+import { type AuthResponse } from "../types/auth";
+export type { BlParty } from "~/types/operational";
+import { getErrorMessage } from "~/lib/utils";
 
 // TypeScript Interfaces based on OpenAPI spec
 export interface Job {
@@ -32,6 +34,7 @@ export interface Job {
   cargoMovement?: { name: string; code: string } | null;
   deliveryMovement?: { name: string; code: string } | null;
   jobParties?: JobParty[];
+  status?: { name: string; code: string } | null;
 }
 
 export interface JobParty {
@@ -40,12 +43,6 @@ export interface JobParty {
   companyName?: string;
   partyRole?: { name: string; code?: string };
   company?: { name: string };
-}
-
-export interface BlParty {
-  id: string;
-  partyRoleCode?: string;
-  companyName?: string;
 }
 
 export interface BillOfLading {
@@ -87,104 +84,103 @@ export interface UpdateBl {
   cargoDescription?: string;
 }
 
+function handleApiError<T = unknown>(error: unknown): AuthResponse<T> {
+  return { success: false, error: getErrorMessage(error) };
+}
+
 export function useJobs() {
   const config = useRuntimeConfig();
-  const isLoading = useState<boolean>('jobs-loading', () => false);
-  const jobs = useState<JobWithBls[]>('jobs-list', () => []);
-  const currentJob = useState<JobWithBls | null>('jobs-current', () => null);
+  const isLoading = ref(false);
+  const jobs = useState<JobWithBls[]>("jobs-list", () => []);
+  const currentJob = useState<JobWithBls | null>("jobs-current", () => null);
 
-  const api = axios.create({
-    baseURL: config.public.apiBase,
-    withCredentials: true,
-  });
-
-  async function fetchJobs() {
+  async function fetchJobs(): Promise<AuthResponse<JobWithBls[]>> {
     isLoading.value = true;
     try {
-      const { data } = await api.get("/operational/jobs");
+      const data = await $fetch<JobWithBls[]>(`${config.public.apiBase}/operational/jobs`, {
+        credentials: "include",
+      });
       jobs.value = data || [];
-      return { success: true, data };
-    } catch (error: any) {
-      console.error("Error fetching jobs:", error);
-      return {
-        success: false,
-        error: error.response?.data || error.message,
-      };
+      return { success: true, data: jobs.value };
+    } catch (error) {
+      return handleApiError<JobWithBls[]>(error);
     } finally {
       isLoading.value = false;
     }
   }
 
-  async function createJob(payload: CreateJob) {
+  async function createJob(payload: CreateJob): Promise<AuthResponse<JobWithBls>> {
     isLoading.value = true;
     try {
-      const { data } = await api.post("/operational/jobs", payload);
-      // Optimistically update or re-fetch
-      // For now, simpler to re-fetch to get server-generated fields
-      await fetchJobs();
+      const data = await $fetch<JobWithBls>(`${config.public.apiBase}/operational/jobs`, {
+        method: "POST",
+        body: payload,
+        credentials: "include",
+      });
+      jobs.value = [...jobs.value, data];
       return { success: true, data };
-    } catch (error: any) {
-      return {
-        success: false,
-        error: error.response?.data || error.message,
-      };
+    } catch (error) {
+      return handleApiError<JobWithBls>(error);
     } finally {
       isLoading.value = false;
     }
   }
 
-  async function getJob(id: string) {
+  async function getJob(id: string): Promise<AuthResponse<JobWithBls>> {
     isLoading.value = true;
     try {
-      const { data } = await api.get(`/operational/jobs/${id}`);
+      const data = await $fetch<JobWithBls>(`${config.public.apiBase}/operational/jobs/${id}`, {
+        credentials: "include",
+      });
       currentJob.value = data;
       return { success: true, data };
-    } catch (error: any) {
-      return {
-        success: false,
-        error: error.response?.data || error.message,
-      };
+    } catch (error) {
+      return handleApiError<JobWithBls>(error);
     } finally {
       isLoading.value = false;
     }
   }
 
-  async function updateBl(id: string, payload: UpdateBl) {
+  async function updateBl(id: string, payload: UpdateBl): Promise<AuthResponse<BillOfLading>> {
     isLoading.value = true;
     try {
-      const { data } = await api.put(`/operational/jobs/bl/${id}`, payload);
-      // Update local state if currentJob is present and has this BL
+      const data = await $fetch<BillOfLading>(
+        `${config.public.apiBase}/operational/jobs/bl/${id}`,
+        {
+          method: "PUT",
+          body: payload,
+          credentials: "include",
+        },
+      );
       if (currentJob.value && currentJob.value.billsOfLading) {
-        const blIndex = currentJob.value.billsOfLading.findIndex(bl => bl.id === id);
+        const blIndex = currentJob.value.billsOfLading.findIndex((bl) => bl.id === id);
         if (blIndex !== -1) {
           currentJob.value.billsOfLading[blIndex] = data;
         }
       }
       return { success: true, data };
-    } catch (error: any) {
-      return {
-        success: false,
-        error: error.response?.data || error.message,
-      };
+    } catch (error) {
+      return handleApiError<BillOfLading>(error);
     } finally {
       isLoading.value = false;
     }
   }
 
-  async function deleteBl(id: string) {
+  async function deleteBl(id: string): Promise<AuthResponse> {
     isLoading.value = true;
     try {
-      await api.delete(`/operational/jobs/bl/${id}`);
-      // Remove from local state
+      await $fetch(`${config.public.apiBase}/operational/jobs/bl/${id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
       if (currentJob.value && currentJob.value.billsOfLading) {
-        currentJob.value.billsOfLading = currentJob.value.billsOfLading.filter(bl => bl.id !== id);
+        currentJob.value.billsOfLading = currentJob.value.billsOfLading.filter(
+          (bl) => bl.id !== id,
+        );
       }
       return { success: true };
-    } catch (error: any) {
-      return {
-        success: false,
-        error: error.response?.data || error.message,
-      };
+    } catch (error) {
+      return handleApiError(error);
     } finally {
       isLoading.value = false;
     }
@@ -198,6 +194,6 @@ export function useJobs() {
     createJob,
     getJob,
     updateBl,
-    deleteBl
+    deleteBl,
   };
 }

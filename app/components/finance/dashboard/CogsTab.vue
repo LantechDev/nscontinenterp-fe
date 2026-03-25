@@ -1,0 +1,272 @@
+<script setup lang="ts">
+import { ArrowUpDown, Download, Filter, Search, ChevronDown } from "lucide-vue-next";
+import { cn, formatRupiah } from "~/lib/utils";
+import type { StatCardData, JobItem, JobStatus } from "~/types/finance";
+import { STATUS_CONFIG } from "~/types/finance";
+
+const props = defineProps<{
+  statsCards: StatCardData[];
+  jobs: JobItem[];
+  isLoading: boolean;
+  isLoadingCustomers: boolean;
+  isLoadingServices: boolean;
+  pagination: { page: number; limit: number; total: number };
+  companies: { id: string; name: string }[];
+  services: { id: string; name: string }[];
+  selectedYear: string;
+  searchQuery: string;
+  customerId: string;
+  serviceId: string;
+  sortBy: string;
+  sortOrder: "asc" | "desc";
+  showSortDropdown: boolean;
+  availableYears: string[];
+  sortOptions: { value: string; label: string }[];
+}>();
+
+const emit = defineEmits<{
+  (e: "update:selectedYear", value: string): void;
+  (e: "update:searchQuery", value: string): void;
+  (e: "update:customerId", value: string): void;
+  (e: "update:serviceId", value: string): void;
+  (e: "update:sortBy", value: string): void;
+  (e: "update:sortOrder", value: "asc" | "desc"): void;
+  (e: "update:showSortDropdown", value: boolean): void;
+  (e: "yearChange", year: string): void;
+  (e: "customerChange", customerId: string): void;
+  (e: "serviceChange", serviceId: string): void;
+  (e: "search"): void;
+  (e: "searchInput", event: Event): void;
+  (e: "searchKeydown", event: KeyboardEvent): void;
+  (e: "sort", field: string): void;
+  (e: "toggleSortDropdown"): void;
+  (e: "pageChange", page: number): void;
+}>();
+
+const formatCurrency = formatRupiah;
+
+const formatPercent = (value: number): string => `${value.toFixed(1)}%`;
+
+const getStatusConfig = (status: JobStatus) => STATUS_CONFIG[status];
+
+// Local refs for v-model binding
+const localSearchQuery = computed({
+  get: () => props.searchQuery,
+  set: (val) => emit("update:searchQuery", val),
+});
+
+const localSelectedYear = computed({
+  get: () => props.selectedYear,
+  set: (val) => emit("update:selectedYear", val),
+});
+
+const localCustomerId = computed({
+  get: () => props.customerId,
+  set: (val) => emit("update:customerId", val),
+});
+
+const localServiceId = computed({
+  get: () => props.serviceId,
+  set: (val) => emit("update:serviceId", val),
+});
+
+const localShowSortDropdown = computed({
+  get: () => props.showSortDropdown,
+  set: (val) => emit("update:showSortDropdown", val),
+});
+</script>
+
+<template>
+  <div class="space-y-4 px-6">
+    <!-- Stat Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <FinanceStatCard
+        v-for="(card, index) in statsCards"
+        :key="index"
+        :card="card"
+        :index="index"
+      />
+    </div>
+
+    <!-- Job Cost Table -->
+    <div class="border border-border rounded-xl bg-white mt-4">
+      <!-- First Row: Title + Search/Sort/Export -->
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 p-5">
+        <h2 class="text-lg font-semibold">Job Cost Breakdown</h2>
+        <div class="flex flex-wrap items-center gap-2">
+          <!-- Search Input -->
+          <div class="relative flex items-center">
+            <input
+              v-model="localSearchQuery"
+              @input="emit('searchInput', $event)"
+              @keydown="emit('searchKeydown', $event)"
+              type="text"
+              placeholder="Search job or customer..."
+              class="w-48 px-3 py-2 pl-9 text-sm border border-border rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-primary"
+            />
+            <Search
+              class="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground"
+            />
+          </div>
+
+          <!-- Sort Dropdown -->
+          <div class="relative">
+            <button
+              class="flex items-center gap-2 px-3 py-2 text-sm border border-border bg-white hover:bg-gray-50 rounded-lg"
+              @click="emit('toggleSortDropdown')"
+            >
+              <ArrowUpDown class="w-4 h-4" />
+              <span>Sort</span>
+              <ChevronDown class="w-3 h-3" />
+            </button>
+
+            <!-- Sort Dropdown Menu -->
+            <div
+              v-if="localShowSortDropdown"
+              class="absolute right-0 mt-1 w-40 bg-white border border-border rounded-lg shadow-lg z-10"
+            >
+              <button
+                v-for="option in sortOptions"
+                :key="option.value"
+                @click="emit('sort', option.value)"
+                :class="
+                  cn(
+                    'w-full px-3 py-2 text-sm text-left hover:bg-gray-50 flex items-center justify-between',
+                    sortBy === option.value ? 'text-[#012D5A] font-medium' : 'text-gray-700',
+                  )
+                "
+              >
+                <span>{{ option.label }}</span>
+                <span v-if="sortBy === option.value" class="text-xs text-muted-foreground">
+                  {{ sortOrder === "asc" ? "↑" : "↓" }}
+                </span>
+              </button>
+            </div>
+          </div>
+
+          <button
+            class="flex items-center gap-2 px-3 py-2 text-sm border border-border bg-white hover:bg-gray-50 rounded-lg"
+          >
+            <Download class="w-4 h-4" /><span>Export</span>
+          </button>
+        </div>
+      </div>
+      <!-- Second Row: Year/Customer/Service Filters -->
+      <div class="flex flex-wrap items-center gap-2 p-5 border-b border-border bg-gray-50/30">
+        <!-- Year Filter -->
+        <div class="relative">
+          <select
+            v-model="localSelectedYear"
+            @change="emit('yearChange', ($event.target as HTMLSelectElement).value)"
+            class="appearance-none px-3 py-2 pr-8 text-sm border border-border rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
+          >
+            <option value="">All Years</option>
+            <option v-for="year in availableYears" :key="year" :value="year">
+              {{ year }}
+            </option>
+          </select>
+          <Filter
+            class="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none"
+          />
+        </div>
+
+        <!-- Customer Filter -->
+        <select
+          v-model="localCustomerId"
+          @change="emit('customerChange', ($event.target as HTMLSelectElement).value)"
+          class="px-3 py-2 text-sm border border-border rounded-lg bg-white"
+          :disabled="isLoadingCustomers"
+        >
+          <option value="">All Customers</option>
+          <option v-for="customer in companies" :key="customer.id" :value="customer.id">
+            {{ customer.name }}
+          </option>
+        </select>
+
+        <!-- Service Filter -->
+        <select
+          v-model="localServiceId"
+          @change="emit('serviceChange', ($event.target as HTMLSelectElement).value)"
+          class="px-3 py-2 text-sm border border-border rounded-lg bg-white"
+          :disabled="isLoadingServices"
+        >
+          <option value="">All Services</option>
+          <option v-for="service in services" :key="service.id" :value="service.id">
+            {{ service.name }}
+          </option>
+        </select>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full">
+          <thead>
+            <tr class="border-b border-border bg-gray-50/50">
+              <th class="py-3 px-4 text-left text-sm font-medium text-gray-500">JOB</th>
+              <th class="py-3 px-4 text-left text-sm font-medium text-gray-500">POL - POD</th>
+              <th class="py-3 px-4 text-left text-sm font-medium text-gray-500">Customer</th>
+              <th class="py-3 px-4 text-right text-sm font-medium text-gray-500">Revenue</th>
+              <th class="py-3 px-4 text-right text-sm font-medium text-gray-500">COGS</th>
+              <th class="py-3 px-4 text-right text-sm font-medium text-gray-500">Profit</th>
+              <th class="py-3 px-4 text-right text-sm font-medium text-gray-500">Margin</th>
+              <th class="py-3 px-4 text-center text-sm font-medium text-gray-500">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-if="!jobs.length && !isLoading">
+              <td colspan="8" class="py-8 text-center text-muted-foreground">No data available</td>
+            </tr>
+            <tr
+              v-for="job in jobs"
+              :key="job.id"
+              class="border-b border-gray-100 hover:bg-gray-50/50"
+            >
+              <td class="py-3 px-4">
+                <span class="text-sm font-medium text-[#012D5A]">{{ job.jobNumber }}</span>
+              </td>
+              <td class="py-3 px-4 text-sm">{{ job.polPod }}</td>
+              <td class="py-3 px-4 text-sm">{{ job.customer }}</td>
+              <td class="py-3 px-4 text-sm text-right font-medium">
+                {{ formatCurrency(job.revenue) }}
+              </td>
+              <td class="py-3 px-4 text-sm text-right">
+                {{ formatCurrency(job.cogs) }}
+              </td>
+              <td class="py-3 px-4 text-sm text-right">
+                {{ formatCurrency(job.profit) }}
+              </td>
+              <td class="py-3 px-4 text-sm text-right">
+                {{ formatPercent(job.margin) }}
+              </td>
+              <td class="py-3 px-4 text-center">
+                <span
+                  :class="
+                    cn(
+                      'px-2 py-1 rounded border text-xs font-medium',
+                      getStatusConfig(job.status).class,
+                    )
+                  "
+                  >{{ getStatusConfig(job.status).label }}</span
+                >
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="flex items-center justify-between p-4 border-t border-border">
+        <p class="text-sm text-muted-foreground">
+          <template v-if="pagination.total > 0"
+            >Showing {{ (pagination.page - 1) * pagination.limit + 1 }} to
+            {{ Math.min(pagination.page * pagination.limit, pagination.total) }}
+            of {{ pagination.total }} results</template
+          >
+          <template v-else>No results found</template>
+        </p>
+        <UiPagination
+          v-model:page="pagination.page"
+          :total="pagination.total"
+          :items-per-page="pagination.limit"
+          @update:page="emit('pageChange', $event)"
+        />
+      </div>
+    </div>
+  </div>
+</template>

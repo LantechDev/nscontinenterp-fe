@@ -13,14 +13,19 @@ export interface User {
   lastLogin?: string; // Not in spec but present in existing code usage
 }
 
+export interface OrganizationMetadata {
+  address?: string;
+  phone?: string;
+  email?: string;
+  taxId?: string;
+}
+
 export interface Organization {
   id: string;
   name: string;
   slug: string;
   logo?: string;
-  createdAt: string;
-  updatedAt: string;
-  metadata?: Record<string, any>;
+  metadata?: OrganizationMetadata;
 }
 
 export interface Session {
@@ -41,7 +46,7 @@ export interface AuthSession {
   user: User;
 }
 
-export interface AuthResponse<T = any> {
+export interface AuthResponse<T = unknown> {
   success: boolean;
   data?: T;
   error?: string;

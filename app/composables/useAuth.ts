@@ -1,47 +1,20 @@
-import axios, { type AxiosError } from "axios";
-import type { 
-  User, 
-  Session, 
-  AuthSession, 
-  LoginResponse, 
-  SignUpResponse, 
-  UserListResponse,
-  AuthResponse,
-  Organization 
-} from "../types/auth";
+import type { User, Session, AuthSession } from "../types/auth";
+import { authApi } from "~/lib/auth-api";
 
 export function useAuth() {
-  const user = useState<User | null>('auth-user', () => null);
-  const session = useState<Session | null>('auth-session', () => null);
-  const isLoading = useState<boolean>('auth-loading', () => true);
-  const config = useRuntimeConfig();
-
-  // Create an axios instance with base URL and credentials
-  const api = axios.create({
-    baseURL: `${config.public.apiBase}/auth`,
-    withCredentials: true,
-  });
-
-  const handleError = <T>(error: any): AuthResponse<T> => {
-    const apiError = error.response?.data;
-    const errorMessage = typeof apiError === 'string' 
-        ? apiError 
-        : apiError?.message || error.message || "An error occurred";
-    
-    return {
-        success: false,
-        error: errorMessage
-    };
-  };
+  const user = useState<User | null>("auth-user", () => null);
+  const session = useState<Session | null>("auth-session", () => null);
+  const isLoading = ref(true);
 
   async function fetchSession(): Promise<AuthSession | null> {
     isLoading.value = true;
     try {
-      const { data } = await api.get<AuthSession>("/get-session");
-      user.value = data.user || null;
-      session.value = data.session || null;
+      const data = await authApi.getSession();
+      user.value = data?.user || null;
+      session.value = data?.session || null;
       return data;
     } catch (error) {
+      console.warn("[Auth] Session fetch failed:", error);
       user.value = null;
       return null;
     } finally {
@@ -49,161 +22,165 @@ export function useAuth() {
     }
   }
 
-  async function login(email: string, password: string): Promise<AuthResponse<LoginResponse>> {
+  async function login(email: string, password: string) {
     isLoading.value = true;
     try {
-      const { data } = await api.post<LoginResponse>("/sign-in/email", {
-        email,
-        password,
-      });
-      user.value = data.user || null;
-      return { success: true, data };
-    } catch (error: any) {
-      return handleError(error);
-    } finally {
-      isLoading.value = false;
-    }
-  }
-
-  async function logout(): Promise<AuthResponse> {
-    isLoading.value = true;
-    try {
-      await api.post("/sign-out", {});
-      user.value = null;
-      return { success: true };
-    } catch (error: any) {
-      return handleError(error);
-    } finally {
-      isLoading.value = false;
-    }
-  }
-
-  async function createUser(name: string, email: string, password: string, role: string): Promise<AuthResponse<SignUpResponse>> {
-    isLoading.value = true;
-    try {
-      const { data } = await api.post<SignUpResponse>("/admin/create-user", {
-        name,
-        email,
-        password,
-        role,
-      });
-      // Do not update user.value as this is an admin action creating ANOTHER user
-      return { success: true, data };
-    } catch (error: any) {
-      return handleError(error);
-    } finally {
-      isLoading.value = false;
-    }
-  }
-
-  async function requestPasswordReset(email: string, redirectTo?: string): Promise<AuthResponse> {
-    isLoading.value = true;
-    try {
-      await api.post("/request-password-reset", {
-        email,
-        redirectTo,
-      });
-      return { success: true };
-    } catch (error: any) {
-      return handleError(error);
-    } finally {
-      isLoading.value = false;
-    }
-  }
-
-  async function resetPassword(newPassword: string, token: string): Promise<AuthResponse> {
-    isLoading.value = true;
-    try {
-      await api.post("/reset-password", {
-        newPassword,
-        token,
-      });
-      return { success: true };
-    } catch (error: any) {
-      return handleError(error);
-    } finally {
-      isLoading.value = false;
-    }
-  }
-
-  async function changePassword(currentPassword: string, newPassword: string): Promise<AuthResponse> {
-    isLoading.value = true;
-    try {
-      await api.post("/change-password", {
-        currentPassword,
-        newPassword,
-      });
-      return { success: true };
-    } catch (error: any) {
-      return handleError(error);
-    } finally {
-      isLoading.value = false;
-    }
-  }
-
-  async function updateUser(data: { name?: string; image?: string }): Promise<AuthResponse<{ user: User }>> {
-    isLoading.value = true;
-    try {
-      const { data: responseData } = await api.post<{ user: User }>("/update-user", data);
-      if (responseData.user) {
-          user.value = { ...user.value, ...responseData.user } as User;
+      const result = await authApi.signIn(email, password);
+      if (result.success && result.data) {
+        user.value = result.data.user || null;
       }
-      return { success: true, data: responseData };
-    } catch (error: any) {
-      return handleError(error);
+      return result;
     } finally {
       isLoading.value = false;
     }
   }
 
-  async function fetchUsers(): Promise<AuthResponse<UserListResponse>> {
+  async function logout() {
     isLoading.value = true;
     try {
-      const { data } = await api.get<UserListResponse>("/admin/list-users");
-      return { success: true, data };
-    } catch (error: any) {
-      return handleError(error);
+      const result = await authApi.signOut();
+      if (result.success) user.value = null;
+      return result;
     } finally {
       isLoading.value = false;
     }
   }
 
-  async function fetchUserById(id: string): Promise<AuthResponse<{ user: User }>> {
+  async function createUser(name: string, email: string, password: string, role: string) {
     isLoading.value = true;
     try {
-      const { data } = await api.get<{ user: User }>("/admin/get-user", {
-        params: { id }
-      });
-      return { success: true, data };
-    } catch (error: any) {
-      return handleError(error);
+      return await authApi.createUser(name, email, password, role);
     } finally {
       isLoading.value = false;
     }
   }
 
-  async function adminUpdateUser(userId: string, data: { name?: string; email?: string; password?: string; role?: string; status?: "active" | "inactive" }): Promise<AuthResponse<{ user: User }>> {
+  async function requestPasswordReset(email: string, redirectTo?: string) {
     isLoading.value = true;
     try {
-      const { data: responseData } = await api.post<{ user: User }>("/admin/update-user", {
-        userId,
-        data: data
-      });
-      return { success: true, data: responseData };
-    } catch (error: any) {
-      return handleError(error);
+      return await authApi.requestPasswordReset(email, redirectTo);
     } finally {
       isLoading.value = false;
     }
   }
 
-  async function deleteUser(userId: string): Promise<AuthResponse> {
+  async function resetPassword(newPassword: string, token: string) {
     isLoading.value = true;
     try {
-      await api.post("/admin/delete-user", { userId });
-      return { success: true };
-    } catch (error: any) {
-      return handleError(error);
+      return await authApi.resetPassword(newPassword, token);
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  async function changePassword(currentPassword: string, newPassword: string) {
+    isLoading.value = true;
+    try {
+      return await authApi.changePassword(currentPassword, newPassword);
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  async function updateUser(data: { name?: string; image?: string }) {
+    isLoading.value = true;
+    try {
+      const result = await authApi.updateUser(data);
+      if (result.success && result.data?.user) {
+        user.value = { ...user.value, ...result.data.user } as User;
+      }
+      return result;
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  async function fetchUsers() {
+    isLoading.value = true;
+    try {
+      return await authApi.fetchUsers();
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  async function fetchUserById(id: string) {
+    isLoading.value = true;
+    try {
+      return await authApi.fetchUserById(id);
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  async function adminUpdateUser(
+    userId: string,
+    data: {
+      name?: string;
+      email?: string;
+      password?: string;
+      role?: string;
+      status?: "active" | "inactive";
+    },
+  ) {
+    isLoading.value = true;
+    try {
+      return await authApi.adminUpdateUser(userId, data);
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  async function deleteUser(userId: string) {
+    isLoading.value = true;
+    try {
+      return await authApi.deleteUser(userId);
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  async function listOrganizations() {
+    isLoading.value = true;
+    try {
+      return await authApi.listOrganizations();
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  async function setActiveOrganization(organizationId: string) {
+    isLoading.value = true;
+    try {
+      const result = await authApi.setActiveOrganization(organizationId);
+      if (result.success) await fetchSession();
+      return result;
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  async function createOrganization(data: {
+    name: string;
+    slug: string;
+    logo?: string;
+    metadata?: Record<string, unknown>;
+  }) {
+    isLoading.value = true;
+    try {
+      return await authApi.createOrganization(data);
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  async function updateOrganization(
+    organizationId: string,
+    data: { name?: string; slug?: string; logo?: string; metadata?: Record<string, unknown> },
+  ) {
+    isLoading.value = true;
+    try {
+      return await authApi.updateOrganization(organizationId, data);
     } finally {
       isLoading.value = false;
     }
@@ -230,34 +207,7 @@ export function useAuth() {
     deleteUser,
     listOrganizations,
     setActiveOrganization,
+    createOrganization,
+    updateOrganization,
   };
-
-  async function listOrganizations(): Promise<AuthResponse<Organization[]>> {
-    isLoading.value = true;
-    try {
-      const { data } = await api.get<Organization[]>("/organization/list");
-      return { success: true, data };
-    } catch (error: any) {
-      return handleError(error);
-    } finally {
-      isLoading.value = false;
-    }
-  }
-
-  async function setActiveOrganization(organizationId: string): Promise<AuthResponse> {
-    isLoading.value = true;
-    try {
-      await api.post("/organization/set-active", {
-        organizationId,
-      });
-      // Refresh session to update activeOrganizationId
-      await fetchSession();
-      return { success: true };
-    } catch (error: any) {
-      return handleError(error);
-    } finally {
-      isLoading.value = false;
-    }
-  }
-
 }

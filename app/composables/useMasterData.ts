@@ -1,9 +1,38 @@
-import axios from "axios";
+import { type AuthResponse } from "../types/auth";
+import type { Vessel } from "./useVessels";
+
+export { type Vessel };
+
+export interface Address {
+  id: string;
+  label: string;
+  fullAddress: string;
+  country: string;
+  city?: string;
+  street?: string;
+  postalCode?: string;
+  state?: string;
+  eori?: string;
+  taxId?: string;
+  isDefault: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
 
 export interface Company {
   id: string;
+  code: string;
   name: string;
   email?: string;
+  phone?: string;
+  description?: string;
+  notes?: string;
+  addresses?: Address[];
+  isVendor: boolean;
+  isCustomer: boolean;
+  isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface ContainerType {
@@ -12,105 +41,127 @@ export interface ContainerType {
   name: string;
 }
 
-export interface Vessel {
-  id: string;
-  name: string;
-  imoNumber?: string;
-}
-
 export interface PackageType {
   id: string;
   code: string;
   name: string;
 }
 
+type ErrorResponse = {
+  message?: string;
+  error?: string;
+};
+
+function getErrorMessage(error: unknown): string {
+  if (error && typeof error === "object" && "data" in error) {
+    const errorData = (error as { data?: ErrorResponse }).data;
+    if (errorData?.message) return errorData.message;
+    if (errorData?.error) return errorData.error;
+  }
+  if (error instanceof Error) return error.message;
+  return "An error occurred";
+}
+
+function handleApiError<T = unknown>(error: unknown): AuthResponse<T> {
+  return { success: false, error: getErrorMessage(error) };
+}
+
 export function useMasterData() {
-    const config = useRuntimeConfig();
-    const isLoading = useState<boolean>('master-loading', () => false);
+  const config = useRuntimeConfig();
+  const isLoading = ref(false);
 
-    const api = axios.create({
-        baseURL: config.public.apiBase,
-        withCredentials: true,
-    });
-
-    async function fetchCompanies() {
-        try {
-            const { data } = await api.get("/master/companies");
-            return data;
-        } catch (e) {
-            console.error("Failed to fetch companies", e);
-            return [];
-        }
+  async function fetchCompanies() {
+    try {
+      const data = await $fetch<Company[]>(`${config.public.apiBase}/master/companies`, {
+        credentials: "include",
+      });
+      return data;
+    } catch {
+      return [];
     }
+  }
 
-    async function fetchContainerTypes() {
-        try {
-            const { data } = await api.get("/master/container-types");
-            return data;
-        } catch (e) {
-            console.error("Failed to fetch container types", e);
-            return [];
-        }
+  async function fetchContainerTypes() {
+    try {
+      const data = await $fetch<ContainerType[]>(
+        `${config.public.apiBase}/master/container-types`,
+        {
+          credentials: "include",
+        },
+      );
+      return data;
+    } catch {
+      return [];
     }
+  }
 
-    async function fetchPackageTypes() {
-        try {
-            const { data } = await api.get("/master/package-types");
-            return data;
-        } catch (e) {
-            console.error("Failed to fetch package types", e);
-            return [];
-        }
+  async function fetchPackageTypes() {
+    try {
+      const data = await $fetch<PackageType[]>(`${config.public.apiBase}/master/package-types`, {
+        credentials: "include",
+      });
+      return data;
+    } catch {
+      return [];
     }
+  }
 
-    async function fetchVessels(query?: string) {
-        try {
-            const { data } = await api.get("/master/vessels", { params: { q: query } });
-            return data;
-        } catch (e) {
-            console.error("Failed to fetch vessels", e);
-            return [];
-        }
+  async function fetchVessels(query?: string) {
+    try {
+      const data = await $fetch<Vessel[]>(`${config.public.apiBase}/master/vessels`, {
+        params: { q: query },
+        credentials: "include",
+      });
+      return data;
+    } catch {
+      return [];
     }
+  }
 
-    async function createCompany(name: string) {
-        try {
-            isLoading.value = true;
-            const { data } = await api.post("/master/companies", { name });
-            return { success: true, data };
-        } catch (error: any) {
-            console.error("Failed to create company", error);
-            return {
-                success: false,
-                error: error.response?.data || error.message
-            };
-        } finally {
-            isLoading.value = false;
-        }
+  async function createCompany(name: string): Promise<AuthResponse<Company>> {
+    try {
+      isLoading.value = true;
+      // Default to CUSTOMER for now as used in Create Job form
+      const data = await $fetch<Company>(`${config.public.apiBase}/master/companies`, {
+        method: "POST",
+        body: {
+          name,
+          isCustomer: true,
+          isVendor: false,
+        },
+        credentials: "include",
+      });
+      return { success: true, data };
+    } catch (error) {
+      return handleApiError<Company>(error);
+    } finally {
+      isLoading.value = false;
     }
+  }
 
-    async function createVessel(name: string) {
-        try {
-            isLoading.value = true;
-            const { data } = await api.post("/master/vessels", { name });
-            return { success: true, data };
-        } catch (error: any) {
-            console.error("Failed to create vessel", error);
-            return {
-                success: false,
-                error: error.response?.data || error.message
-            };
-        } finally {
-            isLoading.value = false;
-        }
+  async function createVessel(name: string): Promise<AuthResponse<Vessel>> {
+    try {
+      isLoading.value = true;
+      const data = await $fetch<Vessel>(`${config.public.apiBase}/master/vessels`, {
+        method: "POST",
+        body: { name },
+        credentials: "include",
+      });
+      return { success: true, data };
+    } catch (error) {
+      return handleApiError<Vessel>(error);
+    } finally {
+      isLoading.value = false;
     }
+  }
 
-    return {
-        fetchCompanies,
-        fetchContainerTypes,
-        fetchPackageTypes,
-        fetchVessels,
-        createCompany,
-        createVessel
-    }
+  return {
+    isLoading,
+    fetchCompanies,
+    fetchContainerTypes,
+    fetchPackageTypes,
+    fetchVessels,
+    createCompany,
+    createVessel,
+  };
 }
