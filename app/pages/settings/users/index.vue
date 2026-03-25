@@ -2,6 +2,7 @@
 import { Plus, Search, Edit, Trash2, Shield, LayoutList, ChevronDown } from "lucide-vue-next";
 import { cn } from "~/lib/utils";
 import type { User as AuthUser } from "~/types/auth";
+import { toast } from "vue-sonner";
 
 interface DisplayUser {
   id: string;
@@ -54,6 +55,7 @@ onMounted(async () => {
     }
   } catch (e) {
     console.error("Failed to fetch users", e);
+    toast.error("Gagal memuat daftar user.");
   } finally {
     isLoading.value = false;
   }
@@ -80,15 +82,12 @@ const handlePageChange = (page: number) => {
       <h1 class="text-2xl font-bold">User & Role</h1>
 
       <div class="flex items-center gap-2">
-        <NuxtLink
-          to="/settings/roles"
-          class="flex items-center gap-2 px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors text-foreground"
-        >
-          <Shield class="w-4 h-4" />
+        <NuxtLink to="/settings/roles" class="btn-secondary">
+          <Shield class="w-4 h-4 mr-2" />
           <span>Manage Roles</span>
         </NuxtLink>
         <div class="flex items-center bg-white border border-border rounded-lg p-1">
-          <button class="p-1.5 rounded transition-colors bg-[#012D5A] text-white">
+          <button class="bg-primary text-primary-foreground p-1.5 rounded transition-colors">
             <LayoutList class="w-4 h-4" />
           </button>
           <!-- Grid view placeholder if needed -->
@@ -124,11 +123,8 @@ const handlePageChange = (page: number) => {
           />
         </div>
 
-        <NuxtLink
-          to="/settings/users/create"
-          class="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-[#012D5A] text-white hover:bg-[#012D5A]/90 rounded-lg transition-colors min-w-fit whitespace-nowrap"
-        >
-          <Plus class="w-4 h-4" />
+        <NuxtLink to="/settings/users/create" class="btn-primary min-w-fit whitespace-nowrap">
+          <Plus class="w-4 h-4 mr-2" />
           <span>New User</span>
         </NuxtLink>
       </div>

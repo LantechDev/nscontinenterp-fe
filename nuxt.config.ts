@@ -8,6 +8,9 @@ export default defineNuxtConfig({
   },
   modules: ["@nuxt/image"],
   css: ["~/assets/css/main.css"],
+  build: {
+    transpile: ["vue-sonner"],
+  },
   postcss: {
     plugins: {
       tailwindcss: {},

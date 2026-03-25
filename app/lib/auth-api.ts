@@ -134,11 +134,10 @@ export const authApi = {
 
   async fetchUserById(id: string): Promise<AuthResponse<{ user: User }>> {
     try {
-      const data = await $fetch<{ user: User }>(`${getApiBase()}/admin/users`, {
-        params: { id },
+      const data = await $fetch<User>(`${getApiBase()}/admin/users/${id}`, {
         credentials: "include",
       });
-      return { success: true, data };
+      return { success: true, data: { user: data } };
     } catch (error) {
       return handleApiError<{ user: User }>(error);
     }

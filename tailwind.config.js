@@ -95,20 +95,36 @@ export default {
       },
       keyframes: {
         "accordion-down": {
-          from: { height: "0" },
-          to: { height: "var(--radix-accordion-content-height)" },
+          from: {
+            height: "0",
+          },
+          to: {
+            height: "var(--radix-accordion-content-height)",
+          },
         },
         "accordion-up": {
-          from: { height: "var(--radix-accordion-content-height)" },
-          to: { height: "0" },
+          from: {
+            height: "var(--radix-accordion-content-height)",
+          },
+          to: {
+            height: "0",
+          },
         },
         "fade-in": {
-          from: { opacity: "0" },
-          to: { opacity: "1" },
+          from: {
+            opacity: "0",
+          },
+          to: {
+            opacity: "1",
+          },
         },
         "slide-in-left": {
-          from: { transform: "translateX(-100%)" },
-          to: { transform: "translateX(0)" },
+          from: {
+            transform: "translateX(-100%)",
+          },
+          to: {
+            transform: "translateX(0)",
+          },
         },
       },
       animation: {
@@ -119,5 +135,5 @@ export default {
       },
     },
   },
-  plugins: [animate],
+  plugins: [animate, require("tailwindcss-animate")],
 };

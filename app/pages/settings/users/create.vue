@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ArrowLeft, Save, Loader2 } from "lucide-vue-next";
 import { z } from "zod";
+import { toast } from "vue-sonner";
 
 definePageMeta({
   layout: "dashboard",
@@ -64,14 +65,14 @@ const handleSubmit = async () => {
     );
 
     if (result.success) {
+      toast.success("User berhasil dibuat");
       router.push("/settings/users");
     } else {
-      // General error
-      errors.value.root = result.error || "Gagal membuat user.";
+      toast.error(result.error || "Gagal membuat user.");
     }
   } catch (e) {
     const error = e as Error;
-    errors.value.root = error.message || "Terjadi kesalahan sistem.";
+    toast.error(error.message || "Terjadi kesalahan sistem.");
   } finally {
     isLoading.value = false;
   }
@@ -90,13 +91,6 @@ const handleSubmit = async () => {
           <p class="text-muted-foreground mt-1">Buat akun user baru</p>
         </div>
       </div>
-    </div>
-
-    <div
-      v-if="errors.root"
-      class="bg-red-50 text-red-600 p-3 rounded-lg text-sm border border-red-200"
-    >
-      {{ errors.root }}
     </div>
 
     <form @submit.prevent="handleSubmit" class="card-elevated p-6 space-y-6">
