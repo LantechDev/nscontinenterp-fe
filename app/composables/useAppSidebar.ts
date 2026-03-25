@@ -1,5 +1,5 @@
 import type { Component } from "vue";
-import { LayoutDashboard, Package, Ship, Wallet, BarChart3, Settings } from "lucide-vue-next";
+import { LayoutDashboard, Package, Ship, Wallet, Settings } from "lucide-vue-next";
 import type { Organization } from "~/types/auth";
 
 export interface NavChild {
@@ -44,11 +44,12 @@ export const NAV_ITEMS: NavItem[] = [
       { title: "Pajak", href: "/finance/tax" },
     ],
   },
-  {
-    title: "Reports",
-    icon: BarChart3,
-    href: "/reports",
-  },
+  // Backlog for now - Rafael, 25/03/2026
+  // {
+  //   title: "Reports",
+  //   icon: BarChart3,
+  //   href: "/reports",
+  // },
   {
     title: "Settings",
     icon: Settings,

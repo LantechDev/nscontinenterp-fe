@@ -73,7 +73,7 @@ const dictionary: Record<string, string> = {
 };
 
 // Sort dictionary by longest keys first to prevent partial word replacement bugs
-const sortedKeys = Object.keys(dictionary).sort((a, b) => b.length - a.length);
+const sortedKeys = Object.keys(dictionary).toSorted((a, b) => b.length - a.length);
 
 function walkSync(currentDirPath: string, callback: (filePath: string) => void) {
   fs.readdirSync(currentDirPath).forEach((name) => {
