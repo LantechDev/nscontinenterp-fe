@@ -123,28 +123,28 @@ onUnmounted(() => {
           >
             <div class="flex justify-start items-center gap-1.5">
               <div class="flex justify-center items-center gap-2.5">
-                <div class="text-black text-xs font-normal font-['Inter'] leading-4">
+                <div class="text-black text-sm font-normal font-['Inter'] leading-5">
                   Master Data
                 </div>
               </div>
-              <ChevronRight class="w-3 h-3 text-slate-600" />
+              <ChevronRight class="w-4 h-4 text-slate-600" />
               <div class="flex justify-center items-center gap-2.5">
-                <div class="text-black text-xs font-normal font-['Inter'] leading-4">Company</div>
+                <div class="text-black text-sm font-normal font-['Inter'] leading-5">Company</div>
               </div>
-              <ChevronRight class="w-3 h-3 text-slate-600" />
+              <ChevronRight class="w-4 h-4 text-slate-600" />
               <div class="flex justify-center items-center gap-2.5">
-                <div class="text-black text-xs font-semibold font-['Inter'] leading-4">
+                <div class="text-black text-sm font-semibold font-['Inter'] leading-5">
                   {{ companyDetails.name }}
                 </div>
               </div>
               <template v-if="addressMode !== 'view'">
-                <ChevronRight class="w-3 h-3 text-slate-600" />
+                <ChevronRight class="w-4 h-4 text-slate-600" />
                 <div class="flex justify-center items-center gap-2.5">
-                  <div class="text-black text-xs font-normal font-['Inter'] leading-4">Address</div>
+                  <div class="text-black text-sm font-normal font-['Inter'] leading-5">Address</div>
                 </div>
-                <ChevronRight class="w-3 h-3 text-slate-600" />
+                <ChevronRight class="w-4 h-4 text-slate-600" />
                 <div class="flex justify-center items-center gap-2.5">
-                  <div class="text-black text-xs font-semibold font-['Inter'] leading-4">
+                  <div class="text-black text-sm font-semibold font-['Inter'] leading-5">
                     {{ addressMode === "add" ? "Add" : "Edit" }}
                   </div>
                 </div>
@@ -154,7 +154,7 @@ onUnmounted(() => {
               class="inline-flex justify-center items-center gap-2.5 cursor-pointer hover:opacity-75"
               @click="isOpen = false"
             >
-              <div class="text-black text-xs font-semibold font-['Inter'] leading-4">Close</div>
+              <div class="text-black text-sm font-semibold font-['Inter'] leading-5">Close</div>
             </div>
           </div>
 

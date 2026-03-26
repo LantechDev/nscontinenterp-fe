@@ -32,10 +32,10 @@ const formatShortDate = (dateString?: string | null) => {
       <!-- Left Section: Job Number, Company Code, Badge -->
       <div class="flex justify-start items-start gap-2">
         <div class="inline-flex flex-col justify-start items-start gap-1">
-          <div class="text-black text-xs font-semibold font-['Inter'] leading-4">
+          <div class="text-black text-sm font-semibold font-['Inter'] leading-5">
             {{ job.jobNumber }}
           </div>
-          <div class="text-gray-500 text-xs font-normal font-['Inter'] leading-4">
+          <div class="text-gray-500 text-sm font-normal font-['Inter'] leading-5">
             {{ companyCode }}
           </div>
         </div>
@@ -43,7 +43,7 @@ const formatShortDate = (dateString?: string | null) => {
           v-if="job.status"
           class="px-2 py-0.5 bg-blue-50 rounded-md shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] outline outline-1 outline-offset-[-1px] outline-blue-200 flex justify-start items-center gap-1"
         >
-          <div class="text-center text-blue-700 text-xs font-medium font-['Inter'] leading-4">
+          <div class="text-center text-blue-700 text-sm font-medium font-['Inter'] leading-5">
             {{ job.status.name }}
           </div>
         </div>
@@ -51,8 +51,8 @@ const formatShortDate = (dateString?: string | null) => {
       <!-- Right Section: POL -> POD with ETD -->
       <div class="flex-1 flex justify-end items-center gap-4 overflow-hidden">
         <div class="inline-flex flex-col justify-center items-end gap-1">
-          <div class="text-black text-xs font-semibold font-['Inter'] leading-4">{{ job.pol }}</div>
-          <div class="text-gray-500 text-xs font-normal font-['Inter'] leading-4">
+          <div class="text-black text-sm font-semibold font-['Inter'] leading-5">{{ job.pol }}</div>
+          <div class="text-gray-500 text-sm font-normal font-['Inter'] leading-5">
             ETD: {{ formatShortDate(job.etd) }}
           </div>
         </div>
@@ -63,8 +63,8 @@ const formatShortDate = (dateString?: string | null) => {
           ></div>
         </div>
         <div class="inline-flex flex-col justify-center items-start gap-1">
-          <div class="text-black text-xs font-semibold font-['Inter'] leading-4">{{ job.pod }}</div>
-          <div class="text-gray-500 text-xs font-normal font-['Inter'] leading-4">
+          <div class="text-black text-sm font-semibold font-['Inter'] leading-5">{{ job.pod }}</div>
+          <div class="text-gray-500 text-sm font-normal font-['Inter'] leading-5">
             ETA: {{ formatShortDate(job.eta) }}
           </div>
         </div>
