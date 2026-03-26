@@ -27,6 +27,7 @@ import AssetsTab from "~/components/finance/dashboard/AssetsTab.vue";
 definePageMeta({
   layout: "dashboard",
   title: "Finance Dashboard",
+  hideHeader: true,
 });
 
 // Use the extracted composable
@@ -399,13 +400,14 @@ async function handleAssetsAdd() {
 </script>
 
 <template>
-  <div class="pb-10 relative">
-    <div class="bg-white border-b border-border mb-6">
+  <div class="flex flex-col h-screen overflow-hidden">
+    <!-- Sticky Header -->
+    <div class="shrink-0 bg-white border-b border-border">
       <!-- Page Header -->
       <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 p-6">
         <div>
-          <h1 class="text-2xl font-bold">Dashboard</h1>
-          <p class="text-muted-foreground mt-1">
+          <h1 class="text-2xl font-bold">Finance</h1>
+          <p class="text-muted-foreground text-base">
             Manage cash flow, COGS, receivables/payables, and financial reports
           </p>
         </div>
@@ -450,14 +452,15 @@ async function handleAssetsAdd() {
       </div>
     </div>
 
-    <!-- Tab Content -->
-    <div class="relative min-h-[400px]">
-      <div
+    <!-- Scrollable Tab Content -->
+    <div class="flex-1 overflow-y-auto relative pt-6 pb-10">
+      <!-- Change Error message to vue-sonner -->
+      <!-- <div
         v-if="error"
         class="mx-6 mb-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg"
       >
         {{ error }}
-      </div>
+      </div> -->
 
       <ClientOnly>
         <!-- Loading Overlay - using v-show inside the container -->

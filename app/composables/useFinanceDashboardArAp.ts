@@ -1,4 +1,5 @@
 import type { PaginationInfo } from "~/types/finance-dashboard";
+import { toast } from "vue-sonner";
 import { getErrorMessage } from "./useFinanceDashboardApi";
 
 // AR/AP types (mirrored from the original file)
@@ -94,6 +95,7 @@ export function useFinanceDashboardArAp() {
     } catch (err) {
       const message = getErrorMessage(err);
       console.error("Failed to fetch AR/AP items:", message);
+      toast.error(message || "Gagal memuat data AR/AP.");
       setError("arAp", requestId, message);
       return null;
     } finally {
@@ -124,6 +126,7 @@ export function useFinanceDashboardArAp() {
     } catch (err) {
       const message = getErrorMessage(err);
       console.error("Failed to fetch AR/AP stats:", message);
+      toast.error(message || "Gagal memuat statistik AR/AP.");
       setError("arApStats", requestId, message);
       return null;
     } finally {
