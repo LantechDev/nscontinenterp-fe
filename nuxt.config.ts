@@ -7,7 +7,7 @@ export default defineNuxtConfig({
     "@": "~/",
   },
   modules: ["@nuxt/image"],
-  css: ["~/assets/css/main.css"],
+  css: ["~/assets/css/main.css", "vue-sonner/style.css"],
   postcss: {
     plugins: {
       tailwindcss: {},

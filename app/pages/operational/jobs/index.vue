@@ -21,10 +21,19 @@ definePageMeta({
 });
 
 const { jobs, fetchJobs, isLoading } = useJobs();
+const route = useRoute();
+const router = useRouter();
 
 // Fetch jobs on mount
 onMounted(async () => {
   await fetchJobs();
+
+  // If there's an id in query, open it after jobs are loaded
+  if (route.query.id) {
+    openJobDetail(route.query.id as string);
+    // Optional: remove query param after opening to keep URL clean
+    router.replace({ query: {} });
+  }
 });
 
 const searchQuery = ref("");
@@ -46,6 +55,14 @@ const getStatusClass = (statusId: string | null | undefined) => {
   if (statusId === "pending") return "bg-yellow-50 text-yellow-700 border-yellow-200";
   return "bg-blue-50 text-blue-700 border-blue-200";
 };
+
+const selectedJobId = ref("");
+const isDetailOpen = ref(false);
+
+function openJobDetail(id: string) {
+  selectedJobId.value = id;
+  isDetailOpen.value = true;
+}
 </script>
 
 <template>
@@ -137,7 +154,7 @@ const getStatusClass = (statusId: string | null | undefined) => {
               v-for="job in filteredJobs"
               :key="job.id"
               class="border-b border-border last:border-0 hover:bg-muted/30 transition-colors cursor-pointer"
-              @click="navigateTo(`/operational/jobs/${job.id}`)"
+              @click="openJobDetail(job.id)"
             >
               <td class="py-3 px-4">
                 <div class="flex items-center gap-2">
@@ -147,7 +164,9 @@ const getStatusClass = (statusId: string | null | undefined) => {
                   <span class="text-sm font-medium">{{ job.jobNumber }}</span>
                 </div>
               </td>
-              <td class="py-3 px-4 text-sm">{{ job.commodity }}</td>
+              <td class="py-3 px-4 text-sm max-w-xs truncate" :title="job.commodity">
+                {{ job.commodity }}
+              </td>
               <td class="py-3 px-4">
                 <div class="flex flex-col text-sm">
                   <span class="flex items-center gap-1 font-medium">
@@ -177,9 +196,21 @@ const getStatusClass = (statusId: string | null | undefined) => {
                 </span>
               </td>
               <td class="py-3 px-4 text-right">
-                <button class="text-muted-foreground hover:text-foreground">
-                  <MoreVertical class="w-4 h-4" />
-                </button>
+                <div class="flex items-center justify-end gap-2">
+                  <button
+                    class="p-1.5 text-muted-foreground hover:text-[#012D5A] hover:bg-blue-50 rounded transition-colors"
+                    @click.stop="openJobDetail(job.id)"
+                    title="View Details"
+                  >
+                    <Eye class="w-4 h-4" />
+                  </button>
+                  <button
+                    class="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors"
+                    @click.stop
+                  >
+                    <MoreVertical class="w-4 h-4" />
+                  </button>
+                </div>
               </td>
             </tr>
             <tr v-if="filteredJobs.length === 0">
@@ -196,7 +227,7 @@ const getStatusClass = (statusId: string | null | undefined) => {
         v-for="job in filteredJobs"
         :key="job.id"
         class="border border-border rounded-xl bg-white p-5 hover:shadow-sm transition-shadow cursor-pointer"
-        @click="navigateTo(`/operational/jobs/${job.id}`)"
+        @click="openJobDetail(job.id)"
       >
         <div class="flex items-start justify-between mb-4">
           <div class="flex items-start gap-4">
@@ -207,12 +238,29 @@ const getStatusClass = (statusId: string | null | undefined) => {
             </div>
             <div>
               <h3 class="font-bold text-base text-foreground">{{ job.jobNumber }}</h3>
-              <p class="text-xs text-muted-foreground">{{ job.commodity }}</p>
+              <p
+                class="text-xs text-muted-foreground max-w-[200px] truncate"
+                :title="job.commodity"
+              >
+                {{ job.commodity }}
+              </p>
             </div>
           </div>
-          <button class="text-muted-foreground hover:text-foreground" @click.stop>
-            <MoreVertical class="w-4 h-4" />
-          </button>
+          <div class="flex items-center gap-1">
+            <button
+              class="p-1.5 text-muted-foreground hover:text-[#012D5A] hover:bg-blue-50 rounded transition-colors"
+              @click.stop="openJobDetail(job.id)"
+              title="View Details"
+            >
+              <Eye class="w-4 h-4" />
+            </button>
+            <button
+              class="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors"
+              @click.stop
+            >
+              <MoreVertical class="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         <div class="space-y-3 mb-4">
@@ -260,5 +308,8 @@ const getStatusClass = (statusId: string | null | undefined) => {
         </button>
       </div>
     </div>
+
+    <!-- Job Details Slide-over -->
+    <OperationalJobDetailSlideOver v-model="isDetailOpen" :job-id="selectedJobId" />
   </div>
 </template>

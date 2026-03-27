@@ -7,9 +7,20 @@ export interface Job {
   organizationId: string;
   pol: string;
   pod: string;
+  polName?: string | null;
+  podName?: string | null;
+  voyageNumber?: string | null;
+  preCarriageBy?: string | null;
+  placeOfReceipt?: string | null;
+  placeOfDelivery?: string | null;
+  finalDestination?: string | null;
   tradeTypeId?: string | null;
   commodity: string;
+  mainDescription?: string | null;
   containerTypeId?: string | null;
+  vendorId?: string | null;
+  customerId?: string | null;
+  serviceId?: string | null;
   quantity: number;
   cargoMovementId?: string | null;
   deliveryMovementId?: string | null;
@@ -23,6 +34,13 @@ export interface Job {
   totalBlCount: number;
   statusId?: string | null;
   createdBy?: string | null;
+  freightTerm?: "PREPAID" | "COLLECT" | null;
+  hsCode?: string | null;
+  blType?: "DRAFT" | "ORIGINAL" | "SEAWAYBILL" | null;
+  isNegotiable?: boolean;
+  placeOfIssue?: string | null;
+  dateOfIssue?: string | null;
+  customerReference?: string | null;
   createdAt: string;
   updatedAt: string;
   // Relations
@@ -31,16 +49,45 @@ export interface Job {
   tradeType?: { name: string; code: string } | null;
   cargoMovement?: { name: string; code: string } | null;
   deliveryMovement?: { name: string; code: string } | null;
+  vendor?: { name: string } | null;
+  customer?: { name: string } | null;
+  service?: { name: string } | null;
   jobParties?: JobParty[];
+  jobContainers?: {
+    id: string;
+    containerNumber?: string | null;
+    sealNumber?: string | null;
+    containerTypeId?: string | null;
+    containerType?: { name: string; code: string } | null;
+    items?: {
+      id: string;
+      sequenceNo: number;
+      qty: number;
+      packageTypeCode: string;
+      grossWeight?: string | null;
+      netWeight?: string | null;
+      measurementCbm?: string | null;
+      description?: string | null;
+      hsCode?: string | null;
+      isHazardous?: boolean;
+    }[];
+    isHazardous?: boolean;
+    totalQty?: number | null;
+    totalGrossWeight?: string | null;
+    totalMeasurementCbm?: string | null;
+  }[];
   status?: { name: string; code: string } | null;
 }
 
 export interface JobParty {
   id: string;
   partyRoleId: string;
+  companyId: string;
+  addressBookId?: string | null;
   companyName?: string;
   partyRole?: { name: string; code?: string };
   company?: { name: string };
+  addressBook?: { fullAddress?: string; address?: string; city?: string; isDefault?: boolean };
 }
 
 export interface BlParty {
@@ -56,10 +103,59 @@ export interface BillOfLading {
   sealNumber?: string | null;
   grossWeight?: string | null;
   cargoDescription?: string | null;
+  freightTerm?: "PREPAID" | "COLLECT" | null;
+  blType?: "DRAFT" | "ORIGINAL" | "SEAWAYBILL" | null;
+  placeOfIssue?: string | null;
+  dateOfIssue?: string | null;
+  isNegotiable?: boolean;
+  pol?: string | null;
+  pod?: string | null;
+  vesselId?: string | null;
+  voyageNumber?: string | null;
+  preCarriageBy?: string | null;
+  placeOfReceipt?: string | null;
+  placeOfDelivery?: string | null;
+  finalDestination?: string | null;
+  etd?: string | null;
+  eta?: string | null;
+  commodity?: string | null;
+  mainDescription?: string | null;
+  shippingMark?: string | null;
+  hsCode?: string | null;
+  dateCargoReceived?: string | null;
   status?: { name: string; code?: string } | null;
   blParties?: BlParty[];
+  // Mapping for frontend UI / edit.vue
+  items?: {
+    id: string;
+    sequenceNo: number;
+    qty: number;
+    packageTypeCode: string;
+    grossWeight?: string | null;
+    netWeight?: string | null;
+    measurementCbm?: string | null;
+    description?: string | null;
+    hsCode?: string | null;
+  }[];
   createdAt: string;
   updatedAt: string;
+}
+
+export interface BlRenderResponse {
+  blNumber?: string | null;
+  status?: string | null;
+  job: unknown;
+  shipper: unknown;
+  consignee: unknown;
+  notifyParty: unknown;
+  forwarder: unknown;
+  containers: unknown[];
+  totals: {
+    qty: number;
+    grossWeight: number;
+    netWeight: number;
+    measurement: number;
+  };
 }
 
 export interface JobWithBls extends Job {
@@ -68,16 +164,57 @@ export interface JobWithBls extends Job {
 
 export interface CreateJob {
   shipperId: string;
+  shipperAddressId?: string;
   consigneeId: string;
+  consigneeAddressId?: string;
   notifyPartyId?: string;
+  notifyPartyAddressId?: string;
+  forwarderId?: string;
+  forwarderAddressId?: string;
   commodity: string;
   containerTypeId?: string;
   pol: string;
   pod: string;
   vesselId?: string;
+  voyageNumber?: string | null;
+  preCarriageBy?: string | null;
+  placeOfReceipt?: string | null;
+  placeOfDelivery?: string | null;
+  finalDestination?: string | null;
   etd?: string;
   eta?: string;
   totalBlCount: number;
+  tradeTypeId?: string;
+  cargoMovementId?: string;
+  deliveryMovementId?: string;
+  grossWeight?: number | null;
+  netWeight?: number | null;
+  measurement?: number | null;
+  shippingMark?: string;
+  mainDescription?: string;
+
+  freightTerm?: "PREPAID" | "COLLECT";
+  hsCode?: string;
+  blType?: "DRAFT" | "ORIGINAL" | "SEAWAYBILL";
+  isNegotiable?: boolean;
+  placeOfIssue?: string;
+  dateOfIssue?: string;
+
+  containers?: {
+    containerNumber?: string;
+    sealNumber?: string;
+    containerTypeId?: string;
+    items?: {
+      sequenceNo: number;
+      qty: number;
+      packageTypeCode: string;
+      grossWeight?: number | null;
+      netWeight?: number | null;
+      measurementCbm?: number | null;
+      description?: string | null;
+      hsCode?: string | null;
+    }[];
+  }[];
 }
 
 export interface UpdateBl {
@@ -86,6 +223,61 @@ export interface UpdateBl {
   sealNumber?: string;
   grossWeight?: number;
   cargoDescription?: string;
+}
+
+export interface UpdateBlDraft {
+  shipperId?: string;
+  shipperAddressId?: string;
+  consigneeId?: string;
+  consigneeAddressId?: string;
+  notifyPartyId?: string;
+  notifyPartyAddressId?: string;
+  forwarderId?: string;
+  forwarderAddressId?: string;
+
+  cargoDescription?: string;
+  mainDescription?: string;
+  shippingMark?: string;
+  commodity?: string;
+  hsCode?: string;
+
+  blNumber?: string;
+  blType?: string;
+  freightTerm?: "PREPAID" | "COLLECT";
+  totalBlCount?: number;
+  isNegotiable?: boolean;
+  placeOfIssue?: string;
+  dateOfIssue?: string;
+
+  pol?: string;
+  pod?: string;
+  vesselId?: string;
+  voyageNumber?: string | null;
+  preCarriageBy?: string | null;
+  placeOfReceipt?: string | null;
+  placeOfDelivery?: string | null;
+  finalDestination?: string | null;
+  etd?: string;
+  eta?: string;
+  tradeTypeId?: string;
+  cargoMovementId?: string;
+  deliveryMovementId?: string;
+
+  containers?: {
+    containerNumber?: string;
+    sealNumber?: string;
+    containerTypeId?: string;
+    items?: {
+      sequenceNo: number;
+      qty: number;
+      packageTypeCode: string;
+      grossWeight?: number;
+      netWeight?: number;
+      measurementCbm?: number;
+      description?: string;
+      hsCode?: string;
+    }[];
+  }[];
 }
 
 type ErrorResponse = {
@@ -185,6 +377,52 @@ export function useJobs() {
     }
   }
 
+  async function updateBlDraft(
+    id: string,
+    payload: UpdateBlDraft,
+  ): Promise<AuthResponse<BillOfLading>> {
+    isLoading.value = true;
+    try {
+      const data = await $fetch<BillOfLading>(
+        `${config.public.apiBase}/operational/jobs/bl/${id}`,
+        {
+          method: "PATCH",
+          body: payload,
+          credentials: "include",
+        },
+      );
+      return { success: true, data };
+    } catch (error) {
+      return handleApiError<BillOfLading>(error);
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  async function finalizeBl(id: string): Promise<AuthResponse<BillOfLading>> {
+    isLoading.value = true;
+    try {
+      const data = await $fetch<BillOfLading>(
+        `${config.public.apiBase}/operational/jobs/bl/${id}/finalize`,
+        {
+          method: "POST",
+          credentials: "include",
+        },
+      );
+      if (currentJob.value && currentJob.value.billsOfLading) {
+        const blIndex = currentJob.value.billsOfLading.findIndex((bl) => bl.id === id);
+        if (blIndex !== -1) {
+          currentJob.value.billsOfLading[blIndex] = data;
+        }
+      }
+      return { success: true, data };
+    } catch (error) {
+      return handleApiError<BillOfLading>(error);
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
   async function deleteBl(id: string): Promise<AuthResponse> {
     isLoading.value = true;
     try {
@@ -205,14 +443,59 @@ export function useJobs() {
     }
   }
 
+  async function updateJob(
+    id: string,
+    payload: Partial<CreateJob>,
+  ): Promise<AuthResponse<JobWithBls>> {
+    isLoading.value = true;
+    try {
+      const data = await $fetch<JobWithBls>(`${config.public.apiBase}/operational/jobs/${id}`, {
+        method: "PUT",
+        body: payload,
+        credentials: "include",
+      });
+      const index = jobs.value.findIndex((j) => j.id === id);
+      if (index !== -1) {
+        jobs.value[index] = data;
+      }
+      currentJob.value = data;
+      return { success: true, data };
+    } catch (error) {
+      return handleApiError<JobWithBls>(error);
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  async function getBlRender(id: string): Promise<AuthResponse<BlRenderResponse>> {
+    isLoading.value = true;
+    try {
+      const data = await $fetch<BlRenderResponse>(
+        `${config.public.apiBase}/operational/jobs/bl/${id}/render`,
+        {
+          credentials: "include",
+        },
+      );
+      return { success: true, data };
+    } catch (error) {
+      return handleApiError<BlRenderResponse>(error);
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
   return {
     jobs,
     currentJob,
     isLoading,
     fetchJobs,
     createJob,
+    updateJob,
     getJob,
     updateBl,
+    updateBlDraft,
     deleteBl,
+    getBlRender,
+    finalizeBl,
   };
 }

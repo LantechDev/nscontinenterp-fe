@@ -2,6 +2,7 @@
 import { X, Save, Copy, Loader2 } from "lucide-vue-next";
 import Combobox from "~/components/ui/Combobox.vue";
 import type { Company, ContainerType, PackageType } from "~/composables/useMasterData";
+import { toast } from "vue-sonner";
 
 interface BlParty {
   id: string;
@@ -121,7 +122,7 @@ async function loadBlData() {
     formData.notifyPartyId = notify?.companyId || "";
   } catch (error) {
     console.error("Failed to load BL", error);
-    alert("Failed to load BL details");
+    toast.error("Failed to load BL details");
   } finally {
     isLoading.value = false;
   }
@@ -156,10 +157,10 @@ async function handleCopyFromJob() {
       method: "POST",
     });
     await loadBlData();
-    alert("Data copied from Job. You can now edit it for this BL.");
+    toast.success("Data copied from Job. You can now edit it for this BL.");
   } catch (error) {
     console.error("Copy failed", error);
-    alert("Failed to copy data");
+    toast.error("Failed to copy data");
   } finally {
     isLoading.value = false;
   }
@@ -186,7 +187,7 @@ async function handleSave() {
     emit("update:modelValue", false);
   } catch (error) {
     console.error("Save failed", error);
-    alert("Failed to save BL");
+    toast.error("Failed to save BL");
   } finally {
     isSaving.value = false;
   }
@@ -194,7 +195,7 @@ async function handleSave() {
 </script>
 
 <template>
-  <div v-if="modelValue" class="fixed inset-0 z-50 flex justify-end">
+  <div v-if="modelValue" class="fixed inset-0 z-[999] flex justify-end">
     <!-- Backdrop -->
     <div
       class="absolute inset-0 bg-black/50 transition-opacity"
@@ -203,7 +204,7 @@ async function handleSave() {
 
     <!-- Drawer Panel -->
     <div
-      class="relative w-full max-w-2xl bg-background h-full shadow-xl flex flex-col animate-slide-in-right"
+      class="relative w-full max-w-2xl bg-background h-full shadow-xl flex flex-col pt-16 animate-slide-in-right"
     >
       <!-- Header -->
       <div

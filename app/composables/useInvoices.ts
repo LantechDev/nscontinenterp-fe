@@ -75,7 +75,7 @@ export function useInvoices() {
     }
   }
 
-  async function fetchInvoices(): Promise<{
+  async function fetchInvoices(jobId?: string): Promise<{
     success: boolean;
     data?: Invoice[];
     error?: string;
@@ -83,6 +83,7 @@ export function useInvoices() {
     isLoading.value = true;
     try {
       const data = await $fetch<Invoice[]>(`${config.public.apiBase}/finance/invoice`, {
+        query: jobId ? { jobId } : undefined,
         credentials: "include",
       });
       return { success: true, data };
@@ -111,14 +112,21 @@ export function useInvoices() {
   }
 
   async function createInvoice(data: {
+    jobId?: string;
+    invoiceNumber: string;
     companyId: string;
-    invoiceDate: string;
+    issuedDate: string;
     dueDate: string;
+    subTotal: number;
+    taxAmount: number;
+    total: number;
+    balanceDue: number;
     items: Array<{
       serviceId?: string;
       description: string;
       quantity: number;
       unitPrice: number;
+      amount: number;
     }>;
     notes?: string;
   }): Promise<{ success: boolean; data?: Invoice; error?: string }> {

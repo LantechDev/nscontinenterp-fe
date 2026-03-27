@@ -68,6 +68,14 @@ const getStatusInfo = (ebl: EblItem): { label: string; class: string } => {
 
 type ViewMode = "list" | "grid";
 const viewMode = ref<ViewMode>("list");
+
+const selectedBlId = ref("");
+const isDetailOpen = ref(false);
+
+function openBlDetail(id: string) {
+  selectedBlId.value = id;
+  isDetailOpen.value = true;
+}
 </script>
 
 <template>
@@ -156,7 +164,7 @@ const viewMode = ref<ViewMode>("list");
               v-for="ebl in ebls"
               :key="ebl.id"
               class="border-b border-border last:border-0 hover:bg-muted/30 transition-colors cursor-pointer"
-              @click="navigateTo(`/operational/ebl/${ebl.id}`)"
+              @click="openBlDetail(ebl.id)"
             >
               <td class="py-3 px-4">
                 <div class="flex items-center gap-2">
@@ -198,7 +206,7 @@ const viewMode = ref<ViewMode>("list");
         v-for="ebl in ebls"
         :key="ebl.id"
         class="border border-border rounded-xl bg-white p-5 hover:shadow-sm transition-shadow cursor-pointer"
-        @click="navigateTo(`/operational/ebl/${ebl.id}`)"
+        @click="openBlDetail(ebl.id)"
       >
         <div class="flex items-start justify-between mb-4">
           <div class="flex items-start gap-4">
@@ -258,5 +266,8 @@ const viewMode = ref<ViewMode>("list");
         </button>
       </div>
     </div>
+
+    <!-- eBL Details Slide-over -->
+    <OperationalBlDetailSlideOver v-model="isDetailOpen" :bl-id="selectedBlId" />
   </div>
 </template>

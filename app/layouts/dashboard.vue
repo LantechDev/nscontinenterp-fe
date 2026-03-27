@@ -35,7 +35,7 @@ onMounted(() => {
     <div class="ml-64">
       <!-- Top header -->
       <header
-        class="sticky top-0 z-30 h-16 bg-white/80 backdrop-blur-md border-b border-gray-200 flex items-center justify-between px-6"
+        class="sticky top-0 z-[1000] h-16 bg-white/80 backdrop-blur-md border-b border-gray-200 flex items-center justify-between px-6"
       >
         <div class="relative max-w-md flex-1">
           <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
