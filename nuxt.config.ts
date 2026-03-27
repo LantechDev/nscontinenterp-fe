@@ -37,7 +37,7 @@ export default defineNuxtConfig({
   },
   runtimeConfig: {
     public: {
-      apiBase: process.env.NUXT_PUBLIC_API_BASE || "http://localhost:3010/api",
+      apiBase: process.env.NUXT_PUBLIC_API_BASE || "http://localhost:9999/api",
     },
   },
   // Performance optimization: Hybrid rendering with route rules

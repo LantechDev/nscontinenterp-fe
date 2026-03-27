@@ -87,22 +87,6 @@ const handleDelete = async (role: Role) => {
     <!-- Page header -->
     <div class="flex items-center justify-between">
       <h1 class="text-2xl font-bold">Role Management</h1>
-
-      <div class="flex items-center gap-2">
-        <NuxtLink
-          to="/settings/users"
-          class="flex items-center gap-2 px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors text-foreground"
-        >
-          <ArrowLeft class="w-4 h-4" />
-          <span>Back to Users</span>
-        </NuxtLink>
-        <div class="flex items-center bg-white border border-border rounded-lg p-1">
-          <button class="p-1.5 rounded transition-colors bg-[#012D5A] text-white">
-            <LayoutList class="w-4 h-4" />
-          </button>
-          <!-- Grid view placeholder if needed -->
-        </div>
-      </div>
     </div>
 
     <div

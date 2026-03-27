@@ -5,11 +5,53 @@ import {
   getActionColor,
   type ActivityLog,
   type ActivityAction,
-  ACTIVITY_ACTIONS,
 } from "~/lib/activity-log-api";
 import { useAuth } from "~/composables/useAuth";
 import { formatDateTime } from "~/lib/utils";
 import { useDebounceFn } from "@vueuse/core";
+
+// Simplified action categories for better UX
+const ACTION_CATEGORIES = [
+  { value: "", label: "All Actions" },
+  { value: "LOGIN", label: "Login" },
+  { value: "LOGOUT", label: "Logout" },
+  { value: "LOGIN_FAILED", label: "Login Failed" },
+  { value: "CRUD", label: "CRUD Operations" },
+  { value: "DATA", label: "Data Actions" },
+];
+
+// Simplified action filter mapping
+const actionCategoryMap: Record<string, ActivityAction[]> = {
+  CRUD: ["CREATE", "READ", "UPDATE", "DELETE"],
+  DATA: [
+    "EXPORT",
+    "IMPORT",
+    "APPROVE",
+    "REJECT",
+    "SUBMIT",
+    "CANCEL",
+    "CLOSE",
+    "OPEN",
+    "ARCHIVE",
+    "RESTORE",
+  ],
+};
+
+// Common target models for dropdown
+const TARGET_MODELS = [
+  { value: "", label: "All Models" },
+  { value: "User", label: "User" },
+  { value: "Company", label: "Company" },
+  { value: "Vessel", label: "Vessel" },
+  { value: "Job", label: "Job" },
+  { value: "Invoice", label: "Invoice" },
+  { value: "Quotation", label: "Quotation" },
+  { value: "EBL", label: "EBL" },
+  { value: "JournalEntry", label: "Journal Entry" },
+  { value: "Tax", label: "Tax" },
+  { value: "Expense", label: "Expense" },
+  { value: "Role", label: "Role" },
+];
 
 definePageMeta({
   layout: "dashboard",
@@ -38,27 +80,73 @@ const pagination = ref({
   totalPages: 0,
 });
 
-// Filters
 const filters = ref({
-  action: "" as ActivityAction | "",
+  actionCategory: "" as string,
   targetModel: "",
   startDate: "",
   endDate: "",
+  search: "",
 });
+
+// User Agent parser for friendly device names
+function parseUA(ua: string | null): string {
+  if (!ua) return "Unknown Device";
+
+  let os = "Unknown OS";
+  if (ua.includes("Windows")) os = "Windows";
+  else if (ua.includes("Mac OS")) os = "macOS";
+  else if (ua.includes("iPhone")) os = "iPhone";
+  else if (ua.includes("iPad")) os = "iPad";
+  else if (ua.includes("Android")) os = "Android";
+  else if (ua.includes("Linux")) os = "Linux";
+
+  let browser = "Unknown Browser";
+  if (ua.includes("Chrome")) browser = "Chrome";
+  else if (ua.includes("Firefox")) browser = "Firefox";
+  else if (ua.includes("Safari") && !ua.includes("Chrome")) browser = "Safari";
+  else if (ua.includes("Edge")) browser = "Edge";
+  else if (ua.includes("Opera")) browser = "Opera";
+
+  return `${os} • ${browser}`;
+}
+
+// Get actions to filter based on category
+const getActionsForCategory = (category: string): ActivityAction[] => {
+  return actionCategoryMap[category] || [];
+};
 
 async function fetchLogs() {
   isLoading.value = true;
   try {
+    // Handle category-based filtering
+    let actionValue: ActivityAction | undefined = undefined;
+    const category = filters.value.actionCategory;
+
+    if (category && category !== "CRUD" && category !== "DATA") {
+      // Direct action (LOGIN, LOGOUT, LOGIN_FAILED)
+      actionValue = category as ActivityAction;
+    }
+    // For CRUD and DATA categories, we filter client-side after getting results
+
     const response = await getActivityLogs({
-      action: filters.value.action || undefined,
+      action: actionValue,
       targetModel: filters.value.targetModel || undefined,
       startDate: filters.value.startDate || undefined,
       endDate: filters.value.endDate || undefined,
+      search: filters.value.search || undefined,
       page: pagination.value.page,
       limit: pagination.value.limit,
       organizationId: session.value?.activeOrganizationId,
     });
-    logs.value = response.logs;
+
+    // Apply client-side filtering for CRUD and DATA categories
+    let filteredLogs = response.logs;
+    if (category === "CRUD" || category === "DATA") {
+      const allowedActions = getActionsForCategory(category);
+      filteredLogs = response.logs.filter((log) => allowedActions.includes(log.action));
+    }
+
+    logs.value = filteredLogs;
     pagination.value = response.pagination;
   } catch (error) {
     console.error("Failed to fetch activity logs:", error);
@@ -72,10 +160,11 @@ const debouncedFetchLogs = useDebounceFn(fetchLogs, 300);
 
 function clearFilters() {
   filters.value = {
-    action: "",
+    actionCategory: "",
     targetModel: "",
     startDate: "",
     endDate: "",
+    search: "",
   };
   pagination.value.page = 1;
   fetchLogs();
@@ -113,32 +202,52 @@ watch(
 
     <!-- Filters -->
     <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
-      <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <!-- Search Bar -->
+        <div class="lg:col-span-2">
+          <label class="block text-sm font-medium text-gray-700 mb-1">Search Keywords</label>
+          <div class="relative">
+            <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <div class="i-lucide-search h-4 w-4 text-gray-400" />
+            </span>
+            <input
+              v-model="filters.search"
+              type="text"
+              placeholder="Search by user, description, or target..."
+              class="w-full rounded-md border border-gray-300 pl-10 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+        </div>
+
+        <!-- Action Type - Simplified -->
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Action</label>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Action Type</label>
           <select
-            v-model="filters.action"
+            v-model="filters.actionCategory"
             class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
-            <option value="">All Actions</option>
-            <option v-for="action in ACTIVITY_ACTIONS" :key="action" :value="action">
-              {{ getActionLabel(action) }}
+            <option v-for="cat in ACTION_CATEGORIES" :key="cat.value" :value="cat.value">
+              {{ cat.label }}
             </option>
           </select>
         </div>
 
+        <!-- Target Model - Changed to dropdown -->
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Target Model</label>
-          <input
+          <label class="block text-sm font-medium text-gray-700 mb-1">Target</label>
+          <select
             v-model="filters.targetModel"
-            type="text"
-            placeholder="e.g., User, Invoice, Job"
             class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+          >
+            <option v-for="model in TARGET_MODELS" :key="model.value" :value="model.value">
+              {{ model.label }}
+            </option>
+          </select>
         </div>
 
+        <!-- Start Date -->
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+          <label class="block text-sm font-medium text-gray-700 mb-1">From Date</label>
           <input
             v-model="filters.startDate"
             type="date"
@@ -146,8 +255,9 @@ watch(
           />
         </div>
 
+        <!-- End Date -->
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">End Date</label>
+          <label class="block text-sm font-medium text-gray-700 mb-1">To Date</label>
           <input
             v-model="filters.endDate"
             type="date"
@@ -156,7 +266,7 @@ watch(
         </div>
       </div>
 
-      <div class="mt-4 flex justify-end">
+      <div class="mt-4 flex justify-end gap-2">
         <button @click="clearFilters" class="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">
           Clear Filters
         </button>
@@ -225,14 +335,20 @@ watch(
               </span>
             </td>
             <td class="px-6 py-4 whitespace-nowrap">
-              <div class="text-sm text-gray-900">{{ log.targetModel }}</div>
-              <div class="text-xs text-gray-500">{{ log.targetId }}</div>
+              <div class="text-sm font-medium text-gray-900">{{ log.targetModel || "System" }}</div>
+              <div v-if="log.targetName" class="text-xs text-gray-500">{{ log.targetName }}</div>
             </td>
             <td class="px-6 py-4">
-              <div class="text-sm text-gray-500">
-                <div v-if="log.path">{{ log.method }} {{ log.path }}</div>
-                <div v-if="log.ipAddress" class="text-xs">IP: {{ log.ipAddress }}</div>
-                <div v-if="log.description" class="text-xs mt-1">{{ log.description }}</div>
+              <div class="text-sm text-gray-900 mb-1">{{ log.description }}</div>
+              <div class="flex flex-wrap gap-x-3 gap-y-1">
+                <div v-if="log.ipAddress" class="flex items-center text-xs text-gray-400">
+                  <div class="i-lucide-globe h-3 w-3 mr-1" />
+                  {{ log.ipAddress }}
+                </div>
+                <div v-if="log.userAgent" class="flex items-center text-xs text-gray-400">
+                  <div class="i-lucide-monitor h-3 w-3 mr-1" />
+                  {{ parseUA(log.userAgent) }}
+                </div>
               </div>
             </td>
           </tr>

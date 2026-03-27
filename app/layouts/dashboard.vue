@@ -11,9 +11,13 @@ import {
   Anchor,
   FileCheck,
 } from "lucide-vue-next";
-import { useRouter } from "#app";
+import { useRouter, useRoute } from "#app";
 
 const router = useRouter();
+const route = useRoute();
+
+// Check route meta to show/hide header
+const showHeader = computed(() => route.meta.hideHeader !== true);
 
 // Use client-only for time to avoid hydration mismatch
 const currentDate = ref("");
@@ -103,7 +107,13 @@ const performSearch = async (query: string) => {
     try {
       console.log("[SEARCH] Calling jobs API (fetching all jobs for client-side filtering)");
       const jobsResponse = await $fetch<
-        { id: string; jobNumber: string; pol: string; pod: string; customer?: { name: string } }[]
+        {
+          id: string;
+          jobNumber: string;
+          pol: string;
+          pod: string;
+          customer?: { name: string };
+        }[]
       >(`${config.public.apiBase}/operational/jobs`, {
         credentials: "include",
       });
@@ -409,6 +419,7 @@ onUnmounted(() => {
     <div class="ml-64">
       <!-- Top header -->
       <header
+        v-if="showHeader"
         class="sticky top-0 z-30 h-16 bg-white/80 backdrop-blur-md border-b border-gray-200 flex items-center justify-between px-6"
       >
         <ClientOnly>
@@ -488,8 +499,12 @@ onUnmounted(() => {
                     />
                   </div>
                   <div class="flex-1 min-w-0">
-                    <p class="text-sm font-medium text-gray-900 truncate">{{ result.title }}</p>
-                    <p class="text-xs text-gray-500 truncate">{{ result.subtitle }}</p>
+                    <p class="text-sm font-medium text-gray-900 truncate">
+                      {{ result.title }}
+                    </p>
+                    <p class="text-xs text-gray-500 truncate">
+                      {{ result.subtitle }}
+                    </p>
                   </div>
                 </button>
               </template>

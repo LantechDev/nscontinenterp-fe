@@ -22,7 +22,7 @@ defineProps<{
   <div
     :class="
       cn(
-        'border border-border rounded-xl p-5',
+        'border border-border rounded-xl p-4',
         card.isPrimary ? 'bg-[#012D5A] border-[#012D5A] text-white' : 'bg-white border-border',
         $props.class,
       )
@@ -37,9 +37,7 @@ defineProps<{
         >
           {{ card.title }}
         </p>
-        <p
-          :class="cn('text-2xl font-bold mt-1', card.isPrimary ? 'text-white' : 'text-foreground')"
-        >
+        <p :class="cn('text-xl font-bold mt-1', card.isPrimary ? 'text-white' : 'text-foreground')">
           {{ card.value }}
         </p>
       </div>
@@ -56,7 +54,10 @@ defineProps<{
         <span>{{ card.change }}%</span>
       </div>
     </div>
-    <p :class="cn('text-xs mt-2', card.isPrimary ? 'text-white/60' : 'text-muted-foreground')">
+    <p
+      v-if="card.changeLabel"
+      :class="cn('text-xs mt-2', card.isPrimary ? 'text-white/60' : 'text-muted-foreground')"
+    >
       {{ card.changeLabel }}
     </p>
   </div>

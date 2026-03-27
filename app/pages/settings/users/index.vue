@@ -80,19 +80,6 @@ const handlePageChange = (page: number) => {
     <!-- Page header -->
     <div class="flex items-center justify-between">
       <h1 class="text-2xl font-bold">User & Role</h1>
-
-      <div class="flex items-center gap-2">
-        <NuxtLink to="/settings/roles" class="btn-secondary">
-          <Shield class="w-4 h-4 mr-2" />
-          <span>Manage Roles</span>
-        </NuxtLink>
-        <div class="flex items-center bg-white border border-border rounded-lg p-1">
-          <button class="bg-primary text-primary-foreground p-1.5 rounded transition-colors">
-            <LayoutList class="w-4 h-4" />
-          </button>
-          <!-- Grid view placeholder if needed -->
-        </div>
-      </div>
     </div>
 
     <!-- Filters -->

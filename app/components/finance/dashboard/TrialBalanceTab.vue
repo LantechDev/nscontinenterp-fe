@@ -143,9 +143,28 @@ const totalCredit = computed(() => {
 
 <template>
   <div class="space-y-4 px-6">
-    <!-- Header with Action Button -->
-    <div class="flex justify-end">
-      <NuxtLink to="/finance/journal/create" class="btn-primary">
+    <!-- Header: Grand Total + Action -->
+    <div
+      class="flex flex-col md:flex-row md:items-center justify-between gap-4 border border-border rounded-xl bg-[#012D5A] text-white p-5"
+    >
+      <div class="flex items-center gap-8">
+        <h2 class="text-lg font-semibold">Grand Total</h2>
+        <div class="flex items-center gap-6 text-sm">
+          <div class="flex flex-col">
+            <span class="text-white/60 text-xs">Debit</span>
+            <span class="font-semibold text-base">{{ formatCurrency(totalDebit) }}</span>
+          </div>
+          <div class="w-px h-8 bg-white/20"></div>
+          <div class="flex flex-col">
+            <span class="text-white/60 text-xs">Credit</span>
+            <span class="font-semibold text-base">{{ formatCurrency(totalCredit) }}</span>
+          </div>
+        </div>
+      </div>
+      <NuxtLink
+        to="/finance/journal/create"
+        class="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-white text-[#012D5A] hover:bg-white/90 rounded-lg transition-colors"
+      >
         <span>Input Jurnal</span>
       </NuxtLink>
     </div>
@@ -163,13 +182,13 @@ const totalCredit = computed(() => {
     <!-- Error State -->
     <div
       v-else-if="error"
-      class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg"
+      class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl"
     >
       {{ error }}
     </div>
 
-    <!-- Trial Balance Table -->
-    <div v-else class="space-y-6">
+    <!-- Trial Balance Groups -->
+    <div v-else class="space-y-4">
       <div
         v-for="group in trialBalanceData"
         :key="group.type"
@@ -177,77 +196,101 @@ const totalCredit = computed(() => {
       >
         <!-- Group Header -->
         <button
-          class="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors"
+          class="w-full flex items-center justify-between p-5 hover:bg-gray-50/50 transition-colors"
           @click="toggleGroup(group.type)"
         >
-          <div class="flex items-center gap-2">
+          <div class="flex items-center gap-3">
             <component
               :is="isGroupExpanded(group.type) ? ChevronUp : ChevronDown"
               class="w-4 h-4 text-muted-foreground"
             />
-            <span class="font-semibold text-[#012D5A]">{{ getTypeLabel(group.type) }}</span>
-            <span class="text-sm text-muted-foreground">({{ group.items.length }} accounts)</span>
+            <h2 class="text-lg font-semibold text-[#012D5A]">
+              {{ getTypeLabel(group.type) }}
+            </h2>
+            <span class="px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-muted-foreground"
+              >{{ group.items.length }} accounts</span
+            >
           </div>
           <div class="flex items-center gap-6 text-sm">
-            <span class="text-muted-foreground">Debit: {{ formatCurrency(group.totalDebit) }}</span>
             <span class="text-muted-foreground"
-              >Credit: {{ formatCurrency(group.totalCredit) }}</span
+              >Debit:
+              <span class="font-semibold text-foreground">{{
+                formatCurrency(group.totalDebit)
+              }}</span></span
+            >
+            <span class="text-muted-foreground"
+              >Credit:
+              <span class="font-semibold text-foreground">{{
+                formatCurrency(group.totalCredit)
+              }}</span></span
             >
           </div>
         </button>
 
-        <!-- Group Content -->
-        <div v-if="isGroupExpanded(group.type)" class="divide-y divide-border">
-          <!-- Table Header -->
-          <div
-            class="hidden md:grid md:grid-cols-6 gap-4 px-4 py-2 bg-gray-50 text-xs font-medium text-muted-foreground uppercase"
-          >
-            <div class="col-span-1">Account Code</div>
-            <div class="col-span-2">Account Name</div>
-            <div class="col-span-1 text-right">Opening Balance</div>
-            <div class="col-span-1 text-right">Debit</div>
-            <div class="col-span-1 text-right">Credit</div>
-          </div>
-
-          <!-- Table Rows -->
-          <div
-            v-for="item in group.items"
-            :key="item.id"
-            class="grid grid-cols-1 md:grid-cols-6 gap-2 md:gap-4 px-4 py-3 hover:bg-blue-50 cursor-pointer transition-colors"
-            @click="handleRowClick(item.id)"
-          >
-            <div class="col-span-1 font-mono text-sm">{{ item.accountCode }}</div>
-            <div class="col-span-2 text-sm">{{ item.accountName }}</div>
-            <div
-              class="col-span-1 text-right font-medium"
-              :class="item.openingBalance >= 0 ? 'text-green-600' : 'text-red-600'"
-            >
-              {{ formatCurrency(item.openingBalance) }}
-            </div>
-            <div class="col-span-1 text-right">{{ formatCurrency(item.debitTotal) }}</div>
-            <div
-              class="col-span-1 text-right"
-              :class="item.closingBalance >= 0 ? 'text-green-600' : 'text-red-600'"
-            >
-              {{ formatCurrency(item.closingBalance) }}
-            </div>
-          </div>
+        <!-- Group Content - Table -->
+        <div v-if="isGroupExpanded(group.type)" class="overflow-x-auto">
+          <table class="w-full">
+            <thead>
+              <tr class="border-b border-t border-border bg-gray-50/50">
+                <th class="py-3 px-4 text-left text-sm font-medium text-gray-500">Account Code</th>
+                <th class="py-3 px-4 text-left text-sm font-medium text-gray-500">Account Name</th>
+                <th class="py-3 px-4 text-right text-sm font-medium text-gray-500">
+                  Opening Balance
+                </th>
+                <th class="py-3 px-4 text-right text-sm font-medium text-gray-500">Debit</th>
+                <th class="py-3 px-4 text-right text-sm font-medium text-gray-500">Credit</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="item in group.items"
+                :key="item.id"
+                class="border-b border-gray-100 hover:bg-gray-50/50 cursor-pointer transition-colors"
+                @click="handleRowClick(item.id)"
+              >
+                <td class="py-3 px-4">
+                  <span class="text-sm font-medium text-[#012D5A]">{{ item.accountCode }}</span>
+                </td>
+                <td class="py-3 px-4 text-sm">{{ item.accountName }}</td>
+                <td class="py-3 px-4 text-sm text-right font-semibold">
+                  <span :class="item.openingBalance >= 0 ? 'text-green-700' : 'text-red-600'">{{
+                    formatCurrency(item.openingBalance)
+                  }}</span>
+                </td>
+                <td class="py-3 px-4 text-sm text-right">
+                  {{ formatCurrency(item.debitTotal) }}
+                </td>
+                <td class="py-3 px-4 text-sm text-right font-semibold">
+                  <span :class="item.closingBalance >= 0 ? 'text-green-700' : 'text-red-600'">{{
+                    formatCurrency(item.closingBalance)
+                  }}</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
 
-      <!-- Grand Total -->
-      <div class="border border-border rounded-xl bg-[#012D5A] text-white p-4">
-        <div class="flex justify-between items-center">
-          <span class="font-semibold">Grand Total</span>
-          <div class="flex gap-8">
-            <span>Debit: {{ formatCurrency(totalDebit) }}</span>
-            <span>Credit: {{ formatCurrency(totalCredit) }}</span>
+      <!-- Grand Total Footer -->
+      <div class="border border-border rounded-xl bg-[#012D5A] text-white overflow-hidden">
+        <div class="flex justify-between items-center p-5">
+          <h2 class="text-lg font-semibold">Grand Total</h2>
+          <div class="flex gap-8 text-sm">
+            <span
+              >Debit: <span class="font-semibold">{{ formatCurrency(totalDebit) }}</span></span
+            >
+            <span
+              >Credit: <span class="font-semibold">{{ formatCurrency(totalCredit) }}</span></span
+            >
           </div>
         </div>
       </div>
 
       <!-- Empty State -->
-      <div v-if="trialBalanceData.length === 0" class="text-center py-12 text-muted-foreground">
+      <div
+        v-if="trialBalanceData.length === 0"
+        class="border border-border rounded-xl bg-white text-center py-12 text-muted-foreground"
+      >
         No trial balance data available for the selected period
       </div>
     </div>
