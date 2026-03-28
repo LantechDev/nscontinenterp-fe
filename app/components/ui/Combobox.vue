@@ -4,23 +4,30 @@ import { onClickOutside } from "@vueuse/core";
 import { cn } from "~/lib/utils";
 
 interface ComboboxOption {
-  id: string;
+  id?: string;
   name?: string;
   [key: string]: unknown;
 }
 
-const props = defineProps<{
-  modelValue: string;
-  options: ComboboxOption[];
-  labelKey?: string;
-  valueKey?: string;
-  placeholder?: string;
-  allowCreate?: boolean;
-}>();
+const props = withDefaults(
+  defineProps<{
+    modelValue: string | null | undefined;
+    options: ComboboxOption[];
+    labelKey?: string;
+    valueKey?: string;
+    placeholder?: string;
+    allowCreate?: boolean;
+    filterLocal?: boolean;
+  }>(),
+  {
+    filterLocal: true,
+  },
+);
 
 const emit = defineEmits<{
-  (e: "update:modelValue", value: string): void;
+  (e: "update:modelValue", value: string | null | undefined): void;
   (e: "create", value: string): void;
+  (e: "search", value: string): void;
 }>();
 
 const open = ref(false);
@@ -28,11 +35,15 @@ const searchQuery = ref("");
 const containerRef = ref<HTMLElement | null>(null);
 const inputRef = ref<HTMLInputElement | null>(null);
 
+watch(searchQuery, (q) => {
+  emit("search", q);
+});
+
 const getOptionValue = (option: ComboboxOption): string => {
   if (props.valueKey && option[props.valueKey]) {
     return String(option[props.valueKey]);
   }
-  return option.id;
+  return option.id || "";
 };
 
 const getOptionLabel = (option: ComboboxOption): string => {
@@ -44,20 +55,55 @@ const getOptionLabel = (option: ComboboxOption): string => {
 
 const filteredOptions = computed(() => {
   if (!props.options) return [];
+  if (!props.filterLocal) return props.options;
+
   if (!searchQuery.value) return props.options;
   const lowerQuery = searchQuery.value.toLowerCase();
   return props.options.filter((opt) => getOptionLabel(opt).toLowerCase().includes(lowerQuery));
 });
 
+const cachedSelectedOption = ref<ComboboxOption | null>(null);
+
+watch(
+  () => props.modelValue,
+  (newVal) => {
+    if (!newVal) {
+      cachedSelectedOption.value = null;
+    }
+  },
+);
+
+watch(
+  () => props.options,
+  (newOptions) => {
+    if (props.modelValue && newOptions) {
+      const found = newOptions.find((opt) => getOptionValue(opt) === props.modelValue);
+      if (found) {
+        cachedSelectedOption.value = found;
+      }
+    }
+  },
+  { immediate: true, deep: true },
+);
+
 const selectedLabel = computed(() => {
+  if (
+    cachedSelectedOption.value &&
+    getOptionValue(cachedSelectedOption.value) === props.modelValue
+  ) {
+    return getOptionLabel(cachedSelectedOption.value);
+  }
+
   const selected = props.options.find((opt) => getOptionValue(opt) === props.modelValue);
   if (selected) {
+    cachedSelectedOption.value = selected;
     return getOptionLabel(selected);
   }
   return props.placeholder || "Select option...";
 });
 
 function selectOption(option: ComboboxOption) {
+  cachedSelectedOption.value = option;
   emit("update:modelValue", getOptionValue(option));
   open.value = false;
   searchQuery.value = "";
@@ -97,9 +143,9 @@ onClickOutside(containerRef as Ref<HTMLElement>, () => {
 
     <div
       v-if="open"
-      class="absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-md border bg-popover text-popover-foreground shadow-md animate-in fade-in-0 zoom-in-95"
+      class="absolute z-[100] mt-1 max-h-60 w-full overflow-auto rounded-md border bg-white dark:bg-slate-950 text-popover-foreground shadow-md animate-in fade-in-0 zoom-in-95"
     >
-      <div class="flex items-center border-b px-3 sticky top-0 bg-popover">
+      <div class="flex items-center border-b px-3 sticky top-0 bg-white dark:bg-slate-950 z-10">
         <input
           ref="inputRef"
           v-model="searchQuery"
@@ -114,7 +160,7 @@ onClickOutside(containerRef as Ref<HTMLElement>, () => {
 
         <div
           v-if="filteredOptions.length === 0 && allowCreate && searchQuery"
-          class="relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none bg-accent/50 hover:bg-accent text-accent-foreground"
+          class="relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none bg-[#012D5A]/10 hover:bg-[#012D5A] hover:text-white"
           @click="handleCreate"
         >
           <Plus class="mr-2 h-4 w-4" />
@@ -124,9 +170,9 @@ onClickOutside(containerRef as Ref<HTMLElement>, () => {
         <div
           v-for="option in filteredOptions"
           :key="getOptionValue(option)"
-          class="relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50"
+          class="relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-[#012D5A] hover:text-white data-[disabled]:pointer-events-none data-[disabled]:opacity-50"
           :class="{
-            'bg-accent': modelValue === getOptionValue(option),
+            'bg-[#012D5A] text-white': modelValue === getOptionValue(option),
           }"
           @click="selectOption(option)"
         >

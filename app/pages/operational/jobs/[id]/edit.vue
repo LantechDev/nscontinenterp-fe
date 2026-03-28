@@ -16,43 +16,41 @@ import {
 import Combobox from "~/components/ui/Combobox.vue";
 import DatePicker from "~/components/ui/DatePicker.vue";
 import Modal from "~/components/ui/Modal.vue";
-import type {
-  Company,
-  ContainerType,
-  Vessel,
-  Port,
-  PackageType,
-} from "~/composables/useMasterData";
-import SectionCard from "./components/SectionCard.vue";
-import JobPartyRow from "./components/JobPartyRow.vue";
+import type { Company, ContainerType, Vessel, Port } from "~/composables/useMasterData";
+import SectionCard from "../components/SectionCard.vue";
+import JobPartyRow from "../components/JobPartyRow.vue";
 
 definePageMeta({
   layout: "dashboard",
-  title: "Create Job",
+  title: "Edit Job",
 });
 
-const { createJob, isLoading } = useJobs();
+const { updateJob, getJob, isLoading: isJobLoading } = useJobs();
 const {
   fetchCompanies,
   fetchContainerTypes,
-  fetchPackageTypes,
   fetchVessels,
   fetchPorts,
   createCompany,
   createVessel,
+  fetchPackageTypes,
 } = useMasterData();
 const router = useRouter();
+const route = useRoute();
+const jobId = route.params.id as string;
 import { toast } from "vue-sonner";
 
 const { user } = useAuth();
 
 const companies = ref<Company[]>([]);
 const containerTypes = ref<ContainerType[]>([]);
+const packageTypes = ref<PackageType[]>([]);
 const vessels = ref<Vessel[]>([]);
 
 const portsPol = ref<Port[]>([]);
 const portsPod = ref<Port[]>([]);
-const packageTypes = ref<PackageType[]>([]);
+
+const isSubmitting = ref(false);
 
 // Company Modal State
 const isCompanyModalOpen = ref(false);
@@ -72,34 +70,6 @@ const companyForm = reactive({
   taxId: "",
 });
 
-onMounted(async () => {
-  await refreshMasterData();
-});
-
-async function refreshMasterData() {
-  const [comps, types, packs, vess, initialPorts] = await Promise.all([
-    fetchCompanies(),
-    fetchContainerTypes(),
-    fetchPackageTypes(),
-    fetchVessels(),
-    fetchPorts(),
-  ]);
-  companies.value = comps;
-  containerTypes.value = types;
-  packageTypes.value = packs;
-  vessels.value = vess;
-  portsPol.value = initialPorts;
-  portsPod.value = initialPorts;
-}
-
-async function handleSearchPol(query: string) {
-  portsPol.value = await fetchPorts(query);
-}
-
-async function handleSearchPod(query: string) {
-  portsPod.value = await fetchPorts(query);
-}
-
 const formData = reactive({
   // Job Info
   tradeTypeId: "EXPORT",
@@ -118,6 +88,7 @@ const formData = reactive({
   commodity: "", // mapped to Description of Goods
   shippingMark: "",
   mainDescription: "",
+  customerReference: "",
 
   // Containers (BL Ready)
   containers: [
@@ -126,7 +97,6 @@ const formData = reactive({
       containerNumber: "",
       sealNumber: "",
       containerTypeId: "",
-      isHazardous: false,
       items: [
         {
           id: Date.now() + 1,
@@ -140,6 +110,7 @@ const formData = reactive({
           hsCode: "",
         },
       ],
+      isHazardous: false,
     },
   ] as Array<{
     id: number;
@@ -190,7 +161,257 @@ const formData = reactive({
   notifyPartyAddressId: "",
   forwarderId: "",
   forwarderAddressId: "",
+  vendorId: "",
 });
+
+const jobDetails = ref<JobWithBls | null>(null);
+
+onMounted(async () => {
+  await fetchJobData();
+  await refreshMasterData(formData.pol, formData.pod);
+});
+
+async function fetchJobData() {
+  const res = await getJob(jobId);
+  if (res.success && res.data) {
+    const job = res.data;
+    jobDetails.value = job;
+
+    // Map job data to formData
+    formData.tradeTypeId =
+      job.tradeType?.code || (typeof job.tradeTypeId === "string" ? job.tradeTypeId : "EXPORT");
+    formData.pol = job.pol || "";
+    formData.pod = job.pod || "";
+    formData.voyageNumber = job.voyageNumber || "";
+    formData.preCarriageBy = job.preCarriageBy || "";
+    formData.placeOfReceipt = job.placeOfReceipt || "";
+    formData.placeOfDelivery = job.placeOfDelivery || "";
+    formData.finalDestination = job.finalDestination || "";
+
+    // Also try to get route data from BL if not available at job level
+    if (!formData.pol && job.billsOfLading && job.billsOfLading.length > 0) {
+      formData.pol = job.billsOfLading[0]?.pol || "";
+    }
+    if (!formData.pod && job.billsOfLading && job.billsOfLading.length > 0) {
+      formData.pod = job.billsOfLading[0]?.pod || "";
+    }
+
+    formData.commodity = job.commodity || "";
+    formData.shippingMark = job.shippingMark || "";
+    formData.grossWeight = job.grossWeight ? parseFloat(job.grossWeight) : null;
+    formData.netWeight = job.netWeight ? parseFloat(job.netWeight) : null;
+    formData.measurement = job.measurement ? parseFloat(job.measurement) : null;
+    formData.customerReference = job.customerReference || "";
+    formData.cargoMovementId =
+      job.cargoMovement?.code ||
+      (typeof job.cargoMovementId === "string" ? job.cargoMovementId : "FCL_FCL");
+    formData.deliveryMovementId =
+      job.deliveryMovement?.code ||
+      (typeof job.deliveryMovementId === "string" ? job.deliveryMovementId : "CY_DOOR");
+    formData.vesselId = job.vesselId || "";
+    formData.vendorId = job.vendorId || "";
+    formData.etd = job.etd && typeof job.etd === "string" ? (job.etd.split("T")[0] as string) : "";
+    formData.eta = job.eta && typeof job.eta === "string" ? (job.eta.split("T")[0] as string) : "";
+
+    // Also try to get route data from BL if not available at job level
+    if (!formData.vesselId && job.billsOfLading && job.billsOfLading.length > 0) {
+      formData.vesselId = job.billsOfLading[0]?.vesselId || "";
+    }
+    if (!formData.etd && job.billsOfLading && job.billsOfLading.length > 0) {
+      const blEtd = job.billsOfLading[0]?.etd;
+      formData.etd = blEtd && typeof blEtd === "string" ? (blEtd.split("T")[0] as string) : "";
+    }
+    if (!formData.eta && job.billsOfLading && job.billsOfLading.length > 0) {
+      const blEta = job.billsOfLading[0]?.eta;
+      formData.eta = blEta && typeof blEta === "string" ? (blEta.split("T")[0] as string) : "";
+    }
+
+    formData.totalBlCount = job.totalBlCount || 1;
+    formData.hsCode = job.hsCode || "";
+    formData.mainDescription = job.mainDescription || "";
+
+    // Also try to get cargo data from BL if not available at job level
+    if (!formData.commodity && job.billsOfLading && job.billsOfLading.length > 0) {
+      formData.commodity =
+        job.billsOfLading[0]?.commodity || job.billsOfLading[0]?.mainDescription || "";
+    }
+    if (!formData.shippingMark && job.billsOfLading && job.billsOfLading.length > 0) {
+      formData.shippingMark = job.billsOfLading[0]?.shippingMark || "";
+    }
+    if (!formData.hsCode && job.billsOfLading && job.billsOfLading.length > 0) {
+      formData.hsCode = job.billsOfLading[0]?.hsCode || "";
+    }
+    if (!formData.mainDescription && job.billsOfLading && job.billsOfLading.length > 0) {
+      formData.mainDescription =
+        job.billsOfLading[0]?.cargoDescription || job.billsOfLading[0]?.mainDescription || "";
+    }
+
+    // Map BL Setup from first BL if available
+    if (job.billsOfLading && job.billsOfLading.length > 0) {
+      const firstBl = job.billsOfLading[0];
+      if (firstBl) {
+        formData.freightTerm = firstBl.freightTerm || "PREPAID";
+        formData.blType = firstBl.blType || "ORIGINAL";
+        formData.placeOfIssue = firstBl.placeOfIssue || "";
+        formData.dateOfIssue =
+          firstBl.dateOfIssue && typeof firstBl.dateOfIssue === "string"
+            ? (firstBl.dateOfIssue.split("T")[0] as string)
+            : "";
+        formData.isNegotiable = firstBl.isNegotiable || false;
+      }
+    }
+
+    // Map Parties
+    if (job.jobParties) {
+      const shipper = job.jobParties.find((p) => p.partyRole?.code === "SHIPPER");
+      if (shipper) {
+        formData.shipperId = shipper.companyId || "";
+        formData.shipperAddressId = (shipper.addressBookId as string) || "";
+      }
+      const consignee = job.jobParties.find((p) => p.partyRole?.code === "CONSIGNEE");
+      if (consignee) {
+        formData.consigneeId = consignee.companyId || "";
+        formData.consigneeAddressId = (consignee.addressBookId as string) || "";
+      }
+      const notify = job.jobParties.find((p) => p.partyRole?.code === "NOTIFY_PARTY");
+      if (notify) {
+        formData.notifyPartyId = notify.companyId || "";
+        formData.notifyPartyAddressId = (notify.addressBookId as string) || "";
+        formData.isNotifySameAsConsignee = !!(
+          notify.companyId &&
+          notify.companyId === formData.consigneeId &&
+          notify.addressBookId === formData.consigneeAddressId
+        );
+      }
+      const forwarder = job.jobParties.find((p) => p.partyRole?.code === "FORWARDER");
+      if (forwarder) {
+        formData.forwarderId = forwarder.companyId || "";
+        formData.forwarderAddressId = (forwarder.addressBookId as string) || "";
+      }
+    }
+
+    // Map Containers
+    if (job.jobContainers && job.jobContainers.length > 0) {
+      formData.containers = job.jobContainers.map((c) => ({
+        id: Math.random(),
+        containerNumber: c.containerNumber || "",
+        sealNumber: c.sealNumber || "",
+        containerTypeId: c.containerTypeId || "",
+        isHazardous: c.isHazardous || false,
+        items:
+          c.items && c.items.length > 0
+            ? c.items.map((item) => ({
+                id: Math.random(),
+                sequenceNo: item.sequenceNo || 1,
+                qty: item.qty || 1,
+                packageTypeCode: item.packageTypeCode || "",
+                grossWeight: item.grossWeight ? parseFloat(item.grossWeight) : null,
+                netWeight: item.netWeight ? parseFloat(item.netWeight) : null,
+                measurementCbm: item.measurementCbm ? parseFloat(item.measurementCbm) : null,
+                description: item.description || "",
+                hsCode: item.hsCode || "",
+              }))
+            : [
+                {
+                  id: Math.random(),
+                  sequenceNo: 1,
+                  qty: 1,
+                  packageTypeCode: "",
+                  grossWeight: null,
+                  netWeight: null,
+                  measurementCbm: null,
+                  description: "",
+                  hsCode: "",
+                },
+              ],
+      }));
+    } else if (job.billsOfLading && job.billsOfLading.length > 0) {
+      formData.containers = job.billsOfLading.map((bl) => ({
+        id: Math.random(),
+        containerNumber: bl.containerNumber || "",
+        sealNumber: bl.sealNumber || "",
+        containerTypeId: "",
+        isHazardous: false,
+        items:
+          bl.items && bl.items.length > 0
+            ? bl.items.map((item) => ({
+                id: Math.random(),
+                sequenceNo: item.sequenceNo || 1,
+                qty: item.qty || 1,
+                packageTypeCode: item.packageTypeCode || "",
+                grossWeight: item.grossWeight ? parseFloat(item.grossWeight) : null,
+                netWeight: item.netWeight ? parseFloat(item.netWeight) : null,
+                measurementCbm: item.measurementCbm ? parseFloat(item.measurementCbm) : null,
+                description: item.description || "",
+                hsCode: item.hsCode || "",
+              }))
+            : [
+                {
+                  id: Math.random(),
+                  sequenceNo: 1,
+                  qty: 1,
+                  packageTypeCode: "",
+                  grossWeight: null,
+                  netWeight: null,
+                  measurementCbm: null,
+                  description: "",
+                  hsCode: "",
+                },
+              ],
+      }));
+    }
+  } else {
+    toast.error("Failed to fetch job data: " + res.error);
+    router.push("/operational/jobs");
+  }
+}
+
+async function refreshMasterData(polCode?: string, podCode?: string) {
+  const [comps, types, packs, vess, initialPorts] = await Promise.all([
+    fetchCompanies(),
+    fetchContainerTypes(),
+    fetchPackageTypes(),
+    fetchVessels(),
+    fetchPorts(),
+  ]);
+  companies.value = comps;
+  containerTypes.value = types;
+  packageTypes.value = packs;
+  vessels.value = vess;
+
+  // Ensure selected ports are included in the list
+  const selectedPol = polCode || formData.pol;
+  const selectedPod = podCode || formData.pod;
+
+  portsPol.value = initialPorts;
+  portsPod.value = initialPorts;
+
+  // Add selected ports if not already in the list
+  if (selectedPol) {
+    if (!portsPol.value.find((p) => p.code === selectedPol)) {
+      const polPort = await fetchPorts(selectedPol);
+      if (polPort.length > 0) {
+        portsPol.value = [...portsPol.value, ...polPort];
+      }
+    }
+  }
+  if (selectedPod) {
+    if (!portsPod.value.find((p) => p.code === selectedPod)) {
+      const podPort = await fetchPorts(selectedPod);
+      if (podPort.length > 0) {
+        portsPod.value = [...portsPod.value, ...podPort];
+      }
+    }
+  }
+}
+
+async function handleSearchPol(query: string) {
+  portsPol.value = await fetchPorts(query);
+}
+
+async function handleSearchPod(query: string) {
+  portsPod.value = await fetchPorts(query);
+}
 
 // Sync Notify Party if checkbox is checked
 watch(
@@ -224,6 +445,31 @@ watch(
   },
 );
 
+// Auto-calculate Total Weight & Measurement from containers
+watch(
+  () => formData.containers,
+  (newContainers) => {
+    let totalGw = 0;
+    let totalNw = 0;
+    let totalCbm = 0;
+
+    newContainers.forEach((container) => {
+      if (container.items && container.items.length > 0) {
+        container.items.forEach((item) => {
+          if (item.grossWeight) totalGw += Number(item.grossWeight);
+          if (item.netWeight) totalNw += Number(item.netWeight);
+          if (item.measurementCbm) totalCbm += Number(item.measurementCbm);
+        });
+      }
+    });
+
+    formData.grossWeight = totalGw > 0 ? totalGw : null;
+    formData.netWeight = totalNw > 0 ? totalNw : null;
+    formData.measurement = totalCbm > 0 ? totalCbm : null;
+  },
+  { deep: true },
+);
+
 // Auto-select Default Address when a Company is chosen
 const assignDefaultAddress = (
   companyId: string,
@@ -239,10 +485,12 @@ const assignDefaultAddress = (
   }
   const company = companies.value.find((c) => c.id === companyId);
   if (company && company.addresses && company.addresses.length > 0) {
+    // If we already have an address assigned (from fetching data), don't overwrite it unless needed
+    if (formData[addressKey] && company.addresses.some((a) => a.id === formData[addressKey])) {
+      return;
+    }
     const defaultAddr = company.addresses.find((a) => a.isDefault);
     formData[addressKey] = defaultAddr ? defaultAddr.id : company.addresses[0]!.id;
-  } else {
-    formData[addressKey] = "";
   }
 };
 
@@ -274,10 +522,12 @@ watch(
     let totalGw = 0;
     let totalNw = 0;
     let totalCbm = 0;
+    let hasItems = false;
 
     containers.forEach((container) => {
       if (container.items && Array.isArray(container.items)) {
         container.items.forEach((item) => {
+          hasItems = true;
           totalGw += Number(item.grossWeight) || 0;
           totalNw += Number(item.netWeight) || 0;
           totalCbm += Number(item.measurementCbm) || 0;
@@ -286,8 +536,8 @@ watch(
     });
 
     // Only update if there are items, to avoid resetting manual input when adding a new empty container
-    const hasItems = containers.some((c) => c.items && c.items.length > 0);
     if (hasItems) {
+      // Only overwrite if the calculated sum is greater than 0
       if (totalGw > 0) formData.grossWeight = totalGw;
       if (totalNw > 0) formData.netWeight = totalNw;
       if (totalCbm > 0) formData.measurement = totalCbm;
@@ -296,7 +546,6 @@ watch(
   { deep: true },
 );
 
-// Constants for dropdowns (using generic IDs/Names, adjust based on backend reference data if needed)
 const TRADE_TYPES = [
   { id: "EXPORT", name: "Export" },
   { id: "IMPORT", name: "Import" },
@@ -343,35 +592,19 @@ function handleCreateCompany(
   name: string,
   field: "shipperId" | "consigneeId" | "notifyPartyId" | "forwarderId",
 ) {
-  // Open the Modal and preset the name
   companyForm.name = name;
-  companyForm.fullAddress = "";
-  companyForm.street = "";
-  companyForm.city = "";
-  companyForm.state = "";
-  companyForm.postalCode = "";
-  companyForm.country = "Indonesia";
-  companyForm.eori = "";
-  companyForm.taxId = "";
-
   activeCompanyField.value = field;
   isCompanyModalOpen.value = true;
 }
 
 async function submitCompanyForm() {
-  if (!companyForm.name) {
-    toast.error("Company Name is required.");
-    return;
-  }
-
+  if (!companyForm.name) return;
   try {
     isSubmittingCompany.value = true;
-
-    // Prepare the address payload if at least fullAddress or city is provided
     const addressPayload =
-      companyForm.fullAddress || companyForm.city || companyForm.taxId
+      companyForm.fullAddress || companyForm.city
         ? {
-            fullAddress: companyForm.fullAddress || companyForm.city || "-", // fallback if only city is provided
+            fullAddress: companyForm.fullAddress || companyForm.city || "-",
             street: companyForm.street,
             city: companyForm.city,
             state: companyForm.state,
@@ -383,164 +616,93 @@ async function submitCompanyForm() {
         : undefined;
 
     const result = await createCompany(companyForm.name, addressPayload);
-
-    if (result.success && result.data && result.data.id) {
+    if (result.success && result.data) {
       await refreshMasterData();
-
-      // Auto-assign the created company to the active field
       if (activeCompanyField.value) {
         formData[activeCompanyField.value] = result.data.id;
       }
-
-      // Close Modal
       isCompanyModalOpen.value = false;
-    } else {
-      toast.error("Failed to create company: " + (result.error || "Unknown error"));
     }
-  } catch (error: unknown) {
-    toast.error("Failed to create company: " + (error as Error)?.message);
   } finally {
     isSubmittingCompany.value = false;
   }
 }
 
 async function handleCreateVessel(name: string) {
-  if (!confirm(`Create new vessel "${name}"?`)) return;
-
   const result = await createVessel(name);
   if (result.success && result.data) {
     await refreshMasterData();
     formData.vesselId = result.data.id;
-    toast.success(`Vessel "${name}" created successfully.`);
-  } else {
-    toast.error("Failed to create vessel: " + (result.error || "Unknown error"));
   }
 }
 
-async function handleSubmit(isDraft: boolean = false) {
-  if (!formData.shipperId || !formData.consigneeId || !formData.blType || !formData.freightTerm) {
-    toast.error("Please fill in Shipper, Consignee, Freight Term, and BL Type.");
+async function handleSubmit() {
+  if (!formData.shipperId || !formData.consigneeId) {
+    toast.error("Please fill in Shipper and Consignee.");
     return;
   }
 
-  // Pre-submit Validations
-  if (!isDraft) {
-    if (!formData.grossWeight || formData.grossWeight <= 0) {
-      toast.error("Gross Weight must be greater than 0 before finalizing the job.");
-      return;
-    }
-    if (!formData.measurement || formData.measurement <= 0) {
-      toast.error("Measurement (CBM) must be greater than 0 before finalizing the job.");
-      return;
-    }
-    const validContainers = formData.containers.filter((c) => c.containerNumber && c.sealNumber);
-    if (validContainers.length === 0) {
-      toast.error(
-        "At least one fully detailed Container (with Container No and Seal No) is required.",
-      );
-      return;
-    }
-  }
+  try {
+    isSubmitting.value = true;
+    const payload = {
+      ...formData,
+      vendorId: formData.vendorId || null,
+      vesselId: formData.vesselId || null,
+      containers: formData.containers.filter((c) => c.containerNumber),
+    };
 
-  // CreateJob payload
-  const payload: CreateJob = {
-    shipperId: formData.shipperId,
-    shipperAddressId: formData.shipperAddressId || undefined,
-    consigneeId: formData.consigneeId,
-    consigneeAddressId: formData.consigneeAddressId || undefined,
-    notifyPartyId: formData.notifyPartyId || undefined,
-    notifyPartyAddressId: formData.notifyPartyAddressId || undefined,
-    forwarderId: formData.forwarderId || undefined,
-    forwarderAddressId: formData.forwarderAddressId || undefined,
-    commodity: formData.commodity,
-    hsCode: formData.hsCode || undefined,
-    freightTerm: (formData.freightTerm as "PREPAID" | "COLLECT") || undefined,
-    containers: formData.containers.filter((c) => c.containerNumber),
-    pol: formData.pol,
-    pod: formData.pod,
-    vesselId: formData.vesselId || undefined,
-    voyageNumber: formData.voyageNumber || undefined,
-    preCarriageBy: formData.preCarriageBy || undefined,
-    placeOfReceipt: formData.placeOfReceipt || undefined,
-    placeOfDelivery: formData.placeOfDelivery || undefined,
-    finalDestination: formData.finalDestination || undefined,
-    etd: formData.etd || undefined,
-    eta: formData.eta || undefined,
-    totalBlCount: formData.totalBlCount || 1,
-    blType: (formData.blType as "ORIGINAL" | "DRAFT" | "SEAWAYBILL") || undefined,
-    isNegotiable: formData.isNegotiable,
-    placeOfIssue: formData.placeOfIssue || undefined,
-    dateOfIssue: formData.dateOfIssue || undefined,
+    const { success, error } = await updateJob(jobId, payload as Parameters<typeof updateJob>[1]);
 
-    tradeTypeId: formData.tradeTypeId || undefined,
-    cargoMovementId: formData.cargoMovementId || undefined,
-    deliveryMovementId: formData.deliveryMovementId || undefined,
-    grossWeight: formData.grossWeight || null,
-    netWeight: formData.netWeight || null,
-    measurement: formData.measurement || null,
-    shippingMark: formData.shippingMark || undefined,
-  };
-
-  const { success, error } = await createJob(payload);
-
-  if (success) {
-    toast.success("Job created successfully.");
-    router.push("/operational/jobs");
-  } else {
-    let errorMsg =
-      typeof error === "string"
-        ? error
-        : ((error as unknown as Record<string, unknown>)?.message as string) || "Unknown error";
-    try {
-      let jsonStr = "";
-      if (typeof error === "string" && error.startsWith("[")) {
-        jsonStr = error;
-      } else if (
-        error &&
-        typeof error === "object" &&
-        typeof (error as unknown as Record<string, unknown>).message === "string" &&
-        ((error as unknown as Record<string, unknown>).message as string).startsWith("[")
-      ) {
-        jsonStr = (error as unknown as Record<string, unknown>).message as string;
-      }
-
-      if (jsonStr) {
-        const parsed = JSON.parse(jsonStr);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          errorMsg = parsed.map((e: Record<string, unknown>) => e.message as string).join("\n");
+    if (success) {
+      toast.success("Job updated successfully.");
+      router.push({ path: "/operational/jobs" });
+    } else {
+      let errorMsg =
+        typeof error === "string"
+          ? error
+          : ((error as unknown as Record<string, unknown>)?.message as string) || "Unknown error";
+      try {
+        let jsonStr = "";
+        if (typeof error === "string" && error.startsWith("[")) {
+          jsonStr = error;
+        } else if (
+          error &&
+          typeof error === "object" &&
+          typeof (error as unknown as Record<string, unknown>).message === "string" &&
+          ((error as unknown as Record<string, unknown>).message as string).startsWith("[")
+        ) {
+          jsonStr = (error as unknown as Record<string, unknown>).message as string;
         }
+
+        if (jsonStr) {
+          const parsed = JSON.parse(jsonStr);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            errorMsg = parsed.map((e: Record<string, unknown>) => e.message as string).join("\n");
+          }
+        }
+      } catch (e) {
+        /* ignore parse error, use original string */
       }
-    } catch (e) {
-      /* ignore parse error, use original string */
+      toast.error("Failed to update job:\n" + errorMsg);
     }
-    toast.error("Failed to create job:\n" + errorMsg);
+  } finally {
+    isSubmitting.value = false;
   }
 }
 
-function getCompany(id: string) {
-  return companies.value.find((c) => c.id === id);
-}
-
-function getCompanyDetails(id: string, addressId?: string) {
-  const company = getCompany(id);
-  if (!company) return null;
-  const address = addressId
-    ? company.addresses?.find((a) => a.id === addressId)
-    : company.addresses?.find((a) => a.isDefault) || company.addresses?.[0];
-
-  return {
-    fullAddress: address?.fullAddress || "-",
-    country: address?.country || "-",
-    city: address?.city || "-",
-    taxId: address?.taxId || "-",
-  };
+function scrollTo(id: string) {
+  activeSection.value = id;
+  const el = document.getElementById(id);
+  if (el) {
+    const y = el.getBoundingClientRect().top + window.scrollY - 160;
+    window.scrollTo({ top: y, behavior: "smooth" });
+  }
 }
 
 // Intersection Observer for Scroll Spy
 onMounted(() => {
   const observer = new IntersectionObserver(
     (entries) => {
-      // We only care about sections that are entering from the top or are visible in the top band
       entries.forEach((entry) => {
         if (entry.isIntersecting) {
           activeSection.value = entry.target.id;
@@ -554,7 +716,6 @@ onMounted(() => {
     },
   );
 
-  // Observe all sections
   setTimeout(() => {
     SECTIONS.forEach((section) => {
       const el = document.getElementById(section.id);
@@ -562,20 +723,8 @@ onMounted(() => {
     });
   }, 100);
 
-  onUnmounted(() => {
-    observer.disconnect();
-  });
+  onUnmounted(() => observer.disconnect());
 });
-
-function scrollTo(id: string) {
-  activeSection.value = id;
-  const el = document.getElementById(id);
-
-  if (el) {
-    const y = el.getBoundingClientRect().top + window.scrollY - 160; // Offset for both main and sub headers
-    window.scrollTo({ top: y, behavior: "smooth" });
-  }
-}
 </script>
 
 <template>
@@ -586,15 +735,16 @@ function scrollTo(id: string) {
     >
       <header class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div class="flex items-center gap-4">
-          <NuxtLink
-            to="/operational/jobs"
+          <button
+            type="button"
+            @click="router.back()"
             class="p-2 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
           >
             <ArrowLeft class="w-5 h-5" />
-          </NuxtLink>
+          </button>
           <h1 class="text-xl font-bold flex items-center gap-2 text-foreground">
             <Briefcase class="w-5 h-5 text-[#012D5A]" />
-            Create Job
+            Edit Job
           </h1>
         </div>
         <div class="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
@@ -602,33 +752,31 @@ function scrollTo(id: string) {
             type="button"
             @click="router.back()"
             class="btn-outline flex-1 sm:flex-none justify-center sm:justify-start px-4"
-            :disabled="isLoading"
+            :disabled="isJobLoading"
           >
             Cancel
           </button>
           <button
             type="button"
-            @click="handleSubmit(true)"
-            class="inline-flex items-center justify-center rounded-lg px-4 py-2.5 text-sm font-medium border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 hover:border-blue-300 transition-all duration-200 shadow-sm flex-1 sm:flex-none"
-            :disabled="isLoading"
-          >
-            <Save class="w-4 h-4 mr-2 opacity-70" />
-            Save Draft
-          </button>
-          <button
-            type="button"
-            @click="handleSubmit(false)"
+            @click="handleSubmit()"
             class="btn-primary flex-1 sm:flex-none justify-center bg-[#012D5A] hover:bg-[#012D5A]/90 text-white shadow-sm"
-            :disabled="isLoading"
+            :disabled="isJobLoading"
           >
             <Save class="w-4 h-4 mr-2" />
-            {{ isLoading ? "Creating..." : "Create Job" }}
+            {{ isJobLoading ? "Saving..." : "Save Changes" }}
           </button>
         </div>
       </header>
     </div>
 
-    <div class="flex gap-8 relative px-0">
+    <div v-if="isJobLoading" class="flex flex-col items-center justify-center py-20 gap-4">
+      <div
+        class="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin"
+      ></div>
+      <p class="text-muted-foreground animate-pulse">Loading job details...</p>
+    </div>
+
+    <div v-else class="flex gap-8 relative px-0">
       <!-- Sidebar Navigation -->
       <aside class="w-64 shrink-0 hidden lg:block">
         <div class="sticky top-36">
@@ -672,7 +820,7 @@ function scrollTo(id: string) {
                 >
                 <input
                   type="text"
-                  placeholder="Auto-generated"
+                  :value="jobDetails?.jobNumber"
                   class="input-field bg-muted/50 cursor-not-allowed"
                   disabled
                 />
@@ -690,10 +838,10 @@ function scrollTo(id: string) {
                 >
                 <div class="h-[38px] flex items-center">
                   <span
-                    class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-secondary text-secondary-foreground border border-border"
+                    class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200"
                   >
-                    <span class="w-1.5 h-1.5 rounded-full bg-muted-foreground mr-1.5"></span>
-                    Draft
+                    <span class="w-1.5 h-1.5 rounded-full bg-blue-500 mr-1.5 animate-pulse"></span>
+                    {{ jobDetails?.status?.name || "Active" }}
                   </span>
                 </div>
               </div>
@@ -914,20 +1062,8 @@ function scrollTo(id: string) {
                 </div>
               </div>
 
-              <div class="space-y-2 md:col-span-4">
-                <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
-                  >MAIN DESCRIPTION (OVERALL COMMODITY)</label
-                >
-                <textarea
-                  v-model="formData.mainDescription"
-                  rows="8"
-                  placeholder="Description of goods to appear on BL..."
-                  class="input-field min-h-[150px] py-3 resize-y transition-all duration-200"
-                ></textarea>
-              </div>
-
-              <!-- Dynamic Containers List -->
-              <div class="border rounded-xl mt-6 overflow-visible">
+              <!-- Containers -->
+              <div class="border rounded-xl overflow-visible mt-6">
                 <div
                   class="bg-muted/10 px-4 py-3 border-b flex justify-between items-center rounded-t-xl"
                 >
@@ -958,8 +1094,7 @@ function scrollTo(id: string) {
                     "
                     class="btn-outline h-8 px-3 text-xs gap-1.5 flex items-center"
                   >
-                    <Plus class="w-3.5 h-3.5" />
-                    Add Container
+                    <Plus class="w-3.5 h-3.5" /> Add Container
                   </button>
                 </div>
                 <div class="p-4 space-y-4 bg-muted/5 rounded-b-xl">
@@ -1165,52 +1300,73 @@ function scrollTo(id: string) {
                   class="input-field min-h-[120px] py-3 resize-y transition-all duration-200"
                 ></textarea>
               </div>
+
+              <!-- Main Description -->
+              <div class="space-y-2 md:col-span-2">
+                <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
+                  >MAIN DESCRIPTION (GOODS DESCRIPTION)</label
+                >
+                <textarea
+                  v-model="formData.mainDescription"
+                  rows="8"
+                  placeholder="Enter detailed goods description..."
+                  class="input-field min-h-[150px] py-3 resize-y transition-all duration-200"
+                ></textarea>
+              </div>
             </div>
           </SectionCard>
 
           <!-- Movement & Schedule -->
           <SectionCard id="movement" title="Movement & Schedule" :icon="Clock">
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <!-- Cargo Movement -->
               <div class="space-y-2">
                 <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
-                  >CARGO MOVEMENT <span class="text-destructive">*</span></label
+                  >CARGO MOVEMENT</label
                 >
                 <Combobox v-model="formData.cargoMovementId" :options="CARGO_MOVEMENTS" />
               </div>
-
-              <!-- Delivery Movement -->
               <div class="space-y-2">
                 <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
-                  >DELIVERY MOVEMENT <span class="text-destructive">*</span></label
+                  >DELIVERY MOVEMENT</label
                 >
                 <Combobox v-model="formData.deliveryMovementId" :options="DELIVERY_MOVEMENTS" />
               </div>
               <div class="space-y-2">
                 <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
-                  >VESSEL / VOYAGE</label
+                  >VESSEL</label
                 >
                 <Combobox
                   v-model="formData.vesselId"
                   :options="vessels"
                   label-key="name"
                   value-key="id"
-                  placeholder="Search Vessel..."
                   allow-create
                   @create="handleCreateVessel"
                 />
               </div>
-              <div class="space-y-2 md:col-start-1 md:col-span-1">
+              <div class="space-y-2">
+                <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
+                  >SHIPPING LINE</label
+                >
+                <Combobox
+                  v-model="formData.vendorId"
+                  :options="companies"
+                  label-key="name"
+                  value-key="id"
+                  placeholder="Select Shipping Line..."
+                />
+              </div>
+              <div class="space-y-2">
                 <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
                   >ETD</label
                 >
-                <DatePicker v-model="formData.etd" placeholder="Select ETD..." />
+                <DatePicker v-model="formData.etd" />
               </div>
-              <div class="space-y-2 md:col-start-2 md:col-span-1">
+              <div class="space-y-2">
                 <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
                   >ETA</label
                 >
-                <DatePicker v-model="formData.eta" placeholder="Select ETA..." />
+                <DatePicker v-model="formData.eta" />
               </div>
             </div>
           </SectionCard>
@@ -1282,7 +1438,6 @@ function scrollTo(id: string) {
           <SectionCard id="bl" title="BL Setup" :icon="FileText">
             <div class="space-y-8">
               <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <!-- BL Type -->
                 <div class="space-y-2">
                   <label
                     class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
@@ -1290,8 +1445,6 @@ function scrollTo(id: string) {
                   >
                   <Combobox v-model="formData.blType" :options="BL_TYPES" />
                 </div>
-
-                <!-- Freight Term -->
                 <div class="space-y-2">
                   <label
                     class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
@@ -1299,8 +1452,6 @@ function scrollTo(id: string) {
                   >
                   <Combobox v-model="formData.freightTerm" :options="FREIGHT_TERMS" />
                 </div>
-
-                <!-- Total BL Count -->
                 <div class="space-y-2">
                   <label
                     class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
@@ -1316,7 +1467,6 @@ function scrollTo(id: string) {
               </div>
 
               <div class="grid grid-cols-1 md:grid-cols-3 gap-6 items-end">
-                <!-- Place of Issue -->
                 <div class="space-y-2">
                   <label
                     class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
@@ -1329,8 +1479,6 @@ function scrollTo(id: string) {
                     class="input-field"
                   />
                 </div>
-
-                <!-- Date of Issue -->
                 <div class="space-y-2">
                   <label
                     class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
@@ -1338,7 +1486,6 @@ function scrollTo(id: string) {
                   >
                   <DatePicker v-model="formData.dateOfIssue" placeholder="Select date..." />
                 </div>
-
                 <!-- Negotiable Toggle -->
                 <div class="h-11 flex items-center pb-1">
                   <label class="flex items-center gap-3 cursor-pointer group">
@@ -1364,127 +1511,25 @@ function scrollTo(id: string) {
       </main>
     </div>
 
-    <!-- Company Creation Modal -->
-    <Modal
-      v-model="isCompanyModalOpen"
-      title="Add New Company"
-      description="Create a new company to use in this job."
-      width="max-w-2xl"
-    >
-      <div class="space-y-6">
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div class="space-y-2 md:col-span-2">
-            <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
-              >Company Name <span class="text-destructive">*</span></label
-            >
-            <input
-              v-model="companyForm.name"
-              type="text"
-              placeholder="e.g. PT Maju Bersama"
-              class="input-field"
-              required
-            />
-          </div>
-
-          <div class="space-y-2 md:col-span-2">
-            <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
-              >Full Address</label
-            >
-            <textarea
-              v-model="companyForm.fullAddress"
-              rows="2"
-              placeholder="e.g. Jl. Raya Perjuangan No.1"
-              class="input-field resize-none"
-            ></textarea>
-          </div>
-
-          <div class="space-y-2">
-            <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
-              >City</label
-            >
-            <input
-              v-model="companyForm.city"
-              type="text"
-              placeholder="e.g. Jakarta"
-              class="input-field"
-            />
-          </div>
-
-          <div class="space-y-2">
-            <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
-              >State / Province</label
-            >
-            <input
-              v-model="companyForm.state"
-              type="text"
-              placeholder="e.g. DKI Jakarta"
-              class="input-field"
-            />
-          </div>
-
-          <div class="space-y-2">
-            <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
-              >Postal Code</label
-            >
-            <input
-              v-model="companyForm.postalCode"
-              type="text"
-              placeholder="e.g. 12345"
-              class="input-field"
-            />
-          </div>
-
-          <div class="space-y-2">
-            <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
-              >Country</label
-            >
-            <input
-              v-model="companyForm.country"
-              type="text"
-              placeholder="e.g. Indonesia"
-              class="input-field"
-            />
-          </div>
-
-          <div class="space-y-2">
-            <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
-              >Tax ID / NPWP</label
-            >
-            <input
-              v-model="companyForm.taxId"
-              type="text"
-              placeholder="e.g. 01.234.567.8-901.000"
-              class="input-field"
-            />
-          </div>
-
-          <div class="space-y-2">
-            <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
-              >EORI (Optional)</label
-            >
-            <input v-model="companyForm.eori" type="text" placeholder="" class="input-field" />
-          </div>
+    <!-- Company Modal -->
+    <Modal v-model="isCompanyModalOpen" title="Add New Company">
+      <div class="space-y-4">
+        <div class="space-y-2">
+          <label class="text-xs font-semibold uppercase tracking-wider">Company Name</label>
+          <input v-model="companyForm.name" type="text" class="input-field" />
         </div>
-      </div>
-      <template #footer>
+        <div class="space-y-2">
+          <label class="text-xs font-semibold uppercase tracking-wider">Address</label>
+          <textarea v-model="companyForm.fullAddress" class="input-field"></textarea>
+        </div>
         <button
-          type="button"
-          @click="isCompanyModalOpen = false"
-          class="btn-outline justify-center px-4"
-          :disabled="isSubmittingCompany"
-        >
-          Cancel
-        </button>
-        <button
-          type="button"
           @click="submitCompanyForm"
-          class="btn-primary justify-center bg-[#012D5A] hover:bg-[#012D5A]/90 text-white shadow-sm"
-          :disabled="isSubmittingCompany || !companyForm.name"
+          :disabled="isSubmittingCompany"
+          class="btn-primary w-full shadow-md"
         >
-          <Building2 class="w-4 h-4 mr-2" />
-          {{ isSubmittingCompany ? "Saving..." : "Save Company" }}
+          {{ isSubmittingCompany ? "Creating..." : "Create Company" }}
         </button>
-      </template>
+      </div>
     </Modal>
   </div>
 </template>

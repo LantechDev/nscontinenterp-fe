@@ -420,7 +420,7 @@ onUnmounted(() => {
       <!-- Top header -->
       <header
         v-if="showHeader"
-        class="sticky top-0 z-30 h-16 bg-white/80 backdrop-blur-md border-b border-gray-200 flex items-center justify-between px-6"
+        class="sticky top-0 z-[1000] h-16 bg-white/80 backdrop-blur-md border-b border-gray-200 flex items-center justify-between px-6"
       >
         <ClientOnly>
           <div ref="searchContainerRef" class="relative max-w-md flex-1">

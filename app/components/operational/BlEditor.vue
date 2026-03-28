@@ -1,6 +1,34 @@
 <script setup lang="ts">
 import { X, Save, Copy, Loader2 } from "lucide-vue-next";
 import Combobox from "~/components/ui/Combobox.vue";
+import type { Company, ContainerType, PackageType } from "~/composables/useMasterData";
+import { toast } from "vue-sonner";
+
+interface BlParty {
+  id: string;
+  companyId?: string | null;
+  partyRole?: {
+    code: string;
+    name: string;
+  };
+  partyRoleCode?: string;
+}
+
+interface BlData {
+  id: string;
+  blNumber: string;
+  containerNumber?: string | null;
+  sealNumber?: string | null;
+  containerTypeId?: string | null;
+  grossWeight?: string | null;
+  netWeight?: string | null;
+  measurement?: string | null;
+  packagesCount?: number | null;
+  packageTypeId?: string | null;
+  cargoDescription?: string | null;
+  statusId?: string | null;
+  blParties?: BlParty[];
+}
 
 interface Props {
   modelValue: boolean;
@@ -12,39 +40,162 @@ const props = defineProps<Props>();
 const emit = defineEmits<{
   (e: "update:modelValue", value: boolean): void;
   (e: "saved"): void;
+  (e: "update:modelValue", value: boolean): void;
+  (e: "saved"): void;
 }>();
 
-const {
-  formData,
-  companies,
-  containerTypes,
-  isLoading,
-  isSaving,
-  handleCopyFromJob,
-  handleSave,
-  initialize,
-} = useBlEditor(props.blId);
+const { fetchCompanies, fetchContainerTypes, fetchPackageTypes } = useMasterData();
+
+const companies = ref<Company[]>([]);
+const containerTypes = ref<ContainerType[]>([]);
+const packageTypes = ref<PackageType[]>([]);
+
+const isLoading = ref(false);
+const isSaving = ref(false);
+
+interface FormData {
+  blNumber: string;
+  containerNumber: string;
+  sealNumber: string;
+  containerTypeId: string;
+  grossWeight: number;
+  netWeight: number;
+  measurement: number;
+  packagesCount: number;
+  packageTypeId: string;
+  cargoDescription: string;
+  statusId: string;
+  shipperId: string;
+  consigneeId: string;
+  notifyPartyId: string;
+}
+
+const formData = reactive<FormData>({
+  blNumber: "",
+  containerNumber: "",
+  sealNumber: "",
+  containerTypeId: "",
+  grossWeight: 0,
+  netWeight: 0,
+  measurement: 0,
+  packagesCount: 0,
+  packageTypeId: "",
+  cargoDescription: "",
+  statusId: "",
+  shipperId: "",
+  consigneeId: "",
+  notifyPartyId: "",
+});
+
+function findParty(parties: BlParty[] | undefined, roleCode: string): BlParty | undefined {
+  if (!parties) return undefined;
+  return parties.find((p) => p.partyRole?.code === roleCode || p.partyRoleCode === roleCode);
+}
+
+async function loadBlData() {
+  if (!props.blId) return;
+  isLoading.value = true;
+  try {
+    const response = await $fetch<{ data: BlData }>(
+      `/api/operational/bill-of-lading/${props.blId}`,
+    );
+    const data = response.data;
+
+    formData.blNumber = data.blNumber || "";
+    formData.containerNumber = data.containerNumber || "";
+    formData.sealNumber = data.sealNumber || "";
+    formData.containerTypeId = data.containerTypeId || "";
+    formData.grossWeight = Number(data.grossWeight) || 0;
+    formData.netWeight = Number(data.netWeight) || 0;
+    formData.measurement = Number(data.measurement) || 0;
+    formData.packagesCount = data.packagesCount || 0;
+    formData.packageTypeId = data.packageTypeId || "";
+    formData.cargoDescription = data.cargoDescription || "";
+    formData.statusId = data.statusId || "";
+
+    const shipper = findParty(data.blParties, "SHIPPER");
+    const consignee = findParty(data.blParties, "CONSIGNEE");
+    const notify = findParty(data.blParties, "NOTIFY_PARTY");
+
+    formData.shipperId = shipper?.companyId || "";
+    formData.consigneeId = consignee?.companyId || "";
+    formData.notifyPartyId = notify?.companyId || "";
+  } catch (error) {
+    console.error("Failed to load BL", error);
+    toast.error("Failed to load BL details");
+  } finally {
+    isLoading.value = false;
+  }
+}
 
 watch(
   () => props.modelValue,
   (isOpen) => {
     if (isOpen) {
-      initialize();
+      Promise.all([
+        fetchCompanies().then((res) => {
+          companies.value = res || [];
+        }),
+        fetchContainerTypes().then((res) => {
+          containerTypes.value = res || [];
+        }),
+        fetchPackageTypes().then((res) => {
+          packageTypes.value = res || [];
+        }),
+        loadBlData(),
+      ]);
     }
   },
 );
 
-async function onSave() {
-  const success = await handleSave();
-  if (success) {
+async function handleCopyFromJob() {
+  if (!confirm("This will overwrite existing parties with data from the Job. Continue?")) return;
+
+  isLoading.value = true;
+  try {
+    await $fetch(`/api/operational/bill-of-lading/${props.blId}/copy-from-job`, {
+      method: "POST",
+    });
+    await loadBlData();
+    toast.success("Data copied from Job. You can now edit it for this BL.");
+  } catch (error) {
+    console.error("Copy failed", error);
+    toast.error("Failed to copy data");
+  } finally {
+    isLoading.value = false;
+  }
+}
+
+async function handleSave() {
+  isSaving.value = true;
+  try {
+    const payload = {
+      ...formData,
+      parties: [
+        { roleCode: "SHIPPER", companyId: formData.shipperId },
+        { roleCode: "CONSIGNEE", companyId: formData.consigneeId },
+        { roleCode: "NOTIFY_PARTY", companyId: formData.notifyPartyId },
+      ].filter((p) => p.companyId),
+    };
+
+    await $fetch(`/api/operational/bill-of-lading/${props.blId}`, {
+      method: "PATCH",
+      body: payload,
+    });
+
     emit("saved");
     emit("update:modelValue", false);
+  } catch (error) {
+    console.error("Save failed", error);
+    toast.error("Failed to save BL");
+  } finally {
+    isSaving.value = false;
   }
 }
 </script>
 
 <template>
-  <div v-if="modelValue" class="fixed inset-0 z-50 flex justify-end">
+  <div v-if="modelValue" class="fixed inset-0 z-[999] flex justify-end">
     <!-- Backdrop -->
     <div
       class="absolute inset-0 bg-black/50 transition-opacity"
@@ -53,7 +204,7 @@ async function onSave() {
 
     <!-- Drawer Panel -->
     <div
-      class="relative w-full max-w-2xl bg-background h-full shadow-xl flex flex-col animate-slide-in-right"
+      class="relative w-full max-w-2xl bg-background h-full shadow-xl flex flex-col pt-16 animate-slide-in-right"
     >
       <!-- Header -->
       <div
@@ -66,7 +217,7 @@ async function onSave() {
         <div class="flex items-center gap-2">
           <button
             type="button"
-            @click="() => handleCopyFromJob()"
+            @click="handleCopyFromJob"
             class="btn-outline text-xs h-8 gap-2"
             :disabled="isLoading"
           >
@@ -220,7 +371,12 @@ async function onSave() {
         <button type="button" @click="$emit('update:modelValue', false)" class="btn-secondary">
           Cancel
         </button>
-        <button type="button" @click="onSave" class="btn-primary" :disabled="isSaving || isLoading">
+        <button
+          type="button"
+          @click="handleSave"
+          class="btn-primary"
+          :disabled="isSaving || isLoading"
+        >
           <Loader2 v-if="isSaving" class="w-4 h-4 mr-2 animate-spin" />
           Save Changes
         </button>

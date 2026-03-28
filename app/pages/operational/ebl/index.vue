@@ -7,6 +7,8 @@ import {
   LayoutList,
   LayoutGrid,
   MoreVertical,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-vue-next";
 import { cn } from "~/lib/utils";
 
@@ -67,22 +69,17 @@ const getStatusInfo = (ebl: EblItem): { label: string; class: string } => {
 type ViewMode = "list" | "grid";
 const viewMode = ref<ViewMode>("list");
 
-// Pagination
-const currentPage = ref(1);
-const pagination = ref({
-  total: 0,
-  limit: 10,
-  page: 1,
-});
+const selectedBlId = ref("");
+const isDetailOpen = ref(false);
 
-const handlePageChange = (page: number) => {
-  currentPage.value = page;
-  fetchEbls();
-};
+function openBlDetail(id: string) {
+  selectedBlId.value = id;
+  isDetailOpen.value = true;
+}
 </script>
 
 <template>
-  <div class="space-y-6 animate-fade-in p-6">
+  <div class="space-y-6 animate-fade-in pb-10">
     <!-- Page header -->
     <div class="flex items-center justify-between">
       <div>
@@ -167,7 +164,7 @@ const handlePageChange = (page: number) => {
               v-for="ebl in ebls"
               :key="ebl.id"
               class="border-b border-border last:border-0 hover:bg-muted/30 transition-colors cursor-pointer"
-              @click="navigateTo(`/operational/ebl/${ebl.id}`)"
+              @click="openBlDetail(ebl.id)"
             >
               <td class="py-3 px-4">
                 <div class="flex items-center gap-2">
@@ -209,7 +206,7 @@ const handlePageChange = (page: number) => {
         v-for="ebl in ebls"
         :key="ebl.id"
         class="border border-border rounded-xl bg-white p-5 hover:shadow-sm transition-shadow cursor-pointer"
-        @click="navigateTo(`/operational/ebl/${ebl.id}`)"
+        @click="openBlDetail(ebl.id)"
       >
         <div class="flex items-start justify-between mb-4">
           <div class="flex items-start gap-4">
@@ -252,12 +249,25 @@ const handlePageChange = (page: number) => {
       class="flex items-center justify-between text-sm text-muted-foreground"
     >
       <p>{{ ebls.length }} data found.</p>
-      <UiPagination
-        v-model:page="currentPage"
-        :total="pagination.total"
-        :items-per-page="pagination.limit"
-        @update:page="handlePageChange"
-      />
+      <div class="flex items-center gap-2">
+        <button class="p-1 hover:text-foreground disabled:opacity-50">
+          <ChevronLeft class="w-4 h-4" />
+          <span class="sr-only">Previous</span>
+        </button>
+        <button
+          class="w-8 h-8 flex items-center justify-center rounded border border-border bg-white text-foreground font-medium"
+        >
+          1
+        </button>
+        <span class="px-1">...</span>
+        <button class="flex items-center gap-1 hover:text-foreground">
+          Next
+          <ChevronRight class="w-4 h-4" />
+        </button>
+      </div>
     </div>
+
+    <!-- eBL Details Slide-over -->
+    <OperationalBlDetailSlideOver v-model="isDetailOpen" :bl-id="selectedBlId" />
   </div>
 </template>

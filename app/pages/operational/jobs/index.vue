@@ -11,18 +11,29 @@ import {
   LayoutGrid,
   ArrowRight,
   MoreVertical,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-vue-next";
-import { cn, formatDate } from "~/lib/utils";
+import { cn } from "~/lib/utils";
 
 definePageMeta({
   layout: "dashboard",
 });
 
 const { jobs, fetchJobs, isLoading } = useJobs();
+const route = useRoute();
+const router = useRouter();
 
 // Fetch jobs on mount
 onMounted(async () => {
   await fetchJobs();
+
+  // If there's an id in query, open it after jobs are loaded
+  if (route.query.id) {
+    openJobDetail(route.query.id as string);
+    // Optional: remove query param after opening to keep URL clean
+    router.replace({ query: {} });
+  }
 });
 
 const searchQuery = ref("");
@@ -45,22 +56,17 @@ const getStatusClass = (statusId: string | null | undefined) => {
   return "bg-blue-50 text-blue-700 border-blue-200";
 };
 
-// Pagination
-const currentPage = ref(1);
-const pagination = ref({
-  total: 0,
-  limit: 10,
-  page: 1,
-});
+const selectedJobId = ref("");
+const isDetailOpen = ref(false);
 
-const handlePageChange = (page: number) => {
-  currentPage.value = page;
-  fetchJobs();
-};
+function openJobDetail(id: string) {
+  selectedJobId.value = id;
+  isDetailOpen.value = true;
+}
 </script>
 
 <template>
-  <div class="space-y-6 animate-fade-in p-6">
+  <div class="space-y-6 animate-fade-in pb-10">
     <!-- Page header -->
     <div class="flex items-center justify-between">
       <div>
@@ -148,7 +154,7 @@ const handlePageChange = (page: number) => {
               v-for="job in filteredJobs"
               :key="job.id"
               class="border-b border-border last:border-0 hover:bg-muted/30 transition-colors cursor-pointer"
-              @click="navigateTo(`/operational/jobs/${job.id}`)"
+              @click="openJobDetail(job.id)"
             >
               <td class="py-3 px-4">
                 <div class="flex items-center gap-2">
@@ -158,7 +164,9 @@ const handlePageChange = (page: number) => {
                   <span class="text-sm font-medium">{{ job.jobNumber }}</span>
                 </div>
               </td>
-              <td class="py-3 px-4 text-sm">{{ job.commodity }}</td>
+              <td class="py-3 px-4 text-sm max-w-xs truncate" :title="job.commodity">
+                {{ job.commodity }}
+              </td>
               <td class="py-3 px-4">
                 <div class="flex flex-col text-sm">
                   <span class="flex items-center gap-1 font-medium">
@@ -172,7 +180,7 @@ const handlePageChange = (page: number) => {
               <td class="py-3 px-4">
                 <div class="flex items-center gap-2 text-sm text-gray-600">
                   <Calendar class="w-3 h-3" />
-                  {{ formatDate(job.eta) }}
+                  {{ job.eta || "-" }}
                 </div>
               </td>
               <td class="py-3 px-4">
@@ -188,9 +196,21 @@ const handlePageChange = (page: number) => {
                 </span>
               </td>
               <td class="py-3 px-4 text-right">
-                <button class="text-muted-foreground hover:text-foreground">
-                  <MoreVertical class="w-4 h-4" />
-                </button>
+                <div class="flex items-center justify-end gap-2">
+                  <button
+                    class="p-1.5 text-muted-foreground hover:text-[#012D5A] hover:bg-blue-50 rounded transition-colors"
+                    @click.stop="openJobDetail(job.id)"
+                    title="View Details"
+                  >
+                    <Eye class="w-4 h-4" />
+                  </button>
+                  <button
+                    class="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors"
+                    @click.stop
+                  >
+                    <MoreVertical class="w-4 h-4" />
+                  </button>
+                </div>
               </td>
             </tr>
             <tr v-if="filteredJobs.length === 0">
@@ -207,7 +227,7 @@ const handlePageChange = (page: number) => {
         v-for="job in filteredJobs"
         :key="job.id"
         class="border border-border rounded-xl bg-white p-5 hover:shadow-sm transition-shadow cursor-pointer"
-        @click="navigateTo(`/operational/jobs/${job.id}`)"
+        @click="openJobDetail(job.id)"
       >
         <div class="flex items-start justify-between mb-4">
           <div class="flex items-start gap-4">
@@ -218,12 +238,29 @@ const handlePageChange = (page: number) => {
             </div>
             <div>
               <h3 class="font-bold text-base text-foreground">{{ job.jobNumber }}</h3>
-              <p class="text-xs text-muted-foreground">{{ job.commodity }}</p>
+              <p
+                class="text-xs text-muted-foreground max-w-[200px] truncate"
+                :title="job.commodity"
+              >
+                {{ job.commodity }}
+              </p>
             </div>
           </div>
-          <button class="text-muted-foreground hover:text-foreground" @click.stop>
-            <MoreVertical class="w-4 h-4" />
-          </button>
+          <div class="flex items-center gap-1">
+            <button
+              class="p-1.5 text-muted-foreground hover:text-[#012D5A] hover:bg-blue-50 rounded transition-colors"
+              @click.stop="openJobDetail(job.id)"
+              title="View Details"
+            >
+              <Eye class="w-4 h-4" />
+            </button>
+            <button
+              class="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors"
+              @click.stop
+            >
+              <MoreVertical class="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         <div class="space-y-3 mb-4">
@@ -235,7 +272,7 @@ const handlePageChange = (page: number) => {
           </div>
           <div class="flex items-center gap-2 text-sm text-gray-600">
             <Calendar class="w-4 h-4 text-muted-foreground" />
-            <span>ETA: {{ formatDate(job.eta) }}</span>
+            <span>ETA: {{ job.eta || "-" }}</span>
           </div>
         </div>
 
@@ -254,12 +291,25 @@ const handlePageChange = (page: number) => {
     <!-- Pagination -->
     <div class="flex items-center justify-between text-sm text-muted-foreground">
       <p>{{ filteredJobs.length }} data found.</p>
-      <UiPagination
-        v-model:page="currentPage"
-        :total="pagination.total"
-        :items-per-page="pagination.limit"
-        @update:page="handlePageChange"
-      />
+      <div class="flex items-center gap-2">
+        <button class="p-1 hover:text-foreground disabled:opacity-50">
+          <ChevronLeft class="w-4 h-4" />
+          <span class="sr-only">Previous</span>
+        </button>
+        <button
+          class="w-8 h-8 flex items-center justify-center rounded border border-border bg-white text-foreground font-medium"
+        >
+          1
+        </button>
+        <span class="px-1">...</span>
+        <button class="flex items-center gap-1 hover:text-foreground">
+          Next
+          <ChevronRight class="w-4 h-4" />
+        </button>
+      </div>
     </div>
+
+    <!-- Job Details Slide-over -->
+    <OperationalJobDetailSlideOver v-model="isDetailOpen" :job-id="selectedJobId" />
   </div>
 </template>
