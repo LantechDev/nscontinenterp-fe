@@ -66,12 +66,12 @@ function openJobDetail(id: string) {
 </script>
 
 <template>
-  <div class="space-y-6 animate-fade-in pb-10">
+  <div class="space-y-6 animate-fade-in pb-10 p-6">
     <!-- Page header -->
     <div class="flex items-center justify-between">
       <div>
         <h1 class="text-2xl font-bold">Job / Shipment</h1>
-        <p class="text-muted-foreground mt-1">Kelola job dan shipment</p>
+        <p class="text-muted-foreground mt-1">Manage job and shipment</p>
       </div>
 
       <div class="flex items-center gap-2">
@@ -124,7 +124,7 @@ function openJobDetail(id: string) {
           class="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-[#012D5A] text-white hover:bg-[#012D5A]/90 rounded-lg transition-colors min-w-fit whitespace-nowrap"
         >
           <Plus class="w-4 h-4" />
-          <span>Open Job Baru</span>
+          <span>Open New Job</span>
         </NuxtLink>
       </div>
     </div>

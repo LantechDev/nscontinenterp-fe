@@ -233,12 +233,9 @@ const toggleItem = (itemId: string | number) => {
           <!-- Tab Content -->
           <div class="p-8">
             <!-- Overview Tab -->
-            <div v-if="activeTab === 'overview'" class="space-y-8 animate-fade-in pb-12 pt-4">
-              <!-- Shipments Details -->
+            <div v-if="activeTab === 'overview'" class="space-y-8 animate-fade-in">
               <section>
-                <h3 class="text-base font-bold mb-4 border-b border-border pb-2">
-                  Shipments Details
-                </h3>
+                <h3 class="text-base font-bold">Shipments Details</h3>
                 <div class="grid grid-cols-2 gap-x-8 gap-y-6 mt-6">
                   <div class="flex gap-4 items-center">
                     <div
@@ -292,10 +289,8 @@ const toggleItem = (itemId: string | number) => {
 
               <!-- Involved Parties -->
               <section>
-                <h3 class="text-base font-bold mb-4 border-b border-border pb-2">
-                  Involved Parties
-                </h3>
-                <div class="grid grid-cols-2 gap-4 mt-6">
+                <h3 class="text-base font-bold">Involved Parties</h3>
+                <div class="grid grid-cols-2 gap-4 mt-4">
                   <div
                     v-for="party in job.jobParties"
                     :key="party.id"
@@ -331,8 +326,8 @@ const toggleItem = (itemId: string | number) => {
 
               <!-- Container -->
               <section>
-                <h3 class="text-base font-bold mb-4 border-b border-border pb-2">Container</h3>
-                <div class="space-y-4 mt-6">
+                <h3 class="text-base font-bold">Container</h3>
+                <div class="space-y-4 mt-4">
                   <div
                     v-for="container in job.jobContainers"
                     :key="container.id"
@@ -529,7 +524,6 @@ const toggleItem = (itemId: string | number) => {
                   </div>
                 </div>
               </section>
-              <hr class="my-8 border-border" />
 
               <section>
                 <h3 class="text-base font-bold mb-4 border-b pb-2">Movement Details</h3>
@@ -614,7 +608,7 @@ const toggleItem = (itemId: string | number) => {
         </div>
 
         <!-- Footer Actions -->
-        <div class="p-6 border-t border-border flex justify-end bg-white shrink-0">
+        <div class="p-4 border-t border-border flex justify-end bg-white shrink-0">
           <div class="flex gap-3">
             <NuxtLink
               v-if="job?.id"

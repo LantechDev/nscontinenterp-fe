@@ -27,7 +27,7 @@ const formatDate = (dateStr?: string | null) => {
 </script>
 
 <template>
-  <div class="space-y-6 mt-2">
+  <div class="space-y-4">
     <div class="flex items-center justify-between">
       <div>
         <h3 class="text-base font-bold text-foreground">Bill of Lading</h3>

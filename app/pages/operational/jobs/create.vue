@@ -338,6 +338,8 @@ const SECTIONS = [
 ];
 
 const activeSection = ref("job-info");
+const isManualScroll = ref(false);
+let manualScrollTimeout: number | undefined;
 
 function handleCreateCompany(
   name: string,
@@ -538,9 +540,21 @@ function getCompanyDetails(id: string, addressId?: string) {
 
 // Intersection Observer for Scroll Spy
 onMounted(() => {
+  const handleScroll = () => {
+    if (isManualScroll.value) return;
+
+    // Fallback for bottom of the page
+    if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 50) {
+      const lastSection = SECTIONS[SECTIONS.length - 1];
+      if (lastSection) activeSection.value = lastSection.id;
+      return;
+    }
+  };
+
   const observer = new IntersectionObserver(
     (entries) => {
-      // We only care about sections that are entering from the top or are visible in the top band
+      if (isManualScroll.value) return;
+
       entries.forEach((entry) => {
         if (entry.isIntersecting) {
           activeSection.value = entry.target.id;
@@ -548,11 +562,13 @@ onMounted(() => {
       });
     },
     {
-      // Trigger when section is in the top 20% of the viewport (after the sticky header)
-      rootMargin: "-165px 0px -80% 0px",
+      // More relaxed margins to capture sections in the upper half
+      rootMargin: "-160px 0px -40% 0px",
       threshold: 0,
     },
   );
+
+  window.addEventListener("scroll", handleScroll, { passive: true });
 
   // Observe all sections
   setTimeout(() => {
@@ -564,11 +580,20 @@ onMounted(() => {
 
   onUnmounted(() => {
     observer.disconnect();
+    window.removeEventListener("scroll", handleScroll);
   });
 });
 
 function scrollTo(id: string) {
+  isManualScroll.value = true;
   activeSection.value = id;
+
+  if (manualScrollTimeout) clearTimeout(manualScrollTimeout);
+  // Re-enable Intersection Observer after smooth scroll duration
+  manualScrollTimeout = window.setTimeout(() => {
+    isManualScroll.value = false;
+  }, 1000);
+
   const el = document.getElementById(id);
 
   if (el) {
@@ -579,7 +604,7 @@ function scrollTo(id: string) {
 </script>
 
 <template>
-  <div class="space-y-6 animate-fade-in pb-10">
+  <div class="space-y-6 animate-fade-in p-6">
     <!-- Sticky Header -->
     <div
       class="sticky top-16 z-[900] -mx-6 -mt-6 px-6 py-4 bg-background/80 backdrop-blur-md border-b border-border/50 shadow-sm transition-all duration-200"
@@ -628,36 +653,34 @@ function scrollTo(id: string) {
       </header>
     </div>
 
-    <div class="flex gap-8 relative px-0">
+    <div class="flex gap-8 relative items-start">
       <!-- Sidebar Navigation -->
-      <aside class="w-64 shrink-0 hidden lg:block">
-        <div class="sticky top-36">
-          <nav class="space-y-2">
-            <button
-              v-for="section in SECTIONS"
-              :key="section.id"
-              @click="scrollTo(section.id)"
-              class="w-full flex items-center gap-4 px-4 py-3 text-sm font-medium rounded-xl transition-all text-left border"
-              :class="[
+      <aside class="w-60 shrink-0 hidden lg:block sticky top-[165px] h-fit">
+        <nav class="space-y-2">
+          <button
+            v-for="section in SECTIONS"
+            :key="section.id"
+            @click="scrollTo(section.id)"
+            class="w-full flex items-center gap-3.5 px-4 py-3 text-[14px] font-semibold rounded-xl transition-all text-left border group"
+            :class="[
+              activeSection === section.id
+                ? 'bg-blue-50/60 border-[#012D5A]/20 text-[#012D5A] shadow-sm'
+                : 'text-muted-foreground hover:bg-muted/40 hover:text-foreground border-transparent hover:border-border/50',
+            ]"
+          >
+            <span
+              class="w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-black border transition-all duration-300"
+              :class="
                 activeSection === section.id
-                  ? 'bg-blue-50/50 border-[#012D5A]/20 text-[#012D5A] shadow-sm'
-                  : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground border-transparent',
-              ]"
+                  ? 'bg-[#012D5A] text-white border-[#012D5A] scale-110 shadow-md'
+                  : 'border-muted-foreground/30 group-hover:border-foreground/40'
+              "
             >
-              <span
-                class="w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold border transition-colors"
-                :class="
-                  activeSection === section.id
-                    ? 'bg-[#012D5A] text-white border-[#012D5A]'
-                    : 'border-current opacity-70'
-                "
-              >
-                {{ section.step }}
-              </span>
-              {{ section.label }}
-            </button>
-          </nav>
-        </div>
+              {{ section.step }}
+            </span>
+            <span class="truncate">{{ section.label }}</span>
+          </button>
+        </nav>
       </aside>
 
       <!-- Main Form Content -->
@@ -665,49 +688,51 @@ function scrollTo(id: string) {
         <div class="max-w-6xl mx-auto space-y-6 pb-20">
           <!-- Job Information -->
           <SectionCard id="job-info" title="Job Information" :icon="Briefcase">
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-x-8 gap-y-6">
               <div class="space-y-2">
-                <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
+                <label class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
                   >JOB NUMBER</label
                 >
                 <input
                   type="text"
                   placeholder="Auto-generated"
-                  class="input-field bg-muted/50 cursor-not-allowed"
+                  class="input-field bg-muted/30 cursor-not-allowed border-dashed"
                   disabled
                 />
               </div>
               <!-- Trade Type / Service -->
               <div class="space-y-2">
-                <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
+                <label class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
                   >SERVICE TYPE <span class="text-destructive">*</span></label
                 >
                 <Combobox v-model="formData.tradeTypeId" :options="TRADE_TYPES" />
               </div>
               <div class="space-y-2">
-                <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
+                <label class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
                   >STATUS</label
                 >
-                <div class="h-[38px] flex items-center">
+                <div class="h-11 flex items-center">
                   <span
-                    class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-secondary text-secondary-foreground border border-border"
+                    class="inline-flex items-center px-3 py-1 rounded-lg text-[12px] font-bold uppercase tracking-wider bg-blue-50/50 text-blue-700 border border-blue-200/50"
                   >
-                    <span class="w-1.5 h-1.5 rounded-full bg-muted-foreground mr-1.5"></span>
+                    <span class="w-1.5 h-1.5 rounded-full bg-blue-600 mr-2 animate-pulse"></span>
                     Draft
                   </span>
                 </div>
               </div>
               <div class="space-y-2">
-                <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
+                <label class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
                   >CREATED BY</label
                 >
-                <div class="h-[38px] flex items-center gap-2">
-                  <span
-                    class="w-7 h-7 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-bold uppercase"
+                <div class="h-11 flex items-center gap-2.5">
+                  <div
+                    class="w-8 h-8 rounded-full bg-[#012D5A]/10 text-[#012D5A] flex items-center justify-center text-[12px] font-black border border-[#012D5A]/10 shadow-sm"
                   >
-                    {{ user?.name ? user.name.substring(0, 2) : "AD" }}
-                  </span>
-                  <span class="text-sm font-medium">{{ user?.name || "Admin" }}</span>
+                    {{ user?.name ? user.name.substring(0, 2).toUpperCase() : "AD" }}
+                  </div>
+                  <span class="text-sm font-semibold text-foreground/80">{{
+                    user?.name || "Administrator"
+                  }}</span>
                 </div>
               </div>
             </div>
@@ -717,11 +742,11 @@ function scrollTo(id: string) {
           <SectionCard id="parties" title="Involved Parties" :icon="Users" no-padding>
             <div class="w-full">
               <div
-                class="grid grid-cols-12 gap-6 px-6 py-3 border-b border-border bg-muted/5 text-[11px] font-semibold text-muted-foreground tracking-wider uppercase"
+                class="grid grid-cols-12 gap-6 px-6 py-4 border-b border-border/40 bg-muted/5 text-[11px] font-bold text-muted-foreground/70 tracking-widest uppercase"
               >
                 <div class="col-span-2">ROLE</div>
-                <div class="col-span-4">COMPANY</div>
-                <div class="col-span-4">ADDRESS</div>
+                <div class="col-span-4 pl-1">COMPANY</div>
+                <div class="col-span-4 pl-1">ADDRESS</div>
                 <div class="col-span-2">DETAILS</div>
               </div>
 
@@ -758,7 +783,7 @@ function scrollTo(id: string) {
                 >
                   <template #extra-controls>
                     <label
-                      class="flex items-center gap-2 text-[13px] text-muted-foreground cursor-pointer hover:text-foreground transition-colors group w-fit mb-1.5"
+                      class="flex items-center gap-2 text-[14px] text-muted-foreground cursor-pointer hover:text-foreground transition-colors group w-fit mb-1.5"
                     >
                       <input
                         type="checkbox"
@@ -785,12 +810,10 @@ function scrollTo(id: string) {
 
           <!-- Route Details -->
           <SectionCard id="route" title="Route Details" :icon="MapPin">
-            <div
-              class="grid grid-cols-1 md:grid-cols-2 gap-y-6 gap-x-8 relative items-end border-b border-border/50 pb-6 mb-6"
-            >
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-y-8 gap-x-12 relative items-end pb-4">
               <!-- Row 1: Pre-Carriage & Place of Receipt -->
               <div class="space-y-2">
-                <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
+                <label class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
                   >PRE-CARRIAGE BY</label
                 >
                 <input
@@ -801,7 +824,7 @@ function scrollTo(id: string) {
                 />
               </div>
               <div class="space-y-2">
-                <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
+                <label class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
                   >PLACE OF RECEIPT</label
                 >
                 <input
@@ -813,13 +836,13 @@ function scrollTo(id: string) {
               </div>
 
               <!-- Row 2: POL & POD -->
-              <div class="space-y-2">
-                <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
+              <div class="space-y-2 relative">
+                <label class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
                   >PORT OF LOADING (POL)</label
                 >
-                <div class="relative">
+                <div class="relative group">
                   <MapPin
-                    class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/70 z-10 pointer-events-none"
+                    class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/40 group-focus-within:text-primary transition-colors z-10 pointer-events-none"
                   />
                   <Combobox
                     v-model="formData.pol"
@@ -827,24 +850,31 @@ function scrollTo(id: string) {
                     label-key="name"
                     value-key="code"
                     placeholder="Search port..."
-                    class="[&_button]:pl-9"
+                    class="[&_button]:pl-10"
                     :filter-local="false"
                     @search="handleSearchPol"
                   />
                 </div>
               </div>
+
+              <!-- Visual connector for POL -> POD -->
               <div
-                class="hidden md:flex absolute left-1/2 top-[35%] -translate-x-1/2 -translate-y-1/2 text-muted-foreground/40"
+                class="hidden md:flex absolute left-1/2 top-[55%] -translate-x-1/2 -translate-y-1/2 z-20"
               >
-                <ArrowLeft class="w-5 h-5 rotate-180 opacity-0" />
+                <div
+                  class="w-8 h-8 rounded-full bg-white border border-border shadow-sm flex items-center justify-center text-muted-foreground/40"
+                >
+                  <ArrowLeft class="w-3.5 h-3.5 rotate-180" />
+                </div>
               </div>
-              <div class="space-y-2">
-                <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
+
+              <div class="space-y-2 relative">
+                <label class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
                   >PORT OF DISCHARGE (POD)</label
                 >
-                <div class="relative">
+                <div class="relative group">
                   <MapPin
-                    class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/70 z-10 pointer-events-none"
+                    class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/40 group-focus-within:text-primary transition-colors z-10 pointer-events-none"
                   />
                   <Combobox
                     v-model="formData.pod"
@@ -852,7 +882,7 @@ function scrollTo(id: string) {
                     label-key="name"
                     value-key="code"
                     placeholder="Search port..."
-                    class="[&_button]:pl-9"
+                    class="[&_button]:pl-10"
                     :filter-local="false"
                     @search="handleSearchPod"
                   />
@@ -861,7 +891,7 @@ function scrollTo(id: string) {
 
               <!-- Row 3: Place of Delivery & Final Destination -->
               <div class="space-y-2">
-                <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
+                <label class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
                   >PLACE OF DELIVERY</label
                 >
                 <input
@@ -872,7 +902,7 @@ function scrollTo(id: string) {
                 />
               </div>
               <div class="space-y-2">
-                <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
+                <label class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
                   >FINAL DESTINATION</label
                 >
                 <input
@@ -927,11 +957,18 @@ function scrollTo(id: string) {
               </div>
 
               <!-- Dynamic Containers List -->
-              <div class="border rounded-xl mt-6 overflow-visible">
+              <div class="border border-border/60 rounded-xl mt-8 overflow-hidden bg-muted/5">
                 <div
-                  class="bg-muted/10 px-4 py-3 border-b flex justify-between items-center rounded-t-xl"
+                  class="bg-muted/10 px-5 py-3.5 border-b border-border/50 flex justify-between items-center"
                 >
-                  <h3 class="font-medium text-[14px]">Containers & Seals</h3>
+                  <div class="flex items-center gap-2">
+                    <Box class="w-4 h-4 text-primary/70" />
+                    <h3
+                      class="font-semibold text-[14px] uppercase tracking-wider text-foreground/80"
+                    >
+                      Containers & Seals
+                    </h3>
+                  </div>
                   <button
                     type="button"
                     @click="
@@ -956,84 +993,99 @@ function scrollTo(id: string) {
                         ],
                       })
                     "
-                    class="btn-outline h-8 px-3 text-xs gap-1.5 flex items-center"
+                    class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-primary/20 bg-primary/5 text-primary text-xs font-semibold hover:bg-primary/10 transition-colors"
                   >
                     <Plus class="w-3.5 h-3.5" />
                     Add Container
                   </button>
                 </div>
-                <div class="p-4 space-y-4 bg-muted/5 rounded-b-xl">
+                <div class="p-5 space-y-8">
                   <div
                     v-for="(container, index) in formData.containers"
                     :key="container.id"
-                    class="space-y-4 pb-4 border-b border-border/50 last:border-0 last:pb-0"
+                    class="space-y-5 pb-8 border-b border-border/40 last:border-0 last:pb-0 relative group"
                   >
-                    <div class="grid grid-cols-1 md:grid-cols-12 gap-4 items-end relative">
-                      <div class="col-span-3 space-y-1.5 pt-px">
+                    <!-- Floating Index -->
+                    <div
+                      class="absolute -left-2 top-0 w-6 h-6 rounded-full bg-white border border-border shadow-sm flex items-center justify-center text-[11px] font-bold text-muted-foreground z-10 group-hover:border-primary/30 group-hover:text-primary transition-colors"
+                    >
+                      {{ index + 1 }}
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-12 gap-5 items-end pl-6">
+                      <div class="col-span-3 space-y-2">
                         <label
-                          class="text-[10px] font-bold text-muted-foreground uppercase opacity-70"
+                          class="text-[11px] font-bold text-muted-foreground/70 uppercase tracking-widest pl-1"
                           >Type</label
                         >
                         <Combobox
                           v-model="container.containerTypeId"
                           :options="containerTypes"
-                          placeholder="Select Type..."
+                          placeholder="Select..."
                         />
                       </div>
                       <div class="md:col-span-4 space-y-2">
                         <label
-                          class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
-                          >CONTAINER NO.</label
+                          class="text-[11px] font-bold text-muted-foreground/70 uppercase tracking-widest pl-1"
+                          >Container No.</label
                         >
                         <input
                           v-model="container.containerNumber"
                           type="text"
-                          placeholder="e.g. TEMU1234567"
-                          class="input-field uppercase"
+                          placeholder="TEMU1234567"
+                          class="input-field uppercase tracking-wider font-mono text-xs"
                         />
                       </div>
                       <div class="md:col-span-4 space-y-2">
                         <label
-                          class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
-                          >SEAL NO.</label
+                          class="text-[11px] font-bold text-muted-foreground/70 uppercase tracking-widest pl-1"
+                          >Seal No.</label
                         >
                         <input
                           v-model="container.sealNumber"
                           type="text"
-                          placeholder="e.g. SN123456"
-                          class="input-field uppercase"
+                          placeholder="SN123456"
+                          class="input-field uppercase tracking-wider font-mono text-xs"
                         />
                       </div>
                       <div class="md:col-span-1 flex flex-col items-center justify-center pb-2">
-                        <label class="text-[10px] font-bold text-muted-foreground uppercase mb-1"
+                        <label
+                          class="text-[11px] font-bold text-muted-foreground/70 uppercase mb-2 tracking-widest"
                           >HM</label
                         >
                         <input
                           type="checkbox"
                           v-model="container.isHazardous"
-                          class="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                          class="w-4 h-4 rounded border-border text-primary focus:ring-primary/20 cursor-pointer transition-all"
                         />
-                      </div>
-                      <div class="md:col-span-1 flex justify-end pb-1.5">
-                        <button
-                          type="button"
-                          @click="formData.containers.splice(index, 1)"
-                          :disabled="formData.containers.length === 1"
-                          class="p-2 text-muted-foreground hover:text-destructive transition-colors disabled:opacity-50"
-                        >
-                          <Trash2 class="w-4 h-4" />
-                        </button>
                       </div>
                     </div>
 
-                    <!-- Nested Form Data for Items -->
-                    <div class="ml-4 pl-4 border-l-2 border-border/50 space-y-3">
-                      <div class="flex items-center justify-between">
-                        <h4
-                          class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
-                        >
-                          Container Breakdown Items
-                        </h4>
+                    <!-- Delete Container Button (only visible on hover or if more than 1) -->
+                    <div
+                      v-if="formData.containers.length > 1"
+                      class="absolute -right-2 -top-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <button
+                        type="button"
+                        @click="formData.containers.splice(index, 1)"
+                        class="w-8 h-8 rounded-full bg-white border border-destructive/20 text-destructive hover:bg-destructive hover:text-white flex items-center justify-center shadow-sm transition-all"
+                      >
+                        <Trash2 class="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+
+                    <!-- Nested Items Breakdown -->
+                    <div class="ml-6 pl-6 border-l-2 border-primary/10 space-y-4">
+                      <div class="flex items-center justify-between pt-1">
+                        <div class="flex items-center gap-2">
+                          <span class="w-1.5 h-1.5 rounded-full bg-primary/40"></span>
+                          <h4
+                            class="text-[11px] font-bold text-muted-foreground/70 uppercase tracking-widest"
+                          >
+                            Breakdown Items
+                          </h4>
+                        </div>
                         <button
                           type="button"
                           @click="
@@ -1049,105 +1101,116 @@ function scrollTo(id: string) {
                               description: '',
                             })
                           "
-                          class="text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1"
+                          class="text-[11px] text-primary hover:text-primary/80 font-bold uppercase tracking-widest flex items-center gap-1.5 transition-colors"
                         >
-                          <Plus class="w-3.5 h-3.5" /> Add Item
+                          <Plus class="w-3 h-3" /> Add Item
                         </button>
                       </div>
-                      <div
-                        v-for="(item, itemIndex) in container.items"
-                        :key="item.id"
-                        class="p-3 bg-white border border-border/50 rounded-lg shadow-sm space-y-3 relative"
-                      >
-                        <button
-                          type="button"
-                          @click="container.items.splice(itemIndex, 1)"
-                          class="absolute top-2 right-2 text-muted-foreground hover:text-destructive transition-colors"
-                          :disabled="container.items.length === 1"
+
+                      <div class="grid grid-cols-1 gap-4">
+                        <div
+                          v-for="(item, itemIndex) in container.items"
+                          :key="item.id"
+                          class="p-4 bg-white/60 border border-border/40 rounded-xl shadow-sm hover:shadow-md hover:border-primary/20 transition-all duration-300 relative group/item"
                         >
-                          <Trash2 class="w-3.5 h-3.5" />
-                        </button>
-                        <div class="grid grid-cols-12 gap-3 pr-6">
-                          <div class="col-span-2 space-y-1">
-                            <label class="text-[10px] uppercase font-bold text-muted-foreground"
-                              >Qty</label
-                            >
-                            <input
-                              type="number"
-                              v-model.number="item.qty"
-                              class="input-field h-8 text-sm"
-                            />
+                          <div class="grid grid-cols-12 gap-x-4 gap-y-3">
+                            <div class="col-span-2 space-y-1.5">
+                              <label
+                                class="text-[10px] uppercase font-bold text-muted-foreground/60 tracking-widest pl-0.5"
+                                >Qty</label
+                              >
+                              <input
+                                type="number"
+                                v-model.number="item.qty"
+                                class="input-field h-9 text-xs"
+                              />
+                            </div>
+                            <div class="col-span-3 space-y-1.5">
+                              <label
+                                class="text-[10px] uppercase font-bold text-muted-foreground/60 tracking-widest pl-0.5"
+                                >Unit</label
+                              >
+                              <Combobox
+                                v-model="item.packageTypeCode"
+                                :options="packageTypes"
+                                value-key="code"
+                                label-key="code"
+                                placeholder="PKGS"
+                                class="h-9"
+                              />
+                            </div>
+                            <div class="col-span-2 space-y-1.5">
+                              <label
+                                class="text-[10px] uppercase font-bold text-muted-foreground/60 tracking-widest pl-0.5"
+                                >GW (KG)</label
+                              >
+                              <input
+                                type="number"
+                                v-model.number="item.grossWeight"
+                                step="0.01"
+                                class="input-field h-9 text-xs"
+                              />
+                            </div>
+                            <div class="col-span-2 space-y-1.5">
+                              <label
+                                class="text-[10px] uppercase font-bold text-muted-foreground/60 tracking-widest pl-0.5"
+                                >NW (KG)</label
+                              >
+                              <input
+                                type="number"
+                                v-model.number="item.netWeight"
+                                step="0.01"
+                                class="input-field h-9 text-xs"
+                              />
+                            </div>
+                            <div class="col-span-3 space-y-1.5">
+                              <label
+                                class="text-[10px] uppercase font-bold text-muted-foreground/60 tracking-widest pl-0.5"
+                                >CBM</label
+                              >
+                              <input
+                                type="number"
+                                v-model.number="item.measurementCbm"
+                                step="0.01"
+                                class="input-field h-9 text-xs"
+                              />
+                            </div>
+
+                            <div class="col-span-4 space-y-1.5">
+                              <label
+                                class="text-[10px] uppercase font-bold text-muted-foreground/60 tracking-widest pl-0.5"
+                                >HS Code</label
+                              >
+                              <input
+                                type="text"
+                                v-model="item.hsCode"
+                                class="input-field h-9 text-xs placeholder:opacity-40"
+                                placeholder="1902..."
+                              />
+                            </div>
+                            <div class="col-span-8 space-y-1.5">
+                              <label
+                                class="text-[10px] uppercase font-bold text-muted-foreground/60 tracking-widest pl-0.5"
+                                >Description Breakdown</label
+                              >
+                              <textarea
+                                v-model="item.description"
+                                rows="2"
+                                class="input-field min-h-[44px] h-11 py-2 text-xs placeholder:opacity-40 resize-none"
+                                placeholder="Breakdown description..."
+                              ></textarea>
+                            </div>
                           </div>
-                          <div class="col-span-3 space-y-1">
-                            <label class="text-[10px] uppercase font-bold text-muted-foreground"
-                              >Unit</label
-                            >
-                            <Combobox
-                              v-model="item.packageTypeCode"
-                              :options="packageTypes"
-                              value-key="code"
-                              label-key="code"
-                              placeholder="PKGS"
-                              class="h-8"
-                            />
-                          </div>
-                          <div class="col-span-2 space-y-1">
-                            <label class="text-[10px] uppercase font-bold text-muted-foreground"
-                              >GW (KG)</label
-                            >
-                            <input
-                              type="number"
-                              v-model.number="item.grossWeight"
-                              step="0.01"
-                              class="input-field h-8 text-sm"
-                            />
-                          </div>
-                          <div class="col-span-2 space-y-1">
-                            <label class="text-[10px] uppercase font-bold text-muted-foreground"
-                              >NW (KG)</label
-                            >
-                            <input
-                              type="number"
-                              v-model.number="item.netWeight"
-                              step="0.01"
-                              class="input-field h-8 text-sm"
-                            />
-                          </div>
-                          <div class="col-span-3 space-y-1">
-                            <label class="text-[10px] uppercase font-bold text-muted-foreground"
-                              >CBM</label
-                            >
-                            <input
-                              type="number"
-                              v-model.number="item.measurementCbm"
-                              step="0.01"
-                              class="input-field h-8 text-sm"
-                            />
-                          </div>
-                        </div>
-                        <div class="grid grid-cols-12 gap-3 pr-6 mt-1">
-                          <div class="col-span-4 space-y-1">
-                            <label class="text-[10px] uppercase font-bold text-muted-foreground"
-                              >HS Code</label
-                            >
-                            <input
-                              type="text"
-                              v-model="item.hsCode"
-                              class="input-field h-8 text-sm placeholder:opacity-50"
-                              placeholder="e.g. 1902..."
-                            />
-                          </div>
-                          <div class="col-span-8 space-y-1">
-                            <label class="text-[10px] uppercase font-bold text-muted-foreground"
-                              >Description Breakdown</label
-                            >
-                            <textarea
-                              v-model="item.description"
-                              rows="4"
-                              class="input-field min-h-[100px] py-2 text-sm placeholder:opacity-50 resize-y transition-all duration-200"
-                              placeholder="Description of goods in this container..."
-                            ></textarea>
-                          </div>
+
+                          <!-- Delete Item Button -->
+                          <button
+                            v-if="container.items.length > 1"
+                            type="button"
+                            @click="container.items.splice(itemIndex, 1)"
+                            class="absolute -right-1.5 -top-1.5 w-6 h-6 rounded-full bg-white border border-destructive/10 text-destructive opacity-0 group-item/hover:opacity-100 transition-all flex items-center justify-center hover:bg-destructive hover:text-white"
+                          >
+                            <Trash2 class="w-3 h-3" />
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -1217,9 +1280,9 @@ function scrollTo(id: string) {
 
           <!-- Weight & Measurement -->
           <SectionCard id="weight" title="Weight & Measurement" :icon="Scale">
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
               <div class="relative space-y-2">
-                <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
+                <label class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
                   >GROSS WT</label
                 >
                 <div class="relative group">
@@ -1231,14 +1294,14 @@ function scrollTo(id: string) {
                     placeholder="0"
                   />
                   <div
-                    class="absolute inset-y-0 right-0 flex items-center pr-4 pointer-events-none text-muted-foreground text-xs font-medium"
+                    class="absolute inset-y-0 right-0 flex items-center pr-4 pointer-events-none text-[11px] font-bold text-muted-foreground"
                   >
                     KG
                   </div>
                 </div>
               </div>
               <div class="relative space-y-2">
-                <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
+                <label class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
                   >NET WT</label
                 >
                 <div class="relative group">
@@ -1250,14 +1313,14 @@ function scrollTo(id: string) {
                     placeholder="0"
                   />
                   <div
-                    class="absolute inset-y-0 right-0 flex items-center pr-4 pointer-events-none text-muted-foreground text-xs font-medium"
+                    class="absolute inset-y-0 right-0 flex items-center pr-4 pointer-events-none text-[11px] font-bold text-muted-foreground"
                   >
                     KG
                   </div>
                 </div>
               </div>
               <div class="relative space-y-2">
-                <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
+                <label class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
                   >MEAS.</label
                 >
                 <div class="relative group">
@@ -1269,7 +1332,7 @@ function scrollTo(id: string) {
                     placeholder="0"
                   />
                   <div
-                    class="absolute inset-y-0 right-0 flex items-center pr-4 pointer-events-none text-muted-foreground text-xs font-medium"
+                    class="absolute inset-y-0 right-0 flex items-center pr-4 pointer-events-none text-[11px] font-bold text-muted-foreground"
                   >
                     CBM
                   </div>
@@ -1280,12 +1343,12 @@ function scrollTo(id: string) {
 
           <!-- BL Setup -->
           <SectionCard id="bl" title="BL Setup" :icon="FileText">
-            <div class="space-y-8">
-              <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="space-y-10">
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
                 <!-- BL Type -->
                 <div class="space-y-2">
                   <label
-                    class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
+                    class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
                     >BL TYPE <span class="text-destructive">*</span></label
                   >
                   <Combobox v-model="formData.blType" :options="BL_TYPES" />
@@ -1294,7 +1357,7 @@ function scrollTo(id: string) {
                 <!-- Freight Term -->
                 <div class="space-y-2">
                   <label
-                    class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
+                    class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
                     >FREIGHT TERM <span class="text-destructive">*</span></label
                   >
                   <Combobox v-model="formData.freightTerm" :options="FREIGHT_TERMS" />
@@ -1303,23 +1366,23 @@ function scrollTo(id: string) {
                 <!-- Total BL Count -->
                 <div class="space-y-2">
                   <label
-                    class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
+                    class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
                     >TOTAL BL COUNT</label
                   >
                   <input
                     v-model.number="formData.totalBlCount"
                     type="number"
                     min="1"
-                    class="input-field"
+                    class="input-field h-11"
                   />
                 </div>
               </div>
 
-              <div class="grid grid-cols-1 md:grid-cols-3 gap-6 items-end">
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-8 items-end">
                 <!-- Place of Issue -->
                 <div class="space-y-2">
                   <label
-                    class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
+                    class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
                     >PLACE OF ISSUE</label
                   >
                   <input
@@ -1333,25 +1396,29 @@ function scrollTo(id: string) {
                 <!-- Date of Issue -->
                 <div class="space-y-2">
                   <label
-                    class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
+                    class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
                     >DATE OF ISSUE</label
                   >
                   <DatePicker v-model="formData.dateOfIssue" placeholder="Select date..." />
                 </div>
 
                 <!-- Negotiable Toggle -->
-                <div class="h-11 flex items-center pb-1">
-                  <label class="flex items-center gap-3 cursor-pointer group">
-                    <input
-                      type="checkbox"
-                      v-model="formData.isNegotiable"
-                      class="w-4 h-4 rounded border-input text-primary focus:ring-primary/20 transition-all"
-                    />
+                <div class="h-11 flex items-center">
+                  <label class="flex items-center gap-3.5 cursor-pointer group select-none">
+                    <div class="relative flex items-center">
+                      <input
+                        type="checkbox"
+                        v-model="formData.isNegotiable"
+                        class="w-5 h-5 rounded-md border-border/60 text-primary focus:ring-primary/20 transition-all cursor-pointer shadow-sm"
+                      />
+                    </div>
                     <div class="flex flex-col">
-                      <span class="text-sm font-medium group-hover:text-primary transition-colors"
+                      <span
+                        class="text-[14px] font-bold text-foreground/80 group-hover:text-primary transition-colors leading-none"
                         >Negotiable BL</span
                       >
-                      <span class="text-[10px] text-muted-foreground leading-none"
+                      <span
+                        class="text-[11px] font-medium text-muted-foreground/70 mt-1 leading-none tracking-tight"
                         >Requires Original BL</span
                       >
                     </div>
