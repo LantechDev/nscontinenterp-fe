@@ -1,4 +1,29 @@
 import { type AuthResponse } from "../types/auth";
+import type {
+  ActiveBlData,
+  ActiveJobData,
+  EblContainer,
+} from "../components/operational/ebl/types";
+
+export interface JobVessel {
+  id: string;
+  vesselId: string | null;
+  vesselName: string | null;
+  voyageNumber: string | null;
+  etd: string | null;
+  sequence: number;
+  vessel?: { name: string; imoNumber?: string | null } | null;
+}
+
+export interface BlVessel {
+  id: string;
+  vesselId: string | null;
+  vesselName: string | null;
+  voyageNumber: string | null;
+  etd: string | null;
+  sequence: number;
+  vessel?: { name: string; imoNumber?: string | null } | null;
+}
 
 // TypeScript Interfaces based on OpenAPI spec
 export interface Job {
@@ -43,6 +68,7 @@ export interface Job {
   customerReference?: string | null;
   createdAt: string;
   updatedAt: string;
+  vessels?: JobVessel[];
   // Relations
   vessel?: { name: string; imoNumber?: string | null } | null;
   containerType?: { name: string; code: string } | null;
@@ -125,6 +151,7 @@ export interface BillOfLading {
   dateCargoReceived?: string | null;
   status?: { name: string; code?: string } | null;
   blParties?: BlParty[];
+  vessels?: BlVessel[];
   // Mapping for frontend UI / edit.vue
   items?: {
     id: string;
@@ -142,15 +169,13 @@ export interface BillOfLading {
 }
 
 export interface BlRenderResponse {
-  blNumber?: string | null;
-  status?: string | null;
-  job: unknown;
-  shipper: unknown;
-  consignee: unknown;
-  notifyParty: unknown;
-  forwarder: unknown;
-  containers: unknown[];
-  totals: {
+  bl?: ActiveBlData;
+  parties: Record<string, { name: string; address: string }>;
+  mainDescription?: string | null;
+  job?: Partial<ActiveJobData>;
+  renderContainers: EblContainer[];
+  jobContainers: EblContainer[];
+  totals?: {
     qty: number;
     grossWeight: number;
     netWeight: number;
@@ -183,6 +208,13 @@ export interface CreateJob {
   finalDestination?: string | null;
   etd?: string;
   eta?: string;
+  vessels?: {
+    vesselId?: string | null;
+    vesselName?: string | null;
+    voyageNumber?: string | null;
+    etd?: string | null;
+    sequence?: number;
+  }[];
   totalBlCount: number;
   tradeTypeId?: string;
   cargoMovementId?: string;
@@ -259,6 +291,13 @@ export interface UpdateBlDraft {
   finalDestination?: string | null;
   etd?: string;
   eta?: string;
+  vessels?: {
+    vesselId?: string | null;
+    vesselName?: string | null;
+    voyageNumber?: string | null;
+    etd?: string | null;
+    sequence?: number;
+  }[];
   tradeTypeId?: string;
   cargoMovementId?: string;
   deliveryMovementId?: string;
@@ -280,16 +319,69 @@ export interface UpdateBlDraft {
   }[];
 }
 
-type ErrorResponse = {
-  message?: string;
-  error?: string;
+// Removed unused ErrorResponse
+
+const formatPath = (path: (string | number)[]) => {
+  if (!path || path.length === 0) return "";
+  return path
+    .map((p, _i) => {
+      if (typeof p === "number") return (p + 1).toString();
+      if (p === "containers") return "Container #";
+      if (p === "items") return "Item #";
+      return p;
+    })
+    .join("")
+    .replace(/#(\d+)/g, "#$1 ")
+    .replace(/\.([^0-9])/g, " $1")
+    .trim();
+};
+
+const formatIssues = (issues: Array<{ path: (string | number)[]; message: string }>) => {
+  return issues
+    .map((issue) => {
+      const path = formatPath(issue.path);
+      return `${path ? path + ": " : ""}${issue.message}`;
+    })
+    .join(" | ");
 };
 
 function getErrorMessage(error: unknown): string {
   if (error && typeof error === "object" && "data" in error) {
-    const errorData = (error as { data?: ErrorResponse }).data;
+    const errorData = (
+      error as {
+        data?: {
+          error?: { issues?: Array<{ path: (string | number)[]; message: string }> };
+          message?: string;
+        };
+      }
+    ).data;
+
+    // Case 1: Issues are in an array under error.issues
+    if (errorData?.error?.issues && Array.isArray(errorData.error.issues)) {
+      return formatIssues(errorData.error.issues);
+    }
+
+    // Case 2: message is a stringified JSON array
+    if (
+      typeof errorData?.message === "string" &&
+      (errorData.message.startsWith("[") || errorData.message.startsWith("{"))
+    ) {
+      try {
+        const parsed = JSON.parse(errorData.message);
+        const issues = Array.isArray(parsed) ? parsed : parsed.issues || parsed.error?.issues || [];
+        if (Array.isArray(issues) && issues.length > 0) {
+          return formatIssues(issues);
+        }
+      } catch {
+        // Fallback to original message if parsing fails
+      }
+    }
+
     if (errorData?.message) return errorData.message;
-    if (errorData?.error) return errorData.error;
+    if (errorData?.error)
+      return typeof errorData.error === "string"
+        ? errorData.error
+        : JSON.stringify(errorData.error);
   }
   if (error instanceof Error) return error.message;
   return "An error occurred";
@@ -423,6 +515,30 @@ export function useJobs() {
     }
   }
 
+  async function unfinalizeBl(id: string): Promise<AuthResponse<BillOfLading>> {
+    isLoading.value = true;
+    try {
+      const data = await $fetch<BillOfLading>(
+        `${config.public.apiBase}/operational/jobs/bl/${id}/unfinalize`,
+        {
+          method: "POST",
+          credentials: "include",
+        },
+      );
+      if (currentJob.value && currentJob.value.billsOfLading) {
+        const blIndex = currentJob.value.billsOfLading.findIndex((bl) => bl.id === id);
+        if (blIndex !== -1) {
+          currentJob.value.billsOfLading[blIndex] = data;
+        }
+      }
+      return { success: true, data };
+    } catch (error) {
+      return handleApiError<BillOfLading>(error);
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
   async function deleteBl(id: string): Promise<AuthResponse> {
     isLoading.value = true;
     try {
@@ -497,5 +613,6 @@ export function useJobs() {
     deleteBl,
     getBlRender,
     finalizeBl,
+    unfinalizeBl,
   };
 }

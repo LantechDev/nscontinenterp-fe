@@ -16,13 +16,23 @@ import {
   Receipt,
   ChevronDown,
   ChevronUp,
+  Plus,
+  Trash2,
+  Check,
 } from "lucide-vue-next";
 import JobInvoiceTab from "./JobInvoiceTab.vue";
 import JobEblTab from "./JobEblTab.vue";
+import Combobox from "~/components/ui/Combobox.vue";
+import DatePicker from "~/components/ui/DatePicker.vue";
+import { toast } from "vue-sonner";
+import type { EblVessel } from "./ebl/types";
+import type { Vessel } from "~/composables/useMasterData";
 
 interface Props {
   modelValue: boolean;
   jobId: string;
+  initialTab?: string;
+  initialBlId?: string;
 }
 
 const props = defineProps<Props>();
@@ -40,14 +50,78 @@ const tabs = [
   { id: "invoice", label: "Invoice" },
 ];
 
+const { updateJob } = useJobs();
+const { fetchVessels, createVessel } = useMasterData();
+const { confirm } = useConfirm();
+
+const isEditingVessels = ref(false);
+const editableVessels = ref<EblVessel[]>([]);
+const masterVessels = ref<Vessel[]>([]);
+
+const refreshMasterData = async () => {
+  masterVessels.value = await fetchVessels();
+};
+
+const handleCreateVessel = async (name: string, vessel?: EblVessel) => {
+  const isConfirmed = await confirm({
+    title: "Create New Vessel",
+    message: `Are you sure you want to create a new vessel named "${name}"?`,
+    confirmText: "Create Vessel",
+    type: "info",
+  });
+  if (!isConfirmed) return;
+
+  const result = await createVessel(name);
+  if (result.success && result.data) {
+    await refreshMasterData();
+    if (vessel) {
+      vessel.vesselId = result.data.id;
+    }
+    toast.success(`Vessel "${name}" created successfully.`);
+  } else {
+    toast.error("Failed to create vessel: " + (result.error || "Unknown error"));
+  }
+};
+
+const startEditVessels = () => {
+  editableVessels.value = JSON.parse(JSON.stringify(job.value?.vessels || []));
+  isEditingVessels.value = true;
+};
+
+const cancelEditVessels = () => {
+  isEditingVessels.value = false;
+};
+
+const addVessel = () => {
+  editableVessels.value.push({
+    vesselName: "",
+    voyageNumber: "",
+    etd: new Date().toISOString().split("T")[0],
+    sequence: editableVessels.value.length + 1,
+  });
+};
+
+const removeVessel = (idx: number) => {
+  editableVessels.value.splice(idx, 1);
+};
+
+const saveVessels = async () => {
+  if (!props.jobId) return;
+  const res = await updateJob(props.jobId, { vessels: editableVessels.value });
+  if (res.success) {
+    isEditingVessels.value = false;
+    await getJob(props.jobId);
+  }
+};
+
 const job = computed(() => currentJob.value);
 
 watch(
   () => props.modelValue,
   async (isOpen) => {
     if (isOpen && props.jobId) {
-      activeTab.value = "overview";
-      await getJob(props.jobId);
+      activeTab.value = props.initialTab || "overview";
+      await Promise.all([getJob(props.jobId), refreshMasterData()]);
     }
   },
   { immediate: true },
@@ -84,7 +158,10 @@ const formatDateTime = (dateString?: string | null) => {
 const getCustomerName = computed(
   () => job.value?.customer?.name || job.value?.customerId || "CUST-001",
 );
-const getStatusName = computed(() => job.value?.status?.name || "Not Invoiced");
+const getStatusName = computed(() => {
+  const name = job.value?.status?.name || "Not Invoiced";
+  return name.toUpperCase() === "CONFIRMED" ? "FINALIZED" : name;
+});
 const getJobTypeName = computed(
   () => job.value?.tradeType?.name || job.value?.tradeTypeId || "Export",
 );
@@ -261,15 +338,156 @@ const toggleItem = (itemId: string | number) => {
                     </div>
                   </div>
 
-                  <div class="flex gap-4 items-center">
+                  <div class="flex gap-4 items-start col-span-2">
                     <div
                       class="w-10 h-10 rounded-full bg-blue-50/80 flex items-center justify-center text-[#012D5A] shrink-0 border border-blue-100"
                     >
                       <Ship class="w-5 h-5 text-[#012D5A]/80" />
                     </div>
-                    <div>
-                      <p class="text-xs text-muted-foreground mb-0.5">Vessel / Voyage</p>
-                      <p class="font-bold text-sm text-foreground">{{ getVesselName }}</p>
+                    <div class="flex-1">
+                      <div class="flex items-center justify-between mb-2">
+                        <p class="text-xs text-muted-foreground uppercase font-bold tracking-wider">
+                          Vessel Schedule
+                        </p>
+                        <div v-if="!isEditingVessels" class="flex items-center gap-2">
+                          <button
+                            @click="startEditVessels"
+                            class="p-1.5 rounded-md hover:bg-blue-50 text-[#012D5A] transition-colors"
+                            title="Edit Schedule"
+                          >
+                            <Edit class="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                        <div v-else class="flex items-center gap-2">
+                          <button
+                            @click="addVessel"
+                            class="flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors text-[10px] font-bold uppercase tracking-wider"
+                          >
+                            <Plus class="w-3 h-3" /> Add
+                          </button>
+                          <button
+                            @click="saveVessels"
+                            class="p-1.5 rounded-md bg-[#012D5A] text-white hover:bg-[#012D5A]/90 transition-colors"
+                            title="Save Changes"
+                          >
+                            <Check class="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            @click="cancelEditVessels"
+                            class="p-1.5 rounded-md hover:bg-gray-100 text-muted-foreground transition-colors"
+                            title="Cancel"
+                          >
+                            <X class="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+
+                      <!-- View Mode -->
+                      <div v-if="!isEditingVessels" class="space-y-3">
+                        <div
+                          v-for="(vessel, idx) in job.vessels"
+                          :key="idx"
+                          class="flex items-center justify-between group"
+                        >
+                          <div class="flex items-center gap-3">
+                            <div
+                              class="w-6 h-6 rounded bg-[#012D5A] text-white flex items-center justify-center text-[10px] font-bold"
+                            >
+                              {{ idx + 1 }}
+                            </div>
+                            <div>
+                              <p class="font-bold text-sm text-foreground leading-tight">
+                                {{ vessel.vesselName || vessel.vessel?.name || "Unknown Vessel" }}
+                              </p>
+                              <p class="text-[11px] text-muted-foreground">
+                                Voyage: {{ vessel.voyageNumber || "-" }}
+                              </p>
+                            </div>
+                          </div>
+                          <div class="text-right">
+                            <p
+                              class="text-[11px] font-bold text-primary uppercase tracking-tighter"
+                            >
+                              ETD
+                            </p>
+                            <p class="text-xs font-semibold text-foreground">
+                              {{ formatDate(vessel.etd) }}
+                            </p>
+                          </div>
+                        </div>
+                        <div
+                          v-if="!job.vessels || job.vessels.length === 0"
+                          class="text-sm font-medium text-muted-foreground italic"
+                        >
+                          No vessels assigned
+                        </div>
+                      </div>
+
+                      <!-- Edit Mode -->
+                      <div v-else class="space-y-4">
+                        <div
+                          v-for="(vessel, idx) in editableVessels"
+                          :key="idx"
+                          class="p-3 bg-gray-50/50 rounded-lg border border-border space-y-3 relative group"
+                        >
+                          <button
+                            @click="removeVessel(idx)"
+                            class="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-white border border-border shadow-sm flex items-center justify-center text-red-500 hover:bg-red-50 transition-colors z-10"
+                          >
+                            <Trash2 class="w-3 h-3" />
+                          </button>
+
+                          <div class="grid grid-cols-1 gap-3">
+                            <div>
+                              <label
+                                class="text-[9px] font-bold text-muted-foreground uppercase mb-1 block"
+                                >Vessel Name</label
+                              >
+                              <Combobox
+                                v-model="vessel.vesselId"
+                                :options="masterVessels"
+                                label-key="name"
+                                value-key="id"
+                                placeholder="Search Vessel..."
+                                allow-create
+                                @create="(name) => handleCreateVessel(name, vessel)"
+                                class="h-8"
+                              />
+                            </div>
+                            <div class="grid grid-cols-2 gap-3">
+                              <div>
+                                <label
+                                  class="text-[9px] font-bold text-muted-foreground uppercase mb-1 block"
+                                  >Voyage</label
+                                >
+                                <input
+                                  v-model="vessel.voyageNumber"
+                                  type="text"
+                                  class="w-full h-8 px-2 text-xs rounded border border-border focus:ring-1 focus:ring-primary focus:border-primary outline-none"
+                                  placeholder="Voyage..."
+                                />
+                              </div>
+                              <div>
+                                <label
+                                  class="text-[9px] font-bold text-muted-foreground uppercase mb-1 block"
+                                  >ETD</label
+                                >
+                                <DatePicker
+                                  v-model="vessel.etd"
+                                  placeholder="ETD..."
+                                  class="h-8 shadow-none"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        <div
+                          v-if="editableVessels.length === 0"
+                          class="text-xs text-center py-4 text-muted-foreground italic bg-gray-50 border border-dashed border-border rounded-lg"
+                        >
+                          Click "Add" to add a vessel to the schedule
+                        </div>
+                      </div>
                     </div>
                   </div>
 
@@ -597,10 +815,13 @@ const toggleItem = (itemId: string | number) => {
 
             <!-- eBL Tab -->
             <div v-else-if="activeTab === 'ebl'" class="space-y-8 animate-fade-in pb-12 pt-4">
-              <JobEblTab :job="job as any" @refresh="getJob(props.jobId)" />
+              <JobEblTab
+                :job="job as any"
+                :initial-bl-id="initialBlId"
+                @refresh="getJob(props.jobId)"
+              />
             </div>
 
-            <!-- Other tabs placeholders -->
             <div v-else class="py-12 text-center text-muted-foreground">
               <p>{{ tabs.find((t) => t.id === activeTab)?.label }} content coming soon.</p>
             </div>

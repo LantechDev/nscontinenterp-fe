@@ -26,6 +26,29 @@ onMounted(() => {
 const isGeneratingPDF = ref(false);
 const eblContainer = ref<HTMLElement | null>(null);
 
+const blStatus = computed(() => {
+  const s = props.activeBl?.status;
+  const raw = props.activeBl?.statusRaw;
+
+  if (!s) return "";
+  if (typeof s === "string") {
+    const lower = s.toLowerCase();
+    if (lower === "finalized" || lower === "confirmed") return "confirmed";
+    return lower;
+  }
+
+  const code = s.code?.toLowerCase() || "";
+  // Fallback: if raw string is finalized but model is draft, trust raw
+  if (code === "draft" && raw?.toLowerCase() === "finalized") return "confirmed";
+
+  return code;
+});
+
+const isDraft = computed(() => blStatus.value === "draft" || !props.activeBl);
+const isFinalized = computed(
+  () => blStatus.value === "finalized" || blStatus.value === "confirmed",
+);
+
 const getVal = (val: unknown, fallback: unknown = "") =>
   val ? String(val) : fallback ? String(fallback) : "";
 
@@ -318,7 +341,7 @@ defineExpose({
       <div
         v-for="(pageItems, pIdx) in paginatedPages"
         :key="'page-' + pIdx"
-        class="a4-page-wrapper bg-white shadow-xl shrink-0 flex flex-col text-blue-900 border"
+        class="a4-page-wrapper bg-white shadow-xl shrink-0 flex flex-col text-[#062c58] border"
         style="
           width: 794px;
           height: 1123px;
@@ -340,15 +363,15 @@ defineExpose({
             />
           </div>
           <div class="w-[30%] text-center pb-2 flex flex-col justify-end h-full relative">
-            <template v-if="activeBl?.status?.toLowerCase() === 'draft' || !activeBl">
+            <template v-if="isDraft">
               <span
-                class="text-sm font-bold tracking-widest uppercase block leading-none text-blue-900"
+                class="text-sm font-bold tracking-widest uppercase block leading-none text-[#062c58]"
                 >DRAFT - NON NEGOTIABLE</span
               >
             </template>
             <template v-else>
               <span
-                class="text-sm font-bold tracking-widest uppercase block leading-none text-blue-900"
+                class="text-sm font-bold tracking-widest uppercase block leading-none text-[#062c58]"
                 >ORIGINAL NEGOTIABLE</span
               >
             </template>
@@ -362,11 +385,11 @@ defineExpose({
         </div>
 
         <div
-          class="main-border-container border border-blue-900 flex-1 flex flex-col text-[0.7rem] relative overflow-hidden h-full"
+          class="main-border-container border border-[#062c58] flex-1 flex flex-col text-[0.7rem] relative overflow-hidden h-full"
         >
           <div v-if="pIdx === 0" class="routing-section relative z-[1] bg-white">
-            <div class="flex border-b border-blue-900" style="min-height: 75px">
-              <div class="w-1/2 border-r border-blue-900 pt-1 px-2 pb-2">
+            <div class="flex border-b border-[#062c58]" style="min-height: 75px">
+              <div class="w-1/2 border-r border-[#062c58] pt-1 px-2 pb-2">
                 <span class="font-bold mb-0.5 text-[0.6rem] leading-none block"
                   >SHIPPER/EXPORTER</span
                 >
@@ -377,8 +400,8 @@ defineExpose({
                 </div>
               </div>
               <div class="w-1/2">
-                <div class="flex border-b border-blue-900" style="min-height: 35px">
-                  <div class="w-1/2 border-r border-blue-900 pt-1 px-2 pb-2">
+                <div class="flex border-b border-[#062c58]" style="min-height: 35px">
+                  <div class="w-1/2 border-r border-[#062c58] pt-1 px-2 pb-2">
                     <span class="font-bold text-[0.6rem] leading-none mb-0.5 block"
                       >BOOKING NO.</span
                     >
@@ -405,7 +428,7 @@ defineExpose({
                       activeBl?.showShipperReferencesOnBl !== false &&
                       activeBl?.shipperReferences?.length
                     "
-                    class="pt-1.5 border-t border-blue-900 -mx-2 px-2"
+                    class="pt-1.5 border-t border-[#062c58] -mx-2 px-2"
                   >
                     <span class="font-bold text-[0.6rem] block leading-none mb-0.5"
                       >SHIPPER REFERENCE</span
@@ -417,8 +440,8 @@ defineExpose({
                 </div>
               </div>
             </div>
-            <div class="flex border-b border-blue-900" style="min-height: 75px">
-              <div class="w-1/2 border-r border-blue-900 pt-1 px-2 pb-2">
+            <div class="flex border-b border-[#062c58]" style="min-height: 75px">
+              <div class="w-1/2 border-r border-[#062c58] pt-1 px-2 pb-2">
                 <span class="font-bold mb-0.5 text-[0.6rem] leading-none block">CONSIGNEE</span>
                 <div
                   class="whitespace-pre-wrap font-mono uppercase text-[0.75rem] leading-tight text-black"
@@ -438,8 +461,8 @@ defineExpose({
                 </div>
               </div>
             </div>
-            <div class="flex border-b border-blue-900" style="min-height: 100px">
-              <div class="w-1/2 border-r border-blue-900">
+            <div class="flex border-b border-[#062c58]" style="min-height: 100px">
+              <div class="w-1/2 border-r border-[#062c58]">
                 <div class="pt-1 px-2 pb-2">
                   <span class="font-bold text-[0.6rem] mb-0.5 leading-none block"
                     >NOTIFY PARTY</span
@@ -452,7 +475,7 @@ defineExpose({
                 </div>
               </div>
               <div
-                class="w-1/2 pt-1 px-2 pb-2 text-[0.45rem] text-justify leading-[1.1] font-medium text-blue-900"
+                class="w-1/2 pt-1 px-2 pb-2 text-[0.45rem] text-justify leading-[1.1] font-medium text-[#062c58]"
               >
                 RECEIVED by the Carrier in apparent good order and condition (unless otherwise
                 stated herein) the total number or quantity of Containers or other packages or units
@@ -463,8 +486,8 @@ defineExpose({
                 terms and conditions of this Bill of Lading.
               </div>
             </div>
-            <div class="flex border-b border-blue-900" style="min-height: 40px">
-              <div class="w-[25%] border-r border-blue-900 pt-0.5 px-2 pb-1.5">
+            <div class="flex border-b border-[#062c58]" style="min-height: 40px">
+              <div class="w-[25%] border-r border-[#062c58] pt-0.5 px-2 pb-1.5">
                 <span class="font-bold text-[0.6rem] block leading-none mb-0.5"
                   >PRE-CARRIAGE BY</span
                 >
@@ -472,7 +495,7 @@ defineExpose({
                   getVal(jobData?.preCarriageBy, "-")
                 }}</span>
               </div>
-              <div class="w-[25%] border-r border-blue-900 pt-0.5 px-2 pb-1.5">
+              <div class="w-[25%] border-r border-[#062c58] pt-0.5 px-2 pb-1.5">
                 <span class="font-bold text-[0.6rem] block leading-none mb-0.5"
                   >PLACE OF RECEIPT</span
                 >
@@ -482,19 +505,27 @@ defineExpose({
               </div>
               <div class="w-[50%] pt-0.5 px-2 pb-1.5">
                 <span class="font-bold text-[0.6rem] block leading-none mb-0.5">VESSEL/VOYAGE</span>
-                <span class="font-mono text-[0.75rem] uppercase text-black leading-none"
-                  >{{ getVal(jobData?.vessel?.name) }} / {{ getVal(jobData?.voyageNumber) }}</span
-                >
+                <span class="font-mono text-[0.75rem] uppercase text-black leading-none">
+                  {{
+                    (activeBl?.vessels || jobData?.vessels || [])
+                      .map((v) => `${v.vesselName || ""} / ${v.voyageNumber || ""}`)
+                      .filter((s) => s.trim() !== "/")
+                      .join(", ") || "-"
+                  }}
+                </span>
               </div>
             </div>
-            <div class="flex border-b border-blue-900" style="min-height: 40px">
-              <div class="w-[25%] border-r border-blue-900 pt-0.5 px-2 pb-1.5">
+            <div class="flex border-b border-[#062c58]" style="min-height: 40px">
+              <div class="w-[25%] border-r border-[#062c58] pt-0.5 px-2 pb-1.5">
                 <span class="font-bold text-[0.6rem] block leading-none mb-0.5">OCEAN VESSEL</span>
-                <span class="font-mono text-[0.75rem] uppercase leading-none text-black">{{
-                  getVal(jobData?.vessel?.name)
-                }}</span>
+                <span class="font-mono text-[0.75rem] uppercase leading-none text-black">
+                  {{
+                    (activeBl?.vessels || jobData?.vessels || [])[0]?.vesselName ||
+                    getVal(jobData?.vessel?.name, "-")
+                  }}
+                </span>
               </div>
-              <div class="w-[25%] border-r border-blue-900 pt-0.5 px-2 pb-1.5">
+              <div class="w-[25%] border-r border-[#062c58] pt-0.5 px-2 pb-1.5">
                 <span class="font-bold text-[0.6rem] block leading-none mb-0.5"
                   >PORT OF LOADING</span
                 >
@@ -511,8 +542,8 @@ defineExpose({
                 }}</span>
               </div>
             </div>
-            <div class="flex border-b border-blue-900" style="min-height: 40px">
-              <div class="w-[25%] border-r border-blue-900 pt-0.5 px-2 pb-1.5">
+            <div class="flex border-b border-[#062c58]" style="min-height: 40px">
+              <div class="w-[25%] border-r border-[#062c58] pt-0.5 px-2 pb-1.5">
                 <span class="font-bold text-[0.55rem] block leading-none mb-0.5"
                   >PLACE OF DELIVERY</span
                 >
@@ -520,7 +551,7 @@ defineExpose({
                   getVal(jobData?.placeOfDelivery, getVal(jobData?.podName, jobData?.pod))
                 }}</span>
               </div>
-              <div class="w-[25%] border-r border-blue-900 pt-0.5 px-2 pb-1.5">
+              <div class="w-[25%] border-r border-[#062c58] pt-0.5 px-2 pb-1.5">
                 <span class="font-bold text-[0.55rem] block leading-none mb-0.5"
                   >TYPE OF MOVEMENT</span
                 >
@@ -554,25 +585,28 @@ defineExpose({
 
           <div
             v-if="pIdx > 0"
-            class="vessel-minimal-header flex justify-between items-end border-b border-blue-900 p-2 text-black font-mono text-[0.6rem] uppercase relative z-[1] bg-white"
+            class="vessel-minimal-header flex justify-between items-end border-b border-[#062c58] p-2 text-black font-mono text-[0.6rem] uppercase relative z-[1] bg-white"
             style="height: 30px"
           >
             <span
-              >VESSEL VOYAGE: {{ getVal(jobData?.vessel?.name) }}
-              {{ getVal(jobData?.voyageNumber) }}</span
+              >VESSEL VOYAGE:
+              {{
+                (activeBl?.vessels || jobData?.vessels || [])
+                  .map((v) => `${v.vesselName || ""} ${v.voyageNumber || ""}`)
+                  .filter((s) => s.trim())
+                  .join(", ") || "-"
+              }}</span
             >
-            <span class="text-blue-900 text-[0.6rem] font-bold tracking-widest leading-none">
-              <template v-if="activeBl?.status?.toLowerCase() === 'draft' || !activeBl"
-                >DRAFT - NON NEGOTIABLE</template
-              >
+            <span class="text-[#062c58] text-[0.6rem] font-bold tracking-widest leading-none">
+              <template v-if="isDraft">DRAFT - NON NEGOTIABLE</template>
               <template v-else>ORIGINAL NEGOTIABLE</template>
             </span>
           </div>
 
-          <div class="flex flex-col border-b border-blue-900 bg-white relative z-[1]">
-            <div class="flex border-b border-blue-900" style="min-height: 25px">
+          <div class="flex flex-col border-b border-[#062c58] bg-white relative z-[1]">
+            <div class="flex border-b border-[#062c58]" style="min-height: 25px">
               <div
-                class="w-[32%] px-2 py-1 text-[0.55rem] italic flex items-center border-r border-blue-900"
+                class="w-[32%] px-2 py-1 text-[0.55rem] italic flex items-center border-r border-[#062c58]"
               >
                 (CHECK "HM" COLUMN IF HAZARDOUS MATERIAL)
               </div>
@@ -583,27 +617,27 @@ defineExpose({
               </div>
             </div>
 
-            <div class="flex bg-blue-50/30 font-bold text-[0.55rem] h-[45px]">
+            <div class="flex bg-[#062c58]/5 font-bold text-[0.55rem] h-[45px]">
               <div
-                class="w-[22%] border-r border-blue-900 p-1 flex flex-col items-center justify-center leading-tight"
+                class="w-[22%] border-r border-[#062c58] p-1 flex flex-col items-center justify-center leading-tight"
               >
                 <span>CNTR. NOS. W/SEAL NOS.</span><span>MARKS & NUMBERS</span>
               </div>
               <div
-                class="w-[10%] border-r border-blue-900 p-1 flex flex-col items-center justify-center leading-tight text-[0.5rem]"
+                class="w-[10%] border-r border-[#062c58] p-1 flex flex-col items-center justify-center leading-tight text-[0.5rem]"
               >
                 <span>QUANTITY</span><span class="font-normal">(FOR CUSTOMS</span
                 ><span class="font-normal">DECLARATION ONLY)</span>
               </div>
               <div
-                class="w-[3%] border-r border-blue-900 p-1 flex flex-col items-center justify-center leading-none"
+                class="w-[3%] border-r border-[#062c58] p-1 flex flex-col items-center justify-center leading-none"
               >
                 <span>H</span><span class="mt-0.5">M</span>
               </div>
-              <div class="w-[40%] border-r border-blue-900 p-1 flex items-center justify-center">
+              <div class="w-[40%] border-r border-[#062c58] p-1 flex items-center justify-center">
                 DESCRIPTION OF PACKAGES AND GOODS
               </div>
-              <div class="w-[12.5%] border-r border-blue-900 p-1 flex items-center justify-center">
+              <div class="w-[12.5%] border-r border-[#062c58] p-1 flex items-center justify-center">
                 GROSS WEIGHT
               </div>
               <div class="w-[12.5%] p-1 flex items-center justify-center">GROSS MEASUREMENT</div>
@@ -612,11 +646,11 @@ defineExpose({
 
           <div :class="[pIdx === 0 ? 'cargo-window-p1' : 'cargo-window-p2']" class="relative">
             <div class="vertical-grid-lines">
-              <div class="w-[22%] border-r border-blue-900"></div>
-              <div class="w-[10%] border-r border-blue-900"></div>
-              <div class="w-[3%] border-r border-blue-900"></div>
-              <div class="w-[40%] border-r border-blue-900"></div>
-              <div class="w-[12.5%] border-r border-blue-900"></div>
+              <div class="w-[22%] border-r border-[#062c58]"></div>
+              <div class="w-[10%] border-r border-[#062c58]"></div>
+              <div class="w-[3%] border-r border-[#062c58]"></div>
+              <div class="w-[40%] border-r border-[#062c58]"></div>
+              <div class="w-[12.5%] border-r border-[#062c58]"></div>
               <div class="w-[12.5%]"></div>
             </div>
 
@@ -624,7 +658,7 @@ defineExpose({
               <template v-for="(cnt, cIdx) in pageItems" :key="cIdx">
                 <div
                   v-if="cnt.isHeaderVisible && !cnt.isFallback"
-                  class="flex w-full mb-1 font-bold italic border-b border-blue-900/10"
+                  class="flex w-full mb-1 font-bold italic border-b border-[#062c58]/10"
                 >
                   <div class="w-[22%] pl-3 pr-6 break-words whitespace-pre-wrap text-[11px]">
                     {{ cnt.containerNumber || ""
@@ -713,32 +747,32 @@ defineExpose({
 
           <div
             v-if="pIdx < paginatedPages.length - 1"
-            class="border-t border-blue-900 text-center font-bold text-[0.55rem] py-1 mt-auto"
+            class="border-t border-[#062c58] text-center font-bold text-[0.55rem] py-1 mt-auto"
           >
             ** TO BE CONTINUED ON PAGE {{ pIdx + 2 }} **
           </div>
 
           <div
             v-if="pIdx === 0"
-            class="bl-footer border-t border-blue-900 flex flex-col relative z-[1] bg-white"
+            class="bl-footer border-t border-[#062c58] flex flex-col relative z-[1] bg-white"
           >
-            <div class="flex border-b border-blue-900 text-blue-900" style="min-height: 20px">
+            <div class="flex border-b border-[#062c58] text-[#062c58]" style="min-height: 20px">
               <div class="px-3 w-1/4 font-bold flex items-start pt-1 text-[0.55rem] leading-none">
                 Declared Cargo Value US $
               </div>
               <div
-                class="border-l border-blue-900 flex-1 text-left font-normal text-[0.45rem] leading-tight flex items-start pt-1 px-2 text-black"
+                class="border-l border-[#062c58] flex-1 text-left font-normal text-[0.45rem] leading-tight flex items-start pt-1 px-2 text-black"
               >
                 . If Merchant enters a value, Carrier's limitation of liability shall not apply and
                 the ad valorem rate will be charged.
               </div>
             </div>
             <div
-              class="flex border-b border-blue-900 text-[0.5rem] font-bold"
+              class="flex border-b border-[#062c58] text-[0.5rem] font-bold"
               style="min-height: 35px"
             >
-              <div class="w-[20%] border-r border-blue-900 pt-1 px-2 pb-2">
-                <span class="text-[0.55rem] leading-tight text-blue-900 font-bold uppercase block"
+              <div class="w-[20%] border-r border-[#062c58] pt-1 px-2 pb-2">
+                <span class="text-[0.55rem] leading-tight text-[#062c58] font-bold uppercase block"
                   >FREIGHT & CHARGES PAYABLE AT / BY:</span
                 >
                 <span
@@ -746,17 +780,17 @@ defineExpose({
                   >{{ getVal(jobData?.podName, jobData?.pod) }}</span
                 >
               </div>
-              <div class="w-[15%] border-r border-blue-900 p-1">
-                <span class="text-blue-900 font-bold block">SERVICE CONTRACT NO.</span>
+              <div class="w-[15%] border-r border-[#062c58] p-1">
+                <span class="text-[#062c58] font-bold block">SERVICE CONTRACT NO.</span>
               </div>
-              <div class="w-[12%] border-r border-blue-900 p-1">
-                <span class="text-blue-900 font-bold block">DOC FORM NO.</span>
+              <div class="w-[12%] border-r border-[#062c58] p-1">
+                <span class="text-[#062c58] font-bold block">DOC FORM NO.</span>
               </div>
-              <div class="w-[12%] border-r border-blue-900 p-1">
-                <span class="text-blue-900 font-bold block">COMMODITY CODE</span>
+              <div class="w-[12%] border-r border-[#062c58] p-1">
+                <span class="text-[#062c58] font-bold block">COMMODITY CODE</span>
               </div>
-              <div class="w-[12%] border-r border-blue-900 p-1">
-                <span class="text-blue-900 font-bold block">EXCHANGE RATE</span>
+              <div class="w-[12%] border-r border-[#062c58] p-1">
+                <span class="text-[#062c58] font-bold block">EXCHANGE RATE</span>
               </div>
               <div
                 class="w-[29%] p-0.5 text-[0.42rem] font-normal leading-tight text-justify flex items-start text-black"
@@ -766,45 +800,45 @@ defineExpose({
               </div>
             </div>
             <div class="flex flex-1" style="min-height: 110px">
-              <div class="w-[71%] border-r border-blue-900 flex flex-col">
+              <div class="w-[71%] border-r border-[#062c58] flex flex-col">
                 <div
-                  class="flex border-b border-blue-900 text-[0.55rem] text-center font-bold"
+                  class="flex border-b border-[#062c58] text-[0.55rem] text-center font-bold"
                   style="min-height: 20px"
                 >
                   <div
-                    class="w-[15%] border-r border-blue-900 h-full p-1 flex items-center justify-center"
+                    class="w-[15%] border-r border-[#062c58] h-full p-1 flex items-center justify-center"
                   >
                     CODE
                   </div>
                   <div
-                    class="w-[20%] border-r border-blue-900 h-full p-1 flex items-center justify-center"
+                    class="w-[20%] border-r border-[#062c58] h-full p-1 flex items-center justify-center"
                   >
                     TARIFF ITEM
                   </div>
                   <div
-                    class="w-[15%] border-r border-blue-900 h-full p-1 flex items-center justify-center"
+                    class="w-[15%] border-r border-[#062c58] h-full p-1 flex items-center justify-center"
                   >
                     FREIGHTED AS
                   </div>
                   <div
-                    class="w-[15%] border-r border-blue-900 h-full p-1 flex items-center justify-center"
+                    class="w-[15%] border-r border-[#062c58] h-full p-1 flex items-center justify-center"
                   >
                     RATE
                   </div>
                   <div
-                    class="w-[17.5%] border-r border-blue-900 h-full p-1 flex items-center justify-center"
+                    class="w-[17.5%] border-r border-[#062c58] h-full p-1 flex items-center justify-center"
                   >
                     PREPAID
                   </div>
                   <div class="w-[17.5%] h-full p-1 flex items-center justify-center">COLLECT</div>
                 </div>
                 <div class="flex-1 relative">
-                  <div class="absolute inset-0 flex pointer-events-none text-blue-900">
-                    <div class="w-[15%] border-r border-blue-900 h-full"></div>
-                    <div class="w-[20%] border-r border-blue-900 h-full"></div>
-                    <div class="w-[15%] border-r border-blue-900 h-full"></div>
-                    <div class="w-[15%] border-r border-blue-900 h-full"></div>
-                    <div class="w-[17.5%] border-r border-blue-900 h-full"></div>
+                  <div class="absolute inset-0 flex pointer-events-none text-[#062c58]">
+                    <div class="w-[15%] border-r border-[#062c58] h-full"></div>
+                    <div class="w-[20%] border-r border-[#062c58] h-full"></div>
+                    <div class="w-[15%] border-r border-[#062c58] h-full"></div>
+                    <div class="w-[15%] border-r border-[#062c58] h-full"></div>
+                    <div class="w-[17.5%] border-r border-[#062c58] h-full"></div>
                     <div class="w-[17.5%] h-full"></div>
                   </div>
                   <div
@@ -828,9 +862,9 @@ defineExpose({
                 </div>
               </div>
               <div class="w-[29%] flex flex-col text-[0.5rem]">
-                <div class="border-b border-blue-900 px-2 pt-0.5 pb-2" style="min-height: 35px">
+                <div class="border-b border-[#062c58] px-2 pt-0.5 pb-2" style="min-height: 35px">
                   <span
-                    class="text-blue-900 text-[0.38rem] tracking-tighter uppercase opacity-80 font-bold leading-none block"
+                    class="text-[#062c58] text-[0.38rem] tracking-tighter uppercase opacity-80 font-bold leading-none block"
                     >DATE CARGO RECEIVED</span
                   >
                   <span
@@ -838,9 +872,9 @@ defineExpose({
                     >{{ formatDate(activeBl?.dateCargoReceived) }}</span
                   >
                 </div>
-                <div class="border-b border-blue-900 px-2 pt-0.5 pb-2" style="min-height: 35px">
+                <div class="border-b border-[#062c58] px-2 pt-0.5 pb-2" style="min-height: 35px">
                   <span
-                    class="text-blue-900 text-[0.38rem] tracking-tighter opacity-80 uppercase font-bold leading-none block"
+                    class="text-[#062c58] text-[0.38rem] tracking-tighter opacity-80 uppercase font-bold leading-none block"
                     >DATE LADEN ON BOARD</span
                   >
                   <span
@@ -848,9 +882,9 @@ defineExpose({
                     >{{ formatDate(jobData?.etd) }}</span
                   >
                 </div>
-                <div class="border-b border-blue-900 px-2 pt-0.5 pb-2" style="min-height: 35px">
+                <div class="border-b border-[#062c58] px-2 pt-0.5 pb-2" style="min-height: 35px">
                   <span
-                    class="text-blue-900 text-[0.38rem] tracking-tighter opacity-80 uppercase font-bold leading-none block"
+                    class="text-[#062c58] text-[0.38rem] tracking-tighter opacity-80 uppercase font-bold leading-none block"
                     >PLACE OF BILL(S) ISSUE</span
                   >
                   <span
@@ -860,7 +894,7 @@ defineExpose({
                 </div>
                 <div class="px-2 pt-1 pb-2" style="min-height: 35px">
                   <span
-                    class="text-blue-900 text-[0.38rem] tracking-tighter uppercase opacity-80 font-bold leading-none block"
+                    class="text-[#062c58] text-[0.38rem] tracking-tighter uppercase opacity-80 font-bold leading-none block"
                     >DATED</span
                   >
                   <span
@@ -875,7 +909,7 @@ defineExpose({
           </div>
         </div>
 
-        <div class="mt-1 flex justify-between pr-2 text-blue-900" style="height: 35px">
+        <div class="mt-1 flex justify-between pr-2 text-[#062c58]" style="height: 35px">
           <div class="text-[0.45rem] w-1/2 mt-0.5 italic leading-tight">
             The printed terms and conditions on this Bill are available at its website at
             www.nscontinent.com

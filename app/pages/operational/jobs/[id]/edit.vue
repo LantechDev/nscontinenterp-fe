@@ -26,6 +26,7 @@ definePageMeta({
 });
 
 const { updateJob, getJob, isLoading: isJobLoading } = useJobs();
+const { confirm } = useConfirm();
 const {
   fetchCompanies,
   fetchContainerTypes,
@@ -134,8 +135,15 @@ const formData = reactive({
   // Movement & Schedule
   cargoMovementId: "FCL_FCL",
   deliveryMovementId: "CY_DOOR",
-  vesselId: "",
-  etd: "",
+  vessels: [] as Array<{
+    vesselId: string;
+    vesselName: string;
+    voyageNumber: string;
+    etd: string;
+    sequence: number;
+  }>,
+  vesselId: "", // Legacy support
+  etd: "", // Legacy support
   eta: "",
 
   // Weight & Measurement
@@ -198,9 +206,9 @@ async function fetchJobData() {
 
     formData.commodity = job.commodity || "";
     formData.shippingMark = job.shippingMark || "";
-    formData.grossWeight = job.grossWeight ? parseFloat(job.grossWeight) : null;
-    formData.netWeight = job.netWeight ? parseFloat(job.netWeight) : null;
-    formData.measurement = job.measurement ? parseFloat(job.measurement) : null;
+    formData.grossWeight = job.grossWeight != null ? parseFloat(job.grossWeight) : null;
+    formData.netWeight = job.netWeight != null ? parseFloat(job.netWeight) : null;
+    formData.measurement = job.measurement != null ? parseFloat(job.measurement) : null;
     formData.customerReference = job.customerReference || "";
     formData.cargoMovementId =
       job.cargoMovement?.code ||
@@ -212,6 +220,28 @@ async function fetchJobData() {
     formData.vendorId = job.vendorId || "";
     formData.etd = job.etd && typeof job.etd === "string" ? (job.etd.split("T")[0] as string) : "";
     formData.eta = job.eta && typeof job.eta === "string" ? (job.eta.split("T")[0] as string) : "";
+
+    // Map Multi-Vessels
+    if (job.vessels && job.vessels.length > 0) {
+      formData.vessels = job.vessels.map((v) => ({
+        vesselId: v.vesselId || "",
+        vesselName: v.vesselName || "",
+        voyageNumber: v.voyageNumber || "",
+        etd: v.etd && typeof v.etd === "string" ? v.etd.split("T")[0] || "" : "",
+        sequence: v.sequence || 0,
+      }));
+    } else {
+      // Fallback to legacy single vessel if no JobVessels exist
+      formData.vessels = [
+        {
+          vesselId: job.vesselId || "",
+          vesselName: job.vessel?.name || "",
+          voyageNumber: job.voyageNumber || "",
+          etd: job.etd && typeof job.etd === "string" ? job.etd.split("T")[0] || "" : "",
+          sequence: 0,
+        },
+      ];
+    }
 
     // Also try to get route data from BL if not available at job level
     if (!formData.vesselId && job.billsOfLading && job.billsOfLading.length > 0) {
@@ -242,8 +272,9 @@ async function fetchJobData() {
       formData.hsCode = job.billsOfLading[0]?.hsCode || "";
     }
     if (!formData.mainDescription && job.billsOfLading && job.billsOfLading.length > 0) {
-      formData.mainDescription =
-        job.billsOfLading[0]?.cargoDescription || job.billsOfLading[0]?.mainDescription || "";
+      formData.mainDescription = (job.billsOfLading[0]?.cargoDescription ||
+        job.billsOfLading[0]?.mainDescription ||
+        "") as string;
     }
 
     // Map BL Setup from first BL if available
@@ -445,31 +476,6 @@ watch(
   },
 );
 
-// Auto-calculate Total Weight & Measurement from containers
-watch(
-  () => formData.containers,
-  (newContainers) => {
-    let totalGw = 0;
-    let totalNw = 0;
-    let totalCbm = 0;
-
-    newContainers.forEach((container) => {
-      if (container.items && container.items.length > 0) {
-        container.items.forEach((item) => {
-          if (item.grossWeight) totalGw += Number(item.grossWeight);
-          if (item.netWeight) totalNw += Number(item.netWeight);
-          if (item.measurementCbm) totalCbm += Number(item.measurementCbm);
-        });
-      }
-    });
-
-    formData.grossWeight = totalGw > 0 ? totalGw : null;
-    formData.netWeight = totalNw > 0 ? totalNw : null;
-    formData.measurement = totalCbm > 0 ? totalCbm : null;
-  },
-  { deep: true },
-);
-
 // Auto-select Default Address when a Company is chosen
 const assignDefaultAddress = (
   companyId: string,
@@ -545,6 +551,137 @@ watch(
   },
   { deep: true },
 );
+
+// --- LIVE VALIDATION COMPUTEDS ---
+const containerErrors = computed(() => {
+  const errors: Record<string, string> = {};
+  formData.containers.forEach((c) => {
+    if (c.containerNumber) {
+      const regex = /^[A-Z]{4}\d{7}$/;
+      if (!regex.test(c.containerNumber.toUpperCase())) {
+        errors[c.id] = "Must be 4 letters + 7 digits (e.g. TEMU1234567)";
+      }
+    }
+    if (c.items && Array.isArray(c.items)) {
+      c.items.forEach((item) => {
+        // qty
+        if (item.qty !== null && item.qty !== undefined) {
+          if (!Number.isInteger(item.qty) || item.qty <= 0) {
+            errors[`${c.id}-${item.id}-qty`] = "Must be > 0";
+          }
+        }
+        // GW
+        if (item.grossWeight !== null && item.grossWeight < 0) {
+          errors[`${c.id}-${item.id}-gw`] = "Cannot be < 0";
+        }
+        // NW
+        if (item.netWeight !== null) {
+          if (item.netWeight < 0) {
+            errors[`${c.id}-${item.id}-nw`] = "Cannot be < 0";
+          } else if (item.grossWeight !== null && item.netWeight > item.grossWeight) {
+            errors[`${c.id}-${item.id}-nw`] = "Cannot exceed GW";
+          }
+        }
+        // CBM
+        if (item.measurementCbm !== null && item.measurementCbm < 0) {
+          errors[`${c.id}-${item.id}-cbm`] = "Cannot be < 0";
+        }
+        // HS Code
+        if (item.hsCode) {
+          const digits = item.hsCode.replace(/\D/g, "");
+          if (digits.length > 0 && digits.length < 6) {
+            errors[`${c.id}-${item.id}-hscode`] = "Min. 6 digits";
+          }
+        }
+      });
+    }
+  });
+  return errors;
+});
+
+const routeErrors = computed(() => {
+  const errors: Record<string, string> = {};
+  if (formData.pol && formData.pod && formData.pol === formData.pod) {
+    errors.polPod = "POL and POD cannot be the same";
+  }
+  return errors;
+});
+
+const scheduleErrors = computed(() => {
+  const errors: Record<string, string> = {};
+  if (formData.eta && formData.vessels.length > 0) {
+    const lastVesselEtd = formData.vessels[formData.vessels.length - 1]?.etd;
+    if (lastVesselEtd) {
+      if (new Date(formData.eta) < new Date(lastVesselEtd)) {
+        errors.eta = "Final ETA cannot be earlier than last ETD";
+      }
+    }
+  }
+  return errors;
+});
+
+const totalErrorsConfigs = computed(() => {
+  let totalGw = 0;
+  let totalNw = 0;
+  let totalCbm = 0;
+
+  formData.containers.forEach((c) => {
+    if (c.items && Array.isArray(c.items)) {
+      c.items.forEach((item) => {
+        totalGw += Number(item.grossWeight) || 0;
+        totalNw += Number(item.netWeight) || 0;
+        totalCbm += Number(item.measurementCbm) || 0;
+      });
+    }
+  });
+
+  const errors: Record<string, string> = {};
+  const warnings: Record<string, string> = {};
+
+  if (formData.grossWeight !== null && formData.grossWeight < 0) {
+    errors.gw = "Cannot be negative";
+  } else if (
+    formData.grossWeight !== null &&
+    Math.abs(formData.grossWeight - totalGw) > 0.01 &&
+    totalGw > 0
+  ) {
+    warnings.gw = `Sum of container items is ${totalGw.toFixed(2)} KG`;
+  }
+
+  if (formData.netWeight !== null && formData.netWeight < 0) {
+    errors.nw = "Cannot be negative";
+  } else if (
+    formData.netWeight !== null &&
+    Math.abs(formData.netWeight - totalNw) > 0.01 &&
+    totalNw > 0
+  ) {
+    warnings.nw = `Sum of container items is ${totalNw.toFixed(2)} KG`;
+  }
+
+  if (formData.measurement !== null && formData.measurement < 0) {
+    errors.cbm = "Cannot be negative";
+  } else if (
+    formData.measurement !== null &&
+    Math.abs(formData.measurement - totalCbm) > 0.01 &&
+    totalCbm > 0
+  ) {
+    warnings.cbm = `Sum of container items is ${totalCbm.toFixed(2)} CBM`;
+  }
+
+  return { errors, warnings };
+});
+
+const jobErrors = computed(() => {
+  const errors: Record<string, string> = {};
+  if (formData.hsCode) {
+    const digits = formData.hsCode.replace(/\D/g, "");
+    if (digits.length > 0 && digits.length < 6) {
+      errors.hsCode = "Min. 6 digits";
+    }
+  }
+  return errors;
+});
+// -----------------------------------
 
 const TRADE_TYPES = [
   { id: "EXPORT", name: "Export" },
@@ -628,11 +765,40 @@ async function submitCompanyForm() {
   }
 }
 
-async function handleCreateVessel(name: string) {
+async function handleCreateVessel(
+  name: string,
+  vessel?: {
+    vesselId: string;
+    vesselName: string;
+    voyageNumber: string;
+    etd: string;
+    sequence: number;
+  },
+) {
+  const isConfirmed = await confirm({
+    title: "Create New Vessel",
+    message: `Are you sure you want to create a new vessel named "${name}"?`,
+    confirmText: "Create Vessel",
+    type: "info",
+  });
+  if (!isConfirmed) return;
+
   const result = await createVessel(name);
   if (result.success && result.data) {
     await refreshMasterData();
-    formData.vesselId = result.data.id;
+    if (vessel) {
+      vessel.vesselId = result.data.id;
+      vessel.vesselName = result.data.name;
+    } else {
+      formData.vesselId = result.data.id;
+      if (formData.vessels.length > 0 && formData.vessels[0]) {
+        formData.vessels[0].vesselId = result.data.id;
+        formData.vessels[0].vesselName = result.data.name;
+      }
+    }
+    toast.success(`Vessel "${name}" created successfully.`);
+  } else {
+    toast.error("Failed to create vessel: " + (result.error || "Unknown error"));
   }
 }
 
@@ -647,8 +813,17 @@ async function handleSubmit() {
     const payload = {
       ...formData,
       vendorId: formData.vendorId || null,
-      vesselId: formData.vesselId || null,
+      vesselId: formData.vessels[0]?.vesselId || formData.vesselId || null,
+      voyageNumber: formData.vessels[0]?.voyageNumber || formData.voyageNumber || null,
+      etd: formData.vessels[0]?.etd || formData.etd || null,
       containers: formData.containers.filter((c) => c.containerNumber),
+      vessels: formData.vessels.map((v) => ({
+        vesselId: v.vesselId || null,
+        vesselName: v.vesselName || null,
+        voyageNumber: v.voyageNumber || null,
+        etd: v.etd || null,
+        sequence: v.sequence,
+      })),
     };
 
     const { success, error } = await updateJob(jobId, payload as Parameters<typeof updateJob>[1]);
@@ -976,10 +1151,17 @@ onMounted(() => {
                     value-key="code"
                     placeholder="Search port..."
                     class="[&_button]:pl-9"
+                    :class="{
+                      '[&_button]:border-destructive [&_button]:ring-destructive/20':
+                        routeErrors.polPod,
+                    }"
                     :filter-local="false"
                     @search="handleSearchPol"
                   />
                 </div>
+                <p v-if="routeErrors.polPod" class="text-[10px] text-destructive font-medium mt-1">
+                  {{ routeErrors.polPod }}
+                </p>
               </div>
               <div
                 class="hidden md:flex absolute left-1/2 top-[35%] -translate-x-1/2 -translate-y-1/2 text-muted-foreground/40"
@@ -1001,10 +1183,17 @@ onMounted(() => {
                     value-key="code"
                     placeholder="Search port..."
                     class="[&_button]:pl-9"
+                    :class="{
+                      '[&_button]:border-destructive [&_button]:ring-destructive/20':
+                        routeErrors.polPod,
+                    }"
                     :filter-local="false"
                     @search="handleSearchPod"
                   />
                 </div>
+                <p v-if="routeErrors.polPod" class="text-[10px] text-destructive font-medium mt-1">
+                  {{ routeErrors.polPod }}
+                </p>
               </div>
 
               <!-- Row 3: Place of Delivery & Final Destination -->
@@ -1045,10 +1234,19 @@ onMounted(() => {
                     <input
                       v-model="formData.hsCode"
                       type="text"
-                      placeholder="e.g. 19023040"
+                      placeholder="e.g. 1902..."
                       class="input-field"
+                      :class="{
+                        '!border-destructive focus:!ring-destructive/20': jobErrors.hsCode,
+                      }"
                       required
                     />
+                    <p
+                      v-if="jobErrors.hsCode"
+                      class="text-[10px] text-destructive mt-1 font-medium"
+                    >
+                      {{ jobErrors.hsCode }}
+                    </p>
                   </div>
                   <div class="md:col-span-3">
                     <textarea
@@ -1125,7 +1323,17 @@ onMounted(() => {
                           type="text"
                           placeholder="e.g. TEMU1234567"
                           class="input-field uppercase"
+                          :class="{
+                            '!border-destructive focus:!ring-destructive/20':
+                              containerErrors[container.id],
+                          }"
                         />
+                        <p
+                          v-if="containerErrors[container.id]"
+                          class="text-[10px] text-destructive mt-1 font-medium"
+                        >
+                          {{ containerErrors[container.id] }}
+                        </p>
                       </div>
                       <div class="md:col-span-4 space-y-2">
                         <label
@@ -1207,11 +1415,23 @@ onMounted(() => {
                             <label class="text-[10px] uppercase font-bold text-muted-foreground"
                               >Qty</label
                             >
-                            <input
-                              type="number"
-                              v-model.number="item.qty"
-                              class="input-field h-8 text-sm"
-                            />
+                            <div class="relative">
+                              <input
+                                type="number"
+                                v-model.number="item.qty"
+                                class="input-field h-8 text-sm"
+                                :class="{
+                                  '!border-destructive focus:!ring-destructive/20':
+                                    containerErrors[`${container.id}-${item.id}-qty`],
+                                }"
+                              />
+                              <p
+                                v-if="containerErrors[`${container.id}-${item.id}-qty`]"
+                                class="text-[8.5px] leading-tight text-destructive mt-0.5 font-medium absolute"
+                              >
+                                {{ containerErrors[`${container.id}-${item.id}-qty`] }}
+                              </p>
+                            </div>
                           </div>
                           <div class="col-span-3 space-y-1">
                             <label class="text-[10px] uppercase font-bold text-muted-foreground"
@@ -1230,34 +1450,70 @@ onMounted(() => {
                             <label class="text-[10px] uppercase font-bold text-muted-foreground"
                               >GW (KG)</label
                             >
-                            <input
-                              type="number"
-                              v-model.number="item.grossWeight"
-                              step="0.01"
-                              class="input-field h-8 text-sm"
-                            />
+                            <div class="relative">
+                              <input
+                                type="number"
+                                v-model.number="item.grossWeight"
+                                step="0.01"
+                                class="input-field h-8 text-sm"
+                                :class="{
+                                  '!border-destructive focus:!ring-destructive/20':
+                                    containerErrors[`${container.id}-${item.id}-gw`],
+                                }"
+                              />
+                              <p
+                                v-if="containerErrors[`${container.id}-${item.id}-gw`]"
+                                class="text-[8.5px] leading-tight text-destructive mt-0.5 font-medium absolute"
+                              >
+                                {{ containerErrors[`${container.id}-${item.id}-gw`] }}
+                              </p>
+                            </div>
                           </div>
                           <div class="col-span-2 space-y-1">
                             <label class="text-[10px] uppercase font-bold text-muted-foreground"
                               >NW (KG)</label
                             >
-                            <input
-                              type="number"
-                              v-model.number="item.netWeight"
-                              step="0.01"
-                              class="input-field h-8 text-sm"
-                            />
+                            <div class="relative">
+                              <input
+                                type="number"
+                                v-model.number="item.netWeight"
+                                step="0.01"
+                                class="input-field h-8 text-sm"
+                                :class="{
+                                  '!border-destructive focus:!ring-destructive/20':
+                                    containerErrors[`${container.id}-${item.id}-nw`],
+                                }"
+                              />
+                              <p
+                                v-if="containerErrors[`${container.id}-${item.id}-nw`]"
+                                class="text-[8.5px] leading-tight text-destructive mt-0.5 font-medium absolute"
+                              >
+                                {{ containerErrors[`${container.id}-${item.id}-nw`] }}
+                              </p>
+                            </div>
                           </div>
                           <div class="col-span-3 space-y-1">
                             <label class="text-[10px] uppercase font-bold text-muted-foreground"
                               >CBM</label
                             >
-                            <input
-                              type="number"
-                              v-model.number="item.measurementCbm"
-                              step="0.01"
-                              class="input-field h-8 text-sm"
-                            />
+                            <div class="relative">
+                              <input
+                                type="number"
+                                v-model.number="item.measurementCbm"
+                                step="0.01"
+                                class="input-field h-8 text-sm"
+                                :class="{
+                                  '!border-destructive focus:!ring-destructive/20':
+                                    containerErrors[`${container.id}-${item.id}-cbm`],
+                                }"
+                              />
+                              <p
+                                v-if="containerErrors[`${container.id}-${item.id}-cbm`]"
+                                class="text-[8.5px] leading-tight text-destructive mt-0.5 font-medium absolute"
+                              >
+                                {{ containerErrors[`${container.id}-${item.id}-cbm`] }}
+                              </p>
+                            </div>
                           </div>
                         </div>
                         <div class="grid grid-cols-12 gap-3 pr-6 mt-1">
@@ -1265,12 +1521,24 @@ onMounted(() => {
                             <label class="text-[10px] uppercase font-bold text-muted-foreground"
                               >HS Code</label
                             >
-                            <input
-                              type="text"
-                              v-model="item.hsCode"
-                              class="input-field h-8 text-sm placeholder:opacity-50"
-                              placeholder="e.g. 1902..."
-                            />
+                            <div class="relative">
+                              <input
+                                type="text"
+                                v-model="item.hsCode"
+                                class="input-field h-8 text-sm placeholder:opacity-50"
+                                :class="{
+                                  '!border-destructive focus:!ring-destructive/20':
+                                    containerErrors[`${container.id}-${item.id}-hscode`],
+                                }"
+                                placeholder="e.g. 1902..."
+                              />
+                              <p
+                                v-if="containerErrors[`${container.id}-${item.id}-hscode`]"
+                                class="text-[8.5px] leading-tight text-destructive mt-0.5 font-medium absolute"
+                              >
+                                {{ containerErrors[`${container.id}-${item.id}-hscode`] }}
+                              </p>
+                            </div>
                           </div>
                           <div class="col-span-8 space-y-1">
                             <label class="text-[10px] uppercase font-bold text-muted-foreground"
@@ -1319,32 +1587,93 @@ onMounted(() => {
           <!-- Movement & Schedule -->
           <SectionCard id="movement" title="Movement & Schedule" :icon="Clock">
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div class="space-y-2">
-                <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
-                  >CARGO MOVEMENT</label
-                >
-                <Combobox v-model="formData.cargoMovementId" :options="CARGO_MOVEMENTS" />
+              <!-- Vessels Section -->
+              <div class="md:col-span-2 space-y-4">
+                <div class="flex items-center justify-between">
+                  <label
+                    class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
+                    >VESSEL SCHEDULE (MULTI-VESSEL)</label
+                  >
+                  <button
+                    type="button"
+                    @click="
+                      formData.vessels.push({
+                        vesselId: '',
+                        vesselName: '',
+                        voyageNumber: '',
+                        etd: '',
+                        sequence: formData.vessels.length,
+                      })
+                    "
+                    class="text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1"
+                  >
+                    <Plus class="w-3.5 h-3.5" /> Add Vessel
+                  </button>
+                </div>
+
+                <div class="space-y-4">
+                  <div
+                    v-for="(vessel, index) in formData.vessels"
+                    :key="index"
+                    class="p-4 bg-muted/5 border border-border/50 rounded-xl relative group animate-fade-in"
+                  >
+                    <button
+                      v-if="formData.vessels.length > 1"
+                      type="button"
+                      @click="formData.vessels.splice(index, 1)"
+                      class="absolute -top-2 -right-2 w-6 h-6 bg-white border border-border text-muted-foreground hover:text-destructive rounded-full flex items-center justify-center shadow-sm opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                    >
+                      <Trash2 class="w-3.5 h-3.5" />
+                    </button>
+
+                    <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
+                      <div class="md:col-span-1 flex items-center justify-center">
+                        <div
+                          class="w-8 h-8 rounded-full bg-blue-50 text-[#012D5A] flex items-center justify-center text-xs font-bold border border-blue-100"
+                        >
+                          {{ index + 1 }}
+                        </div>
+                      </div>
+                      <div class="md:col-span-4 self-end">
+                        <label
+                          class="text-[10px] font-bold text-muted-foreground uppercase mb-1 block"
+                          >Vessel Name</label
+                        >
+                        <Combobox
+                          v-model="vessel.vesselId"
+                          :options="vessels"
+                          label-key="name"
+                          value-key="id"
+                          placeholder="Select vessel..."
+                          allow-create
+                          @create="(name) => handleCreateVessel(name, vessel)"
+                        />
+                      </div>
+                      <div class="md:col-span-3 self-end">
+                        <label
+                          class="text-[10px] font-bold text-muted-foreground uppercase mb-1 block"
+                          >Voyage Number</label
+                        >
+                        <input
+                          v-model="vessel.voyageNumber"
+                          type="text"
+                          class="input-field"
+                          placeholder="Voyage..."
+                        />
+                      </div>
+                      <div class="md:col-span-4 self-end">
+                        <label
+                          class="text-[10px] font-bold text-muted-foreground uppercase mb-1 block"
+                          >ETD</label
+                        >
+                        <input v-model="vessel.etd" type="date" class="input-field" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div class="space-y-2">
-                <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
-                  >DELIVERY MOVEMENT</label
-                >
-                <Combobox v-model="formData.deliveryMovementId" :options="DELIVERY_MOVEMENTS" />
-              </div>
-              <div class="space-y-2">
-                <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
-                  >VESSEL</label
-                >
-                <Combobox
-                  v-model="formData.vesselId"
-                  :options="vessels"
-                  label-key="name"
-                  value-key="id"
-                  allow-create
-                  @create="handleCreateVessel"
-                />
-              </div>
-              <div class="space-y-2">
+
+              <div class="space-y-2 self-end">
                 <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
                   >SHIPPING LINE</label
                 >
@@ -1366,7 +1695,16 @@ onMounted(() => {
                 <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
                   >ETA</label
                 >
-                <DatePicker v-model="formData.eta" />
+                <DatePicker
+                  v-model="formData.eta"
+                  :class="{
+                    '[&_button]:border-destructive [&_button]:ring-destructive/20':
+                      scheduleErrors.eta,
+                  }"
+                />
+                <p v-if="scheduleErrors.eta" class="text-[10px] text-destructive mt-1 font-medium">
+                  {{ scheduleErrors.eta }}
+                </p>
               </div>
             </div>
           </SectionCard>
@@ -1384,14 +1722,37 @@ onMounted(() => {
                     type="number"
                     step="0.01"
                     class="input-field pr-12 group-hover:border-primary/50 transition-colors"
+                    :class="{
+                      '!border-destructive focus:!ring-destructive/20':
+                        totalErrorsConfigs.errors.gw,
+                      '!border-amber-500 focus:!ring-amber-500/20':
+                        !totalErrorsConfigs.errors.gw && totalErrorsConfigs.warnings.gw,
+                    }"
                     placeholder="0"
                   />
                   <div
                     class="absolute inset-y-0 right-0 flex items-center pr-4 pointer-events-none text-muted-foreground text-xs font-medium"
+                    :class="{
+                      'text-destructive': totalErrorsConfigs.errors.gw,
+                      'text-amber-600':
+                        !totalErrorsConfigs.errors.gw && totalErrorsConfigs.warnings.gw,
+                    }"
                   >
                     KG
                   </div>
                 </div>
+                <p
+                  v-if="totalErrorsConfigs.errors.gw"
+                  class="text-[10px] text-destructive font-medium mt-1"
+                >
+                  {{ totalErrorsConfigs.errors.gw }}
+                </p>
+                <p
+                  v-else-if="totalErrorsConfigs.warnings.gw"
+                  class="text-[10px] text-amber-600 font-medium mt-1"
+                >
+                  {{ totalErrorsConfigs.warnings.gw }}
+                </p>
               </div>
               <div class="relative space-y-2">
                 <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
@@ -1403,14 +1764,37 @@ onMounted(() => {
                     type="number"
                     step="0.01"
                     class="input-field pr-12 group-hover:border-primary/50 transition-colors"
+                    :class="{
+                      '!border-destructive focus:!ring-destructive/20':
+                        totalErrorsConfigs.errors.nw,
+                      '!border-amber-500 focus:!ring-amber-500/20':
+                        !totalErrorsConfigs.errors.nw && totalErrorsConfigs.warnings.nw,
+                    }"
                     placeholder="0"
                   />
                   <div
                     class="absolute inset-y-0 right-0 flex items-center pr-4 pointer-events-none text-muted-foreground text-xs font-medium"
+                    :class="{
+                      'text-destructive': totalErrorsConfigs.errors.nw,
+                      'text-amber-600':
+                        !totalErrorsConfigs.errors.nw && totalErrorsConfigs.warnings.nw,
+                    }"
                   >
                     KG
                   </div>
                 </div>
+                <p
+                  v-if="totalErrorsConfigs.errors.nw"
+                  class="text-[10px] text-destructive font-medium mt-1"
+                >
+                  {{ totalErrorsConfigs.errors.nw }}
+                </p>
+                <p
+                  v-else-if="totalErrorsConfigs.warnings.nw"
+                  class="text-[10px] text-amber-600 font-medium mt-1"
+                >
+                  {{ totalErrorsConfigs.warnings.nw }}
+                </p>
               </div>
               <div class="relative space-y-2">
                 <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
@@ -1422,14 +1806,37 @@ onMounted(() => {
                     type="number"
                     step="0.01"
                     class="input-field pr-14 group-hover:border-primary/50 transition-colors"
+                    :class="{
+                      '!border-destructive focus:!ring-destructive/20':
+                        totalErrorsConfigs.errors.cbm,
+                      '!border-amber-500 focus:!ring-amber-500/20':
+                        !totalErrorsConfigs.errors.cbm && totalErrorsConfigs.warnings.cbm,
+                    }"
                     placeholder="0"
                   />
                   <div
                     class="absolute inset-y-0 right-0 flex items-center pr-4 pointer-events-none text-muted-foreground text-xs font-medium"
+                    :class="{
+                      'text-destructive': totalErrorsConfigs.errors.cbm,
+                      'text-amber-600':
+                        !totalErrorsConfigs.errors.cbm && totalErrorsConfigs.warnings.cbm,
+                    }"
                   >
                     CBM
                   </div>
                 </div>
+                <p
+                  v-if="totalErrorsConfigs.errors.cbm"
+                  class="text-[10px] text-destructive font-medium mt-1"
+                >
+                  {{ totalErrorsConfigs.errors.cbm }}
+                </p>
+                <p
+                  v-else-if="totalErrorsConfigs.warnings.cbm"
+                  class="text-[10px] text-amber-600 font-medium mt-1"
+                >
+                  {{ totalErrorsConfigs.warnings.cbm }}
+                </p>
               </div>
             </div>
           </SectionCard>

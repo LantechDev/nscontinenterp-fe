@@ -1,3 +1,11 @@
+export interface EblVessel {
+  id?: string | number;
+  vesselId?: string | null;
+  vesselName?: string | null;
+  voyageNumber?: string | null;
+  etd?: string | null;
+  sequence?: number;
+}
 export interface EblContainerItem {
   id?: string | number;
   sequenceNo?: number;
@@ -41,7 +49,7 @@ export interface EblParty {
 }
 export interface ActiveBlData {
   id?: string;
-  status?: string;
+  status?: string | { code?: string; name?: string };
   blNumber?: string;
   job?: ActiveJobData;
   prepaid?: string;
@@ -58,7 +66,8 @@ export interface ActiveBlData {
   blContainers?: Array<{ container?: EblContainer } & EblContainer>;
   containers?: EblContainer[];
   parties?: EblParty[];
-  mainDescription?: string;
+  renderParties?: Record<string, { name: string; address: string }>;
+  mainDescription?: string | null;
   cargoDescription?: string;
   freightTerm?: string;
   isNegotiable?: boolean;
@@ -66,6 +75,8 @@ export interface ActiveBlData {
   blType?: string;
   shipperReferences?: string[];
   showShipperReferencesOnBl?: boolean;
+  vessels?: EblVessel[];
+  statusRaw?: string;
 }
 export interface ActiveJobData {
   id?: string;
@@ -104,6 +115,7 @@ export interface ActiveJobData {
   job?: ActiveJobData | null;
   hsCode?: string | null;
   blType?: string | null;
+  vessels?: EblVessel[];
 }
 export interface EditFormType {
   shipperId?: string;
@@ -144,6 +156,7 @@ export interface EditFormType {
   cargoMovementId?: string;
   deliveryMovementId?: string;
   containers: EblContainer[];
+  vessels: EblVessel[];
   shipperReferences: string[];
   showShipperReferencesOnBl: boolean;
 }

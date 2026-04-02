@@ -3,7 +3,6 @@ import {
   Plus,
   Search,
   FileText,
-  Download,
   LayoutList,
   LayoutGrid,
   MoreVertical,
@@ -69,12 +68,17 @@ const getStatusInfo = (ebl: EblItem): { label: string; class: string } => {
 type ViewMode = "list" | "grid";
 const viewMode = ref<ViewMode>("list");
 
-const selectedBlId = ref("");
+const selectedJobId = ref("");
+const initialBlId = ref("");
 const isDetailOpen = ref(false);
 
 function openBlDetail(id: string) {
-  selectedBlId.value = id;
-  isDetailOpen.value = true;
+  const ebl = ebls.value.find((e) => e.id === id);
+  if (ebl) {
+    selectedJobId.value = ebl.jobId;
+    initialBlId.value = id;
+    isDetailOpen.value = true;
+  }
 }
 </script>
 
@@ -156,7 +160,6 @@ function openBlDetail(id: string) {
               <th class="py-3 px-4 text-sm font-medium text-foreground">No. eBL</th>
               <th class="py-3 px-4 text-sm font-medium text-foreground">No. Job</th>
               <th class="py-3 px-4 text-sm font-medium text-foreground">Status</th>
-              <th class="py-3 px-4 w-10"></th>
             </tr>
           </thead>
           <tbody>
@@ -185,11 +188,6 @@ function openBlDetail(id: string) {
                 >
                   {{ getStatusInfo(ebl).label }}
                 </span>
-              </td>
-              <td class="py-3 px-4 text-right">
-                <button class="p-1.5 rounded hover:bg-muted transition-colors" @click.stop>
-                  <Download class="w-4 h-4 text-muted-foreground" />
-                </button>
               </td>
             </tr>
             <tr v-if="ebls.length === 0">
@@ -233,9 +231,6 @@ function openBlDetail(id: string) {
           >
             {{ getStatusInfo(ebl).label }}
           </span>
-          <button class="p-1.5 rounded hover:bg-muted transition-colors" @click.stop>
-            <Download class="w-4 h-4 text-muted-foreground" />
-          </button>
         </div>
       </div>
       <div v-if="ebls.length === 0" class="col-span-full p-8 text-center text-muted-foreground">
@@ -267,7 +262,12 @@ function openBlDetail(id: string) {
       </div>
     </div>
 
-    <!-- eBL Details Slide-over -->
-    <OperationalBlDetailSlideOver v-model="isDetailOpen" :bl-id="selectedBlId" />
+    <!-- Job Details Slide-over showing eBL tab -->
+    <OperationalJobDetailSlideOver
+      v-model="isDetailOpen"
+      :job-id="selectedJobId"
+      initial-tab="ebl"
+      :initial-bl-id="initialBlId"
+    />
   </div>
 </template>

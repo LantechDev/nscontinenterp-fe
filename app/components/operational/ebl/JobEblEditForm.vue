@@ -8,7 +8,13 @@ import JobPartyRow from "~/pages/operational/jobs/components/JobPartyRow.vue";
 import SectionCard from "~/pages/operational/jobs/components/SectionCard.vue";
 import DatePicker from "~/components/ui/DatePicker.vue";
 
-import type { ActiveJobData, EditFormType, EblContainerItem, EblContainer } from "./types";
+import type {
+  ActiveJobData,
+  EditFormType,
+  EblContainerItem,
+  EblContainer,
+  EblVessel,
+} from "./types";
 
 // Depending on your project auto-imports, you might already have useMasterData
 // If not explicitly declared, Nuxt 3 auto-imports it.
@@ -36,6 +42,8 @@ const {
   fetchPorts,
   createVessel,
 } = useMasterData();
+
+const { confirm } = useConfirm();
 
 const companies = ref<Company[]>([]);
 const containerTypes = ref<ContainerType[]>([]);
@@ -177,12 +185,36 @@ const handleSearchPod = async (q: string) => {
   portsPod.value = await fetchPorts(q);
 };
 
-const handleCreateVessel = async (name: string) => {
-  if (!confirm(`Create new vessel "${name}"?`)) return;
+const handleCreateVessel = async (name: string, vessel?: EblVessel) => {
+  const isConfirmed = await confirm({
+    title: "Create New Vessel",
+    message: `Are you sure you want to create a new vessel named "${name}"?`,
+    confirmText: "Create Vessel",
+    type: "info",
+  });
+  if (!isConfirmed) return;
   const result = await createVessel(name);
   if (result.success && result.data) {
     vessels.value = await fetchVessels();
-    editForm.value.vesselId = result.data.id;
+    if (vessel) {
+      vessel.vesselId = result.data.id;
+    } else {
+      if (!editForm.value.vessels) editForm.value.vessels = [];
+      if (editForm.value.vessels && editForm.value.vessels.length > 0) {
+        const firstVessel = editForm.value.vessels[0];
+        if (firstVessel) {
+          firstVessel.vesselId = result.data.id;
+        }
+      } else {
+        editForm.value.vessels.push({
+          vesselId: result.data.id,
+          vesselName: name,
+          voyageNumber: "",
+          etd: "",
+          sequence: 0,
+        });
+      }
+    }
     toast.success(`Vessel "${name}" created successfully.`);
   } else {
     toast.error("Failed to create vessel: " + (result.error || "Unknown error"));
@@ -473,9 +505,9 @@ const removeContainer = (idx: number) => editForm.value.containers.splice(idx, 1
             <div class="md:col-span-3">
               <textarea
                 v-model="editForm.commodity"
-                rows="3"
+                rows="6"
                 placeholder="e.g. 3317 CARTONS OF INSTANT NOODLES"
-                class="input-field resize-none focus:h-24 transition-all duration-200"
+                class="input-field min-h-[120px] py-3 resize-y transition-all duration-200"
                 required
               ></textarea>
             </div>
@@ -488,9 +520,9 @@ const removeContainer = (idx: number) => editForm.value.containers.splice(idx, 1
           >
           <textarea
             v-model="editForm.mainDescription"
-            rows="4"
+            rows="10"
             placeholder="Description of goods to appear on BL..."
-            class="input-field resize-y focus:h-32 transition-all duration-200"
+            class="input-field min-h-[250px] py-3 resize-y transition-all duration-200"
           ></textarea>
         </div>
 
@@ -500,70 +532,136 @@ const removeContainer = (idx: number) => editForm.value.containers.splice(idx, 1
           >
           <textarea
             v-model="editForm.shippingMark"
-            rows="3"
+            rows="6"
             placeholder="Enter marks and numbers..."
-            class="input-field resize-none focus:h-24 transition-all duration-200"
+            class="input-field min-h-[120px] py-3 resize-y transition-all duration-200"
           ></textarea>
         </div>
       </div>
     </SectionCard>
 
     <SectionCard id="movement" title="Movement & Schedule" :icon="Clock">
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div class="space-y-2">
-          <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
-            >CARGO MOVEMENT</label
-          >
-          <Combobox v-model="editForm.cargoMovementId" :options="CARGO_MOVEMENTS" />
+      <div class="space-y-8">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pb-6 border-b border-border/50">
+          <div class="space-y-2">
+            <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
+              >CARGO MOVEMENT</label
+            >
+            <Combobox v-model="editForm.cargoMovementId" :options="CARGO_MOVEMENTS" />
+          </div>
+          <div class="space-y-2">
+            <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
+              >DELIVERY MOVEMENT</label
+            >
+            <Combobox v-model="editForm.deliveryMovementId" :options="DELIVERY_MOVEMENTS" />
+          </div>
         </div>
-        <div class="space-y-2">
-          <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
-            >DELIVERY MOVEMENT</label
-          >
-          <Combobox v-model="editForm.deliveryMovementId" :options="DELIVERY_MOVEMENTS" />
-        </div>
-        <div class="space-y-2">
-          <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
-            >VESSEL</label
-          >
-          <Combobox
-            v-model="editForm.vesselId"
-            :options="vessels"
-            label-key="name"
-            value-key="id"
-            placeholder="Search Vessel..."
-            allow-create
-            @create="handleCreateVessel"
-          />
-        </div>
-        <div class="space-y-2">
-          <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
-            >VOYAGE NUMBER</label
-          >
-          <input
-            v-model="editForm.voyageNumber"
-            type="text"
-            placeholder="e.g. 053W"
-            class="input-field"
-          />
-        </div>
-        <div class="space-y-2 md:col-start-1 md:col-span-1">
-          <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
-            >ETD</label
-          >
-          <DatePicker v-model="editForm.etd" placeholder="Select ETD..." />
-        </div>
-        <div class="space-y-2 md:col-start-2 md:col-span-1">
-          <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
-            >ETA</label
-          >
-          <DatePicker v-model="editForm.eta" placeholder="Select ETA..." />
-        </div>
-        <div class="space-y-2 md:col-span-1">
-          <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
-            >Date Cargo Received</label
-          >
-          <DatePicker v-model="editForm.dateCargoReceived" placeholder="Select Date..." />
+
+        <!-- Multi-Vessel List -->
+        <div class="space-y-4">
+          <div class="flex items-center justify-between">
+            <h4
+              class="text-sm font-bold text-foreground/80 uppercase tracking-widest flex items-center gap-2"
+            >
+              <div class="w-1.5 h-4 bg-primary rounded-full"></div>
+              Vessel Schedule
+            </h4>
+            <button
+              type="button"
+              @click="
+                !editForm.vessels ? (editForm.vessels = []) : null;
+                editForm.vessels.push({
+                  vesselId: '',
+                  vesselName: '',
+                  voyageNumber: '',
+                  etd: '',
+                  sequence: editForm.vessels.length,
+                });
+              "
+              class="text-xs text-blue-600 hover:text-blue-700 font-bold uppercase tracking-widest flex items-center gap-1.5 transition-colors"
+            >
+              <Plus class="w-3.5 h-3.5" /> Add Vessel
+            </button>
+          </div>
+
+          <div class="space-y-4">
+            <div
+              v-for="(vessel, vIndex) in editForm.vessels"
+              :key="vIndex"
+              class="p-5 bg-muted/5 border border-border/50 rounded-2xl relative group/vessel transition-all hover:bg-white hover:shadow-sm"
+            >
+              <div class="grid grid-cols-1 md:grid-cols-12 gap-5 items-end">
+                <!-- Vessel Selection -->
+                <div class="md:col-span-5 space-y-2">
+                  <label
+                    class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1"
+                  >
+                    {{ vIndex === 0 ? "Feeder / First Vessel" : "Vessel " + (vIndex + 1) }}
+                  </label>
+                  <Combobox
+                    v-model="vessel.vesselId"
+                    :options="vessels"
+                    label-key="name"
+                    value-key="id"
+                    placeholder="Search Vessel..."
+                    allow-create
+                    @create="(name) => handleCreateVessel(name, vessel)"
+                    class="h-10"
+                  />
+                </div>
+
+                <!-- Voyage Number -->
+                <div class="md:col-span-3 space-y-2">
+                  <label
+                    class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1"
+                    >Voyage No</label
+                  >
+                  <input
+                    v-model="vessel.voyageNumber"
+                    type="text"
+                    class="input-field h-10"
+                    placeholder="Voyage..."
+                  />
+                </div>
+
+                <!-- ETD -->
+                <div class="md:col-span-3 space-y-2">
+                  <label
+                    class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1"
+                    >ETD</label
+                  >
+                  <DatePicker v-model="vessel.etd" placeholder="Select ETD..." class="h-10" />
+                </div>
+
+                <!-- Remove Button -->
+                <div class="md:col-span-1 flex justify-end pb-1" v-if="editForm.vessels.length > 1">
+                  <button
+                    type="button"
+                    @click="editForm.vessels.splice(vIndex, 1)"
+                    class="w-10 h-10 rounded-xl bg-white border border-destructive/10 text-destructive flex items-center justify-center hover:bg-destructive hover:text-white transition-all shadow-sm"
+                  >
+                    <Trash2 class="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Final ETA -->
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4">
+            <div class="space-y-2">
+              <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
+                >Final ETA</label
+              >
+              <DatePicker v-model="editForm.eta" placeholder="Select Final ETA..." />
+            </div>
+            <div class="space-y-2 md:col-span-1">
+              <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
+                >Date Cargo Received</label
+              >
+              <DatePicker v-model="editForm.dateCargoReceived" placeholder="Select Date..." />
+            </div>
+          </div>
         </div>
       </div>
     </SectionCard>
@@ -801,8 +899,8 @@ const removeContainer = (idx: number) => editForm.value.containers.splice(idx, 1
                       >
                       <textarea
                         v-model="item.description"
-                        rows="2"
-                        class="input-field text-sm placeholder:opacity-50 resize-y focus:h-24 transition-all duration-200"
+                        rows="6"
+                        class="input-field text-sm placeholder:opacity-50 resize-y min-h-[100px] py-2 transition-all duration-200"
                         placeholder="Description of goods in this container..."
                       ></textarea>
                     </div>

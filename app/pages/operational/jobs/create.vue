@@ -32,6 +32,7 @@ definePageMeta({
 });
 
 const { createJob, isLoading } = useJobs();
+const { confirm } = useConfirm();
 const {
   fetchCompanies,
   fetchContainerTypes,
@@ -163,7 +164,16 @@ const formData = reactive({
   // Movement & Schedule
   cargoMovementId: "FCL_FCL",
   deliveryMovementId: "CY_DOOR",
-  vesselId: "",
+  vessels: [
+    {
+      id: Date.now(),
+      vesselId: "",
+      vesselName: "",
+      voyageNumber: "",
+      etd: "",
+      sequence: 0,
+    },
+  ],
   etd: "",
   eta: "",
 
@@ -296,6 +306,137 @@ watch(
   { deep: true },
 );
 
+// --- LIVE VALIDATION COMPUTEDS ---
+const containerErrors = computed(() => {
+  const errors: Record<string, string> = {};
+  formData.containers.forEach((c) => {
+    if (c.containerNumber) {
+      const regex = /^[A-Z]{4}\d{7}$/;
+      if (!regex.test(c.containerNumber.toUpperCase())) {
+        errors[c.id] = "Must be 4 letters + 7 digits (e.g. TEMU1234567)";
+      }
+    }
+    if (c.items && Array.isArray(c.items)) {
+      c.items.forEach((item) => {
+        // qty
+        if (item.qty !== null && item.qty !== undefined) {
+          if (!Number.isInteger(item.qty) || item.qty <= 0) {
+            errors[`${c.id}-${item.id}-qty`] = "Must be > 0";
+          }
+        }
+        // GW
+        if (item.grossWeight !== null && item.grossWeight < 0) {
+          errors[`${c.id}-${item.id}-gw`] = "Cannot be < 0";
+        }
+        // NW
+        if (item.netWeight !== null) {
+          if (item.netWeight < 0) {
+            errors[`${c.id}-${item.id}-nw`] = "Cannot be < 0";
+          } else if (item.grossWeight !== null && item.netWeight > item.grossWeight) {
+            errors[`${c.id}-${item.id}-nw`] = "Cannot exceed GW";
+          }
+        }
+        // CBM
+        if (item.measurementCbm !== null && item.measurementCbm < 0) {
+          errors[`${c.id}-${item.id}-cbm`] = "Cannot be < 0";
+        }
+        // HS Code
+        if (item.hsCode) {
+          const digits = item.hsCode.replace(/\D/g, "");
+          if (digits.length > 0 && digits.length < 6) {
+            errors[`${c.id}-${item.id}-hscode`] = "Min. 6 digits";
+          }
+        }
+      });
+    }
+  });
+  return errors;
+});
+
+const routeErrors = computed(() => {
+  const errors: Record<string, string> = {};
+  if (formData.pol && formData.pod && formData.pol === formData.pod) {
+    errors.polPod = "POL and POD cannot be the same";
+  }
+  return errors;
+});
+
+const scheduleErrors = computed(() => {
+  const errors: Record<string, string> = {};
+  if (formData.eta && formData.vessels.length > 0) {
+    const lastVesselEtd = formData.vessels[formData.vessels.length - 1]?.etd;
+    if (lastVesselEtd) {
+      if (new Date(formData.eta) < new Date(lastVesselEtd)) {
+        errors.eta = "Final ETA cannot be earlier than last ETD";
+      }
+    }
+  }
+  return errors;
+});
+
+const totalErrorsConfigs = computed(() => {
+  let totalGw = 0;
+  let totalNw = 0;
+  let totalCbm = 0;
+
+  formData.containers.forEach((c) => {
+    if (c.items && Array.isArray(c.items)) {
+      c.items.forEach((item) => {
+        totalGw += Number(item.grossWeight) || 0;
+        totalNw += Number(item.netWeight) || 0;
+        totalCbm += Number(item.measurementCbm) || 0;
+      });
+    }
+  });
+
+  const errors: Record<string, string> = {};
+  const warnings: Record<string, string> = {};
+
+  if (formData.grossWeight !== null && formData.grossWeight < 0) {
+    errors.gw = "Cannot be negative";
+  } else if (
+    formData.grossWeight !== null &&
+    Math.abs(formData.grossWeight - totalGw) > 0.01 &&
+    totalGw > 0
+  ) {
+    warnings.gw = `Sum of container items is ${totalGw.toFixed(2)} KG`;
+  }
+
+  if (formData.netWeight !== null && formData.netWeight < 0) {
+    errors.nw = "Cannot be negative";
+  } else if (
+    formData.netWeight !== null &&
+    Math.abs(formData.netWeight - totalNw) > 0.01 &&
+    totalNw > 0
+  ) {
+    warnings.nw = `Sum of container items is ${totalNw.toFixed(2)} KG`;
+  }
+
+  if (formData.measurement !== null && formData.measurement < 0) {
+    errors.cbm = "Cannot be negative";
+  } else if (
+    formData.measurement !== null &&
+    Math.abs(formData.measurement - totalCbm) > 0.01 &&
+    totalCbm > 0
+  ) {
+    warnings.cbm = `Sum of container items is ${totalCbm.toFixed(2)} CBM`;
+  }
+
+  return { errors, warnings };
+});
+
+const jobErrors = computed(() => {
+  const errors: Record<string, string> = {};
+  if (formData.hsCode) {
+    const digits = formData.hsCode.replace(/\D/g, "");
+    if (digits.length > 0 && digits.length < 6) {
+      errors.hsCode = "Min. 6 digits";
+    }
+  }
+  return errors;
+});
+// -----------------------------------
+
 // Constants for dropdowns (using generic IDs/Names, adjust based on backend reference data if needed)
 const TRADE_TYPES = [
   { id: "EXPORT", name: "Export" },
@@ -369,7 +510,6 @@ async function submitCompanyForm() {
   try {
     isSubmittingCompany.value = true;
 
-    // Prepare the address payload if at least fullAddress or city is provided
     const addressPayload =
       companyForm.fullAddress || companyForm.city || companyForm.taxId
         ? {
@@ -406,13 +546,34 @@ async function submitCompanyForm() {
   }
 }
 
-async function handleCreateVessel(name: string) {
-  if (!confirm(`Create new vessel "${name}"?`)) return;
+async function handleCreateVessel(
+  name: string,
+  vessel?: {
+    vesselId: string;
+    vesselName: string;
+    voyageNumber: string;
+    etd: string;
+    sequence: number;
+  },
+) {
+  const isConfirmed = await confirm({
+    title: "Create New Vessel",
+    message: `Are you sure you want to create a new vessel named "${name}"?`,
+    confirmText: "Create Vessel",
+    type: "info",
+  });
+  if (!isConfirmed) return;
 
   const result = await createVessel(name);
   if (result.success && result.data) {
     await refreshMasterData();
-    formData.vesselId = result.data.id;
+    if (vessel) {
+      vessel.vesselId = result.data.id;
+    } else {
+      if (formData.vessels[0]) {
+        formData.vessels[0].vesselId = result.data.id;
+      }
+    }
     toast.success(`Vessel "${name}" created successfully.`);
   } else {
     toast.error("Failed to create vessel: " + (result.error || "Unknown error"));
@@ -460,13 +621,18 @@ async function handleSubmit(isDraft: boolean = false) {
     containers: formData.containers.filter((c) => c.containerNumber),
     pol: formData.pol,
     pod: formData.pod,
-    vesselId: formData.vesselId || undefined,
-    voyageNumber: formData.voyageNumber || undefined,
+    vessels: formData.vessels.map((v) => ({
+      vesselId: v.vesselId || null,
+      vesselName: v.vesselName || null,
+      voyageNumber: v.voyageNumber || null,
+      etd: v.etd || null,
+      sequence: v.sequence,
+    })),
     preCarriageBy: formData.preCarriageBy || undefined,
     placeOfReceipt: formData.placeOfReceipt || undefined,
     placeOfDelivery: formData.placeOfDelivery || undefined,
     finalDestination: formData.finalDestination || undefined,
-    etd: formData.etd || undefined,
+    etd: formData.vessels[0]?.etd || undefined, // Fallback for main ETD
     eta: formData.eta || undefined,
     totalBlCount: formData.totalBlCount || 1,
     blType: (formData.blType as "ORIGINAL" | "DRAFT" | "SEAWAYBILL") || undefined,
@@ -477,9 +643,9 @@ async function handleSubmit(isDraft: boolean = false) {
     tradeTypeId: formData.tradeTypeId || undefined,
     cargoMovementId: formData.cargoMovementId || undefined,
     deliveryMovementId: formData.deliveryMovementId || undefined,
-    grossWeight: formData.grossWeight || null,
-    netWeight: formData.netWeight || null,
-    measurement: formData.measurement || null,
+    grossWeight: formData.grossWeight ?? null,
+    netWeight: formData.netWeight ?? null,
+    measurement: formData.measurement ?? null,
     shippingMark: formData.shippingMark || undefined,
   };
 
@@ -589,7 +755,6 @@ function scrollTo(id: string) {
   activeSection.value = id;
 
   if (manualScrollTimeout) clearTimeout(manualScrollTimeout);
-  // Re-enable Intersection Observer after smooth scroll duration
   manualScrollTimeout = window.setTimeout(() => {
     isManualScroll.value = false;
   }, 1000);
@@ -851,10 +1016,17 @@ function scrollTo(id: string) {
                     value-key="code"
                     placeholder="Search port..."
                     class="[&_button]:pl-10"
+                    :class="{
+                      '[&_button]:border-destructive [&_button]:ring-destructive/20':
+                        routeErrors.polPod,
+                    }"
                     :filter-local="false"
                     @search="handleSearchPol"
                   />
                 </div>
+                <p v-if="routeErrors.polPod" class="text-[10px] text-destructive font-medium mt-1">
+                  {{ routeErrors.polPod }}
+                </p>
               </div>
 
               <!-- Visual connector for POL -> POD -->
@@ -883,10 +1055,17 @@ function scrollTo(id: string) {
                     value-key="code"
                     placeholder="Search port..."
                     class="[&_button]:pl-10"
+                    :class="{
+                      '[&_button]:border-destructive [&_button]:ring-destructive/20':
+                        routeErrors.polPod,
+                    }"
                     :filter-local="false"
                     @search="handleSearchPod"
                   />
                 </div>
+                <p v-if="routeErrors.polPod" class="text-[10px] text-destructive font-medium mt-1">
+                  {{ routeErrors.polPod }}
+                </p>
               </div>
 
               <!-- Row 3: Place of Delivery & Final Destination -->
@@ -927,10 +1106,19 @@ function scrollTo(id: string) {
                     <input
                       v-model="formData.hsCode"
                       type="text"
-                      placeholder="e.g. 19023040"
+                      placeholder="e.g. 1902..."
                       class="input-field"
+                      :class="{
+                        '!border-destructive focus:!ring-destructive/20': jobErrors.hsCode,
+                      }"
                       required
                     />
+                    <p
+                      v-if="jobErrors.hsCode"
+                      class="text-[10px] text-destructive mt-1 font-medium"
+                    >
+                      {{ jobErrors.hsCode }}
+                    </p>
                   </div>
                   <div class="md:col-span-3">
                     <textarea
@@ -1034,7 +1222,17 @@ function scrollTo(id: string) {
                           type="text"
                           placeholder="TEMU1234567"
                           class="input-field uppercase tracking-wider font-mono text-xs"
+                          :class="{
+                            '!border-destructive focus:!ring-destructive/20':
+                              containerErrors[container.id],
+                          }"
                         />
+                        <p
+                          v-if="containerErrors[container.id]"
+                          class="text-[10px] text-destructive mt-1 font-medium"
+                        >
+                          {{ containerErrors[container.id] }}
+                        </p>
                       </div>
                       <div class="md:col-span-4 space-y-2">
                         <label
@@ -1114,16 +1312,28 @@ function scrollTo(id: string) {
                           class="p-4 bg-white/60 border border-border/40 rounded-xl shadow-sm hover:shadow-md hover:border-primary/20 transition-all duration-300 relative group/item"
                         >
                           <div class="grid grid-cols-12 gap-x-4 gap-y-3">
-                            <div class="col-span-2 space-y-1.5">
+                            <div class="col-span-2 space-y-1.5 relative">
                               <label
                                 class="text-[10px] uppercase font-bold text-muted-foreground/60 tracking-widest pl-0.5"
                                 >Qty</label
                               >
-                              <input
-                                type="number"
-                                v-model.number="item.qty"
-                                class="input-field h-9 text-xs"
-                              />
+                              <div>
+                                <input
+                                  type="number"
+                                  v-model.number="item.qty"
+                                  class="input-field h-9 text-xs"
+                                  :class="{
+                                    '!border-destructive focus:!ring-destructive/20':
+                                      containerErrors[`${container.id}-${item.id}-qty`],
+                                  }"
+                                />
+                                <p
+                                  v-if="containerErrors[`${container.id}-${item.id}-qty`]"
+                                  class="text-[8.5px] leading-tight text-destructive mt-0.5 font-medium absolute"
+                                >
+                                  {{ containerErrors[`${container.id}-${item.id}-qty`] }}
+                                </p>
+                              </div>
                             </div>
                             <div class="col-span-3 space-y-1.5">
                               <label
@@ -1139,54 +1349,102 @@ function scrollTo(id: string) {
                                 class="h-9"
                               />
                             </div>
-                            <div class="col-span-2 space-y-1.5">
+                            <div class="col-span-2 space-y-1.5 relative">
                               <label
                                 class="text-[10px] uppercase font-bold text-muted-foreground/60 tracking-widest pl-0.5"
                                 >GW (KG)</label
                               >
-                              <input
-                                type="number"
-                                v-model.number="item.grossWeight"
-                                step="0.01"
-                                class="input-field h-9 text-xs"
-                              />
+                              <div>
+                                <input
+                                  type="number"
+                                  v-model.number="item.grossWeight"
+                                  step="0.01"
+                                  class="input-field h-9 text-xs"
+                                  :class="{
+                                    '!border-destructive focus:!ring-destructive/20':
+                                      containerErrors[`${container.id}-${item.id}-gw`],
+                                  }"
+                                />
+                                <p
+                                  v-if="containerErrors[`${container.id}-${item.id}-gw`]"
+                                  class="text-[8.5px] leading-tight text-destructive mt-0.5 font-medium absolute"
+                                >
+                                  {{ containerErrors[`${container.id}-${item.id}-gw`] }}
+                                </p>
+                              </div>
                             </div>
-                            <div class="col-span-2 space-y-1.5">
+                            <div class="col-span-2 space-y-1.5 relative">
                               <label
                                 class="text-[10px] uppercase font-bold text-muted-foreground/60 tracking-widest pl-0.5"
                                 >NW (KG)</label
                               >
-                              <input
-                                type="number"
-                                v-model.number="item.netWeight"
-                                step="0.01"
-                                class="input-field h-9 text-xs"
-                              />
+                              <div>
+                                <input
+                                  type="number"
+                                  v-model.number="item.netWeight"
+                                  step="0.01"
+                                  class="input-field h-9 text-xs"
+                                  :class="{
+                                    '!border-destructive focus:!ring-destructive/20':
+                                      containerErrors[`${container.id}-${item.id}-nw`],
+                                  }"
+                                />
+                                <p
+                                  v-if="containerErrors[`${container.id}-${item.id}-nw`]"
+                                  class="text-[8.5px] leading-tight text-destructive mt-0.5 font-medium absolute"
+                                >
+                                  {{ containerErrors[`${container.id}-${item.id}-nw`] }}
+                                </p>
+                              </div>
                             </div>
-                            <div class="col-span-3 space-y-1.5">
+                            <div class="col-span-3 space-y-1.5 relative">
                               <label
                                 class="text-[10px] uppercase font-bold text-muted-foreground/60 tracking-widest pl-0.5"
                                 >CBM</label
                               >
-                              <input
-                                type="number"
-                                v-model.number="item.measurementCbm"
-                                step="0.01"
-                                class="input-field h-9 text-xs"
-                              />
+                              <div>
+                                <input
+                                  type="number"
+                                  v-model.number="item.measurementCbm"
+                                  step="0.01"
+                                  class="input-field h-9 text-xs"
+                                  :class="{
+                                    '!border-destructive focus:!ring-destructive/20':
+                                      containerErrors[`${container.id}-${item.id}-cbm`],
+                                  }"
+                                />
+                                <p
+                                  v-if="containerErrors[`${container.id}-${item.id}-cbm`]"
+                                  class="text-[8.5px] leading-tight text-destructive mt-0.5 font-medium absolute"
+                                >
+                                  {{ containerErrors[`${container.id}-${item.id}-cbm`] }}
+                                </p>
+                              </div>
                             </div>
 
-                            <div class="col-span-4 space-y-1.5">
+                            <div class="col-span-4 space-y-1.5 relative">
                               <label
                                 class="text-[10px] uppercase font-bold text-muted-foreground/60 tracking-widest pl-0.5"
                                 >HS Code</label
                               >
-                              <input
-                                type="text"
-                                v-model="item.hsCode"
-                                class="input-field h-9 text-xs placeholder:opacity-40"
-                                placeholder="1902..."
-                              />
+                              <div>
+                                <input
+                                  type="text"
+                                  v-model="item.hsCode"
+                                  class="input-field h-9 text-xs placeholder:opacity-40"
+                                  :class="{
+                                    '!border-destructive focus:!ring-destructive/20':
+                                      containerErrors[`${container.id}-${item.id}-hscode`],
+                                  }"
+                                  placeholder="1902..."
+                                />
+                                <p
+                                  v-if="containerErrors[`${container.id}-${item.id}-hscode`]"
+                                  class="text-[8.5px] leading-tight text-destructive mt-0.5 font-medium absolute"
+                                >
+                                  {{ containerErrors[`${container.id}-${item.id}-hscode`] }}
+                                </p>
+                              </div>
                             </div>
                             <div class="col-span-8 space-y-1.5">
                               <label
@@ -1233,47 +1491,143 @@ function scrollTo(id: string) {
 
           <!-- Movement & Schedule -->
           <SectionCard id="movement" title="Movement & Schedule" :icon="Clock">
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <!-- Cargo Movement -->
-              <div class="space-y-2">
-                <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
-                  >CARGO MOVEMENT <span class="text-destructive">*</span></label
-                >
-                <Combobox v-model="formData.cargoMovementId" :options="CARGO_MOVEMENTS" />
+            <div class="space-y-8">
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pb-6 border-b border-border/40">
+                <!-- Cargo Movement -->
+                <div class="space-y-2">
+                  <label
+                    class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
+                    >CARGO MOVEMENT <span class="text-destructive">*</span></label
+                  >
+                  <Combobox v-model="formData.cargoMovementId" :options="CARGO_MOVEMENTS" />
+                </div>
+
+                <!-- Delivery Movement -->
+                <div class="space-y-2">
+                  <label
+                    class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
+                    >DELIVERY MOVEMENT <span class="text-destructive">*</span></label
+                  >
+                  <Combobox v-model="formData.deliveryMovementId" :options="DELIVERY_MOVEMENTS" />
+                </div>
               </div>
 
-              <!-- Delivery Movement -->
-              <div class="space-y-2">
-                <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
-                  >DELIVERY MOVEMENT <span class="text-destructive">*</span></label
-                >
-                <Combobox v-model="formData.deliveryMovementId" :options="DELIVERY_MOVEMENTS" />
-              </div>
-              <div class="space-y-2">
-                <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
-                  >VESSEL / VOYAGE</label
-                >
-                <Combobox
-                  v-model="formData.vesselId"
-                  :options="vessels"
-                  label-key="name"
-                  value-key="id"
-                  placeholder="Search Vessel..."
-                  allow-create
-                  @create="handleCreateVessel"
-                />
-              </div>
-              <div class="space-y-2 md:col-start-1 md:col-span-1">
-                <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
-                  >ETD</label
-                >
-                <DatePicker v-model="formData.etd" placeholder="Select ETD..." />
-              </div>
-              <div class="space-y-2 md:col-start-2 md:col-span-1">
-                <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
-                  >ETA</label
-                >
-                <DatePicker v-model="formData.eta" placeholder="Select ETA..." />
+              <!-- Multi-Vessel List -->
+              <div class="space-y-4">
+                <div class="flex items-center justify-between">
+                  <h4
+                    class="text-sm font-bold text-foreground/80 uppercase tracking-widest flex items-center gap-2"
+                  >
+                    <div class="w-1.5 h-4 bg-primary rounded-full"></div>
+                    Vessel Schedule
+                  </h4>
+                  <button
+                    type="button"
+                    @click="
+                      formData.vessels.push({
+                        id: Date.now(),
+                        vesselId: '',
+                        vesselName: '',
+                        voyageNumber: '',
+                        etd: '',
+                        sequence: formData.vessels.length,
+                      })
+                    "
+                    class="btn-secondary py-1.5 px-3 text-[11px] font-bold uppercase tracking-widest flex items-center gap-2 transition-all hover:ring-2 hover:ring-primary/20"
+                  >
+                    <Plus class="w-3.5 h-3.5" /> Add Vessel
+                  </button>
+                </div>
+
+                <div class="space-y-4">
+                  <div
+                    v-for="(vessel, vIndex) in formData.vessels"
+                    :key="vessel.id"
+                    class="p-5 bg-muted/30 border border-border/40 rounded-2xl relative group/vessel transition-all hover:bg-white hover:shadow-md hover:border-primary/20"
+                  >
+                    <div class="grid grid-cols-1 md:grid-cols-12 gap-5 items-end">
+                      <!-- Vessel Selection -->
+                      <div class="md:col-span-5 space-y-2">
+                        <label
+                          class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1"
+                        >
+                          {{ vIndex === 0 ? "Feeder / First Vessel" : "Vessel " + (vIndex + 1) }}
+                        </label>
+                        <Combobox
+                          v-model="vessel.vesselId"
+                          :options="vessels"
+                          label-key="name"
+                          value-key="id"
+                          placeholder="Search Vessel..."
+                          allow-create
+                          @create="(name) => handleCreateVessel(name, vessel)"
+                          class="h-10"
+                        />
+                      </div>
+
+                      <!-- Voyage Number -->
+                      <div class="md:col-span-3 space-y-2">
+                        <label
+                          class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1"
+                          >Voyage No</label
+                        >
+                        <input
+                          v-model="vessel.voyageNumber"
+                          type="text"
+                          class="input-field h-10"
+                          placeholder="Voyage..."
+                        />
+                      </div>
+
+                      <!-- ETD -->
+                      <div class="md:col-span-3 space-y-2">
+                        <label
+                          class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1"
+                          >ETD</label
+                        >
+                        <DatePicker v-model="vessel.etd" placeholder="Select ETD..." class="h-10" />
+                      </div>
+
+                      <!-- Remove Button -->
+                      <div
+                        class="md:col-span-1 flex justify-end pb-1"
+                        v-if="formData.vessels.length > 1"
+                      >
+                        <button
+                          type="button"
+                          @click="formData.vessels.splice(vIndex, 1)"
+                          class="w-10 h-10 rounded-xl bg-white border border-destructive/10 text-destructive flex items-center justify-center hover:bg-destructive hover:text-white transition-all shadow-sm"
+                        >
+                          <Trash2 class="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- ETA (Usually for the last vessel, but keeping it at section level for now) -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4">
+                  <div class="space-y-2">
+                    <label
+                      class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
+                      >Final ETA</label
+                    >
+                    <DatePicker
+                      v-model="formData.eta"
+                      placeholder="Select Final ETA..."
+                      :class="{
+                        '[&_button]:border-destructive [&_button]:ring-destructive/20':
+                          scheduleErrors.eta,
+                      }"
+                    />
+                    <p
+                      v-if="scheduleErrors.eta"
+                      class="text-[10px] text-destructive mt-1 font-medium"
+                    >
+                      {{ scheduleErrors.eta }}
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
           </SectionCard>
@@ -1291,14 +1645,37 @@ function scrollTo(id: string) {
                     type="number"
                     step="0.01"
                     class="input-field pr-12 group-hover:border-primary/50 transition-colors"
+                    :class="{
+                      '!border-destructive focus:!ring-destructive/20':
+                        totalErrorsConfigs.errors.gw,
+                      '!border-amber-500 focus:!ring-amber-500/20':
+                        !totalErrorsConfigs.errors.gw && totalErrorsConfigs.warnings.gw,
+                    }"
                     placeholder="0"
                   />
                   <div
                     class="absolute inset-y-0 right-0 flex items-center pr-4 pointer-events-none text-[11px] font-bold text-muted-foreground"
+                    :class="{
+                      'text-destructive': totalErrorsConfigs.errors.gw,
+                      'text-amber-600':
+                        !totalErrorsConfigs.errors.gw && totalErrorsConfigs.warnings.gw,
+                    }"
                   >
                     KG
                   </div>
                 </div>
+                <p
+                  v-if="totalErrorsConfigs.errors.gw"
+                  class="text-[10px] text-destructive font-medium mt-1"
+                >
+                  {{ totalErrorsConfigs.errors.gw }}
+                </p>
+                <p
+                  v-else-if="totalErrorsConfigs.warnings.gw"
+                  class="text-[10px] text-amber-600 font-medium mt-1"
+                >
+                  {{ totalErrorsConfigs.warnings.gw }}
+                </p>
               </div>
               <div class="relative space-y-2">
                 <label class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
@@ -1310,14 +1687,37 @@ function scrollTo(id: string) {
                     type="number"
                     step="0.01"
                     class="input-field pr-12 group-hover:border-primary/50 transition-colors"
+                    :class="{
+                      '!border-destructive focus:!ring-destructive/20':
+                        totalErrorsConfigs.errors.nw,
+                      '!border-amber-500 focus:!ring-amber-500/20':
+                        !totalErrorsConfigs.errors.nw && totalErrorsConfigs.warnings.nw,
+                    }"
                     placeholder="0"
                   />
                   <div
                     class="absolute inset-y-0 right-0 flex items-center pr-4 pointer-events-none text-[11px] font-bold text-muted-foreground"
+                    :class="{
+                      'text-destructive': totalErrorsConfigs.errors.nw,
+                      'text-amber-600':
+                        !totalErrorsConfigs.errors.nw && totalErrorsConfigs.warnings.nw,
+                    }"
                   >
                     KG
                   </div>
                 </div>
+                <p
+                  v-if="totalErrorsConfigs.errors.nw"
+                  class="text-[10px] text-destructive font-medium mt-1"
+                >
+                  {{ totalErrorsConfigs.errors.nw }}
+                </p>
+                <p
+                  v-else-if="totalErrorsConfigs.warnings.nw"
+                  class="text-[10px] text-amber-600 font-medium mt-1"
+                >
+                  {{ totalErrorsConfigs.warnings.nw }}
+                </p>
               </div>
               <div class="relative space-y-2">
                 <label class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
@@ -1329,14 +1729,37 @@ function scrollTo(id: string) {
                     type="number"
                     step="0.01"
                     class="input-field pr-14 group-hover:border-primary/50 transition-colors"
+                    :class="{
+                      '!border-destructive focus:!ring-destructive/20':
+                        totalErrorsConfigs.errors.cbm,
+                      '!border-amber-500 focus:!ring-amber-500/20':
+                        !totalErrorsConfigs.errors.cbm && totalErrorsConfigs.warnings.cbm,
+                    }"
                     placeholder="0"
                   />
                   <div
                     class="absolute inset-y-0 right-0 flex items-center pr-4 pointer-events-none text-[11px] font-bold text-muted-foreground"
+                    :class="{
+                      'text-destructive': totalErrorsConfigs.errors.cbm,
+                      'text-amber-600':
+                        !totalErrorsConfigs.errors.cbm && totalErrorsConfigs.warnings.cbm,
+                    }"
                   >
                     CBM
                   </div>
                 </div>
+                <p
+                  v-if="totalErrorsConfigs.errors.cbm"
+                  class="text-[10px] text-destructive font-medium mt-1"
+                >
+                  {{ totalErrorsConfigs.errors.cbm }}
+                </p>
+                <p
+                  v-else-if="totalErrorsConfigs.warnings.cbm"
+                  class="text-[10px] text-amber-600 font-medium mt-1"
+                >
+                  {{ totalErrorsConfigs.warnings.cbm }}
+                </p>
               </div>
             </div>
           </SectionCard>

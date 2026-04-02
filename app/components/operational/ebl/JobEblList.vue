@@ -24,6 +24,21 @@ const formatDate = (dateStr?: string | null) => {
     return dateStr;
   }
 };
+
+const getStatusCode = (status?: string | { code?: string; name?: string } | null) => {
+  if (!status) return "";
+  const code = typeof status === "string" ? status.toLowerCase() : status.code?.toLowerCase() || "";
+  if (code === "confirmed" || code === "finalized") return "finalized";
+  return code;
+};
+
+const getStatusName = (status?: string | { code?: string; name?: string } | null) => {
+  if (!status) return "DRAFT";
+  const name = typeof status === "string" ? status : status.name || status.code || "DRAFT";
+  const upper = name.toUpperCase();
+  if (upper === "CONFIRMED") return "FINALIZED";
+  return upper;
+};
 </script>
 
 <template>
@@ -76,11 +91,11 @@ const formatDate = (dateStr?: string | null) => {
             class="px-2 py-0.5 rounded text-[10px] font-bold border uppercase tracking-wide"
             :class="{
               'bg-emerald-50 text-emerald-700 border-emerald-200':
-                bl.status?.toLowerCase() === 'finalized',
-              'bg-amber-50 text-amber-700 border-amber-200': bl.status?.toLowerCase() === 'draft',
+                getStatusCode(bl.status) === 'finalized',
+              'bg-amber-50 text-amber-700 border-amber-200': getStatusCode(bl.status) === 'draft',
             }"
           >
-            {{ bl.status }}
+            {{ getStatusName(bl.status) }}
           </span>
         </div>
 

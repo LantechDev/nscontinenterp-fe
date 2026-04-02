@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
-import { Loader2, Download, ArrowLeft, Save } from "lucide-vue-next";
+import { Loader2, Download, ArrowLeft, Save, RotateCcw } from "lucide-vue-next";
 import { toast } from "vue-sonner";
 
 import JobEblList from "./ebl/JobEblList.vue";
@@ -13,13 +13,16 @@ import type {
   EblContainerItem,
   EditFormType,
   EblParty,
+  EblVessel,
 } from "./ebl/types";
 
 const props = defineProps<{
   job: ActiveJobData;
+  initialBlId?: string;
 }>();
 
-const { getBlRender, finalizeBl, updateBlDraft } = useJobs();
+const { getBlRender, finalizeBl, unfinalizeBl, updateBlDraft } = useJobs();
+const { confirm } = useConfirm();
 const activeBl = ref<ActiveBlData | null>(null);
 const isRendering = ref(false);
 const isSavingDraft = ref(false);
@@ -27,6 +30,29 @@ const isGeneratingPDF = ref(false);
 const editMode = ref(false);
 
 const previewRef = ref<InstanceType<typeof JobEblPreview> | null>(null);
+
+const blStatus = computed(() => {
+  const s = activeBl.value?.status;
+  const raw = activeBl.value?.statusRaw;
+
+  if (!s) return "";
+  if (typeof s === "string") {
+    const lower = s.toLowerCase();
+    if (lower === "finalized" || lower === "confirmed") return "confirmed";
+    return lower;
+  }
+
+  const code = s.code?.toLowerCase() || "";
+  // High-priority fallback: if the DB status string is "finalized" but code is still "draft", prioritize finalized.
+  if (code === "draft" && raw?.toLowerCase() === "finalized") return "confirmed";
+
+  return code;
+});
+
+const isDraft = computed(() => blStatus.value === "draft");
+const isFinalized = computed(
+  () => blStatus.value === "finalized" || blStatus.value === "confirmed",
+);
 
 const editForm = ref<EditFormType>({
   shipperId: "",
@@ -71,6 +97,7 @@ const editForm = ref<EditFormType>({
   deliveryMovementId: "CY_CY",
 
   containers: [],
+  vessels: [],
   shipperReferences: [],
   showShipperReferencesOnBl: true,
 });
@@ -233,6 +260,14 @@ const toggleEditMode = () => {
           })) || [],
       };
     }),
+
+    vessels: (d?.vessels || props.job?.vessels || []).map((v: EblVessel) => ({
+      vesselId: v.vesselId || "",
+      vesselName: v.vesselName || "",
+      voyageNumber: v.voyageNumber || "",
+      etd: v.etd || "",
+      sequence: v.sequence || 0,
+    })),
   };
 
   editMode.value = true;
@@ -275,26 +310,26 @@ const handleSaveDraft = async () => {
     const f = editForm.value;
 
     const payload: Record<string, unknown> = {
-      shipperId: f.shipperId,
-      shipperAddressId: f.shipperAddressId,
-      consigneeId: f.consigneeId,
-      consigneeAddressId: f.consigneeAddressId,
-      notifyPartyId: f.notifyPartyId,
-      notifyPartyAddressId: f.notifyPartyAddressId,
-      forwarderId: f.forwarderId,
-      forwarderAddressId: f.forwarderAddressId,
+      shipperId: f.shipperId || undefined,
+      shipperAddressId: f.shipperAddressId || undefined,
+      consigneeId: f.consigneeId || undefined,
+      consigneeAddressId: f.consigneeAddressId || undefined,
+      notifyPartyId: f.notifyPartyId || undefined,
+      notifyPartyAddressId: f.notifyPartyAddressId || undefined,
+      forwarderId: f.forwarderId || undefined,
+      forwarderAddressId: f.forwarderAddressId || undefined,
 
-      cargoDescription: f.mainDescription,
-      mainDescription: f.mainDescription,
-      shippingMark: f.shippingMark,
-      commodity: f.commodity,
-      hsCode: f.hsCode,
+      cargoDescription: f.mainDescription || undefined,
+      mainDescription: f.mainDescription || undefined,
+      shippingMark: f.shippingMark || undefined,
+      commodity: f.commodity || undefined,
+      hsCode: f.hsCode || undefined,
 
-      blNumber: f.blNumber,
-      blType: f.blType,
-      freightTerm: f.freightTerm,
-      prepaid: f.prepaidValue,
-      collect: f.collectValue,
+      blNumber: f.blNumber || undefined,
+      blType: f.blType || undefined,
+      freightTerm: (f.freightTerm as "PREPAID" | "COLLECT") || undefined,
+      prepaid: f.prepaidValue || undefined,
+      collect: f.collectValue || undefined,
       totalBlCount: Number(f.totalBlCount) || 1,
       isNegotiable: f.isNegotiable,
       placeOfIssue: f.placeOfIssue,
@@ -303,20 +338,20 @@ const handleSaveDraft = async () => {
       shipperReferences: f.shipperReferences,
       showShipperReferencesOnBl: f.showShipperReferencesOnBl,
 
-      pol: f.pol,
-      pod: f.pod,
-      vesselId: f.vesselId,
-      etd: f.etd,
-      eta: f.eta,
-      voyageNumber: f.voyageNumber,
-      preCarriageBy: f.preCarriageBy,
-      placeOfReceipt: f.placeOfReceipt,
-      placeOfDelivery: f.placeOfDelivery,
-      finalDestination: f.finalDestination,
+      pol: f.pol || undefined,
+      pod: f.pod || undefined,
+      vesselId: f.vesselId || undefined,
+      etd: f.etd || undefined,
+      eta: f.eta || undefined,
+      voyageNumber: f.voyageNumber || undefined,
+      preCarriageBy: f.preCarriageBy || undefined,
+      placeOfReceipt: f.placeOfReceipt || undefined,
+      placeOfDelivery: f.placeOfDelivery || undefined,
+      finalDestination: f.finalDestination || undefined,
 
-      tradeTypeId: f.tradeTypeId,
-      cargoMovementId: f.cargoMovementId,
-      deliveryMovementId: f.deliveryMovementId,
+      tradeTypeId: f.tradeTypeId || undefined,
+      cargoMovementId: f.cargoMovementId || undefined,
+      deliveryMovementId: f.deliveryMovementId || undefined,
 
       containers: f.containers.map((c: EblContainer) => ({
         containerNumber: c.containerNumber,
@@ -334,6 +369,13 @@ const handleSaveDraft = async () => {
           hsCode: it.hsCode,
         })),
       })),
+      vessels: f.vessels.map((v) => ({
+        vesselId: v.vesselId || null,
+        vesselName: v.vesselName || null,
+        voyageNumber: v.voyageNumber || null,
+        etd: v.etd || null,
+        sequence: Number(v.sequence) || 0,
+      })),
     };
 
     const resp = await updateBlDraft(activeBl.value.id, payload);
@@ -342,6 +384,7 @@ const handleSaveDraft = async () => {
       editMode.value = false;
       await loadBlRender(activeBl.value.id);
     } else {
+      console.error("Failed to save draft:", resp);
       toast.error(resp.error || "Failed to save draft");
     }
   } catch (err: unknown) {
@@ -356,12 +399,14 @@ const loadBlRender = async (blId: string) => {
   try {
     const resp = await getBlRender(blId);
     if (resp.success && resp.data) {
-      const data = resp.data as ActiveBlData;
-      activeBl.value = "bl" in data ? ((data as Record<string, unknown>).bl as ActiveBlData) : data;
-      if (data.renderContainers) activeBl.value.renderContainers = data.renderContainers;
-      if (data.jobContainers) activeBl.value.jobContainers = data.jobContainers;
-      if (data.parties) activeBl.value.parties = data.parties;
-      if (data.mainDescription !== undefined) activeBl.value.mainDescription = data.mainDescription;
+      const data = resp.data;
+      const mappedBl = data.bl || (data as unknown as ActiveBlData);
+      if (data.renderContainers) mappedBl.renderContainers = data.renderContainers;
+      if (data.jobContainers) mappedBl.jobContainers = data.jobContainers;
+      if (data.parties) mappedBl.renderParties = data.parties;
+      if (data.mainDescription !== undefined) mappedBl.mainDescription = data.mainDescription;
+
+      activeBl.value = mappedBl;
     }
   } finally {
     isRendering.value = false;
@@ -373,6 +418,16 @@ const closeBl = () => {
   editMode.value = false;
 };
 
+watch(
+  () => props.initialBlId,
+  (newBlId) => {
+    if (newBlId) {
+      loadBlRender(newBlId);
+    }
+  },
+  { immediate: true },
+);
+
 const handleGeneratePDF = async () => {
   if (!previewRef.value) return;
   isGeneratingPDF.value = true;
@@ -383,18 +438,44 @@ const handleGeneratePDF = async () => {
 const handleFinalize = async () => {
   if (!activeBl.value || !jobData.value) return;
 
-  if (confirm("Are you sure you want to Finalize this BL? It will lock all related fields.")) {
-    const blId = jobData.value.billsOfLading?.[0]?.id || props.job?.billsOfLading?.[0]?.id;
-    if (!blId) return;
+  const isConfirmed = await confirm({
+    title: "Finalize Bill of Lading",
+    message:
+      "Are you sure you want to Finalize this BL? This action will assign a BL number and lock all details for further editing.",
+    confirmText: "Finalize BL",
+    type: "warning",
+  });
 
-    const resp = await finalizeBl(blId);
-    if (resp.success) {
-      toast.success("BL has been successfully finalized with sequence!");
-      if (activeBl.value?.id) {
-        await loadBlRender(activeBl.value.id);
-      }
+  if (isConfirmed) {
+    const blId = activeBl.value.id || jobData.value.billsOfLading?.[0]?.id;
+    const resp = await finalizeBl(blId!);
+    if (resp.success && resp.data) {
+      toast.success("BL Finalized successfully");
+      await loadBlRender(blId!);
     } else {
       toast.error(resp.error || "Failed to finalize BL");
+    }
+  }
+};
+
+const handleUnfinalize = async () => {
+  if (!activeBl.value?.id) return;
+
+  const isConfirmed = await confirm({
+    title: "Unfinalize Bill of Lading",
+    message:
+      "Are you sure you want to revert this BL to Draft? This will clear the assigned BL number and allow further edits.",
+    confirmText: "Unfinalize BL",
+    type: "warning",
+  });
+
+  if (isConfirmed) {
+    const resp = await unfinalizeBl(activeBl.value.id);
+    if (resp.success && resp.data) {
+      toast.success("BL reverted to Draft successfully");
+      await loadBlRender(activeBl.value.id);
+    } else {
+      toast.error(resp.error || "Failed to unfinalize BL");
     }
   }
 };
@@ -425,12 +506,18 @@ const handleFinalize = async () => {
                 v-if="activeBl?.status"
                 class="ml-2 px-2 py-0.5 rounded text-[10px] uppercase tracking-wider border"
                 :class="
-                  activeBl.status.toLowerCase() === 'finalized'
+                  isFinalized
                     ? 'bg-emerald-50 text-emerald-600 border-emerald-100'
                     : 'bg-amber-50 text-amber-600 border-amber-100'
                 "
               >
-                {{ activeBl.status }}
+                {{
+                  isFinalized
+                    ? "Finalized"
+                    : typeof activeBl.status === "string"
+                      ? activeBl.status
+                      : activeBl.status.name || activeBl.status.code
+                }}
               </span>
             </h1>
             <p class="text-sm text-muted-foreground mt-1">
@@ -442,7 +529,17 @@ const handleFinalize = async () => {
         <!-- Actions -->
         <div class="flex flex-wrap items-center gap-3 shrink-0">
           <button
-            v-if="activeBl?.status?.toLowerCase() === 'draft'"
+            v-if="isFinalized"
+            @click="handleUnfinalize"
+            :disabled="isRendering"
+            class="px-4 py-2 text-xs font-semibold rounded-md border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 flex items-center gap-2 shadow-sm transition-colors"
+          >
+            <RotateCcw class="w-4 h-4" />
+            Batal Finalized
+          </button>
+
+          <button
+            v-if="isDraft"
             @click="toggleEditMode"
             :disabled="isRendering"
             class="px-4 py-2 text-xs font-semibold rounded-md border border-border bg-white hover:bg-gray-50 flex items-center gap-2 shadow-sm transition-colors"
@@ -451,7 +548,7 @@ const handleFinalize = async () => {
           </button>
 
           <button
-            v-if="activeBl?.status?.toLowerCase() === 'draft' && !editMode"
+            v-if="isDraft && !editMode"
             @click="handleFinalize"
             :disabled="isRendering"
             class="px-4 py-2 text-xs font-semibold rounded-md border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors shadow-sm flex items-center gap-2"
