@@ -64,6 +64,7 @@ export const NAV_ITEMS: NavItem[] = [
 
 export function useAppSidebar() {
   const { user, session, logout, listOrganizations, setActiveOrganization } = useAuth();
+  const { canAccessPath, ensureRolesLoaded, isAdminRole } = useRoleAccess();
   const router = useRouter();
 
   const organizations = ref<Organization[]>([]);
@@ -77,6 +78,24 @@ export function useAppSidebar() {
     if (!session.value?.activeOrganizationId) return null;
     return organizations.value.find((o) => o.id === session.value?.activeOrganizationId) || null;
   });
+
+  const navItems = computed(() =>
+    NAV_ITEMS.map((item) => {
+      if (!item.children) {
+        return canAccessPath(item.href || "") ? item : null;
+      }
+
+      const visibleChildren = item.children.filter((child) => canAccessPath(child.href));
+      if (visibleChildren.length === 0) {
+        return null;
+      }
+
+      return {
+        ...item,
+        children: visibleChildren,
+      };
+    }).filter((item): item is NavItem => item !== null),
+  );
 
   // Methods
   const handleLogout = async () => {
@@ -119,7 +138,9 @@ export function useAppSidebar() {
 
   // Lifecycle
   onMounted(async () => {
-    if (user.value?.role === "admin") {
+    await ensureRolesLoaded();
+
+    if (isAdminRole.value) {
       const { success, data } = await listOrganizations();
       if (success && data) {
         organizations.value = data;
@@ -137,6 +158,7 @@ export function useAppSidebar() {
 
     // Computed
     currentOrg,
+    navItems,
 
     // Methods
     handleLogout,

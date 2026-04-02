@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ChevronDown, ChevronRight, User } from "lucide-vue-next";
 import { cn } from "~/lib/utils";
-import { NAV_ITEMS } from "~/composables/useAppSidebar";
 
 const {
   user,
@@ -16,9 +15,8 @@ const {
   toggleExpand,
   isActive,
   isChildActive,
+  navItems,
 } = useAppSidebar();
-
-const navItems = NAV_ITEMS;
 </script>
 
 <template>
