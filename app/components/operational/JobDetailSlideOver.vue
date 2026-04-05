@@ -22,6 +22,8 @@ import {
 } from "lucide-vue-next";
 import JobInvoiceTab from "./JobInvoiceTab.vue";
 import JobEblTab from "./JobEblTab.vue";
+import { useAuth } from "~/composables/useAuth";
+const { canApproveJobs } = useAuth();
 import Combobox from "~/components/ui/Combobox.vue";
 import DatePicker from "~/components/ui/DatePicker.vue";
 import { toast } from "vue-sonner";
@@ -262,7 +264,7 @@ const toggleItem = (itemId: string | number) => {
               </div>
               <div>
                 <span
-                  class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-yellow-100 text-yellow-800 border border-yellow-200"
+                  class="inline-flex items-center px-3 py-1 rounded-md text-xs font-bold leading-none bg-yellow-100 text-yellow-800 border border-yellow-200"
                 >
                   {{ getStatusName }}
                 </span>
@@ -273,7 +275,7 @@ const toggleItem = (itemId: string | number) => {
               </div>
               <div>
                 <span
-                  class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200"
+                  class="inline-flex items-center px-3 py-1 rounded-md text-xs font-bold leading-none bg-blue-50 text-blue-700 border border-blue-200"
                 >
                   {{ getJobTypeName }}
                 </span>
@@ -835,7 +837,7 @@ const toggleItem = (itemId: string | number) => {
               v-if="job?.id"
               :to="`/operational/jobs/${job.id}/edit`"
               @click="$emit('update:modelValue', false)"
-              class="px-4 py-2 font-medium bg-[#012D5A] hover:bg-[#012D5A]/90 text-white rounded-md transition-colors flex items-center gap-2 text-sm shadow-sm"
+              class="px-4 py-2 font-medium border border-border hover:bg-muted text-foreground rounded-md transition-colors flex items-center gap-2 text-sm shadow-sm"
             >
               <Edit class="w-4 h-4" /> Edit Job
             </NuxtLink>

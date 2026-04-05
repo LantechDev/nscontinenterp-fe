@@ -107,7 +107,7 @@ const statusConfig: Record<Job["status"], { label: string; className: string }> 
             </td>
             <td class="py-3 px-4 text-right">
               <NuxtLink
-                :to="`/operational/jobs/${job.id}`"
+                :to="`/operational/jobs?id=${job.id}`"
                 class="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
               >
                 <Eye class="w-4 h-4" />

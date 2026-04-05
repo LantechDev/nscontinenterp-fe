@@ -1,13 +1,21 @@
 <script setup lang="ts">
-import { FileText, ArrowLeft } from "lucide-vue-next";
-import type { ActiveJobData } from "./types.ts";
+import { FileText, ArrowLeft, CheckCircle2, Send, Loader2 } from "lucide-vue-next";
+import type { ActiveJobData } from "./types";
+import { useAuth } from "~/composables/useAuth";
+
+const { canApproveJobs } = useAuth();
 
 const props = defineProps<{
   job: ActiveJobData;
+  approvingId?: string | null;
+  rejectingId?: string | null;
 }>();
 
 const emit = defineEmits<{
   (e: "select", id: string): void;
+  (e: "approve", id: string): void;
+  (e: "reject", id: string): void;
+  (e: "request-finalize", id: string): void;
 }>();
 
 const formatDate = (dateStr?: string | null) => {
@@ -29,6 +37,7 @@ const getStatusCode = (status?: string | { code?: string; name?: string } | null
   if (!status) return "";
   const code = typeof status === "string" ? status.toLowerCase() : status.code?.toLowerCase() || "";
   if (code === "confirmed" || code === "finalized") return "finalized";
+  if (code === "pending_approval") return "pending_approval";
   return code;
 };
 
@@ -37,6 +46,7 @@ const getStatusName = (status?: string | { code?: string; name?: string } | null
   const name = typeof status === "string" ? status : status.name || status.code || "DRAFT";
   const upper = name.toUpperCase();
   if (upper === "CONFIRMED") return "FINALIZED";
+  if (upper === "PENDING_APPROVAL") return "PENDING APPROVAL";
   return upper;
 };
 </script>
@@ -87,16 +97,52 @@ const getStatusName = (status?: string | { code?: string; name?: string } | null
               Created on {{ formatDate(bl.createdAt) }}
             </p>
           </div>
-          <span
-            class="px-2 py-0.5 rounded text-[10px] font-bold border uppercase tracking-wide"
-            :class="{
-              'bg-emerald-50 text-emerald-700 border-emerald-200':
-                getStatusCode(bl.status) === 'finalized',
-              'bg-amber-50 text-amber-700 border-amber-200': getStatusCode(bl.status) === 'draft',
-            }"
-          >
-            {{ getStatusName(bl.status) }}
-          </span>
+          <div class="flex items-center gap-2">
+            <span
+              class="px-2.5 py-1 rounded-md text-[10px] font-bold border uppercase tracking-widest leading-none"
+              :class="{
+                'bg-emerald-50 text-emerald-700 border-emerald-200':
+                  getStatusCode(bl.status) === 'finalized',
+                'bg-amber-50 text-amber-700 border-amber-200':
+                  getStatusCode(bl.status) === 'draft' && !bl.rejectReason,
+                'bg-red-50 text-red-700 border-red-200':
+                  getStatusCode(bl.status) === 'draft' && !!bl.rejectReason,
+                'bg-blue-50 text-blue-700 border-blue-200':
+                  getStatusCode(bl.status) === 'pending_approval',
+              }"
+            >
+              {{
+                getStatusCode(bl.status) === "draft" && bl.rejectReason
+                  ? "REVISION REQUIRED"
+                  : getStatusName(bl.status)
+              }}
+            </span>
+            <button
+              v-if="canApproveJobs && getStatusCode(bl.status) === 'pending_approval'"
+              @click.stop="bl.id && $emit('reject', bl.id)"
+              :disabled="rejectingId === bl.id || approvingId === bl.id"
+              class="px-3 py-1 bg-red-50 text-red-600 border border-red-200 text-[10px] font-bold rounded hover:bg-red-100 transition-colors flex items-center gap-1 disabled:opacity-50"
+            >
+              <Loader2 v-if="rejectingId === bl.id" class="w-3 h-3 animate-spin" />
+              {{ rejectingId === bl.id ? "REJECTING..." : "REJECT" }}
+            </button>
+            <button
+              v-if="canApproveJobs && getStatusCode(bl.status) === 'pending_approval'"
+              @click.stop="bl.id && $emit('approve', bl.id)"
+              :disabled="approvingId === bl.id || rejectingId === bl.id"
+              class="px-3 py-1 bg-emerald-600 text-white text-[10px] font-bold rounded hover:bg-emerald-700 transition-colors flex items-center gap-1 disabled:opacity-50"
+            >
+              <Loader2 v-if="approvingId === bl.id" class="w-3 h-3 animate-spin" />
+              {{ approvingId === bl.id ? "APPROVING..." : "APPROVE" }}
+            </button>
+            <button
+              v-if="getStatusCode(bl.status) === 'draft'"
+              @click.stop="bl.id && $emit('request-finalize', bl.id)"
+              class="px-3 py-1 bg-blue-600 text-white text-[10px] font-bold rounded hover:bg-blue-700 transition-colors flex items-center gap-1"
+            >
+              REQUEST FINALIZE
+            </button>
+          </div>
         </div>
 
         <div class="border-t border-border pt-4">

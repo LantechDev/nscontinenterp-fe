@@ -187,11 +187,17 @@ export function useAuth() {
   }
 
   const isLoggedIn = computed(() => !!user.value);
+  const isOwner = computed(() => user.value?.role === "owner" || user.value?.role === "OWNER");
+  const isAdmin = computed(() => user.value?.role === "admin" || user.value?.role === "ADMIN");
+  const canApproveJobs = computed(() => isOwner.value);
 
   return {
     user,
     session,
     isLoggedIn,
+    isOwner,
+    isAdmin,
+    canApproveJobs,
     isLoading,
     fetchSession,
     login,

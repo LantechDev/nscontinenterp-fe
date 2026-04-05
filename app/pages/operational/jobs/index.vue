@@ -6,7 +6,6 @@ import {
   Eye,
   Calendar,
   MapPin,
-  Box,
   LayoutList,
   LayoutGrid,
   ArrowRight,
@@ -27,13 +26,6 @@ const router = useRouter();
 // Fetch jobs on mount
 onMounted(async () => {
   await fetchJobs();
-
-  // If there's an id in query, open it after jobs are loaded
-  if (route.query.id) {
-    openJobDetail(route.query.id as string);
-    // Optional: remove query param after opening to keep URL clean
-    router.replace({ query: {} });
-  }
 });
 
 const searchQuery = ref("");
@@ -58,11 +50,34 @@ const getStatusClass = (statusId: string | null | undefined) => {
 
 const selectedJobId = ref("");
 const isDetailOpen = ref(false);
+const initialTab = ref<string | undefined>(undefined);
+const initialBlId = ref<string | undefined>(undefined);
 
-function openJobDetail(id: string) {
+function openJobDetail(id: string, tab?: string, blId?: string) {
   selectedJobId.value = id;
+  initialTab.value = tab;
+  initialBlId.value = blId;
   isDetailOpen.value = true;
 }
+
+watch(
+  () => route.query.id,
+  (newId) => {
+    if (newId) {
+      setTimeout(() => {
+        openJobDetail(
+          newId as string,
+          route.query.tab as string | undefined,
+          route.query.blId as string | undefined,
+        );
+        if (typeof window !== "undefined") {
+          window.history.replaceState({}, "", route.path);
+        }
+      }, 50);
+    }
+  },
+  { immediate: true },
+);
 </script>
 
 <template>
@@ -184,16 +199,25 @@ function openJobDetail(id: string) {
                 </div>
               </td>
               <td class="py-3 px-4">
-                <span
-                  :class="
-                    cn(
-                      'px-2 py-0.5 rounded border text-xs font-medium',
-                      getStatusClass(job.status?.code),
-                    )
-                  "
-                >
-                  {{ job.status?.name || "Active" }}
-                </span>
+                <div class="flex flex-col gap-1 items-start">
+                  <span
+                    :class="
+                      cn(
+                        'px-2 py-0.5 rounded border text-xs font-medium',
+                        getStatusClass(job.status?.code),
+                      )
+                    "
+                  >
+                    {{ job.status?.name || "Active" }}
+                  </span>
+                  <span
+                    v-if="job.billsOfLading?.some((bl) => bl.status?.code === 'PENDING_APPROVAL')"
+                    class="px-2 py-0.5 rounded border border-amber-200 bg-amber-50 text-amber-700 text-[10px] font-bold flex items-center gap-1 shadow-sm"
+                  >
+                    <div class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                    PENDING BL APPROVAL
+                  </span>
+                </div>
               </td>
               <td class="py-3 px-4 text-right">
                 <div class="flex items-center justify-end gap-2">
@@ -284,6 +308,13 @@ function openJobDetail(id: string) {
           >
             {{ job.status?.name || "Active" }}
           </span>
+          <span
+            v-if="job.billsOfLading?.some((bl) => bl.status?.code === 'PENDING_APPROVAL')"
+            class="px-2 py-0.5 rounded border border-amber-200 bg-amber-50 text-amber-700 text-[10px] font-bold flex items-center gap-1"
+          >
+            <div class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+            PENDING BL APPROVAL
+          </span>
         </div>
       </div>
     </div>
@@ -310,6 +341,11 @@ function openJobDetail(id: string) {
     </div>
 
     <!-- Job Details Slide-over -->
-    <OperationalJobDetailSlideOver v-model="isDetailOpen" :job-id="selectedJobId" />
+    <OperationalJobDetailSlideOver
+      v-model="isDetailOpen"
+      :job-id="selectedJobId"
+      :initial-tab="initialTab"
+      :initial-bl-id="initialBlId"
+    />
   </div>
 </template>

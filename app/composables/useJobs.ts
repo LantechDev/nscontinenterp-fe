@@ -515,6 +515,30 @@ export function useJobs() {
     }
   }
 
+  async function requestFinalizeBl(id: string): Promise<AuthResponse<BillOfLading>> {
+    isLoading.value = true;
+    try {
+      const data = await $fetch<BillOfLading>(
+        `${config.public.apiBase}/operational/jobs/bl/${id}/request-finalize`,
+        {
+          method: "POST",
+          credentials: "include",
+        },
+      );
+      if (currentJob.value && currentJob.value.billsOfLading) {
+        const blIndex = currentJob.value.billsOfLading.findIndex((bl) => bl.id === id);
+        if (blIndex !== -1) {
+          currentJob.value.billsOfLading[blIndex] = data;
+        }
+      }
+      return { success: true, data };
+    } catch (error) {
+      return handleApiError<BillOfLading>(error);
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
   async function unfinalizeBl(id: string): Promise<AuthResponse<BillOfLading>> {
     isLoading.value = true;
     try {
@@ -554,6 +578,31 @@ export function useJobs() {
       return { success: true };
     } catch (error) {
       return handleApiError(error);
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  async function rejectBl(id: string, reason: string): Promise<AuthResponse<BillOfLading>> {
+    isLoading.value = true;
+    try {
+      const data = await $fetch<BillOfLading>(
+        `${config.public.apiBase}/operational/jobs/bl/${id}/reject`,
+        {
+          method: "POST",
+          credentials: "include",
+          body: { reason },
+        },
+      );
+      if (currentJob.value && currentJob.value.billsOfLading) {
+        const blIndex = currentJob.value.billsOfLading.findIndex((bl) => bl.id === id);
+        if (blIndex !== -1) {
+          currentJob.value.billsOfLading[blIndex] = data;
+        }
+      }
+      return { success: true, data };
+    } catch (error) {
+      return handleApiError<BillOfLading>(error);
     } finally {
       isLoading.value = false;
     }
@@ -613,6 +662,8 @@ export function useJobs() {
     deleteBl,
     getBlRender,
     finalizeBl,
+    requestFinalizeBl,
     unfinalizeBl,
+    rejectBl,
   };
 }

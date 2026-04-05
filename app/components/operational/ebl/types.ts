@@ -77,6 +77,9 @@ export interface ActiveBlData {
   showShipperReferencesOnBl?: boolean;
   vessels?: EblVessel[];
   statusRaw?: string;
+  rejectReason?: string | null;
+  revisionCount?: number;
+  finalizeRequestCount?: number;
 }
 export interface ActiveJobData {
   id?: string;

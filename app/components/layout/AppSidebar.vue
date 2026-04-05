@@ -17,6 +17,8 @@ const {
   isChildActive,
   navItems,
 } = useAppSidebar();
+
+const { isOwner, isAdmin, canApproveJobs } = useAuth();
 </script>
 
 <template>
@@ -74,6 +76,7 @@ const {
 
     <!-- Navigation -->
     <nav class="flex-1 overflow-y-auto px-4 space-y-1 scrollbar-hidden">
+      <!-- Main Dashboard -->
       <NuxtLink
         to="/dashboard"
         :class="

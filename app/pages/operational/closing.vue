@@ -122,7 +122,7 @@ const viewMode = ref<ViewMode>("list");
               v-for="job in closingJobs"
               :key="job.id"
               class="border-b border-border last:border-0 hover:bg-muted/30 transition-colors cursor-pointer"
-              @click="navigateTo(`/operational/jobs/${job.jobId}`)"
+              @click="navigateTo(`/operational/jobs?id=${job.jobId}`)"
             >
               <td class="py-3 px-4">
                 <span class="text-sm font-medium">{{ job.number }}</span>
@@ -168,7 +168,7 @@ const viewMode = ref<ViewMode>("list");
         v-for="job in closingJobs"
         :key="job.id"
         class="border border-border rounded-xl bg-white p-5 hover:shadow-sm transition-shadow cursor-pointer"
-        @click="navigateTo(`/operational/jobs/${job.jobId}`)"
+        @click="navigateTo(`/operational/jobs?id=${job.jobId}`)"
       >
         <div class="flex items-start justify-between mb-4">
           <div>

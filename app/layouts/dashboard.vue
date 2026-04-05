@@ -72,14 +72,12 @@ const performSearch = async (query: string) => {
       subtitle: string;
     }[] = [];
 
-    // Search companies/customers first
     try {
       const companiesResponse = await $fetch<unknown>(`${config.public.apiBase}/master/companies`, {
         credentials: "include",
         query: { search: query, limit: 5 },
       });
 
-      // Handle both array and object responses
       const companiesArray: {
         id: string;
         name: string;
@@ -347,7 +345,6 @@ const handleSearchInput = (event: Event) => {
   }, 300);
 };
 
-// Handle keyboard navigation
 const handleSearchKeydown = (event: KeyboardEvent) => {
   if (event.key === "Escape") {
     showDropdown.value = false;
@@ -355,7 +352,6 @@ const handleSearchKeydown = (event: KeyboardEvent) => {
   }
 };
 
-// Handle result click
 const handleResultClick = (result: { type: string; id: string }) => {
   showDropdown.value = false;
   searchQuery.value = "";
@@ -363,7 +359,7 @@ const handleResultClick = (result: { type: string; id: string }) => {
 
   switch (result.type) {
     case "job":
-      router.push(`/operational/jobs/${result.id}`);
+      router.push(`/operational/jobs?id=${result.id}`);
       break;
     case "company":
       router.push(`/master/company?id=${result.id}`);
@@ -388,7 +384,6 @@ const handleResultClick = (result: { type: string; id: string }) => {
   }
 };
 
-// Close dropdown when clicking outside
 const handleClickOutside = (event: MouseEvent) => {
   const target = event.target as HTMLElement;
   if (searchContainerRef.value && !searchContainerRef.value.contains(target)) {
@@ -398,7 +393,7 @@ const handleClickOutside = (event: MouseEvent) => {
 
 onMounted(() => {
   updateDateTime();
-  setInterval(updateDateTime, 60000); // Update every minute
+  setInterval(updateDateTime, 60000);
   document.addEventListener("click", handleClickOutside);
 });
 

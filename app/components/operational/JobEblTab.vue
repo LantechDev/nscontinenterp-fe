@@ -1,7 +1,20 @@
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
-import { Loader2, Download, ArrowLeft, Save, RotateCcw } from "lucide-vue-next";
+import {
+  Loader2,
+  Download,
+  ArrowLeft,
+  Save,
+  RotateCcw,
+  CheckCircle2,
+  X,
+  AlertTriangle,
+  Info,
+  Edit,
+  Send,
+} from "lucide-vue-next";
 import { toast } from "vue-sonner";
+import { useAuth } from "~/composables/useAuth";
 
 import JobEblList from "./ebl/JobEblList.vue";
 import JobEblEditForm from "./ebl/JobEblEditForm.vue";
@@ -21,13 +34,22 @@ const props = defineProps<{
   initialBlId?: string;
 }>();
 
-const { getBlRender, finalizeBl, unfinalizeBl, updateBlDraft } = useJobs();
+const { getBlRender, finalizeBl, unfinalizeBl, updateBlDraft, requestFinalizeBl, rejectBl } =
+  useJobs();
 const { confirm } = useConfirm();
+const { canApproveJobs, user } = useAuth();
 const activeBl = ref<ActiveBlData | null>(null);
 const isRendering = ref(false);
 const isSavingDraft = ref(false);
 const isGeneratingPDF = ref(false);
 const editMode = ref(false);
+const isFinalizing = ref(false);
+const isRejecting = ref(false);
+const showRejectReason = ref(false);
+const showRejectModal = ref(false);
+const rejectReasonForm = ref("");
+const listApprovingId = ref<string | null>(null);
+const listRejectingId = ref<string | null>(null);
 
 const previewRef = ref<InstanceType<typeof JobEblPreview> | null>(null);
 
@@ -45,11 +67,13 @@ const blStatus = computed(() => {
   const code = s.code?.toLowerCase() || "";
   // High-priority fallback: if the DB status string is "finalized" but code is still "draft", prioritize finalized.
   if (code === "draft" && raw?.toLowerCase() === "finalized") return "confirmed";
+  if (code === "pending_approval") return "pending_approval";
 
   return code;
 });
 
 const isDraft = computed(() => blStatus.value === "draft");
+const isPendingApproval = computed(() => blStatus.value === "pending_approval");
 const isFinalized = computed(
   () => blStatus.value === "finalized" || blStatus.value === "confirmed",
 );
@@ -435,6 +459,28 @@ const handleGeneratePDF = async () => {
   isGeneratingPDF.value = false;
 };
 
+const handleRequestFinalize = async () => {
+  if (!activeBl.value?.id) return;
+
+  const isConfirmed = await confirm({
+    title: "Request Finalization",
+    message:
+      "Are you sure you want to request finalization for this BL? It will be sent to the owner for approval.",
+    confirmText: "Request Now",
+    type: "info",
+  });
+
+  if (isConfirmed) {
+    const resp = await requestFinalizeBl(activeBl.value.id);
+    if (resp.success && resp.data) {
+      toast.success("Finalization request sent!");
+      await loadBlRender(activeBl.value.id);
+    } else {
+      toast.error(resp.error || "Failed to request finalization");
+    }
+  }
+};
+
 const handleFinalize = async () => {
   if (!activeBl.value || !jobData.value) return;
 
@@ -447,6 +493,7 @@ const handleFinalize = async () => {
   });
 
   if (isConfirmed) {
+    isFinalizing.value = true;
     const blId = activeBl.value.id || jobData.value.billsOfLading?.[0]?.id;
     const resp = await finalizeBl(blId!);
     if (resp.success && resp.data) {
@@ -455,7 +502,22 @@ const handleFinalize = async () => {
     } else {
       toast.error(resp.error || "Failed to finalize BL");
     }
+    isFinalizing.value = false;
   }
+};
+
+const handleListApprove = async (id: string) => {
+  listApprovingId.value = id;
+  await loadBlRender(id);
+  listApprovingId.value = null;
+  await handleFinalize();
+};
+
+const handleListReject = async (id: string) => {
+  listRejectingId.value = id;
+  await loadBlRender(id);
+  listRejectingId.value = null;
+  await handleReject();
 };
 
 const handleUnfinalize = async () => {
@@ -479,12 +541,133 @@ const handleUnfinalize = async () => {
     }
   }
 };
+
+const handleReject = () => {
+  if (!activeBl.value?.id) return;
+  rejectReasonForm.value = "";
+  showRejectModal.value = true;
+};
+
+const submitReject = async () => {
+  if (!activeBl.value?.id || !rejectReasonForm.value.trim()) return;
+
+  isRejecting.value = true;
+  const resp = await rejectBl(activeBl.value.id, rejectReasonForm.value.trim());
+  if (resp.success && resp.data) {
+    toast.success("BL rejected and sent back to Draft.");
+    showRejectModal.value = false;
+    await loadBlRender(activeBl.value.id);
+  } else {
+    toast.error(resp.error || "Failed to reject BL");
+  }
+  isRejecting.value = false;
+};
 </script>
 
 <template>
   <div class="space-y-6 relative">
+    <!-- Rejection Modal -->
+    <UiModal v-model="showRejectModal" width="max-w-lg">
+      <div class="p-4">
+        <div class="flex flex-col items-center text-center gap-4 py-4">
+          <div
+            class="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center text-red-600"
+          >
+            <AlertTriangle class="w-6 h-6" />
+          </div>
+          <div class="space-y-2 w-full">
+            <h3 class="text-lg font-semibold">Reject Bill of Lading</h3>
+            <p class="text-sm text-muted-foreground w-full mb-6">
+              Please provide a reason for rejecting this BL. It will be reverted to Draft for
+              revision.
+            </p>
+            <div class="text-left w-full pt-2">
+              <label
+                class="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1.5"
+              >
+                Rejection Reason <span class="text-red-500">*</span>
+              </label>
+              <textarea
+                v-model="rejectReasonForm"
+                class="input-field min-h-[120px] py-3 resize-y transition-all duration-200"
+                placeholder="E.g., Cargo description is incomplete"
+              ></textarea>
+            </div>
+          </div>
+        </div>
+        <div class="flex items-center gap-3 mt-4">
+          <button
+            type="button"
+            class="btn-secondary flex-1 justify-center"
+            @click="showRejectModal = false"
+            :disabled="isRejecting"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            class="btn-primary flex-1 justify-center bg-red-600 hover:bg-red-700 border-red-600 disabled:opacity-50"
+            @click="submitReject"
+            :disabled="!rejectReasonForm.trim() || isRejecting"
+          >
+            <Loader2 v-if="isRejecting" class="w-4 h-4 animate-spin mr-2" />
+            {{ isRejecting ? "Rejecting..." : "Confirm Reject" }}
+          </button>
+        </div>
+      </div>
+    </UiModal>
+
+    <!-- View Reason Modal -->
+    <UiModal v-model="showRejectReason" width="max-w-md">
+      <div class="p-4">
+        <div class="flex flex-col items-center text-center gap-4 py-4">
+          <div
+            class="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center text-red-600"
+          >
+            <AlertTriangle class="w-6 h-6" />
+          </div>
+          <div class="space-y-2 w-full">
+            <h3 class="text-lg font-semibold">Rejection Reason</h3>
+            <p class="text-sm text-muted-foreground w-full mb-6">
+              This Bill of Lading was rejected for the following reason:
+            </p>
+            <div class="text-left w-full pt-2">
+              <div
+                class="w-full min-h-[80px] text-sm p-3 bg-muted/30 border border-border rounded-md text-foreground whitespace-pre-wrap"
+              >
+                {{ activeBl?.rejectReason }}
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="flex justify-center mt-4 w-full">
+          <button
+            type="button"
+            class="btn-secondary px-8 justify-center w-full"
+            @click="showRejectReason = false"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </UiModal>
+
     <!-- List View (No Active BL) -->
-    <JobEblList v-if="!activeBl" :job="job" @select="loadBlRender" />
+    <JobEblList
+      v-if="!activeBl"
+      :job="job"
+      :approving-id="listApprovingId"
+      :rejecting-id="listRejectingId"
+      @select="loadBlRender"
+      @approve="handleListApprove"
+      @reject="handleListReject"
+      @request-finalize="
+        async (id) => {
+          await loadBlRender(id);
+          await handleRequestFinalize();
+        }
+      "
+    />
 
     <!-- Detail/Edit View -->
     <template v-else>
@@ -499,35 +682,50 @@ const handleUnfinalize = async () => {
           >
             <ArrowLeft class="w-5 h-5" />
           </button>
-          <div>
-            <h1 class="text-xl font-bold flex items-center gap-2 text-foreground">
+          <div class="flex flex-col gap-2 mt-1">
+            <h1 class="text-2xl font-bold text-foreground leading-none">
               {{ activeBl?.blNumber || "Bill of Lading Details" }}
+            </h1>
+            <p class="text-sm text-muted-foreground leading-none mb-1">
+              Review and manage your bill of lading details
+            </p>
+            <div class="flex items-center gap-3">
               <span
                 v-if="activeBl?.status"
-                class="ml-2 px-2 py-0.5 rounded text-[10px] uppercase tracking-wider border"
-                :class="
-                  isFinalized
-                    ? 'bg-emerald-50 text-emerald-600 border-emerald-100'
-                    : 'bg-amber-50 text-amber-600 border-amber-100'
-                "
+                class="px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest border leading-none max-w-fit"
+                :class="{
+                  'bg-emerald-50 text-emerald-600 border-emerald-100': isFinalized,
+                  'bg-amber-50 text-amber-600 border-amber-100': isDraft && !activeBl.rejectReason,
+                  'bg-red-50 text-red-600 border-red-100': isDraft && !!activeBl.rejectReason,
+                  'bg-blue-50 text-blue-600 border-blue-100': isPendingApproval,
+                }"
               >
                 {{
                   isFinalized
                     ? "Finalized"
-                    : typeof activeBl.status === "string"
-                      ? activeBl.status
-                      : activeBl.status.name || activeBl.status.code
+                    : isPendingApproval
+                      ? "Pending Approval"
+                      : isDraft && activeBl.rejectReason
+                        ? "Revision Required"
+                        : typeof activeBl.status === "string"
+                          ? activeBl.status
+                          : activeBl.status.name || activeBl.status.code
                 }}
               </span>
-            </h1>
-            <p class="text-sm text-muted-foreground mt-1">
-              Review and manage your bill of lading details
-            </p>
+              <button
+                v-if="isDraft && activeBl?.rejectReason"
+                @click="showRejectReason = true"
+                class="text-xs text-red-600 font-bold hover:underline flex items-center gap-1 bg-red-50/50 hover:bg-red-50 px-2 py-1 rounded-md border border-transparent hover:border-red-100 transition-colors"
+              >
+                <Info class="w-3.5 h-3.5" />
+                View Reason
+              </button>
+            </div>
           </div>
         </div>
 
         <!-- Actions -->
-        <div class="flex flex-wrap items-center gap-3 shrink-0">
+        <div class="flex flex-wrap items-center justify-end gap-3 shrink-0">
           <button
             v-if="isFinalized"
             @click="handleUnfinalize"
@@ -539,22 +737,54 @@ const handleUnfinalize = async () => {
           </button>
 
           <button
-            v-if="isDraft"
+            v-if="isDraft || (isPendingApproval && canApproveJobs)"
             @click="toggleEditMode"
             :disabled="isRendering"
             class="px-4 py-2 text-xs font-semibold rounded-md border border-border bg-white hover:bg-gray-50 flex items-center gap-2 shadow-sm transition-colors"
           >
-            {{ editMode ? "Cancel Edit" : "Edit BL Draft" }}
+            <X v-if="editMode" class="w-3.5 h-3.5" />
+            <Edit v-else class="w-3.5 h-3.5" />
+            {{ editMode ? "Cancel Edit" : "Edit BL" }}
           </button>
 
           <button
             v-if="isDraft && !editMode"
-            @click="handleFinalize"
+            @click="handleRequestFinalize"
             :disabled="isRendering"
-            class="px-4 py-2 text-xs font-semibold rounded-md border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors shadow-sm flex items-center gap-2"
+            class="px-4 py-2 text-xs font-semibold rounded-md border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors shadow-sm flex items-center gap-2"
           >
-            Finalize BL
+            <Send class="w-3.5 h-3.5" />
+            Request Finalize
           </button>
+
+          <button
+            v-if="isPendingApproval && !editMode && canApproveJobs"
+            @click="handleReject"
+            :disabled="isRendering || isRejecting"
+            class="px-4 py-2 text-xs font-semibold rounded-md border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 flex items-center gap-2 shadow-sm transition-colors"
+          >
+            <Loader2 v-if="isRejecting" class="w-4 h-4 animate-spin" />
+            <X v-else class="w-4 h-4" />
+            {{ isRejecting ? "REJECTING..." : "REJECT / REVISE" }}
+          </button>
+
+          <button
+            v-if="isPendingApproval && !editMode && canApproveJobs"
+            @click="handleFinalize"
+            :disabled="isRendering || isFinalizing"
+            class="px-5 py-2.5 bg-emerald-600 text-white text-xs font-bold rounded-lg hover:bg-emerald-700 transition-all shadow-md flex items-center gap-2 disabled:opacity-50"
+          >
+            <Loader2 v-if="isFinalizing" class="w-4 h-4 animate-spin" />
+            <CheckCircle2 v-else class="w-4 h-4" />
+            {{ isFinalizing ? "APPROVING..." : "APPROVE & FINALIZE" }}
+          </button>
+
+          <div
+            v-if="isPendingApproval && !canApproveJobs"
+            class="px-4 py-2 text-xs font-semibold rounded-md border border-blue-100 bg-blue-50/50 text-blue-400 flex items-center gap-2 cursor-not-allowed"
+          >
+            Awaiting Approval
+          </div>
 
           <button
             v-if="editMode"
@@ -577,6 +807,34 @@ const handleUnfinalize = async () => {
             <Download v-else class="w-3.5 h-3.5" />
             {{ isGeneratingPDF ? "Generating..." : "Download PDF" }}
           </button>
+        </div>
+      </div>
+
+      <!-- Interaction Logs Banner -->
+      <div
+        v-if="activeBl?.revisionCount || activeBl?.finalizeRequestCount"
+        class="flex flex-col sm:flex-row sm:items-center gap-3 bg-muted/20 border border-border/50 rounded-lg p-3 mb-6"
+      >
+        <span
+          class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1.5 shrink-0"
+        >
+          <Info class="w-3.5 h-3.5" /> BL History:
+        </span>
+        <div class="flex flex-wrap items-center gap-2">
+          <div
+            v-if="activeBl?.revisionCount"
+            class="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-[#012D5A] bg-blue-50 px-2.5 py-1 rounded-md border border-blue-100 shadow-sm"
+            title="Number of times this BL was revised"
+          >
+            <RotateCcw class="w-3 h-3" /> {{ activeBl.revisionCount }}x Revised
+          </div>
+          <div
+            v-if="activeBl?.finalizeRequestCount"
+            class="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-100 shadow-sm"
+            title="Number of times finalization was requested"
+          >
+            <Send class="w-3 h-3" /> {{ activeBl.finalizeRequestCount }}x Requested
+          </div>
         </div>
       </div>
 
