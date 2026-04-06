@@ -23,7 +23,7 @@ const { isOwner, isAdmin, canApproveJobs } = useAuth();
 
 <template>
   <aside
-    class="fixed left-0 top-0 z-40 h-screen w-64 bg-[#012D5A] text-white flex flex-col font-sans transition-all duration-300"
+    class="fixed inset-y-0 left-0 z-40 w-64 bg-[#012D5A] text-white flex flex-col font-sans transition-all duration-300"
   >
     <!-- Logo / Organization Switcher -->
     <div class="px-4 py-4 mb-2">
