@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { Eye, EyeOff, Loader2 } from "lucide-vue-next";
+import loginIllustrationUrl from "~/assets/css/login.svg?url";
 
 definePageMeta({
   layout: "default",
@@ -50,16 +51,38 @@ const handleSubmit = async () => {
   <div class="min-h-screen flex">
     <!-- Left side - branding -->
     <div class="hidden lg:flex lg:w-1/2 bg-gradient-primary relative overflow-hidden">
+      <!-- Illustration -->
+      <div class="absolute inset-0">
+        <img
+          :src="loginIllustrationUrl"
+          alt=""
+          class="object-cover flex w-full h-full bg-black opacity-50 drop-shadow-[0_40px_70px_rgba(0,0,0,0.5)]"
+        />
+        <div
+          class="absolute inset-0 bg-gradient-to-b from-[#012D5A]/10 via-[#012D5A]/30 to-[#012D5A]/80"
+        ></div>
+        <div class="absolute inset-0 bg-black/10"></div>
+      </div>
+
       <div
         class="absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg%20width%3D%2260%22%20height%3D%2260%22%20viewBox%3D%220%200%2060%2060%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Cg%20fill%3D%22none%22%20fill-rule%3D%22evenodd%22%3E%3Cg%20fill%3D%22%23ffffff%22%20fill-opacity%3D%220.05%22%3E%3Cpath%20d%3D%22M36%2034v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6%2034v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6%204V0H4v4H0v2h4v4h2V6h4V4H6z%22%2F%3E%3C%2Fg%3E%3C%2Fg%3E%3C%2Fsvg%3E')] opacity-30"
       ></div>
 
       <div class="relative z-10 flex flex-col justify-center px-12 xl:px-20">
+        <!-- <div class="inline-flex items-center gap-2 self-start mb-6 rounded-full bg-white/10 border border-white/10 px-4 py-2 backdrop-blur-sm">
+          <span class="h-2 w-2 rounded-full bg-emerald-300"></span>
+          <p class="text-sm text-white/80">Secure • Fast • Integrated</p>
+        </div> -->
+
         <div class="flex items-center gap-4 mb-8">
           <div
             class="flex items-center justify-center w-14 h-14 rounded-2xl bg-white/20 backdrop-blur-sm"
           >
-            <NuxtImg src="/favicon.png" alt="Logo" class="w-9 h-9" />
+            <NuxtImg
+              src="/favicon.png"
+              alt="Logo"
+              class="w-full h-full object-cover object-left rounded-lg"
+            />
           </div>
           <div>
             <h1 class="text-3xl font-bold text-white">NSContinent</h1>
@@ -69,14 +92,14 @@ const handleSubmit = async () => {
 
         <div class="space-y-6 max-w-md">
           <h2 class="text-4xl xl:text-5xl font-bold text-white leading-tight">
-            Kelola Bisnis Logistik Anda dengan Mudah
+            Manage Your Business Finances with Ease
           </h2>
           <p class="text-lg text-white/80">
-            Sistem terintegrasi untuk operasional, penjualan, keuangan, dan pelaporan dalam satu
-            platform.
+            System integrated for comprehensive financial reporting, designed to streamline your
+            operations and empower your business growth.
           </p>
 
-          <div class="grid grid-cols-2 gap-4 pt-6">
+          <!-- <div class="grid grid-cols-2 gap-4 pt-6">
             <div class="bg-white/10 backdrop-blur-sm rounded-xl p-4">
               <p class="text-3xl font-bold text-white">500+</p>
               <p class="text-sm text-white/70">Job Selesai</p>
@@ -85,7 +108,7 @@ const handleSubmit = async () => {
               <p class="text-3xl font-bold text-white">150+</p>
               <p class="text-sm text-white/70">Customer Aktif</p>
             </div>
-          </div>
+          </div> -->
         </div>
       </div>
 
