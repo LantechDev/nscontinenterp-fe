@@ -35,6 +35,7 @@ interface Props {
   jobId: string;
   initialTab?: string;
   initialBlId?: string;
+  initialInvoiceId?: string;
 }
 
 const props = defineProps<Props>();
@@ -49,7 +50,7 @@ const activeTab = ref("overview");
 const tabs = [
   { id: "overview", label: "Overview" },
   { id: "ebl", label: "eBL" },
-  { id: "invoice", label: "Invoice" },
+  { id: "invoice", label: "Billing" },
 ];
 
 const { updateJob } = useJobs();
@@ -831,6 +832,8 @@ const toggleItem = (itemId: string | number) => {
                     :job-id="job.id"
                     :job-number="job.jobNumber"
                     :customer-id="job.customerId || undefined"
+                    :job-parties="job.jobParties"
+                    :initial-invoice-id="initialInvoiceId"
                   />
                 </div>
 

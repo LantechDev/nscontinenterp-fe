@@ -6,6 +6,7 @@ import { getErrorMessage } from "./useFinanceDashboardApi";
 export interface ArApItem {
   id: string;
   invoiceNumber: string;
+  companyId: string | null;
   company: string;
   total: number;
   paid: number;

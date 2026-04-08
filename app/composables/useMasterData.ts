@@ -56,6 +56,12 @@ export interface Port {
   timezone?: string;
 }
 
+export interface PaymentMethod {
+  id: string;
+  code: string;
+  name: string;
+}
+
 type ErrorResponse = {
   message?: string;
   error?: string;
@@ -189,6 +195,20 @@ export function useMasterData() {
     }
   }
 
+  async function fetchPaymentMethods() {
+    try {
+      const data = await $fetch<PaymentMethod[]>(
+        `${config.public.apiBase}/master/payment-methods`,
+        {
+          credentials: "include",
+        },
+      );
+      return data;
+    } catch {
+      return [];
+    }
+  }
+
   return {
     isLoading,
     fetchCompanies,
@@ -196,6 +216,7 @@ export function useMasterData() {
     fetchPackageTypes,
     fetchVessels,
     fetchPorts,
+    fetchPaymentMethods,
     createCompany,
     createVessel,
   };

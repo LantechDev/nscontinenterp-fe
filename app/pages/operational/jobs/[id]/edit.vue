@@ -57,7 +57,7 @@ const isSubmitting = ref(false);
 const isCompanyModalOpen = ref(false);
 const isSubmittingCompany = ref(false);
 const activeCompanyField = ref<
-  "shipperId" | "consigneeId" | "notifyPartyId" | "forwarderId" | null
+  "shipperId" | "consigneeId" | "notifyPartyId" | "forwarderId" | "customerId" | null
 >(null);
 const companyForm = reactive({
   name: "",
@@ -170,6 +170,7 @@ const formData = reactive({
   forwarderId: "",
   forwarderAddressId: "",
   vendorId: "",
+  customerId: "",
 });
 
 const jobDetails = ref<JobWithBls | null>(null);
@@ -218,6 +219,7 @@ async function fetchJobData() {
       (typeof job.deliveryMovementId === "string" ? job.deliveryMovementId : "CY_DOOR");
     formData.vesselId = job.vesselId || "";
     formData.vendorId = job.vendorId || "";
+    formData.customerId = job.customerId || "";
     formData.etd = job.etd && typeof job.etd === "string" ? (job.etd.split("T")[0] as string) : "";
     formData.eta = job.eta && typeof job.eta === "string" ? (job.eta.split("T")[0] as string) : "";
 
@@ -727,7 +729,7 @@ const activeSection = ref("job-info");
 
 function handleCreateCompany(
   name: string,
-  field: "shipperId" | "consigneeId" | "notifyPartyId" | "forwarderId",
+  field: "shipperId" | "consigneeId" | "notifyPartyId" | "forwarderId" | "customerId",
 ) {
   companyForm.name = name;
   activeCompanyField.value = field;
@@ -812,6 +814,7 @@ async function handleSubmit() {
     isSubmitting.value = true;
     const payload = {
       ...formData,
+      customerId: formData.customerId,
       vendorId: formData.vendorId || null,
       vesselId: formData.vessels[0]?.vesselId || formData.vesselId || null,
       voyageNumber: formData.vessels[0]?.voyageNumber || formData.voyageNumber || null,
@@ -918,7 +921,7 @@ onMounted(() => {
             <ArrowLeft class="w-5 h-5" />
           </button>
           <h1 class="text-xl font-bold flex items-center gap-2 text-foreground">
-            <Briefcase class="w-5 h-5 text-[#012D5A]" />
+            <Briefcase class="w-5 h-5 text-[#062c58]" />
             Edit Job
           </h1>
         </div>
@@ -934,7 +937,7 @@ onMounted(() => {
           <button
             type="button"
             @click="handleSubmit()"
-            class="btn-primary flex-1 sm:flex-none justify-center bg-[#012D5A] hover:bg-[#012D5A]/90 text-white shadow-sm"
+            class="btn-primary flex-1 sm:flex-none justify-center bg-[#062c58] hover:bg-[#062c58]/90 text-white shadow-sm"
             :disabled="isJobLoading"
           >
             <Save class="w-4 h-4 mr-2" />
@@ -963,7 +966,7 @@ onMounted(() => {
               class="w-full flex items-center gap-4 px-4 py-3 text-sm font-medium rounded-xl transition-all text-left border"
               :class="[
                 activeSection === section.id
-                  ? 'bg-blue-50/50 border-[#012D5A]/20 text-[#012D5A] shadow-sm'
+                  ? 'bg-blue-50/50 border-[#062c58]/20 text-[#062c58] shadow-sm'
                   : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground border-transparent',
               ]"
             >
@@ -971,7 +974,7 @@ onMounted(() => {
                 class="w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold border transition-colors"
                 :class="
                   activeSection === section.id
-                    ? 'bg-[#012D5A] text-white border-[#012D5A]'
+                    ? 'bg-[#062c58] text-white border-[#062c58]'
                     : 'border-current opacity-70'
                 "
               >
@@ -990,47 +993,104 @@ onMounted(() => {
           <SectionCard id="job-info" title="Job Information" :icon="Briefcase">
             <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
               <div class="space-y-2">
-                <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
-                  >JOB NUMBER</label
-                >
+                <div class="h-6 flex items-center">
+                  <label
+                    class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
+                    >JOB NUMBER</label
+                  >
+                </div>
                 <input
                   type="text"
                   :value="jobDetails?.jobNumber"
-                  class="input-field bg-muted/50 cursor-not-allowed"
+                  class="input-field bg-muted/30 cursor-not-allowed border-dashed"
                   disabled
                 />
               </div>
+
+              <!-- Job Customer / Billing Party -->
+              <div class="space-y-2">
+                <div class="h-6 flex items-center justify-between">
+                  <label
+                    class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
+                  >
+                    JOB CUSTOMER <span class="text-destructive">*</span>
+                  </label>
+                  <div class="flex gap-2">
+                    <button
+                      v-if="formData.shipperId"
+                      type="button"
+                      @click="formData.customerId = formData.shipperId"
+                      class="text-[9px] font-bold text-blue-600 hover:underline uppercase"
+                    >
+                      Use Shipper
+                    </button>
+                    <button
+                      v-if="formData.consigneeId"
+                      type="button"
+                      @click="formData.customerId = formData.consigneeId"
+                      class="text-[9px] font-bold text-blue-600 hover:underline uppercase"
+                    >
+                      Use Consignee
+                    </button>
+                  </div>
+                </div>
+                <Combobox
+                  v-model="formData.customerId"
+                  :options="companies as any"
+                  label-key="name"
+                  value-key="id"
+                  placeholder="Select Main Customer..."
+                  allow-create
+                  @create="(name) => handleCreateCompany(name, 'customerId')"
+                />
+              </div>
+
               <!-- Trade Type / Service -->
               <div class="space-y-2">
-                <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
-                  >SERVICE TYPE <span class="text-destructive">*</span></label
-                >
+                <div class="h-6 flex items-center">
+                  <label
+                    class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
+                    >SERVICE TYPE <span class="text-destructive">*</span></label
+                  >
+                </div>
                 <Combobox v-model="formData.tradeTypeId" :options="TRADE_TYPES" />
               </div>
               <div class="space-y-2">
-                <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
-                  >STATUS</label
-                >
-                <div class="h-[38px] flex items-center">
-                  <span
-                    class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200"
+                <div class="h-6 flex items-center">
+                  <label
+                    class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
+                    >STATUS</label
                   >
-                    <span class="w-1.5 h-1.5 rounded-full bg-blue-500 mr-1.5 animate-pulse"></span>
+                </div>
+                <div class="h-11 flex items-center">
+                  <span
+                    class="inline-flex items-center px-3 py-1 rounded-lg text-[12px] font-bold uppercase tracking-wider bg-blue-50/50 text-blue-700 border border-blue-200/50"
+                  >
+                    <span class="w-1.5 h-1.5 rounded-full bg-blue-600 mr-2 animate-pulse"></span>
                     {{ jobDetails?.status?.name || "Active" }}
                   </span>
                 </div>
               </div>
               <div class="space-y-2">
-                <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
-                  >CREATED BY</label
-                >
-                <div class="h-[38px] flex items-center gap-2">
-                  <span
-                    class="w-7 h-7 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-bold uppercase"
+                <div class="h-6 flex items-center">
+                  <label
+                    class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
+                    >CREATED BY</label
                   >
-                    {{ user?.name ? user.name.substring(0, 2) : "AD" }}
-                  </span>
-                  <span class="text-sm font-medium">{{ user?.name || "Admin" }}</span>
+                </div>
+                <div class="h-11 flex items-center gap-2.5">
+                  <div
+                    class="w-8 h-8 rounded-full bg-[#062c58]/10 text-[#062c58] flex items-center justify-center text-[12px] font-black border border-[#062c58]/10 shadow-sm"
+                  >
+                    {{
+                      jobDetails?.createdBy
+                        ? jobDetails.createdBy.substring(0, 2).toUpperCase()
+                        : "AD"
+                    }}
+                  </div>
+                  <span class="text-sm font-semibold text-foreground/80">{{
+                    jobDetails?.createdBy || "Administrator"
+                  }}</span>
                 </div>
               </div>
             </div>
@@ -1629,7 +1689,7 @@ onMounted(() => {
                     <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
                       <div class="md:col-span-1 flex items-center justify-center">
                         <div
-                          class="w-8 h-8 rounded-full bg-blue-50 text-[#012D5A] flex items-center justify-center text-xs font-bold border border-blue-100"
+                          class="w-8 h-8 rounded-full bg-blue-50 text-[#062c58] flex items-center justify-center text-xs font-bold border border-blue-100"
                         >
                           {{ index + 1 }}
                         </div>

@@ -279,7 +279,7 @@ const handleDelete = async () => {
   <!-- Delete Confirmation Modal -->
   <div
     v-if="showDeleteConfirm"
-    class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 animate-fade-in"
+    class="fixed inset-0 z-[1100] flex items-center justify-center bg-black/50 animate-fade-in"
   >
     <div class="bg-background rounded-lg shadow-lg max-w-md w-full p-6 mx-4">
       <div class="flex items-center gap-3 text-red-600 mb-4">

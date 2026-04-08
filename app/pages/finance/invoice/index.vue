@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { Plus, Search, Receipt, LayoutList, LayoutGrid } from "lucide-vue-next";
 import { cn } from "~/lib/utils";
-import { useInvoices } from "~/composables/useInvoices";
+import { useInvoices, type InvoiceDetail } from "~/composables/useInvoices";
 import { useInvoicePage } from "~/composables/useInvoicePage";
 import { InvoiceListView, InvoiceGridView, InvoiceEditModal } from "./components";
-import { generateInvoicePdf } from "./utils/pdf-generator";
+import JobInvoicePreview from "~/components/operational/JobInvoicePreview.vue";
 
 definePageMeta({
   layout: "dashboard",
@@ -47,22 +47,42 @@ const {
 } = useInvoicePage();
 
 const isDownloading = ref(false);
+const downloadInvoice = ref<InvoiceDetail | null>(null);
+const previewRef = ref<InstanceType<typeof JobInvoicePreview> | null>(null);
 
 const handleDownloadPdf = async (id: string) => {
   if (isDownloading.value) return;
-
+  isDownloading.value = true;
   try {
-    isDownloading.value = true;
     const result = await fetchInvoiceById(id);
     if (!result.success || !result.data) {
       throw new Error(result.error || "Failed to fetch invoice");
     }
-    await generateInvoicePdf(result.data);
-  } catch (error) {
-    console.error("Failed to download invoice PDF:", error);
+    downloadInvoice.value = result.data;
+    await nextTick();
+    await nextTick(); // double tick to ensure JobInvoicePreview renders
+    await previewRef.value?.generatePDF();
+  } catch (err) {
+    console.error("Failed to download invoice PDF:", err);
     alert("Failed to download invoice. Please try again.");
   } finally {
     isDownloading.value = false;
+    downloadInvoice.value = null;
+  }
+};
+
+const isJobDetailOpen = ref(false);
+const selectedJobId = ref("");
+const initialInvoiceId = ref("");
+
+const handleInvoiceClick = (id: string) => {
+  const invoice = filteredInvoices.value.find((inv) => inv.id === id);
+  if (invoice?.job?.id) {
+    selectedJobId.value = invoice.job.id;
+    initialInvoiceId.value = id;
+    isJobDetailOpen.value = true;
+  } else {
+    handleRowClick(id); // Fallback to original behavior if no job id
   }
 };
 
@@ -189,10 +209,8 @@ onMounted(() => {
       :get-status-config="getStatusConfig"
       :format-currency="formatCurrency"
       :format-date="formatDate"
-      @row-click="handleRowClick"
+      @row-click="handleInvoiceClick"
       @download-pdf="handleDownloadPdf"
-      @edit="handleEdit"
-      @delete="handleDelete"
     />
 
     <!-- Grid View -->
@@ -202,10 +220,8 @@ onMounted(() => {
       :get-status-config="getStatusConfig"
       :format-currency="formatCurrency"
       :format-date="formatDate"
-      @row-click="handleRowClick"
+      @row-click="handleInvoiceClick"
       @download-pdf="handleDownloadPdf"
-      @edit="handleEdit"
-      @delete="handleDelete"
     />
 
     <!-- Pagination -->
@@ -238,5 +254,30 @@ onMounted(() => {
       @update-item-amount="updateItemAmount"
       @update-tax-rate="handleTaxRateChange"
     />
+
+    <!-- Job Detail Slide-over -->
+    <OperationalJobDetailSlideOver
+      v-model="isJobDetailOpen"
+      :job-id="selectedJobId"
+      initial-tab="invoice"
+      :initial-invoice-id="initialInvoiceId"
+    />
+
+    <!-- Hidden invoice preview used only for PDF generation -->
+    <div
+      v-if="downloadInvoice"
+      aria-hidden="true"
+      style="
+        position: fixed;
+        left: -9999px;
+        top: 0;
+        opacity: 0;
+        pointer-events: none;
+        z-index: -1;
+        width: 210mm;
+      "
+    >
+      <JobInvoicePreview ref="previewRef" :invoice="downloadInvoice" />
+    </div>
   </div>
 </template>

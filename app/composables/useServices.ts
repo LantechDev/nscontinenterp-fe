@@ -20,6 +20,8 @@ export interface Service {
   unit?: ServiceUnit | null;
   vendorPrice?: number | null;
   customerPrice?: number | null;
+  currency?: string | null;
+  taxRate?: number | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -32,6 +34,8 @@ export interface CreateService {
   unitId?: string;
   vendorPrice?: number;
   customerPrice?: number;
+  currency?: string;
+  taxRate?: number;
   isActive?: boolean;
 }
 
@@ -42,6 +46,7 @@ export interface UpdateService {
   unitId?: string;
   vendorPrice?: number;
   customerPrice?: number;
+  taxRate?: number;
   isActive?: boolean;
 }
 
@@ -67,6 +72,8 @@ export function useServices() {
   const isLoading = ref(false);
   const services = useState<Service[]>("services-list", () => []);
   const currentService = useState<Service | null>("services-current", () => null);
+  const categories = useState<ServiceCategory[]>("service-categories-list", () => []);
+  const units = useState<ServiceUnit[]>("service-units-list", () => []);
 
   async function fetchServices(
     search?: string,
@@ -84,6 +91,33 @@ export function useServices() {
       return { success: false, error: getErrorMessage(error) };
     } finally {
       isLoading.value = false;
+    }
+  }
+
+  async function fetchCategories(): Promise<ApiResponse<ServiceCategory[]>> {
+    try {
+      const data = await $fetch<ServiceCategory[]>(
+        `${config.public.apiBase}/master/service-categories`,
+        {
+          credentials: "include",
+        },
+      );
+      categories.value = data || [];
+      return { success: true, data: categories.value };
+    } catch (error) {
+      return { success: false, error: getErrorMessage(error) };
+    }
+  }
+
+  async function fetchUnits(): Promise<ApiResponse<ServiceUnit[]>> {
+    try {
+      const data = await $fetch<ServiceUnit[]>(`${config.public.apiBase}/master/service-units`, {
+        credentials: "include",
+      });
+      units.value = data || [];
+      return { success: true, data: units.value };
+    } catch (error) {
+      return { success: false, error: getErrorMessage(error) };
     }
   }
 
@@ -161,8 +195,12 @@ export function useServices() {
   return {
     services,
     currentService,
+    categories,
+    units,
     isLoading,
     fetchServices,
+    fetchCategories,
+    fetchUnits,
     getService,
     createService,
     updateService,

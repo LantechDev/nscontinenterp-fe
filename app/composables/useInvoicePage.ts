@@ -50,6 +50,7 @@ export interface InvoiceData {
   balanceDue: number;
   status: { code: string; name: string };
   company: { name: string };
+  job?: { id: string; jobNumber: string };
 }
 
 export interface InvoiceItemForm {
@@ -75,7 +76,7 @@ export interface InvoiceFormData {
   items: InvoiceItemForm[];
 }
 
-export type StatusType = "pending" | "paid" | "partially" | "overdue";
+export type StatusType = "pending" | "paid" | "partially" | "overdue" | "voided";
 
 export interface StatusConfig {
   label: string;
@@ -133,6 +134,7 @@ export function useInvoicePage() {
     PARTIALLY_PAID: "partially",
     PAID: "paid",
     OVERDUE: "overdue",
+    VOIDED: "voided",
   };
 
   const statusConfig: Record<StatusType, StatusConfig> = {
@@ -140,6 +142,7 @@ export function useInvoicePage() {
     partially: { label: "Sebagian", class: "bg-blue-50 text-blue-700 border-blue-200" },
     paid: { label: "Lunas", class: "bg-green-50 text-green-700 border-green-200" },
     overdue: { label: "Jatuh Tempo", class: "bg-red-50 text-red-700 border-red-200" },
+    voided: { label: "Void", class: "bg-gray-100 text-gray-500 border-gray-300 line-through" },
   };
 
   const statusOptions = [
@@ -148,6 +151,7 @@ export function useInvoicePage() {
     { value: "UNPAID", label: "Belum Lunas" },
     { value: "PARTIALLY_PAID", label: "Sebagian" },
     { value: "OVERDUE", label: "Jatuh Tempo" },
+    { value: "VOIDED", label: "Void" },
   ];
 
   const editStatusOptions = [
@@ -177,6 +181,9 @@ export function useInvoicePage() {
   // Computed
   const filteredInvoices = computed(() => {
     let result = invoices.value;
+    if (selectedStatus.value) {
+      result = result.filter((invoice) => invoice.status?.code === selectedStatus.value);
+    }
     if (searchQuery.value) {
       const query = searchQuery.value.toLowerCase();
       result = result.filter(

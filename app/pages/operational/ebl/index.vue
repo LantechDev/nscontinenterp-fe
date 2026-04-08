@@ -80,6 +80,24 @@ function openBlDetail(id: string) {
     isDetailOpen.value = true;
   }
 }
+
+const groupedEbls = computed(() => {
+  const groups: Record<string, { jobId: string; jobNumber: string; ebls: EblItem[] }> = {};
+
+  ebls.value.forEach((ebl) => {
+    const jobId = ebl.jobId;
+    if (!groups[jobId]) {
+      groups[jobId] = {
+        jobId,
+        jobNumber: ebl.job?.jobNumber || "Unknown Job",
+        ebls: [],
+      };
+    }
+    groups[jobId].ebls.push(ebl);
+  });
+
+  return Object.values(groups);
+});
 </script>
 
 <template>
@@ -163,35 +181,55 @@ function openBlDetail(id: string) {
             </tr>
           </thead>
           <tbody>
-            <tr
-              v-for="ebl in ebls"
-              :key="ebl.id"
-              class="border-b border-border last:border-0 hover:bg-muted/30 transition-colors cursor-pointer"
-              @click="openBlDetail(ebl.id)"
-            >
-              <td class="py-3 px-4">
-                <div class="flex items-center gap-2">
-                  <div class="p-1.5 rounded bg-blue-50 text-[#012D5A]">
-                    <FileText class="w-4 h-4" />
+            <template v-for="group in groupedEbls" :key="group.jobId">
+              <!-- Job Header Row -->
+              <tr class="bg-gray-50 border-b border-border">
+                <td colspan="3" class="py-2.5 px-4">
+                  <div class="flex items-center gap-2">
+                    <span
+                      class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest"
+                      >Job:</span
+                    >
+                    <span class="text-sm font-bold text-[#012D5A]">{{ group.jobNumber }}</span>
+                    <span
+                      class="text-[10px] px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded-full font-black ml-2"
+                    >
+                      {{ group.ebls.length }} BL{{ group.ebls.length > 1 ? "S" : "" }}
+                    </span>
                   </div>
-                  <span class="text-sm font-medium">{{ ebl.blNumber }}</span>
-                </div>
-              </td>
-              <td class="py-3 px-4 text-sm text-muted-foreground">
-                {{ ebl.job?.jobNumber || "-" }}
-              </td>
-              <td class="py-3 px-4">
-                <span
-                  :class="
-                    cn('px-2 py-0.5 rounded border text-xs font-medium', getStatusInfo(ebl).class)
-                  "
-                >
-                  {{ getStatusInfo(ebl).label }}
-                </span>
-              </td>
-            </tr>
+                </td>
+              </tr>
+              <!-- BL Rows -->
+              <tr
+                v-for="ebl in group.ebls"
+                :key="ebl.id"
+                class="border-b border-border last:border-b hover:bg-muted/30 transition-colors cursor-pointer"
+                @click="openBlDetail(ebl.id)"
+              >
+                <td class="py-3 px-4 pl-8">
+                  <div class="flex items-center gap-2">
+                    <div class="p-1.5 rounded bg-blue-50 text-[#012D5A]">
+                      <FileText class="w-4 h-4" />
+                    </div>
+                    <span class="text-sm font-medium">{{ ebl.blNumber }}</span>
+                  </div>
+                </td>
+                <td class="py-3 px-4 text-sm text-muted-foreground">
+                  {{ ebl.job?.jobNumber || "-" }}
+                </td>
+                <td class="py-3 px-4">
+                  <span
+                    :class="
+                      cn('px-2 py-0.5 rounded border text-xs font-medium', getStatusInfo(ebl).class)
+                    "
+                  >
+                    {{ getStatusInfo(ebl).label }}
+                  </span>
+                </td>
+              </tr>
+            </template>
             <tr v-if="ebls.length === 0">
-              <td colspan="4" class="p-8 text-center text-muted-foreground">Belum ada data eBL.</td>
+              <td colspan="3" class="p-8 text-center text-muted-foreground">Belum ada data eBL.</td>
             </tr>
           </tbody>
         </table>

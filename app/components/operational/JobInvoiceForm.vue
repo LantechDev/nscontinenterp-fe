@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { Plus, Trash2, X } from "lucide-vue-next";
+import { Plus, Trash2, X, Building2 } from "lucide-vue-next";
 import { useInvoices } from "~/composables/useInvoices";
 import { useServices } from "~/composables/useServices";
+import { useCompanies } from "~/composables/useCompanies";
 import Combobox from "~/components/ui/Combobox.vue";
 import Modal from "~/components/ui/Modal.vue";
 import { toast } from "vue-sonner";
@@ -10,21 +11,47 @@ const props = defineProps<{
   jobId: string;
   jobNumber: string;
   customerId: string | null;
+  invoice?: InvoiceDetail | null;
 }>();
 
 const emit = defineEmits(["success", "cancel"]);
 
-const { createInvoice, isLoading: isSaving } = useInvoices();
+const { createInvoice, updateInvoice, isLoading: isSaving } = useInvoices();
 const { services, fetchServices, createService, isLoading: isFetchingServices } = useServices();
+const { companies, fetchCompanies, isLoading: isFetchingCompanies } = useCompanies();
+
+interface FormItem {
+  id?: string;
+  serviceId: string;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  taxRate: number;
+}
 
 const form = ref({
-  invoiceNumber: `INV-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
-  issuedDate: new Date().toISOString().split("T")[0],
-  dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
-  currency: "IDR",
-  taxRate: 0.11, // Default 11%
-  notes: "",
-  items: [{ serviceId: "", description: "", quantity: 1, unitPrice: 0 }],
+  invoiceNumber:
+    props.invoice?.invoiceNumber ||
+    `INV-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
+  issuedDate: props.invoice?.issuedDate
+    ? new Date(props.invoice.issuedDate).toISOString().split("T")[0]
+    : new Date().toISOString().split("T")[0],
+  dueDate: props.invoice?.dueDate
+    ? new Date(props.invoice.dueDate).toISOString().split("T")[0]
+    : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+  currency: props.invoice?.currency || "IDR",
+  customerId: props.invoice?.company?.id || props.customerId || "",
+  notes: props.invoice?.notes || "",
+  items: (props.invoice?.items?.map((item) => ({
+    id: item.id,
+    serviceId: item.service?.id || "",
+    description: item.description,
+    quantity: item.quantity,
+    unitPrice: item.unitPrice,
+    taxRate: 11,
+  })) || [
+    { serviceId: "", description: "", quantity: 1, unitPrice: 0, taxRate: 11 },
+  ]) as FormItem[],
 });
 
 // Service Modal State
@@ -38,11 +65,11 @@ const serviceForm = reactive({
 });
 
 onMounted(async () => {
-  await fetchServices();
+  await Promise.all([fetchServices(), fetchCompanies({ type: "CUSTOMER" })]);
 });
 
 const addItem = () => {
-  form.value.items.push({ serviceId: "", description: "", quantity: 1, unitPrice: 0 });
+  form.value.items.push({ serviceId: "", description: "", quantity: 1, unitPrice: 0, taxRate: 0 });
 };
 
 const removeItem = (index: number) => {
@@ -54,11 +81,11 @@ const removeItem = (index: number) => {
 const onServiceChange = (index: number) => {
   const item = form.value.items[index];
   if (!item) return;
-
   const service = services.value.find((s) => s.id === item.serviceId);
   if (service) {
     item.description = service.name;
     item.unitPrice = Number(service.customerPrice) || 0;
+    item.taxRate = Number(service.taxRate) || 0;
   }
 };
 
@@ -113,7 +140,11 @@ const subTotal = computed(() => {
 });
 
 const taxAmount = computed(() => {
-  return subTotal.value * form.value.taxRate;
+  return form.value.items.reduce(
+    (sum, item) =>
+      sum + Number(item.quantity) * Number(item.unitPrice) * (Number(item.taxRate) / 100),
+    0,
+  );
 });
 
 const total = computed(() => {
@@ -121,15 +152,15 @@ const total = computed(() => {
 });
 
 const handleSubmit = async () => {
-  if (!props.customerId) {
-    toast.error("Cannot create invoice: Customer not associated with this job.");
+  if (!form.value.customerId) {
+    toast.error("Please select a Billing Party (Customer) for this invoice.");
     return;
   }
 
   const payload = {
     jobId: props.jobId,
     invoiceNumber: form.value.invoiceNumber,
-    companyId: props.customerId,
+    companyId: form.value.customerId,
     currency: form.value.currency,
     issuedDate: (form.value.issuedDate || new Date().toISOString().split("T")[0]) as string,
     dueDate: (form.value.dueDate || new Date().toISOString().split("T")[0]) as string,
@@ -139,6 +170,7 @@ const handleSubmit = async () => {
     balanceDue: total.value,
     notes: form.value.notes,
     items: form.value.items.map((item) => ({
+      id: item.id, // Include id for updates
       serviceId: item.serviceId || undefined,
       description: item.description,
       quantity: Number(item.quantity),
@@ -147,11 +179,14 @@ const handleSubmit = async () => {
     })),
   };
 
-  const result = await createInvoice(payload);
+  const result = props.invoice?.id
+    ? await updateInvoice(props.invoice.id, payload)
+    : await createInvoice(payload);
+
   if (result.success) {
     emit("success");
   } else {
-    toast.error(result.error || "Failed to create invoice");
+    toast.error(result.error || `Failed to ${props.invoice?.id ? "update" : "create"} invoice`);
   }
 };
 
@@ -170,7 +205,9 @@ const formatCurrency = (amount: number) => {
       <div class="flex items-center gap-4">
         <div class="flex items-center gap-2">
           <Receipt class="w-5 h-5 text-[#012D5A]" />
-          <h3 class="font-bold text-foreground">Create New Invoice</h3>
+          <h3 class="font-bold text-foreground">
+            {{ props.invoice?.id ? "Edit" : "Create New" }} Invoice
+          </h3>
         </div>
         <div class="h-4 w-[1px] bg-border mx-1"></div>
         <div class="flex items-center gap-2">
@@ -215,6 +252,34 @@ const formatCurrency = (amount: number) => {
     </div>
 
     <form @submit.prevent="handleSubmit" class="p-6 space-y-6">
+      <!-- Billing Info -->
+      <div class="p-4 bg-blue-50/30 rounded-xl border border-blue-100/50 space-y-3">
+        <div class="flex items-center gap-2 mb-1">
+          <Building2 class="w-4 h-4 text-[#012D5A]" />
+          <span class="text-xs font-bold text-[#012D5A] uppercase tracking-wider"
+            >Billing Information</span
+          >
+        </div>
+        <div class="grid grid-cols-1 gap-4">
+          <div class="space-y-1.5">
+            <label class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest"
+              >Billing Party (Customer) <span class="text-red-500">*</span></label
+            >
+            <Combobox
+              v-model="form.customerId"
+              :options="companies as any"
+              label-key="name"
+              value-key="id"
+              placeholder="Search or select customer..."
+              class="bg-white"
+            />
+            <p v-if="!props.customerId" class="text-[9px] text-amber-600 font-medium italic">
+              Note: This job does not have a linked customer. Please select one manually.
+            </p>
+          </div>
+        </div>
+      </div>
+
       <div class="grid grid-cols-2 gap-4">
         <div class="space-y-1.5">
           <label class="text-xs font-bold text-muted-foreground uppercase tracking-wider"
@@ -257,9 +322,10 @@ const formatCurrency = (amount: number) => {
           <div
             class="grid grid-cols-12 gap-3 px-4 py-2 border-b border-border bg-gray-50/50 text-[10px] font-bold text-muted-foreground uppercase tracking-wider"
           >
-            <div class="col-span-5">Service / Description</div>
+            <div class="col-span-4">Service / Description</div>
             <div class="col-span-2">Qty</div>
-            <div class="col-span-4 text-right pr-4">Unit Price</div>
+            <div class="col-span-3 text-right">Unit Price</div>
+            <div class="col-span-2 px-2">Tax</div>
             <div class="col-span-1"></div>
           </div>
 
@@ -270,7 +336,7 @@ const formatCurrency = (amount: number) => {
               class="grid grid-cols-12 gap-3 px-4 py-3 items-start group hover:bg-white transition-colors relative"
               :style="{ zIndex: form.items.length + 10 - index }"
             >
-              <div class="col-span-5 space-y-2">
+              <div class="col-span-4 space-y-2">
                 <Combobox
                   v-model="item.serviceId"
                   :options="services as any"
@@ -296,21 +362,39 @@ const formatCurrency = (amount: number) => {
                   class="w-full px-3 py-2 bg-white border border-border rounded-md text-sm focus:ring-2 focus:ring-[#012D5A]/20 focus:border-[#012D5A] outline-none transition-all"
                 />
               </div>
-              <div class="col-span-4">
+              <div class="col-span-3">
                 <div class="relative">
                   <span
-                    class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-xs uppercase font-bold pr-1 border-r border-border mr-2"
+                    class="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-[10px] font-bold pr-1 border-r border-border mr-1"
                     >{{ form.currency }}</span
                   >
                   <input
                     type="number"
                     v-model.number="item.unitPrice"
                     step="0.01"
-                    class="w-full pl-14 pr-3 py-2 bg-white border border-border rounded-md text-sm text-right font-medium focus:ring-2 focus:ring-[#012D5A]/20 focus:border-[#012D5A] outline-none transition-all"
+                    class="w-full pl-10 pr-3 py-2 bg-white border border-border rounded-md text-sm text-right font-medium focus:ring-2 focus:ring-[#012D5A]/20 focus:border-[#012D5A] outline-none transition-all"
                   />
                 </div>
-                <p class="text-[10px] text-right mt-1.5 font-bold text-muted-foreground">
-                  Subtotal: {{ formatCurrency(Number(item.quantity) * Number(item.unitPrice)) }}
+                <p class="text-[9px] text-right mt-1.5 font-bold text-muted-foreground">
+                  Sub: {{ formatCurrency(Number(item.quantity) * Number(item.unitPrice)) }}
+                </p>
+              </div>
+              <div class="col-span-2 px-2">
+                <select
+                  v-model.number="item.taxRate"
+                  class="w-full bg-white border border-border rounded px-2 py-2 text-xs font-bold outline-none focus:ring-1 focus:ring-[#012D5A]"
+                >
+                  <option :value="0">0%</option>
+                  <option :value="1.1">1.1%</option>
+                  <option :value="11">11%</option>
+                </select>
+                <p class="text-[9px] text-right mt-1.5 font-bold text-slate-400">
+                  Tax:
+                  {{
+                    formatCurrency(
+                      Number(item.quantity) * Number(item.unitPrice) * (Number(item.taxRate) / 100),
+                    )
+                  }}
                 </p>
               </div>
               <div class="col-span-1 flex justify-end">
@@ -351,17 +435,7 @@ const formatCurrency = (amount: number) => {
             }}</span>
           </div>
           <div class="flex items-center justify-between text-sm">
-            <div class="flex items-center gap-2">
-              <span class="text-muted-foreground font-inter">Tax</span>
-              <select
-                v-model.number="form.taxRate"
-                class="bg-white border border-border rounded px-1.5 py-0.5 text-[10px] font-bold outline-none focus:ring-1 focus:ring-[#012D5A]"
-              >
-                <option :value="0">0%</option>
-                <option :value="0.011">1.1% (Freight)</option>
-                <option :value="0.11">11% (VAT)</option>
-              </select>
-            </div>
+            <span class="text-muted-foreground font-inter">Total Tax</span>
             <span class="font-medium text-foreground font-inter">{{
               formatCurrency(taxAmount)
             }}</span>
@@ -392,8 +466,8 @@ const formatCurrency = (amount: number) => {
         class="bg-[#012D5A] hover:bg-[#012D5A]/90 text-white h-10 px-8 rounded-lg font-bold text-sm shadow-lg shadow-[#012D5A]/10 transition-all active:scale-95 flex items-center gap-2"
         :disabled="isSaving"
       >
-        <span v-if="isSaving">Saving...</span>
-        <span v-else>Create Invoice</span>
+        <span v-if="isSaving">{{ props.invoice?.id ? "Updating..." : "Saving..." }}</span>
+        <span v-else>{{ props.invoice?.id ? "Update" : "Create" }} Invoice</span>
       </button>
     </div>
 

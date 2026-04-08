@@ -3,6 +3,10 @@ export interface Invoice {
   invoiceNumber: string;
   issuedDate: string;
   dueDate: string;
+  currency: string;
+  companyName?: string;
+  companyAddress?: string;
+  companyId?: string;
   subTotal: number;
   taxAmount: number;
   total: number;
@@ -14,7 +18,26 @@ export interface Invoice {
   company: {
     name: string;
   };
+  job?: {
+    id: string;
+    jobNumber: string;
+  };
   createdAt: string;
+  paymentAllocations?: Array<{
+    id: string;
+    amount: number;
+    payment: {
+      id: string;
+      paymentNumber?: string;
+      paymentDate: string;
+      status: string;
+      paymentMethod?: {
+        name: string;
+        code: string;
+      };
+      reference?: string;
+    };
+  }>;
 }
 
 export interface InvoiceDetail extends Invoice {
@@ -39,15 +62,28 @@ export interface InvoiceDetail extends Invoice {
   job?: {
     id: string;
     jobNumber: string;
-  };
-  payments: Array<{
-    id: string;
-    amount: number;
-    paymentDate: string;
-    paymentMethod?: {
+    tradeTypeId?: string;
+    tradeType?: {
+      id: string;
       name: string;
     };
-  }>;
+    vessels?: Array<{
+      id: string;
+      vesselName: string;
+      vessel?: { name: string };
+      voyageNumber: string;
+    }>;
+    pol?: string;
+    pod?: string;
+    polName?: string;
+    podName?: string;
+    polPort?: { name: string };
+    podPort?: { name: string };
+    customerReference?: string;
+    billsOfLading?: Array<{
+      shipperReferences: string[];
+    }>;
+  };
   notes?: string;
 }
 
@@ -191,6 +227,26 @@ export function useInvoices() {
     }
   }
 
+  async function voidInvoice(
+    id: string,
+  ): Promise<{ success: boolean; data?: Invoice; error?: string }> {
+    isLoading.value = true;
+    try {
+      const responseData = await $fetch<Invoice>(
+        `${config.public.apiBase}/finance/invoice/${id}/void`,
+        {
+          method: "POST",
+          credentials: "include",
+        },
+      );
+      return { success: true, data: responseData };
+    } catch (error) {
+      return { success: false, error: getErrorMessage(error) };
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
   return {
     isLoading,
     fetchInvoices,
@@ -198,5 +254,6 @@ export function useInvoices() {
     createInvoice,
     updateInvoice,
     deleteInvoice,
+    voidInvoice,
   };
 }

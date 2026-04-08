@@ -7,6 +7,7 @@ import { usePayments } from "~/composables/usePayments";
 export interface ArApItem {
   id: string;
   invoiceNumber: string;
+  companyId: string | null;
   company: string;
   total: number;
   paid: number;
@@ -229,12 +230,13 @@ async function submitPayment() {
   paymentSuccess.value = false;
 
   const result = await createPayment({
-    invoiceId: selectedInvoice.value.id,
-    paymentDate: paymentForm.value.paymentDate,
+    companyId: selectedInvoice.value.companyId!,
     amount: paymentForm.value.amount,
+    paymentDate: paymentForm.value.paymentDate,
     paymentMethodId: paymentForm.value.paymentMethodId || undefined,
     reference: paymentForm.value.reference || undefined,
     notes: paymentForm.value.notes || undefined,
+    allocations: [{ invoiceId: selectedInvoice.value.id, amount: paymentForm.value.amount }],
   });
 
   if (result.success) {

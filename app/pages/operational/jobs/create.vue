@@ -59,7 +59,7 @@ const packageTypes = ref<PackageType[]>([]);
 const isCompanyModalOpen = ref(false);
 const isSubmittingCompany = ref(false);
 const activeCompanyField = ref<
-  "shipperId" | "consigneeId" | "notifyPartyId" | "forwarderId" | null
+  "shipperId" | "consigneeId" | "notifyPartyId" | "forwarderId" | "customerId" | null
 >(null);
 const companyForm = reactive({
   name: "",
@@ -104,6 +104,7 @@ async function handleSearchPod(query: string) {
 const formData = reactive({
   // Job Info
   tradeTypeId: "EXPORT",
+  customerId: "",
 
   // Route Details
   pol: "",
@@ -484,7 +485,7 @@ let manualScrollTimeout: number | undefined;
 
 function handleCreateCompany(
   name: string,
-  field: "shipperId" | "consigneeId" | "notifyPartyId" | "forwarderId",
+  field: "shipperId" | "consigneeId" | "notifyPartyId" | "forwarderId" | "customerId",
 ) {
   // Open the Modal and preset the name
   companyForm.name = name;
@@ -581,8 +582,14 @@ async function handleCreateVessel(
 }
 
 async function handleSubmit(isDraft: boolean = false) {
-  if (!formData.shipperId || !formData.consigneeId || !formData.blType || !formData.freightTerm) {
-    toast.error("Please fill in Shipper, Consignee, Freight Term, and BL Type.");
+  if (
+    !formData.shipperId ||
+    !formData.consigneeId ||
+    !formData.customerId ||
+    !formData.blType ||
+    !formData.freightTerm
+  ) {
+    toast.error("Please fill in Shipper, Consignee, Job Customer, Freight Term, and BL Type.");
     return;
   }
 
@@ -608,6 +615,7 @@ async function handleSubmit(isDraft: boolean = false) {
   // CreateJob payload
   const payload: CreateJob = {
     shipperId: formData.shipperId,
+    customerId: formData.customerId,
     shipperAddressId: formData.shipperAddressId || undefined,
     consigneeId: formData.consigneeId,
     consigneeAddressId: formData.consigneeAddressId || undefined,
@@ -783,7 +791,7 @@ function scrollTo(id: string) {
             <ArrowLeft class="w-5 h-5" />
           </NuxtLink>
           <h1 class="text-xl font-bold flex items-center gap-2 text-foreground">
-            <Briefcase class="w-5 h-5 text-[#012D5A]" />
+            <Briefcase class="w-5 h-5 text-[#062c58]" />
             Create Job
           </h1>
         </div>
@@ -808,7 +816,7 @@ function scrollTo(id: string) {
           <button
             type="button"
             @click="handleSubmit(false)"
-            class="btn-primary flex-1 sm:flex-none justify-center bg-[#012D5A] hover:bg-[#012D5A]/90 text-white shadow-sm"
+            class="btn-primary flex-1 sm:flex-none justify-center bg-[#062c58] hover:bg-[#062c58]/90 text-white shadow-sm"
             :disabled="isLoading"
           >
             <Save class="w-4 h-4 mr-2" />
@@ -829,7 +837,7 @@ function scrollTo(id: string) {
             class="w-full flex items-center gap-3.5 px-4 py-3 text-[14px] font-semibold rounded-xl transition-all text-left border group"
             :class="[
               activeSection === section.id
-                ? 'bg-blue-50/60 border-[#012D5A]/20 text-[#012D5A] shadow-sm'
+                ? 'bg-blue-50/60 border-[#062c58]/20 text-[#062c58] shadow-sm'
                 : 'text-muted-foreground hover:bg-muted/40 hover:text-foreground border-transparent hover:border-border/50',
             ]"
           >
@@ -837,7 +845,7 @@ function scrollTo(id: string) {
               class="w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-black border transition-all duration-300"
               :class="
                 activeSection === section.id
-                  ? 'bg-[#012D5A] text-white border-[#012D5A] scale-110 shadow-md'
+                  ? 'bg-[#062c58] text-white border-[#062c58] scale-110 shadow-md'
                   : 'border-muted-foreground/30 group-hover:border-foreground/40'
               "
             >
@@ -855,9 +863,12 @@ function scrollTo(id: string) {
           <SectionCard id="job-info" title="Job Information" :icon="Briefcase">
             <div class="grid grid-cols-1 md:grid-cols-4 gap-x-8 gap-y-6">
               <div class="space-y-2">
-                <label class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
-                  >JOB NUMBER</label
-                >
+                <div class="h-6 flex items-center">
+                  <label
+                    class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
+                    >JOB NUMBER</label
+                  >
+                </div>
                 <input
                   type="text"
                   placeholder="Auto-generated"
@@ -865,17 +876,62 @@ function scrollTo(id: string) {
                   disabled
                 />
               </div>
+
+              <!-- Job Customer / Billing Party -->
+              <div class="space-y-2">
+                <div class="h-6 flex items-center justify-between">
+                  <label
+                    class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
+                  >
+                    JOB CUSTOMER <span class="text-destructive">*</span>
+                  </label>
+                  <div class="flex gap-2">
+                    <button
+                      v-if="formData.shipperId"
+                      type="button"
+                      @click="formData.customerId = formData.shipperId"
+                      class="text-[9px] font-bold text-blue-600 hover:underline uppercase"
+                    >
+                      Use Shipper
+                    </button>
+                    <button
+                      v-if="formData.consigneeId"
+                      type="button"
+                      @click="formData.customerId = formData.consigneeId"
+                      class="text-[9px] font-bold text-blue-600 hover:underline uppercase"
+                    >
+                      Use Consignee
+                    </button>
+                  </div>
+                </div>
+                <Combobox
+                  v-model="formData.customerId"
+                  :options="companies as any"
+                  label-key="name"
+                  value-key="id"
+                  placeholder="Select Main Customer..."
+                  allow-create
+                  @create="(name) => handleCreateCompany(name, 'shipperId')"
+                />
+              </div>
+
               <!-- Trade Type / Service -->
               <div class="space-y-2">
-                <label class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
-                  >SERVICE TYPE <span class="text-destructive">*</span></label
-                >
+                <div class="h-6 flex items-center">
+                  <label
+                    class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
+                    >SERVICE TYPE <span class="text-destructive">*</span></label
+                  >
+                </div>
                 <Combobox v-model="formData.tradeTypeId" :options="TRADE_TYPES" />
               </div>
               <div class="space-y-2">
-                <label class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
-                  >STATUS</label
-                >
+                <div class="h-6 flex items-center">
+                  <label
+                    class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
+                    >STATUS</label
+                  >
+                </div>
                 <div class="h-11 flex items-center">
                   <span
                     class="inline-flex items-center px-3 py-1 rounded-lg text-[12px] font-bold uppercase tracking-wider bg-blue-50/50 text-blue-700 border border-blue-200/50"
@@ -886,12 +942,15 @@ function scrollTo(id: string) {
                 </div>
               </div>
               <div class="space-y-2">
-                <label class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
-                  >CREATED BY</label
-                >
+                <div class="h-6 flex items-center">
+                  <label
+                    class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
+                    >CREATED BY</label
+                  >
+                </div>
                 <div class="h-11 flex items-center gap-2.5">
                   <div
-                    class="w-8 h-8 rounded-full bg-[#012D5A]/10 text-[#012D5A] flex items-center justify-center text-[12px] font-black border border-[#012D5A]/10 shadow-sm"
+                    class="w-8 h-8 rounded-full bg-[#062c58]/10 text-[#062c58] flex items-center justify-center text-[12px] font-black border border-[#062c58]/10 shadow-sm"
                   >
                     {{ user?.name ? user.name.substring(0, 2).toUpperCase() : "AD" }}
                   </div>
@@ -1968,7 +2027,7 @@ function scrollTo(id: string) {
         <button
           type="button"
           @click="submitCompanyForm"
-          class="btn-primary justify-center bg-[#012D5A] hover:bg-[#012D5A]/90 text-white shadow-sm"
+          class="btn-primary justify-center bg-[#062c58] hover:bg-[#062c58]/90 text-white shadow-sm"
           :disabled="isSubmittingCompany || !companyForm.name"
         >
           <Building2 class="w-4 h-4 mr-2" />

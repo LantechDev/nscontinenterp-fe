@@ -197,6 +197,7 @@ export interface CreateJob {
   forwarderId?: string;
   forwarderAddressId?: string;
   commodity: string;
+  customerId?: string;
   containerTypeId?: string;
   pol: string;
   pod: string;
@@ -266,6 +267,7 @@ export interface UpdateBlDraft {
   notifyPartyAddressId?: string;
   forwarderId?: string;
   forwarderAddressId?: string;
+  customerId?: string;
 
   cargoDescription?: string;
   mainDescription?: string;

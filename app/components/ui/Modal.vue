@@ -22,7 +22,7 @@ const close = () => {
 
 <template>
   <Teleport defer to="body">
-    <div v-if="modelValue" class="fixed inset-0 z-[1000] flex items-center justify-center p-4">
+    <div v-if="modelValue" class="fixed inset-0 z-[1100] flex items-center justify-center p-4">
       <!-- Backdrop -->
       <div
         class="fixed inset-0 bg-black/50 transition-opacity backdrop-blur-sm"

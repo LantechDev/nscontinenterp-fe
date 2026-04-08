@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Receipt, Download, MoreVertical, Pencil, Trash2 } from "lucide-vue-next";
+import { Receipt, Download } from "lucide-vue-next";
 import { cn } from "~/lib/utils";
 
 interface InvoiceData {
@@ -11,6 +11,7 @@ interface InvoiceData {
   balanceDue: number;
   status: { code: string; name: string };
   company: { name: string };
+  job?: { jobNumber: string };
 }
 
 interface Props {
@@ -25,8 +26,6 @@ defineProps<Props>();
 const emit = defineEmits<{
   (e: "row-click", id: string): void;
   (e: "download-pdf", id: string): void;
-  (e: "edit", id: string): void;
-  (e: "delete", id: string): void;
 }>();
 
 const handleClick = (id: string) => {
@@ -36,14 +35,6 @@ const handleClick = (id: string) => {
 const handleDownloadPdf = (id: string) => {
   emit("download-pdf", id);
 };
-
-const handleEdit = (id: string) => {
-  emit("edit", id);
-};
-
-const handleDelete = (id: string) => {
-  emit("delete", id);
-};
 </script>
 
 <template>
@@ -51,27 +42,56 @@ const handleDelete = (id: string) => {
     <div
       v-for="invoice in invoices"
       :key="invoice.id"
-      class="border border-border rounded-xl bg-white p-5 hover:shadow-sm transition-shadow cursor-pointer"
+      :class="[
+        'border border-border rounded-xl p-5 transition-all cursor-pointer',
+        invoice.status?.code === 'VOIDED'
+          ? 'bg-gray-50 opacity-60 hover:opacity-80 hover:shadow-none'
+          : 'bg-white hover:shadow-sm',
+      ]"
       @click="handleClick(invoice.id)"
     >
       <div class="flex items-start justify-between mb-4">
         <div class="flex items-start gap-4">
           <div
-            class="w-12 h-12 rounded-lg bg-blue-50 text-[#012D5A] flex items-center justify-center shrink-0"
+            :class="[
+              'w-12 h-12 rounded-lg flex items-center justify-center shrink-0',
+              invoice.status?.code === 'VOIDED'
+                ? 'bg-gray-100 text-gray-400'
+                : 'bg-blue-50 text-[#012D5A]',
+            ]"
           >
             <Receipt class="w-6 h-6" />
           </div>
           <div>
-            <h3 class="font-bold text-base text-foreground">{{ invoice.invoiceNumber }}</h3>
+            <div class="flex items-center gap-2 flex-wrap">
+              <h3
+                :class="[
+                  'font-bold text-base',
+                  invoice.status?.code === 'VOIDED'
+                    ? 'line-through text-gray-400'
+                    : 'text-foreground',
+                ]"
+              >
+                {{ invoice.invoiceNumber }}
+              </h3>
+              <span
+                v-if="invoice.status?.code === 'VOIDED'"
+                class="text-[9px] font-black uppercase tracking-widest text-gray-400 bg-gray-200 px-1.5 py-0.5 rounded"
+                >VOID</span
+              >
+            </div>
             <p class="text-xs text-muted-foreground">{{ formatDate(invoice.issuedDate) }}</p>
           </div>
         </div>
-        <button class="text-muted-foreground hover:text-foreground" @click.stop>
-          <MoreVertical class="w-4 h-4" />
-        </button>
       </div>
 
       <div class="space-y-3 mb-4">
+        <div>
+          <p class="text-xs text-muted-foreground mb-1">Job No.</p>
+          <p class="text-sm font-mono uppercase text-muted-foreground">
+            {{ invoice.job?.jobNumber || "-" }}
+          </p>
+        </div>
         <div>
           <p class="text-xs text-muted-foreground mb-1">Customer</p>
           <p class="text-sm font-medium">{{ invoice.company?.name || "N/A" }}</p>
@@ -98,18 +118,6 @@ const handleDelete = (id: string) => {
           {{ getStatusConfig(invoice.status?.code || "UNPAID").label }}
         </span>
         <div class="flex gap-1">
-          <button
-            class="p-1.5 rounded hover:bg-muted transition-colors"
-            @click.stop="handleEdit(invoice.id)"
-          >
-            <Pencil class="w-4 h-4 text-muted-foreground" />
-          </button>
-          <button
-            class="p-1.5 rounded hover:bg-muted transition-colors"
-            @click.stop="handleDelete(invoice.id)"
-          >
-            <Trash2 class="w-4 h-4 text-muted-foreground" />
-          </button>
           <button
             class="p-1.5 rounded hover:bg-muted transition-colors"
             @click.stop="handleDownloadPdf(invoice.id)"

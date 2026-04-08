@@ -124,9 +124,13 @@ const openCreateModal = () => {
 const handleCreateService = async (formData: {
   name: string;
   code: string;
-  price: string;
+  vendorPrice: string;
+  customerPrice: string;
+  currency: string;
+  taxRate: string;
   status: string;
-  unit: string;
+  unitId: string;
+  categoryId: string;
 }) => {
   // Validation
   if (!formData.name || !formData.code) {
@@ -140,7 +144,12 @@ const handleCreateService = async (formData: {
   const serviceData = {
     name: formData.name,
     code: formData.code,
-    customerPrice: parsePrice(formData.price),
+    vendorPrice: parsePrice(formData.vendorPrice),
+    customerPrice: parsePrice(formData.customerPrice),
+    currency: formData.currency,
+    taxRate: parseFloat(formData.taxRate) || 0,
+    unitId: formData.unitId || undefined,
+    categoryId: formData.categoryId || undefined,
     isActive: formData.status === "Active",
   };
 
