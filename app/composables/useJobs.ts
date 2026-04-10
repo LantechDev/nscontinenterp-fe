@@ -25,7 +25,16 @@ export interface BlVessel {
   vessel?: { name: string; imoNumber?: string | null } | null;
 }
 
-// TypeScript Interfaces based on OpenAPI spec
+export interface JobDocumentItem {
+  id: string;
+  jobId: string;
+  fileName: string;
+  fileSize: number;
+  fileType: string;
+  fileUrl: string;
+  createdAt: string;
+}
+
 export interface Job {
   id: string;
   jobNumber: string;
@@ -651,6 +660,60 @@ export function useJobs() {
     }
   }
 
+  async function getJobDocuments(jobId: string): Promise<AuthResponse<JobDocumentItem[]>> {
+    try {
+      const data = await $fetch<JobDocumentItem[]>(
+        `${config.public.apiBase}/operational/jobs/${jobId}/documents`,
+        {
+          credentials: "include",
+        },
+      );
+      return { success: true, data };
+    } catch (error) {
+      return handleApiError<JobDocumentItem[]>(error);
+    }
+  }
+
+  async function uploadJobDocument(
+    jobId: string,
+    file: File,
+  ): Promise<AuthResponse<JobDocumentItem>> {
+    isLoading.value = true;
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const data = await $fetch<JobDocumentItem>(
+        `${config.public.apiBase}/operational/jobs/${jobId}/documents`,
+        {
+          method: "POST",
+          body: formData,
+          credentials: "include",
+        },
+      );
+      return { success: true, data };
+    } catch (error) {
+      return handleApiError<JobDocumentItem>(error);
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  async function deleteJobDocument(jobId: string, docId: string): Promise<AuthResponse> {
+    isLoading.value = true;
+    try {
+      await $fetch(`${config.public.apiBase}/operational/jobs/${jobId}/documents/${docId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      return { success: true };
+    } catch (error) {
+      return handleApiError(error);
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
   return {
     jobs,
     currentJob,
@@ -667,5 +730,8 @@ export function useJobs() {
     requestFinalizeBl,
     unfinalizeBl,
     rejectBl,
+    getJobDocuments,
+    uploadJobDocument,
+    deleteJobDocument,
   };
 }

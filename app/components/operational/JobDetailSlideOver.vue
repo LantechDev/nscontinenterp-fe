@@ -22,6 +22,7 @@ import {
 } from "lucide-vue-next";
 import JobInvoiceTab from "./JobInvoiceTab.vue";
 import JobEblTab from "./JobEblTab.vue";
+import JobDocumentTab from "./JobDocumentTab.vue";
 import { useAuth } from "~/composables/useAuth";
 const { canApproveJobs } = useAuth();
 import Combobox from "~/components/ui/Combobox.vue";
@@ -51,6 +52,7 @@ const tabs = [
   { id: "overview", label: "Overview" },
   { id: "ebl", label: "eBL" },
   { id: "invoice", label: "Billing" },
+  { id: "document", label: "Upload Document" },
 ];
 
 const { updateJob } = useJobs();
@@ -844,6 +846,14 @@ const toggleItem = (itemId: string | number) => {
                     :initial-bl-id="initialBlId"
                     @refresh="getJob(props.jobId)"
                   />
+                </div>
+
+                <!-- Document Tab -->
+                <div
+                  v-else-if="activeTab === 'document'"
+                  class="space-y-8 animate-fade-in pb-12 pt-4"
+                >
+                  <JobDocumentTab :job-id="job.id" />
                 </div>
 
                 <div v-else class="py-12 text-center text-muted-foreground">
