@@ -783,19 +783,31 @@ function scrollTo(id: string) {
       class="sticky top-16 z-[900] -mx-6 -mt-6 px-6 py-4 bg-background/80 backdrop-blur-md border-b border-border/50 shadow-sm transition-all duration-200"
     >
       <header class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div class="flex items-center gap-4">
+        <div class="flex items-center gap-2 sm:gap-4">
           <NuxtLink
             to="/operational/jobs"
-            class="p-2 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+            class="p-2 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground shrink-0"
           >
             <ArrowLeft class="w-5 h-5" />
           </NuxtLink>
-          <h1 class="text-xl font-bold flex items-center gap-2 text-foreground">
-            <Briefcase class="w-5 h-5 text-[#062c58]" />
-            Create Job
-          </h1>
+          <div class="min-w-0">
+            <h1
+              class="text-lg sm:text-xl font-bold flex items-center gap-2 text-foreground truncate"
+            >
+              <Briefcase class="w-5 h-5 text-[#062c58] shrink-0 hidden sm:block" />
+              Create Job
+            </h1>
+            <p
+              v-if="activeSection"
+              class="text-[10px] uppercase tracking-tighter text-blue-600 sm:hidden font-bold"
+            >
+              Step: {{ SECTIONS.find((s) => s.id === activeSection)?.label }}
+            </p>
+          </div>
         </div>
-        <div class="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
+        <div
+          class="flex items-center gap-2 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0 scrollbar-hide"
+        >
           <button
             type="button"
             @click="router.back()"
@@ -826,7 +838,7 @@ function scrollTo(id: string) {
       </header>
     </div>
 
-    <div class="flex gap-8 relative items-start">
+    <div class="flex flex-col lg:flex-row gap-8 relative items-start">
       <!-- Sidebar Navigation -->
       <aside class="w-60 shrink-0 hidden lg:block sticky top-[165px] h-fit">
         <nav class="space-y-2">
@@ -966,7 +978,7 @@ function scrollTo(id: string) {
           <SectionCard id="parties" title="Involved Parties" :icon="Users" no-padding>
             <div class="w-full">
               <div
-                class="grid grid-cols-12 gap-6 px-6 py-4 border-b border-border/40 bg-muted/5 text-[11px] font-bold text-muted-foreground/70 tracking-widest uppercase"
+                class="hidden md:grid grid-cols-12 gap-6 px-6 py-4 border-b border-border/40 bg-muted/5 text-[11px] font-bold text-muted-foreground/70 tracking-widest uppercase"
               >
                 <div class="col-span-2">ROLE</div>
                 <div class="col-span-4 pl-1">COMPANY</div>

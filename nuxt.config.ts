@@ -6,7 +6,7 @@ export default defineNuxtConfig({
   alias: {
     "@": "~/",
   },
-  modules: ["@nuxt/image"],
+  modules: ["@nuxt/image", "@vite-pwa/nuxt"],
   css: ["~/assets/css/main.css"],
   build: {
     transpile: ["vue-sonner"],
@@ -17,18 +17,87 @@ export default defineNuxtConfig({
       autoprefixer: {},
     },
   },
+
+  pwa: {
+    registerType: "autoUpdate",
+    manifest: {
+      name: "NS Continent ERP",
+      short_name: "NS ERP",
+      description: "NS Continent ERP - Freight Forwarding & Logistics Management System",
+      theme_color: "#012D5A",
+      background_color: "#ffffff",
+      display: "standalone",
+      orientation: "portrait",
+      scope: "/",
+      start_url: "/",
+      icons: [
+        {
+          src: "pwa/icon-192x192.png",
+          sizes: "192x192",
+          type: "image/png",
+        },
+        {
+          src: "pwa/icon-512x512.png",
+          sizes: "512x512",
+          type: "image/png",
+        },
+        {
+          src: "pwa/maskable-512x512.png",
+          sizes: "512x512",
+          type: "image/png",
+          purpose: "any maskable",
+        },
+      ],
+    },
+    workbox: {
+      navigateFallback: "/offline",
+      navigateFallbackDenylist: [/^\/api\//],
+      globPatterns: ["**/*.{js,css,html,png,svg,ico}"],
+      runtimeCaching: [
+        {
+          urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
+          handler: "CacheFirst",
+          options: {
+            cacheName: "google-fonts-cache",
+            expiration: {
+              maxEntries: 10,
+              maxAgeSeconds: 60 * 60 * 24 * 365, // <== 365 days
+            },
+            cacheableResponse: {
+              statuses: [0, 200],
+            },
+          },
+        },
+      ],
+    },
+    devOptions: {
+      enabled: true,
+      suppressWarnings: true,
+      type: "module",
+    },
+  },
+
   app: {
     head: {
       title: "NS Continent ERP",
       meta: [
         {
+          name: "viewport",
+          content:
+            "width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no",
+        },
+        {
           name: "description",
           content: "NS Continent ERP - Freight Forwarding & Logistics Management System",
         },
+        { name: "theme-color", content: "#012D5A" },
+        { name: "apple-mobile-web-app-capable", content: "yes" },
+        { name: "apple-mobile-web-app-status-bar-style", content: "black-translucent" },
+        { name: "format-detection", content: "telephone=no" },
       ],
       link: [
         { rel: "icon", type: "image/png", href: "/images/logo2.png" },
-        { rel: "apple-touch-icon", href: "/images/logo2.png" },
+        { rel: "apple-touch-icon", href: "/pwa/apple-touch-icon.png" },
         // Preconnect to Google Fonts for faster loading
         { rel: "preconnect", href: "https://fonts.googleapis.com" },
         { rel: "preconnect", href: "https://fonts.gstatic.com", crossorigin: "anonymous" },
@@ -42,10 +111,6 @@ export default defineNuxtConfig({
   },
   // Performance optimization: Hybrid rendering with route rules
   routeRules: {
-    // Static pages - disabled prerender so we can use runtime config for API
-    // "/": { prerender: true },
-    // "/login": { prerender: true },
-    // Dashboard and data pages - SWR caching for 1 hour
     "/dashboard": { swr: 3600 },
     "/master/**": { swr: 3600 },
     "/operational/**": { swr: 3600 },

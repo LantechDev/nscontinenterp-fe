@@ -37,11 +37,11 @@ const addressDetails = computed(() => {
 
 <template>
   <div
-    class="grid grid-cols-12 gap-6 px-6 py-5 items-start hover:bg-muted/5 transition-colors relative"
+    class="grid grid-cols-1 md:grid-cols-12 gap-4 md:gap-6 px-4 md:px-6 py-5 items-start hover:bg-muted/5 transition-colors relative"
     :style="{ zIndex: zIndex }"
   >
     <div
-      class="col-span-2 font-semibold text-[11px] pt-2.5 text-muted-foreground uppercase tracking-wider flex flex-col"
+      class="col-span-1 md:col-span-2 font-semibold text-[11px] md:pt-2.5 text-muted-foreground uppercase tracking-wider flex flex-col"
     >
       <span>{{ label }} <span v-if="required" class="text-destructive">*</span></span>
       <span v-if="description" class="text-[10px] font-normal lowercase mt-0.5 opacity-70">{{
@@ -49,7 +49,7 @@ const addressDetails = computed(() => {
       }}</span>
     </div>
 
-    <div class="col-span-4 space-y-2 transform transition-transform flex flex-col">
+    <div class="col-span-1 md:col-span-4 space-y-2 transform transition-transform flex flex-col">
       <slot name="extra-controls" />
       <Combobox
         v-model="companyId"
@@ -63,7 +63,7 @@ const addressDetails = computed(() => {
       />
     </div>
 
-    <div class="col-span-4" :class="{ 'pt-[38px]': hasExtraControls }">
+    <div class="col-span-1 md:col-span-4" :class="{ 'md:pt-[38px]': hasExtraControls }">
       <Combobox
         v-model="addressId"
         :options="addressOptions"
@@ -75,8 +75,8 @@ const addressDetails = computed(() => {
     </div>
 
     <div
-      class="col-span-2 text-[11px] text-muted-foreground/80 space-y-1 leading-relaxed"
-      :class="{ 'pt-[40px]': hasExtraControls, 'pt-2.5': !hasExtraControls }"
+      class="col-span-1 md:col-span-2 text-[11px] text-muted-foreground/80 space-y-1 leading-relaxed"
+      :class="{ 'md:pt-[40px]': hasExtraControls, 'md:pt-2.5': !hasExtraControls }"
     >
       <template v-if="addressDetails">
         <div

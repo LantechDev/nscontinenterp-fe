@@ -25,7 +25,7 @@ defineProps<{
         {{ title }}
       </h2>
     </div>
-    <div :class="noPadding ? '' : 'p-6 ' + (bodyClass || '')">
+    <div :class="noPadding ? '' : 'p-4 md:p-6 ' + (bodyClass || '')">
       <slot />
     </div>
   </section>

@@ -3,6 +3,7 @@ import {
   Search,
   Bell,
   X,
+  Menu,
   Briefcase,
   Building2,
   FileText,
@@ -18,6 +19,8 @@ const route = useRoute();
 
 // Check route meta to show/hide header
 const showHeader = computed(() => route.meta.hideHeader !== true);
+
+const isMobileSidebarOpen = ref(false);
 
 // Use client-only for time to avoid hydration mismatch
 const currentDate = ref("");
@@ -391,10 +394,21 @@ const handleClickOutside = (event: MouseEvent) => {
   }
 };
 
+const closeMobileSidebar = (): void => {
+  isMobileSidebarOpen.value = false;
+};
+
+const handleWindowKeydown = (event: KeyboardEvent): void => {
+  if (event.key === "Escape") {
+    closeMobileSidebar();
+  }
+};
+
 onMounted(() => {
   updateDateTime();
   setInterval(updateDateTime, 60000);
   document.addEventListener("click", handleClickOutside);
+  window.addEventListener("keydown", handleWindowKeydown);
 });
 
 onUnmounted(() => {
@@ -402,129 +416,155 @@ onUnmounted(() => {
     clearTimeout(debounceTimer);
   }
   document.removeEventListener("click", handleClickOutside);
+  window.removeEventListener("keydown", handleWindowKeydown);
 });
+
+watch(
+  () => route.fullPath,
+  () => {
+    closeMobileSidebar();
+  },
+);
 </script>
 
 <template>
   <div class="min-h-screen bg-gray-50">
     <!-- Sidebar -->
     <LayoutAppSidebar />
+    <LayoutAppSidebar variant="mobile" :open="isMobileSidebarOpen" @close="closeMobileSidebar" />
 
     <!-- Main content area -->
-    <div class="ml-64">
+    <div class="lg:ml-64">
       <!-- Top header -->
       <header
         v-if="showHeader"
-        class="sticky top-0 z-[1000] h-16 bg-white/80 backdrop-blur-md border-b border-gray-200 flex items-center justify-between px-6"
+        class="sticky top-0 z-[1000] h-16 bg-white/80 backdrop-blur-md border-b border-gray-200 flex items-center justify-between gap-3 px-4 sm:px-6"
       >
-        <ClientOnly>
-          <div ref="searchContainerRef" class="relative max-w-md flex-1">
-            <!-- LOG CHECK: VERSION 1.2 -->
-            <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              ref="searchInputRef"
-              v-model="searchQuery"
-              type="text"
-              placeholder="Type a command for search..."
-              class="w-full pl-10 pr-10 py-2 text-sm border border-gray-200 rounded-lg bg-gray-50 focus:outline-none focus:ring-1 focus:ring-[#012D5A] placeholder:text-gray-400"
-              @input="handleSearchInput"
-              @keydown="handleSearchKeydown"
-              @focus="searchQuery && performSearch(searchQuery)"
-            />
-            <button
-              v-if="searchQuery"
-              class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-              @click="
-                searchQuery = '';
-                searchResults = [];
-                showDropdown = false;
-              "
-            >
-              <X class="w-3 h-3" />
-            </button>
+        <div class="flex items-center gap-3 flex-1 min-w-0">
+          <button
+            type="button"
+            class="lg:hidden p-2 rounded-lg hover:bg-gray-100 transition-colors"
+            @click="isMobileSidebarOpen = true"
+            aria-label="Open menu"
+          >
+            <Menu class="w-5 h-5 text-gray-600" />
+          </button>
 
-            <!-- Search Dropdown -->
-            <div
-              v-if="showDropdown && searchResults.length > 0"
-              class="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-80 overflow-y-auto"
-            >
-              <div v-if="isSearching" class="p-4 text-center text-gray-500">
-                <div
-                  class="w-4 h-4 border-2 border-[#012D5A] border-t-transparent rounded-full animate-spin mx-auto"
-                ></div>
-                <span class="text-xs mt-2 block">Searching...</span>
-              </div>
-              <template v-else>
-                <button
-                  v-for="result in searchResults"
-                  :key="`${result.type}-${result.id}`"
-                  class="w-full px-4 py-3 flex items-start gap-3 hover:bg-gray-50 transition-colors text-left"
-                  @click="handleResultClick(result)"
-                >
+          <ClientOnly>
+            <div ref="searchContainerRef" class="relative flex-1 min-w-0 max-w-none sm:max-w-md">
+              <!-- LOG CHECK: VERSION 1.2 -->
+              <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                ref="searchInputRef"
+                v-model="searchQuery"
+                type="text"
+                placeholder="Cari cepat..."
+                class="w-full pl-10 pr-10 py-2 text-sm border border-gray-200 rounded-lg bg-gray-50 focus:outline-none focus:ring-1 focus:ring-[#012D5A] placeholder:text-gray-400"
+                @input="handleSearchInput"
+                @keydown="handleSearchKeydown"
+                @focus="searchQuery && performSearch(searchQuery)"
+              />
+              <button
+                v-if="searchQuery"
+                class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                @click="
+                  searchQuery = '';
+                  searchResults = [];
+                  showDropdown = false;
+                "
+                aria-label="Clear search"
+              >
+                <X class="w-3 h-3" />
+              </button>
+
+              <!-- Search Dropdown -->
+              <div
+                v-if="showDropdown && searchResults.length > 0"
+                class="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-80 overflow-y-auto"
+              >
+                <div v-if="isSearching" class="p-4 text-center text-gray-500">
                   <div
-                    class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
-                    :class="{
-                      'bg-blue-50': result.type === 'job',
-                      'bg-green-50': result.type === 'company',
-                      'bg-purple-50': result.type === 'invoice',
-                      'bg-amber-50': result.type === 'payment',
-                      'bg-cyan-50': result.type === 'service',
-                      'bg-indigo-50': result.type === 'vessel',
-                      'bg-rose-50': result.type === 'quotation',
-                    }"
+                    class="w-4 h-4 border-2 border-[#012D5A] border-t-transparent rounded-full animate-spin mx-auto"
+                  ></div>
+                  <span class="text-xs mt-2 block">Searching...</span>
+                </div>
+                <template v-else>
+                  <button
+                    v-for="result in searchResults"
+                    :key="`${result.type}-${result.id}`"
+                    class="w-full px-4 py-3 flex items-start gap-3 hover:bg-gray-50 transition-colors text-left"
+                    @click="handleResultClick(result)"
                   >
-                    <Briefcase v-if="result.type === 'job'" class="w-4 h-4 text-blue-600" />
-                    <Building2
-                      v-else-if="result.type === 'company'"
-                      class="w-4 h-4 text-green-600"
-                    />
-                    <FileText
-                      v-else-if="result.type === 'invoice'"
-                      class="w-4 h-4 text-purple-600"
-                    />
-                    <CreditCard
-                      v-else-if="result.type === 'payment'"
-                      class="w-4 h-4 text-amber-600"
-                    />
-                    <Wrench v-else-if="result.type === 'service'" class="w-4 h-4 text-cyan-600" />
-                    <Anchor v-else-if="result.type === 'vessel'" class="w-4 h-4 text-indigo-600" />
-                    <FileCheck
-                      v-else-if="result.type === 'quotation'"
-                      class="w-4 h-4 text-rose-600"
-                    />
-                  </div>
-                  <div class="flex-1 min-w-0">
-                    <p class="text-sm font-medium text-gray-900 truncate">
-                      {{ result.title }}
-                    </p>
-                    <p class="text-xs text-gray-500 truncate">
-                      {{ result.subtitle }}
-                    </p>
-                  </div>
-                </button>
-              </template>
+                    <div
+                      class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+                      :class="{
+                        'bg-blue-50': result.type === 'job',
+                        'bg-green-50': result.type === 'company',
+                        'bg-purple-50': result.type === 'invoice',
+                        'bg-amber-50': result.type === 'payment',
+                        'bg-cyan-50': result.type === 'service',
+                        'bg-indigo-50': result.type === 'vessel',
+                        'bg-rose-50': result.type === 'quotation',
+                      }"
+                    >
+                      <Briefcase v-if="result.type === 'job'" class="w-4 h-4 text-blue-600" />
+                      <Building2
+                        v-else-if="result.type === 'company'"
+                        class="w-4 h-4 text-green-600"
+                      />
+                      <FileText
+                        v-else-if="result.type === 'invoice'"
+                        class="w-4 h-4 text-purple-600"
+                      />
+                      <CreditCard
+                        v-else-if="result.type === 'payment'"
+                        class="w-4 h-4 text-amber-600"
+                      />
+                      <Wrench v-else-if="result.type === 'service'" class="w-4 h-4 text-cyan-600" />
+                      <Anchor
+                        v-else-if="result.type === 'vessel'"
+                        class="w-4 h-4 text-indigo-600"
+                      />
+                      <FileCheck
+                        v-else-if="result.type === 'quotation'"
+                        class="w-4 h-4 text-rose-600"
+                      />
+                    </div>
+                    <div class="flex-1 min-w-0">
+                      <p class="text-sm font-medium text-gray-900 truncate">
+                        {{ result.title }}
+                      </p>
+                      <p class="text-xs text-gray-500 truncate">
+                        {{ result.subtitle }}
+                      </p>
+                    </div>
+                  </button>
+                </template>
+              </div>
             </div>
-          </div>
-        </ClientOnly>
+          </ClientOnly>
+        </div>
 
-        <div class="flex items-center gap-4">
+        <div class="flex items-center gap-3 sm:gap-4 shrink-0">
           <button class="relative p-2 rounded-lg hover:bg-gray-100 transition-colors">
             <Bell class="w-5 h-5 text-gray-500" />
             <span class="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
           </button>
-          <div class="text-right">
+          <!-- Only show detailed date/time on medium screens and up to save space for search on mobile -->
+          <div class="hidden sm:block text-right">
             <p class="text-sm font-medium text-gray-900">{{ currentDate }}</p>
             <p class="text-xs text-gray-500">{{ currentTime }}</p>
           </div>
         </div>
       </header>
 
-      <!-- Page content -->
-      <main>
+      <!-- Page content with safe area handling for mobile notch/home indicator -->
+      <main class="px-4 py-4 sm:px-6 sm:py-6 pb-[calc(2rem+env(safe-area-inset-bottom))] lg:pb-6">
         <NuxtPage :key="$route.fullPath" />
       </main>
     </div>
 
     <UiConfirmDialog />
+    <PwaUpdate />
   </div>
 </template>

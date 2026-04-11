@@ -1,6 +1,24 @@
 <script setup lang="ts">
-import { ChevronDown, ChevronRight, User } from "lucide-vue-next";
+import { ChevronDown, ChevronRight, User, X } from "lucide-vue-next";
 import { cn } from "~/lib/utils";
+
+type SidebarVariant = "desktop" | "mobile";
+
+interface Props {
+  variant?: SidebarVariant;
+  open?: boolean;
+}
+
+interface Emits {
+  (e: "close"): void;
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  variant: "desktop",
+  open: false,
+});
+
+const emit = defineEmits<Emits>();
 
 const {
   user,
@@ -18,15 +36,62 @@ const {
   navItems,
 } = useAppSidebar();
 
-const { isOwner, isAdmin, canApproveJobs } = useAuth();
+const isMobile = computed(() => props.variant === "mobile");
+
+const handleClose = (): void => {
+  if (isMobile.value) {
+    emit("close");
+  }
+};
+
+const handleOrgSwitchWithClose = async (orgId: string): Promise<void> => {
+  await handleOrgSwitch(orgId);
+  handleClose();
+};
+
+const handleLogoutWithClose = async (): Promise<void> => {
+  await handleLogout();
+  handleClose();
+};
+
+const sidebarClasses = computed(() =>
+  cn(
+    "fixed inset-y-0 left-0 bg-[#012D5A] text-white flex-col font-sans transition-transform duration-300 will-change-transform pb-[env(safe-area-inset-bottom)]",
+    isMobile.value
+      ? cn(
+          "lg:hidden flex z-[1100] w-72 max-w-[90vw] shadow-2xl pt-[env(safe-area-inset-top)]",
+          props.open ? "translate-x-0" : "-translate-x-full",
+        )
+      : "hidden lg:flex z-40 w-64 translate-x-0",
+  ),
+);
+
+const overlayClasses = computed(() =>
+  cn(
+    "fixed inset-0 bg-black/40 transition-opacity duration-200 lg:hidden",
+    props.open ? "opacity-100 z-[1090]" : "opacity-0 pointer-events-none",
+  ),
+);
 </script>
 
 <template>
-  <aside
-    class="fixed inset-y-0 left-0 z-40 w-64 bg-[#012D5A] text-white flex flex-col font-sans transition-all duration-300"
-  >
+  <div v-if="isMobile" :class="overlayClasses" @click="emit('close')"></div>
+
+  <aside :class="sidebarClasses">
     <!-- Logo / Organization Switcher -->
     <div class="px-4 py-4 mb-2">
+      <div v-if="isMobile" class="flex items-center justify-between mb-3">
+        <p class="text-sm font-medium text-white/90">Menu</p>
+        <button
+          type="button"
+          class="p-2 rounded-lg hover:bg-white/10 transition-colors"
+          @click="emit('close')"
+          aria-label="Close menu"
+        >
+          <X class="w-5 h-5" />
+        </button>
+      </div>
+
       <button
         @click="toggleOrgDropdown"
         class="flex items-center justify-between w-full px-3 py-2.5 bg-[#1e4a7a]/50 rounded-lg hover:bg-[#1e4a7a]/70 transition-colors border border-white/10"
@@ -51,13 +116,14 @@ const { isOwner, isAdmin, canApproveJobs } = useAuth();
       <!-- Org Dropdown -->
       <div
         v-if="isOrgDropdownOpen"
-        class="absolute top-16 left-4 w-56 bg-white text-slate-900 rounded-lg shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+        class="absolute top-16 left-4 w-56 bg-white text-slate-900 rounded-lg shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+        :class="isMobile ? 'z-[1120]' : 'z-50'"
       >
         <div class="py-1">
           <button
             v-for="org in organizations"
             :key="org.id"
-            @click="handleOrgSwitch(org.id)"
+            @click="handleOrgSwitchWithClose(org.id)"
             class="w-full text-left px-4 py-2 text-sm hover:bg-slate-100 transition-colors"
           >
             {{ org.name }}
@@ -70,7 +136,8 @@ const { isOwner, isAdmin, canApproveJobs } = useAuth();
       <div
         v-if="isOrgDropdownOpen"
         @click="isOrgDropdownOpen = false"
-        class="fixed inset-0 z-40 bg-transparent"
+        class="fixed inset-0 bg-transparent"
+        :class="isMobile ? 'z-[1110]' : 'z-40'"
       ></div>
     </div>
 
@@ -87,6 +154,7 @@ const { isOwner, isAdmin, canApproveJobs } = useAuth();
               : 'text-white/80 hover:bg-white/5 hover:text-white',
           )
         "
+        @click="handleClose"
       >
         <span>Dashboard</span>
       </NuxtLink>
@@ -120,12 +188,13 @@ const { isOwner, isAdmin, canApproveJobs } = useAuth();
               :to="child.href"
               :class="
                 cn(
-                  'block w-full text-left px-3 py-2 rounded-lg text-sm transition-colors',
+                  'block w-full text-left px-3 py-3 rounded-lg text-sm transition-colors mb-1 last:mb-0',
                   isActive(child.href)
                     ? 'bg-[#1e4a7a] text-white font-medium'
                     : 'text-white/70 hover:text-white hover:bg-white/5',
                 )
               "
+              @click="handleClose"
             >
               {{ child.title }}
             </NuxtLink>
@@ -137,12 +206,13 @@ const { isOwner, isAdmin, canApproveJobs } = useAuth();
           :to="item.href!"
           :class="
             cn(
-              'flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
+              'flex items-center justify-between px-3 py-3 rounded-lg text-sm font-medium transition-colors',
               isActive(item.href!)
                 ? 'bg-white/10 text-white'
                 : 'text-white/80 hover:bg-white/5 hover:text-white',
             )
           "
+          @click="handleClose"
         >
           <div class="flex items-center gap-3">
             <span>{{ item.title }}</span>
@@ -158,7 +228,8 @@ const { isOwner, isAdmin, canApproveJobs } = useAuth();
       <ClientOnly>
         <div
           v-if="isUserDropdownOpen"
-          class="absolute bottom-20 left-4 w-56 bg-white text-slate-900 rounded-lg shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200 border border-slate-200"
+          class="absolute bottom-20 left-4 w-56 bg-white text-slate-900 rounded-lg shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 border border-slate-200"
+          :class="isMobile ? 'z-[1120]' : 'z-50'"
         >
           <div class="p-2 border-b border-border">
             <p class="font-medium text-sm truncate px-2">{{ user?.name }}</p>
@@ -175,7 +246,7 @@ const { isOwner, isAdmin, canApproveJobs } = useAuth();
               <span>My Profile</span>
             </NuxtLink>
             <button
-              @click="handleLogout"
+              @click="handleLogoutWithClose"
               class="flex items-center gap-2 w-full px-2 py-2 text-sm rounded-md hover:bg-red-50 text-red-600 transition-colors"
             >
               <User class="w-4 h-4" />
@@ -188,7 +259,8 @@ const { isOwner, isAdmin, canApproveJobs } = useAuth();
         <div
           v-if="isUserDropdownOpen"
           @click="isUserDropdownOpen = false"
-          class="fixed inset-0 z-40 bg-transparent"
+          class="fixed inset-0 bg-transparent"
+          :class="isMobile ? 'z-[1110]' : 'z-40'"
         ></div>
 
         <button

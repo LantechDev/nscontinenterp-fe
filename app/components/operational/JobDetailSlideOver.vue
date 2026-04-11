@@ -225,11 +225,13 @@ const toggleItem = (itemId: string | number) => {
           @click="$emit('update:modelValue', false)"
         ></div>
 
-        <!-- Drawer Panel -->
-        <div class="slide-panel relative w-full max-w-5xl bg-white h-full shadow-2xl flex flex-col">
+        <!-- Drawer Panel with responsive width and safe area handling -->
+        <div
+          class="slide-panel relative w-full md:max-w-5xl bg-white h-full shadow-2xl flex flex-col pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]"
+        >
           <!-- Header -->
           <div
-            class="px-6 pt-5 pb-4 border-b border-border flex items-center justify-between shrink-0 bg-white z-20"
+            class="px-4 sm:px-6 pt-5 pb-4 border-b border-border flex items-center justify-between shrink-0 bg-white z-20"
           >
             <div class="flex items-center gap-2 text-sm text-muted-foreground font-medium">
               Job <span class="mx-1">›</span>
@@ -252,56 +254,62 @@ const toggleItem = (itemId: string | number) => {
           <div v-else-if="job" class="flex-1 flex flex-col min-h-0">
             <div class="flex-1 overflow-y-auto">
               <!-- Job Summary Header -->
-              <div class="px-8 py-6 pb-2">
-                <h2 class="text-2xl font-bold text-foreground mb-1">{{ job.jobNumber }}</h2>
-                <p class="text-sm text-muted-foreground mb-6">{{ getCustomerName }}</p>
+              <div class="px-5 sm:px-8 py-6 pb-2">
+                <h2 class="text-xl sm:text-2xl font-bold text-foreground mb-1">
+                  {{ job.jobNumber }}
+                </h2>
+                <p class="text-xs sm:text-sm text-muted-foreground mb-6">{{ getCustomerName }}</p>
 
-                <div class="grid grid-cols-[140px_1fr] gap-y-3 text-sm">
+                <div class="grid grid-cols-1 sm:grid-cols-[140px_1fr] gap-x-4 gap-y-3 text-sm">
                   <div class="flex items-center gap-2 text-muted-foreground">
-                    <Calendar class="w-4 h-4" /> Created Time
+                    <Calendar class="w-4 h-4 shrink-0" />
+                    <span class="whitespace-nowrap">Created Time</span>
                   </div>
-                  <div class="font-medium">{{ formatDateTime(job.createdAt) }}</div>
+                  <div class="font-medium pl-6 sm:pl-0">{{ formatDateTime(job.createdAt) }}</div>
 
                   <div class="flex items-center gap-2 text-muted-foreground">
-                    <Settings class="w-4 h-4" /> Status
+                    <Settings class="w-4 h-4 shrink-0" />
+                    <span class="whitespace-nowrap">Status</span>
                   </div>
-                  <div>
+                  <div class="pl-6 sm:pl-0">
                     <span
-                      class="inline-flex items-center px-3 py-1 rounded-md text-xs font-bold leading-none bg-yellow-100 text-yellow-800 border border-yellow-200"
+                      class="inline-flex items-center px-3 py-1 rounded-md text-[10px] sm:text-xs font-bold leading-none bg-yellow-100 text-yellow-800 border border-yellow-200 uppercase"
                     >
                       {{ getStatusName }}
                     </span>
                   </div>
 
                   <div class="flex items-center gap-2 text-muted-foreground">
-                    <CheckCircle2 class="w-4 h-4" /> Job Type
+                    <CheckCircle2 class="w-4 h-4 shrink-0" />
+                    <span class="whitespace-nowrap">Job Type</span>
                   </div>
-                  <div>
+                  <div class="pl-6 sm:pl-0">
                     <span
-                      class="inline-flex items-center px-3 py-1 rounded-md text-xs font-bold leading-none bg-blue-50 text-blue-700 border border-blue-200"
+                      class="inline-flex items-center px-3 py-1 rounded-md text-[10px] sm:text-xs font-bold leading-none bg-blue-50 text-blue-700 border border-blue-200 uppercase"
                     >
                       {{ getJobTypeName }}
                     </span>
                   </div>
 
                   <div class="flex items-center gap-2 text-muted-foreground">
-                    <CalendarClock class="w-4 h-4" /> ETD - ETA
+                    <CalendarClock class="w-4 h-4 shrink-0" />
+                    <span class="whitespace-nowrap">ETD - ETA</span>
                   </div>
-                  <div class="font-medium">
+                  <div class="font-medium pl-6 sm:pl-0 whitespace-nowrap overflow-x-auto">
                     {{ formatDate(job.etd) }} - {{ formatDate(job.eta) }}
                   </div>
                 </div>
               </div>
 
-              <!-- Tabs -->
+              <!-- Tabs with horizontal scrolling for mobile -->
               <div
-                class="px-8 mt-6 pt-4 border-b border-border flex gap-6 sticky top-0 bg-white z-10"
+                class="px-5 sm:px-8 mt-6 pt-4 border-b border-border flex gap-4 sm:gap-6 sticky top-0 bg-white z-10 overflow-x-auto scrollbar-hide"
               >
                 <button
                   v-for="tab in tabs"
                   :key="tab.id"
                   @click="activeTab = tab.id"
-                  class="pb-3 text-sm font-medium transition-colors relative"
+                  class="pb-3 text-xs sm:text-sm font-semibold transition-colors relative shrink-0 whitespace-nowrap"
                   :class="
                     activeTab === tab.id
                       ? 'text-[#012D5A]'
@@ -317,12 +325,15 @@ const toggleItem = (itemId: string | number) => {
               </div>
 
               <!-- Tab Content -->
-              <div class="p-8">
+              <div class="px-5 sm:p-8 py-8 sm:py-8">
                 <!-- Overview Tab -->
                 <div v-if="activeTab === 'overview'" class="space-y-8 animate-fade-in">
                   <section>
-                    <h3 class="text-base font-bold">Shipments Details</h3>
-                    <div class="grid grid-cols-2 gap-x-8 gap-y-6 mt-6">
+                    <h3 class="text-base font-bold flex items-center gap-2">
+                      <LayoutList class="w-4 h-4 text-[#012D5A]" />
+                      Shipments Details
+                    </h3>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-6 mt-6">
                       <div class="flex gap-4 items-center">
                         <div
                           class="w-10 h-10 rounded-full bg-blue-50/80 flex items-center justify-center text-[#012D5A] shrink-0 border border-blue-100"
@@ -520,8 +531,11 @@ const toggleItem = (itemId: string | number) => {
 
                   <!-- Involved Parties -->
                   <section>
-                    <h3 class="text-base font-bold">Involved Parties</h3>
-                    <div class="grid grid-cols-2 gap-4 mt-4">
+                    <h3 class="text-base font-bold flex items-center gap-2 mb-4">
+                      <Building2 class="w-4 h-4 text-[#012D5A]" />
+                      Involved Parties
+                    </h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                       <div
                         v-for="party in job.jobParties"
                         :key="party.id"

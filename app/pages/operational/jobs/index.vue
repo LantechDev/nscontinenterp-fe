@@ -83,14 +83,16 @@ watch(
 <template>
   <div class="space-y-6 animate-fade-in pb-10 p-6">
     <!-- Page header -->
-    <div class="flex items-center justify-between">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
       <div>
-        <h1 class="text-2xl font-bold">Job / Shipment</h1>
-        <p class="text-muted-foreground mt-1">Manage job and shipment</p>
+        <h1 class="text-xl sm:text-2xl font-bold">Job / Shipment</h1>
+        <p class="text-xs sm:text-sm text-muted-foreground mt-0.5 sm:mt-1">
+          Manage job and shipment
+        </p>
       </div>
 
-      <div class="flex items-center gap-2">
-        <div class="flex items-center bg-white border border-border rounded-lg p-1 mr-2">
+      <div class="flex items-center justify-between sm:justify-end gap-2 shrink-0">
+        <div class="flex items-center bg-white border border-border rounded-lg p-1">
           <button
             @click="viewMode = 'list'"
             :class="
@@ -101,6 +103,7 @@ watch(
                   : 'text-muted-foreground hover:bg-muted',
               )
             "
+            title="List View"
           >
             <LayoutList class="w-4 h-4" />
           </button>
@@ -114,16 +117,27 @@ watch(
                   : 'text-muted-foreground hover:bg-muted',
               )
             "
+            title="Grid View"
           >
             <LayoutGrid class="w-4 h-4" />
           </button>
         </div>
+
+        <NuxtLink
+          to="/operational/jobs/create"
+          class="sm:hidden flex items-center justify-center w-9 h-9 bg-[#012D5A] text-white rounded-lg transition-colors"
+          title="New Job"
+        >
+          <Plus class="w-5 h-5" />
+        </NuxtLink>
       </div>
     </div>
 
     <!-- Filters -->
-    <div class="flex items-center justify-between gap-4">
-      <div class="relative w-full max-w-sm">
+    <div
+      class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-4"
+    >
+      <div class="relative flex-1">
         <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
         <input
           v-model="searchQuery"
@@ -133,10 +147,10 @@ watch(
         />
       </div>
 
-      <div class="flex items-center gap-3">
+      <div class="hidden sm:flex items-center gap-3">
         <NuxtLink
           to="/operational/jobs/create"
-          class="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-[#012D5A] text-white hover:bg-[#012D5A]/90 rounded-lg transition-colors min-w-fit whitespace-nowrap"
+          class="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-[#012D5A] text-white hover:bg-[#012D5A]/90 rounded-lg transition-colors"
         >
           <Plus class="w-4 h-4" />
           <span>Open New Job</span>
@@ -153,17 +167,24 @@ watch(
       class="border border-border rounded-xl bg-white overflow-hidden"
     >
       <div class="overflow-x-auto">
-        <table class="w-full">
+        <table class="w-full border-collapse">
           <thead>
-            <tr class="border-b border-border bg-white text-left">
-              <th class="py-3 px-4 text-sm font-medium text-foreground">No. Job</th>
-              <th class="py-3 px-4 text-sm font-medium text-foreground">Komoditas</th>
-              <th class="py-3 px-4 text-sm font-medium text-foreground">Rute</th>
-              <th class="py-3 px-4 text-sm font-medium text-foreground">ETA</th>
-              <th class="py-3 px-4 text-sm font-medium text-foreground">Status</th>
+            <tr class="border-b border-border bg-gray-50/50 text-left">
+              <th class="py-3 px-4 text-sm font-semibold text-foreground">No. Job</th>
+              <th class="py-3 px-4 text-sm font-semibold text-foreground hidden md:table-cell">
+                Komoditas
+              </th>
+              <th class="py-3 px-4 text-sm font-semibold text-foreground">Rute</th>
+              <th
+                class="py-3 px-4 text-sm font-semibold text-foreground hidden sm:table-cell text-center"
+              >
+                ETA
+              </th>
+              <th class="py-3 px-4 text-sm font-semibold text-foreground text-center">Status</th>
               <th class="py-3 px-4 w-10"></th>
             </tr>
           </thead>
+
           <tbody>
             <tr
               v-for="job in filteredJobs"
@@ -179,31 +200,38 @@ watch(
                   <span class="text-sm font-medium">{{ job.jobNumber }}</span>
                 </div>
               </td>
-              <td class="py-3 px-4 text-sm max-w-xs truncate" :title="job.commodity">
-                {{ job.commodity }}
+              <td
+                class="py-3 px-4 text-sm hidden md:table-cell max-w-xs truncate"
+                :title="job.commodity"
+              >
+                {{ job.commodity || "-" }}
               </td>
               <td class="py-3 px-4">
                 <div class="flex flex-col text-sm">
-                  <span class="flex items-center gap-1 font-medium">
+                  <span
+                    class="flex items-center gap-1 font-medium truncate max-w-[100px] sm:max-w-none"
+                  >
                     {{ job.pol }}
                   </span>
-                  <span class="flex items-center gap-1 text-muted-foreground text-xs">
-                    <ArrowRight class="w-3 h-3" /> {{ job.pod }}
+                  <span
+                    class="flex items-center gap-1 text-muted-foreground text-[10px] sm:text-xs"
+                  >
+                    <ArrowRight class="w-2.5 h-2.5 sm:w-3 h-3" /> {{ job.pod }}
                   </span>
                 </div>
               </td>
-              <td class="py-3 px-4">
-                <div class="flex items-center gap-2 text-sm text-gray-600">
+              <td class="py-3 px-4 hidden sm:table-cell">
+                <div class="flex items-center justify-center gap-2 text-sm text-gray-600">
                   <Calendar class="w-3 h-3" />
                   {{ job.eta || "-" }}
                 </div>
               </td>
               <td class="py-3 px-4">
-                <div class="flex flex-col gap-1 items-start">
+                <div class="flex flex-col gap-1 items-center">
                   <span
                     :class="
                       cn(
-                        'px-2 py-0.5 rounded border text-xs font-medium',
+                        'px-2 py-0.5 rounded border text-[10px] font-bold uppercase tracking-tight',
                         getStatusClass(job.status?.code),
                       )
                     "
@@ -212,10 +240,10 @@ watch(
                   </span>
                   <span
                     v-if="job.billsOfLading?.some((bl) => bl.status?.code === 'PENDING_APPROVAL')"
-                    class="px-2 py-0.5 rounded border border-amber-200 bg-amber-50 text-amber-700 text-[10px] font-bold flex items-center gap-1 shadow-sm"
+                    class="px-1.5 py-0.5 rounded border border-amber-200 bg-amber-50 text-amber-700 text-[8px] font-extrabold flex items-center gap-1 shadow-sm shrink-0 whitespace-nowrap"
                   >
-                    <div class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
-                    PENDING BL APPROVAL
+                    <div class="w-1 h-1 rounded-full bg-amber-500 animate-pulse" />
+                    APPROVE BL
                   </span>
                 </div>
               </td>
