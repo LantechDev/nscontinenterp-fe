@@ -19,30 +19,12 @@ onMounted(async () => {
 const searchQuery = ref("");
 const selectedStatus = ref<string>("all");
 
-// Format currency
-const formatPrice = (price: number | null | undefined): string => {
-  if (!price) return "Rp 0";
-  return new Intl.NumberFormat("id-ID", {
-    style: "currency",
-    currency: "IDR",
-    minimumFractionDigits: 0,
-  }).format(price);
-};
-
-// Parse price input
-const parsePrice = (value: string): number => {
-  const cleaned = value.replace(/[^\d]/g, "");
-  return parseInt(cleaned) || 0;
-};
-
 // Transform API services to view format with filtering
 const services = computed(() => {
   let filtered = servicesList.value.map((s: Service) => ({
     id: s.id,
     name: s.name,
     code: s.code,
-    price: formatPrice(s.customerPrice),
-    rawPrice: s.customerPrice || 0,
     unit: s.unit?.name || "-",
     unitId: s.unit?.id || "",
     selected: false,
@@ -81,9 +63,6 @@ const sortedServices = computed(() => {
         break;
       case "code":
         comparison = a.code.localeCompare(b.code);
-        break;
-      case "price":
-        comparison = a.rawPrice - b.rawPrice;
         break;
       case "status":
         comparison = a.status.localeCompare(b.status);
@@ -124,10 +103,6 @@ const openCreateModal = () => {
 const handleCreateService = async (formData: {
   name: string;
   code: string;
-  vendorPrice: string;
-  customerPrice: string;
-  currency: string;
-  taxRate: string;
   status: string;
   unitId: string;
   categoryId: string;
@@ -144,10 +119,6 @@ const handleCreateService = async (formData: {
   const serviceData = {
     name: formData.name,
     code: formData.code,
-    vendorPrice: parsePrice(formData.vendorPrice),
-    customerPrice: parsePrice(formData.customerPrice),
-    currency: formData.currency,
-    taxRate: parseFloat(formData.taxRate) || 0,
     unitId: formData.unitId || undefined,
     categoryId: formData.categoryId || undefined,
     isActive: formData.status === "Active",

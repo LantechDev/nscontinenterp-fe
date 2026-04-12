@@ -6,7 +6,6 @@ interface ServiceItem {
   id: string;
   name: string;
   code: string;
-  price: string;
   unit: string;
   status: string;
 }
@@ -48,9 +47,6 @@ const handleClick = (id: string) => {
       </div>
 
       <div class="space-y-1 mb-6">
-        <div class="flex items-baseline gap-1">
-          <span class="text-lg font-bold text-foreground">{{ service.price }}</span>
-        </div>
         <p class="text-xs text-muted-foreground">{{ service.unit }}</p>
       </div>
 

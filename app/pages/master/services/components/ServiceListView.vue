@@ -6,8 +6,6 @@ interface ServiceItem {
   id: string;
   name: string;
   code: string;
-  price: string;
-  rawPrice: number;
   unit: string;
   unitId: string;
   selected: boolean;
@@ -77,19 +75,6 @@ const handleRowClick = (id: string) => {
                 />
               </div>
             </th>
-            <th
-              class="py-3 px-4 text-sm font-medium text-foreground cursor-pointer hover:bg-muted/50"
-              @click="toggleSort('price')"
-            >
-              <div class="flex items-center gap-1">
-                Price
-                <ChevronDown
-                  v-if="sortField === 'price'"
-                  class="w-4 h-4"
-                  :class="{ 'rotate-180': sortDirection === 'desc' }"
-                />
-              </div>
-            </th>
             <th class="py-3 px-4 text-sm font-medium text-foreground">Unit</th>
             <th
               class="py-3 px-4 text-sm font-medium text-foreground cursor-pointer hover:bg-muted/50"
@@ -123,7 +108,6 @@ const handleRowClick = (id: string) => {
             </td>
             <td class="py-3 px-4 text-sm font-medium">{{ service.code }}</td>
             <td class="py-3 px-4 text-sm font-medium">{{ service.name }}</td>
-            <td class="py-3 px-4 text-sm font-medium">{{ service.price }}</td>
             <td class="py-3 px-4 text-sm text-muted-foreground">{{ service.unit }}</td>
             <td class="py-3 px-4">
               <span
@@ -146,7 +130,7 @@ const handleRowClick = (id: string) => {
             </td>
           </tr>
           <tr v-if="services.length === 0">
-            <td colspan="7" class="py-8 text-center text-muted-foreground">No services found</td>
+            <td colspan="6" class="py-8 text-center text-muted-foreground">No services found</td>
           </tr>
         </tbody>
       </table>
