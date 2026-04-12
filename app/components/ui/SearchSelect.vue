@@ -1,7 +1,6 @@
 <script setup lang="ts">
-import { Check, ChevronsUpDown, Loader2 } from "lucide-vue-next";
 import { onClickOutside, useDebounceFn } from "@vueuse/core";
-import { cn } from "~/lib/utils";
+import { Check, ChevronsUpDown, Loader2 } from "lucide-vue-next";
 
 export interface SearchSelectOption {
   id: string;
@@ -202,7 +201,7 @@ defineExpose({
     <Teleport to="body">
       <div
         v-if="open"
-        class="fixed z-[100] mt-1 max-h-60 w-full overflow-auto rounded-md border bg-popover text-popover-foreground shadow-lg animate-in fade-in-0 zoom-in-95"
+        class="fixed z-[1200] mt-1 max-h-60 w-full overflow-auto rounded-md border bg-popover text-popover-foreground shadow-lg animate-in fade-in-0 zoom-in-95"
         :style="dropdownStyle"
       >
         <div class="flex items-center border-b px-3 sticky top-0 bg-popover">

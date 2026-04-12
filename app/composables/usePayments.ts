@@ -56,6 +56,7 @@ export interface CreatePaymentPayload {
   amount: number;
   paymentDate: string;
   paymentMethodId?: string;
+  taxId?: string;
   reference?: string;
   notes?: string;
   useFifo?: boolean;

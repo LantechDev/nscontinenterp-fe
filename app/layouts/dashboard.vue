@@ -9,12 +9,13 @@ import {
   CreditCard,
   Wrench,
   Anchor,
-  FileCheck,
 } from "lucide-vue-next";
 import { useRouter, useRoute } from "#app";
 
 const router = useRouter();
 const route = useRoute();
+const { notifications, fetchNotifications } = useDashboard();
+const { canAccessPath, ensureRolesLoaded } = useRoleAccess();
 
 // Check route meta to show/hide header
 const showHeader = computed(() => route.meta.hideHeader !== true);
@@ -27,7 +28,7 @@ const currentTime = ref("");
 const searchQuery = ref("");
 const searchResults = ref<
   {
-    type: "job" | "company" | "invoice" | "payment" | "service" | "vessel" | "quotation";
+    type: "job" | "company" | "invoice" | "payment" | "service" | "vessel";
     id: string;
     title: string;
     subtitle: string;
@@ -37,7 +38,41 @@ const isSearching = ref(false);
 const showDropdown = ref(false);
 const searchInputRef = ref<HTMLInputElement | null>(null);
 const searchContainerRef = ref<HTMLElement | null>(null);
+const notificationContainerRef = ref<HTMLElement | null>(null);
+const showNotifications = ref(false);
+const isNotificationsLoading = ref(false);
+const hasFetchedNotifications = ref(false);
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+const canViewActivityLogs = computed(() => canAccessPath("/settings/activity-logs"));
+
+const formatNotificationTime = (value: string) => {
+  const date = new Date(value);
+  const diffMs = Date.now() - date.getTime();
+  const diffMinutes = Math.max(1, Math.floor(diffMs / 60000));
+
+  if (diffMinutes < 60) {
+    return `${diffMinutes}m ago`;
+  }
+
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) {
+    return `${diffHours}h ago`;
+  }
+
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays < 7) {
+    return `${diffDays}d ago`;
+  }
+
+  return new Intl.DateTimeFormat("id-ID", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+};
 
 const updateDateTime = () => {
   const now = new Date();
@@ -66,7 +101,7 @@ const performSearch = async (query: string) => {
   try {
     const config = useRuntimeConfig();
     const results: {
-      type: "job" | "company" | "invoice" | "payment" | "service" | "vessel" | "quotation";
+      type: "job" | "company" | "invoice" | "payment" | "service" | "vessel";
       id: string;
       title: string;
       subtitle: string;
@@ -285,43 +320,6 @@ const performSearch = async (query: string) => {
       // Ignore vessel search errors
     }
 
-    // Search quotations (filter client-side since API may not support search)
-    try {
-      const quotationsResponse = await $fetch<
-        { id: string; quotationNumber: string; customer?: { name: string } | string }[]
-      >(`${config.public.apiBase}/marketing/quotations`, {
-        credentials: "include",
-      });
-      if (quotationsResponse && Array.isArray(quotationsResponse)) {
-        const queryLower = query.toLowerCase();
-        const filteredQuotations = quotationsResponse
-          .filter((quotation) => {
-            const customerName =
-              typeof quotation.customer === "object"
-                ? quotation.customer?.name
-                : quotation.customer;
-            return (
-              quotation.quotationNumber?.toLowerCase().includes(queryLower) ||
-              customerName?.toLowerCase().includes(queryLower)
-            );
-          })
-          .slice(0, 5);
-
-        filteredQuotations.forEach((quotation) => {
-          const customerName =
-            typeof quotation.customer === "object" ? quotation.customer?.name : quotation.customer;
-          results.push({
-            type: "quotation",
-            id: quotation.id,
-            title: quotation.quotationNumber,
-            subtitle: customerName || "Quotation",
-          });
-        });
-      }
-    } catch {
-      // Ignore quotation search errors
-    }
-
     searchResults.value = results;
     showDropdown.value = results.length > 0;
   } catch {
@@ -376,10 +374,47 @@ const handleResultClick = (result: { type: string; id: string }) => {
     case "vessel":
       router.push(`/master/vessel?id=${result.id}`);
       break;
-    case "quotation":
-      router.push(`/sales/quotation/${result.id}`);
+    default:
+      break;
+  }
+};
+
+const toggleNotifications = async () => {
+  showNotifications.value = !showNotifications.value;
+
+  if (!showNotifications.value || hasFetchedNotifications.value) {
+    return;
+  }
+
+  isNotificationsLoading.value = true;
+  try {
+    await fetchNotifications();
+    hasFetchedNotifications.value = true;
+  } finally {
+    isNotificationsLoading.value = false;
+  }
+};
+
+const handleNotificationClick = (notification: { targetModel: string; targetId: string }) => {
+  showNotifications.value = false;
+
+  switch (notification.targetModel) {
+    case "Job":
+      router.push(`/operational/jobs/${notification.targetId}`);
+      break;
+    case "Company":
+      router.push(`/master/company?id=${notification.targetId}`);
+      break;
+    case "Invoice":
+      router.push(`/finance/invoice/${notification.targetId}`);
+      break;
+    case "Payment":
+      router.push(`/finance/payment/${notification.targetId}`);
       break;
     default:
+      if (canViewActivityLogs.value) {
+        router.push("/settings/activity-logs");
+      }
       break;
   }
 };
@@ -389,11 +424,15 @@ const handleClickOutside = (event: MouseEvent) => {
   if (searchContainerRef.value && !searchContainerRef.value.contains(target)) {
     showDropdown.value = false;
   }
+  if (notificationContainerRef.value && !notificationContainerRef.value.contains(target)) {
+    showNotifications.value = false;
+  }
 };
 
 onMounted(() => {
   updateDateTime();
   setInterval(updateDateTime, 60000);
+  ensureRolesLoaded();
   document.addEventListener("click", handleClickOutside);
 });
 
@@ -470,7 +509,6 @@ onUnmounted(() => {
                       'bg-amber-50': result.type === 'payment',
                       'bg-cyan-50': result.type === 'service',
                       'bg-indigo-50': result.type === 'vessel',
-                      'bg-rose-50': result.type === 'quotation',
                     }"
                   >
                     <Briefcase v-if="result.type === 'job'" class="w-4 h-4 text-blue-600" />
@@ -488,10 +526,6 @@ onUnmounted(() => {
                     />
                     <Wrench v-else-if="result.type === 'service'" class="w-4 h-4 text-cyan-600" />
                     <Anchor v-else-if="result.type === 'vessel'" class="w-4 h-4 text-indigo-600" />
-                    <FileCheck
-                      v-else-if="result.type === 'quotation'"
-                      class="w-4 h-4 text-rose-600"
-                    />
                   </div>
                   <div class="flex-1 min-w-0">
                     <p class="text-sm font-medium text-gray-900 truncate">
@@ -508,10 +542,81 @@ onUnmounted(() => {
         </ClientOnly>
 
         <div class="flex items-center gap-4">
-          <button class="relative p-2 rounded-lg hover:bg-gray-100 transition-colors">
-            <Bell class="w-5 h-5 text-gray-500" />
-            <span class="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
-          </button>
+          <div ref="notificationContainerRef" class="relative">
+            <button
+              class="relative p-2 rounded-lg hover:bg-gray-100 transition-colors"
+              @click.stop="toggleNotifications"
+            >
+              <Bell class="w-5 h-5 text-gray-500" />
+              <span
+                v-if="notifications.length > 0"
+                class="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"
+              ></span>
+            </button>
+
+            <div
+              v-if="showNotifications"
+              class="absolute right-0 top-full mt-2 w-[360px] overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl"
+            >
+              <div class="flex items-center justify-between border-b border-gray-100 px-4 py-3">
+                <div>
+                  <p class="text-sm font-semibold text-gray-900">Notifications</p>
+                  <p class="text-xs text-gray-500">Recent dashboard activities</p>
+                </div>
+                <button
+                  v-if="canViewActivityLogs"
+                  class="text-xs font-medium text-[#012D5A] hover:underline"
+                  @click="
+                    showNotifications = false;
+                    router.push('/settings/activity-logs');
+                  "
+                >
+                  View all
+                </button>
+              </div>
+
+              <div
+                v-if="isNotificationsLoading"
+                class="px-4 py-6 text-center text-sm text-gray-500"
+              >
+                Loading notifications...
+              </div>
+
+              <div
+                v-else-if="notifications.length === 0"
+                class="px-4 py-6 text-center text-sm text-gray-500"
+              >
+                No recent notifications
+              </div>
+
+              <div v-else class="max-h-[420px] overflow-y-auto">
+                <button
+                  v-for="notification in notifications"
+                  :key="notification.id"
+                  class="flex w-full gap-3 border-b border-gray-100 px-4 py-3 text-left transition-colors last:border-b-0 hover:bg-gray-50"
+                  @click="handleNotificationClick(notification)"
+                >
+                  <div class="mt-1 size-2 shrink-0 rounded-full bg-[#012D5A]"></div>
+                  <div class="min-w-0 flex-1">
+                    <div class="flex items-start justify-between gap-3">
+                      <p class="truncate text-sm font-medium text-gray-900">
+                        {{ notification.title }}
+                      </p>
+                      <span class="shrink-0 text-[11px] text-gray-400">
+                        {{ formatNotificationTime(notification.createdAt) }}
+                      </span>
+                    </div>
+                    <p class="mt-1 text-xs text-gray-500">
+                      {{ notification.description }}
+                    </p>
+                    <p class="mt-1 text-[11px] font-medium text-gray-400">
+                      {{ notification.actorName }}
+                    </p>
+                  </div>
+                </button>
+              </div>
+            </div>
+          </div>
           <div class="text-right">
             <p class="text-sm font-medium text-gray-900">{{ currentDate }}</p>
             <p class="text-xs text-gray-500">{{ currentTime }}</p>

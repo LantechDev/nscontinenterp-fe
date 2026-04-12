@@ -7,6 +7,9 @@ import {
 import { useCompanies } from "./useCompanies";
 import { useJobs } from "./useJobs";
 import { useConfirm } from "./useConfirm";
+import { useFinanceTax } from "./useFinanceTax";
+import { useServices } from "./useServices";
+import { toast } from "vue-sonner";
 
 // Pure helper functions outside composable
 export const formatDate = (dateStr: string) => {
@@ -45,6 +48,7 @@ export interface ExpenseFormData {
   categoryId: string;
   vendorId: string;
   jobId: string;
+  taxId: string;
   notes: string;
 }
 
@@ -59,21 +63,14 @@ export interface ExpenseData {
   categoryId?: string;
   vendorId?: string;
   jobId?: string;
+  taxId?: string;
   category?: { id: string; name: string };
   vendor?: { id: string; name: string };
   job?: { id: string; jobNumber: string };
   notes?: string;
 }
 
-export const categoryOptions = [
-  { value: "", label: "Pilih Kategori" },
-  { value: "trucking", label: "Trucking" },
-  { value: "port", label: "Port" },
-  { value: "customs", label: "Customs" },
-  { value: "handling", label: "Handling" },
-  { value: "storage", label: "Storage" },
-  { value: "other", label: "Lainnya" },
-];
+// categoryOptions is now dynamically populated from the API (ServiceCategory model)
 
 export function useExpensePage() {
   const {
@@ -86,6 +83,8 @@ export function useExpensePage() {
   const { confirm } = useConfirm();
   const { companies, fetchCompanies } = useCompanies();
   const { jobs, fetchJobs } = useJobs();
+  const { fetchTaxes } = useFinanceTax();
+  const { fetchCategories } = useServices();
 
   // Filters & Pagination
   const filters = ref<ExpenseFilters>({
@@ -124,8 +123,18 @@ export function useExpensePage() {
     categoryId: "",
     vendorId: "",
     jobId: "",
+    taxId: "",
     notes: "",
   });
+
+  const taxOptions = ref<Array<{ id: string; name: string; rate: number }>>([]);
+
+  // Dynamic category options fetched from the API
+  const serviceCategoryList = ref<Array<{ id: string; name: string }>>([]);
+  const categoryOptions = computed(() => [
+    { value: "", label: "Pilih Kategori" },
+    ...serviceCategoryList.value.map((cat) => ({ value: cat.id, label: cat.name })),
+  ]);
 
   // Computed
   const isLoading = computed(() => isExpenseLoading.value);
@@ -160,7 +169,16 @@ export function useExpensePage() {
 
   // Load dropdown data
   const loadDropdownData = async () => {
-    await Promise.all([fetchCompanies({ type: "VENDOR" }), fetchJobs()]);
+    const [_, __, taxes, catResult] = await Promise.all([
+      fetchCompanies({ type: "VENDOR" }),
+      fetchJobs(),
+      fetchTaxes({ isActive: true, limit: 100 }),
+      fetchCategories(),
+    ]);
+    taxOptions.value = taxes?.items || [];
+    if (catResult.success && catResult.data) {
+      serviceCategoryList.value = catResult.data.map((c) => ({ id: c.id, name: c.name }));
+    }
   };
 
   // Handle page change
@@ -193,6 +211,7 @@ export function useExpensePage() {
         categoryId: exp.categoryId || "",
         vendorId: exp.vendor?.id || exp.vendorId || "",
         jobId: exp.job?.id || exp.jobId || "",
+        taxId: exp.taxId || "",
         notes: exp.notes || "",
       };
 
@@ -226,6 +245,7 @@ export function useExpensePage() {
         categoryId: formData.value.categoryId || undefined,
         vendorId: formData.value.vendorId || undefined,
         jobId: formData.value.jobId || undefined,
+        taxId: formData.value.taxId || undefined,
         notes: formData.value.notes,
       });
 
@@ -262,14 +282,14 @@ export function useExpensePage() {
         loadExpenses();
       } catch (error) {
         console.error("Failed to delete expense:", error);
-        alert("Gagal menghapus biaya. Silakan coba lagi.");
+        toast.error("Gagal menghapus biaya. Silakan coba lagi.");
       }
     }
   };
 
   // Initialize
-  const initialize = () => {
-    loadExpenses();
+  const initialize = async () => {
+    await Promise.all([loadExpenses(), loadDropdownData()]);
   };
 
   return {
@@ -284,6 +304,7 @@ export function useExpensePage() {
     editError,
     editingExpenseId,
     formData,
+    taxOptions,
     // Options
     categoryOptions,
     companies,

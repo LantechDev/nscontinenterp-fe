@@ -152,6 +152,7 @@ export function useFinanceDashboardAssets() {
     date: string;
     serviceId?: string;
     companyId?: string;
+    taxId?: string;
   }): Promise<AssetItem | null> {
     try {
       const result = await $fetch<AssetItem>(`${baseUrl}/finance/dashboard/assets`, {

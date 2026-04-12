@@ -14,11 +14,13 @@ const props = defineProps<{
     categoryId: string;
     vendorId: string;
     jobId: string;
+    taxId: string;
     notes: string;
   };
   categoryOptions: Array<{ value: string; label: string }>;
   companies: Array<{ id: string; name: string }>;
   jobs: Array<{ id: string; jobNumber: string }>;
+  taxOptions: Array<{ id: string; name: string; rate: number }>;
 }>();
 
 const emit = defineEmits<{
@@ -37,7 +39,7 @@ const { formatDateForInput } = useExpensePage();
 
       <!-- Modal Content -->
       <div
-        class="relative bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto"
+        class="relative bg-white rounded-xl shadow-xl w-full max-w-3xl mx-4 max-h-[90vh] overflow-y-auto"
       >
         <!-- Modal Header -->
         <div class="flex items-center justify-between p-6 border-b border-border">
@@ -145,6 +147,19 @@ const { formatDateForInput } = useExpensePage();
             >
               <option v-for="opt in categoryOptions" :key="opt.value" :value="opt.value">
                 {{ opt.label }}
+              </option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium mb-1">Pajak</label>
+            <select
+              v-model="formData.taxId"
+              class="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
+            >
+              <option value="">Tanpa Pajak</option>
+              <option v-for="tax in taxOptions" :key="tax.id" :value="tax.id">
+                {{ tax.name }} ({{ tax.rate }}%)
               </option>
             </select>
           </div>

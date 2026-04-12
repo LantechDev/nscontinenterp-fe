@@ -11,7 +11,7 @@ import { useServices } from "./useServices";
 export function useFinanceDashboardPageData() {
   // Shared dashboard
   const dashboard = useFinanceDashboard();
-  const { isLoading, error, jobCosts, pagination } = dashboard;
+  const { isLoading, error } = dashboard;
 
   // Companies & services
   const { companies, fetchCompanies } = useCompanies();
@@ -20,15 +20,13 @@ export function useFinanceDashboardPageData() {
   const isLoadingServices = ref(false);
 
   // Data fetching
-  async function fetchDataForTab(tab: TabName, period: PeriodType) {
+  // eslint-disable-next-line unicorn/consistent-function-scoping
+  async function fetchDataForTab(tab: TabName, _period: PeriodType) {
     switch (tab) {
       case "Overview": {
         // Overview data is fetched in useFinanceDashboardPageOverview
         break;
       }
-      case "COGS":
-        await dashboard.fetchAll(period, /* filters.getCogsFilters() */ {});
-        break;
       case "Transaction":
         // Transaction data is fetched in useFinanceDashboardPageTransactions
         break;
@@ -65,8 +63,6 @@ export function useFinanceDashboardPageData() {
     // State
     isLoading,
     error,
-    jobCosts,
-    pagination,
     companies,
     services,
     isLoadingCustomers,

@@ -3,6 +3,8 @@ import { ArrowUpDown, Search, ChevronDown, CheckCircle } from "lucide-vue-next";
 import { cn, formatRupiah } from "~/lib/utils";
 import type { StatCardData } from "~/types/finance";
 import { usePayments } from "~/composables/usePayments";
+import { useFinanceTax } from "~/composables/useFinanceTax";
+import SearchSelect from "~/components/ui/SearchSelect.vue";
 
 export interface ArApItem {
   id: string;
@@ -168,16 +170,19 @@ const getAgingLabel = (aging: number | null): string => {
 
 // Payment modal state
 const { createPayment, isLoading: isPaymentLoading } = usePayments();
+const { fetchTaxes } = useFinanceTax();
 const showPaymentModal = ref(false);
 const selectedInvoice = ref<ArApItem | null>(null);
 const paymentError = ref<string | null>(null);
 const paymentSuccess = ref(false);
+const taxOptions = ref<Array<{ id: string; name: string; rate: number }>>([]);
 
 // Payment form data
 interface PaymentFormData {
   amount: number;
   paymentDate: string;
   paymentMethodId: string;
+  taxId: string;
   reference: string;
   notes: string;
 }
@@ -190,6 +195,7 @@ const paymentForm = ref<PaymentFormData>({
   amount: 0,
   paymentDate: getCurrentDateString(),
   paymentMethodId: "",
+  taxId: "",
   reference: "",
   notes: "",
 });
@@ -202,12 +208,21 @@ const paymentMethods = [
   { id: "credit_card", name: "Credit Card" },
 ];
 
+// Computed for SearchSelect options
+const paymentMethodOptions = computed(() =>
+  paymentMethods.map((method) => ({ id: method.id, name: method.name })),
+);
+const formattedTaxOptions = computed(() =>
+  taxOptions.value.map((tax) => ({ id: tax.id, name: `${tax.name} (${tax.rate}%)` })),
+);
+
 function openPaymentModal(item: ArApItem) {
   selectedInvoice.value = item;
   paymentForm.value = {
     amount: item.remaining,
     paymentDate: getCurrentDateString(),
     paymentMethodId: "",
+    taxId: "",
     reference: "",
     notes: "",
   };
@@ -234,6 +249,7 @@ async function submitPayment() {
     amount: paymentForm.value.amount,
     paymentDate: paymentForm.value.paymentDate,
     paymentMethodId: paymentForm.value.paymentMethodId || undefined,
+    taxId: paymentForm.value.taxId || undefined,
     reference: paymentForm.value.reference || undefined,
     notes: paymentForm.value.notes || undefined,
     allocations: [{ invoiceId: selectedInvoice.value.id, amount: paymentForm.value.amount }],
@@ -266,6 +282,11 @@ function handlePaymentMethodChange(event: Event) {
   paymentForm.value.paymentMethodId = target.value;
 }
 
+function handleTaxChange(event: Event) {
+  const target = event.target as HTMLSelectElement;
+  paymentForm.value.taxId = target.value;
+}
+
 function handleReferenceChange(event: Event) {
   const target = event.target as HTMLInputElement;
   paymentForm.value.reference = target.value;
@@ -279,6 +300,15 @@ function handleNotesChange(event: Event) {
 function isFullyPaid(item: ArApItem): boolean {
   return item.remaining <= 0;
 }
+
+onMounted(async () => {
+  try {
+    const taxes = await fetchTaxes({ isActive: true, limit: 100 });
+    taxOptions.value = taxes.items || [];
+  } catch {
+    taxOptions.value = [];
+  }
+});
 </script>
 
 <template>
@@ -578,17 +608,23 @@ function isFullyPaid(item: ArApItem): boolean {
             <label for="payment-method" class="block text-sm font-medium text-gray-700 mb-1">
               Payment Method
             </label>
-            <select
-              id="payment-method"
-              :value="paymentForm.paymentMethodId"
-              @change="handlePaymentMethodChange"
-              class="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
-            >
-              <option value="">Select method</option>
-              <option v-for="method in paymentMethods" :key="method.id" :value="method.id">
-                {{ method.name }}
-              </option>
-            </select>
+            <SearchSelect
+              v-model="paymentForm.paymentMethodId"
+              :initial-options="paymentMethodOptions"
+              placeholder="Select method"
+            />
+          </div>
+
+          <!-- Tax -->
+          <div>
+            <label for="payment-tax" class="block text-sm font-medium text-gray-700 mb-1">
+              Pajak
+            </label>
+            <SearchSelect
+              v-model="paymentForm.taxId"
+              :initial-options="formattedTaxOptions"
+              placeholder="Pilih Pajak (Opsional)"
+            />
           </div>
 
           <!-- Reference -->

@@ -1,3 +1,4 @@
+import { TABS } from "~/types/finance";
 import type { PeriodType, TabName } from "~/types/finance";
 
 // Shared state singletons to ensure consistency across the dashboard
@@ -18,7 +19,10 @@ export function useFinanceDashboardPageState() {
   // Initialize from URL on first use
   if (!isInitialized.value) {
     if (route.query.tab) {
-      activeTab.value = route.query.tab as TabName;
+      const tab = route.query.tab as TabName;
+      if (TABS.includes(tab)) {
+        activeTab.value = tab;
+      }
     }
     isInitialized.value = true;
   }

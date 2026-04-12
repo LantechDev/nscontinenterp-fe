@@ -2,6 +2,7 @@ import { useFinanceTax, type Tax, type TaxFilters } from "./useFinanceTax";
 import type { Pagination } from "./useFinanceExpense";
 import { useConfirm } from "./useConfirm";
 import { formatCurrency } from "./useExpensePage";
+import { toast } from "vue-sonner";
 
 // Navigation handler
 const navigateToTax = (id: string) => {
@@ -192,7 +193,7 @@ export function useTaxPage() {
         loadTaxes();
       } catch (error) {
         console.error("Failed to delete tax:", error);
-        alert("Gagal menghapus pajak. Silakan coba lagi.");
+        toast.error("Gagal menghapus pajak. Silakan coba lagi.");
       }
     }
   };

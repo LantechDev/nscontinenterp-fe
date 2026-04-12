@@ -45,7 +45,7 @@ const emit = defineEmits<{
   (e: "update:modelValue", value: boolean): void;
 }>();
 
-const { currentJob, getJob, isLoading } = useJobs();
+const { currentJob, getJob, isLoading, updateJob, completeJob, cancelCompleteJob } = useJobs();
 
 const activeTab = ref("overview");
 const tabs = [
@@ -55,7 +55,6 @@ const tabs = [
   { id: "document", label: "Upload Document" },
 ];
 
-const { updateJob } = useJobs();
 const { fetchVessels, createVessel } = useMasterData();
 const { confirm } = useConfirm();
 
@@ -120,6 +119,18 @@ const saveVessels = async () => {
 };
 
 const job = computed(() => currentJob.value);
+const isCompleting = ref(false);
+const isCancelingComplete = ref(false);
+const isCompleted = computed(() => job.value?.status?.code === "COMPLETED");
+const hasUnfinalizedEbl = computed(() => {
+  if (!job.value?.billsOfLading?.length) return false;
+  return job.value.billsOfLading.some((bl) => {
+    const code = bl.status?.code?.toLowerCase() || "";
+    if (code === "confirmed") return false;
+    if (code === "finalized") return false;
+    return true;
+  });
+});
 
 watch(
   () => props.modelValue,
@@ -213,6 +224,51 @@ const toggleItem = (itemId: string | number) => {
     expandedItems.value.add(id);
   }
 };
+
+const handleCompleteJob = async () => {
+  if (!job.value?.id) return;
+  if (hasUnfinalizedEbl.value) {
+    toast.error("Tidak bisa complete job. Masih ada eBL yang belum final.");
+    return;
+  }
+
+  const confirmed = await confirm({
+    title: "Complete Job",
+    message: `Apakah Anda yakin ingin menyelesaikan job ${job.value.jobNumber}?`,
+    confirmText: "Complete",
+    type: "info",
+  });
+  if (!confirmed) return;
+
+  isCompleting.value = true;
+  const result = await completeJob(job.value.id);
+  if (result.success) {
+    toast.success("Job berhasil diselesaikan.");
+  } else {
+    toast.error(result.error || "Gagal menyelesaikan job.");
+  }
+  isCompleting.value = false;
+};
+
+const handleCancelCompleteJob = async () => {
+  if (!job.value?.id) return;
+  const confirmed = await confirm({
+    title: "Batalkan Complete Job",
+    message: `Batalkan status complete untuk job ${job.value.jobNumber}?`,
+    confirmText: "Batalkan",
+    type: "warning",
+  });
+  if (!confirmed) return;
+
+  isCancelingComplete.value = true;
+  const result = await cancelCompleteJob(job.value.id);
+  if (result.success) {
+    toast.success("Complete job dibatalkan.");
+  } else {
+    toast.error(result.error || "Gagal membatalkan complete job.");
+  }
+  isCancelingComplete.value = false;
+};
 </script>
 
 <template>
@@ -236,6 +292,24 @@ const toggleItem = (itemId: string | number) => {
               <span class="text-foreground">{{ job?.jobNumber || "..." }}</span>
             </div>
             <div class="flex items-center gap-2">
+              <button
+                v-if="!isCompleted"
+                :disabled="isCompleting || hasUnfinalizedEbl"
+                @click="handleCompleteJob"
+                class="px-3 py-2 rounded-md text-xs font-semibold bg-[#012D5A] text-white hover:bg-[#012D5A]/90 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Loader2 v-if="isCompleting" class="w-4 h-4 animate-spin" />
+                <span v-else>Complete Job</span>
+              </button>
+              <button
+                v-else
+                :disabled="isCancelingComplete"
+                @click="handleCancelCompleteJob"
+                class="px-3 py-2 rounded-md text-xs font-semibold border border-border text-foreground hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Loader2 v-if="isCancelingComplete" class="w-4 h-4 animate-spin" />
+                <span v-else>Batalkan Complete</span>
+              </button>
               <button
                 @click="$emit('update:modelValue', false)"
                 class="p-2 rounded-full hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"

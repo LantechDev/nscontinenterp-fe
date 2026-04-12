@@ -4,6 +4,8 @@ import type {
   CreateAddressInput,
   UpdateAddressInput,
   CompanyDetails,
+  CompanyPagination,
+  CompanyQueryParams,
 } from "~/composables/useCompanies";
 
 function getApiBase() {
@@ -22,13 +24,25 @@ function getErrorMessage(error: unknown): string {
 }
 
 export const companyApi = {
-  async fetchCompanies(params?: { search?: string; type?: "ALL" | "CUSTOMER" | "VENDOR" }) {
+  async fetchCompanies(params?: CompanyQueryParams) {
     try {
-      const data = await $fetch<Company[]>(`${getApiBase()}/master/companies`, {
-        params,
-        credentials: "include",
-      });
-      return { success: true, data: data || [] };
+      const response = await $fetch<Company[] | { data: Company[]; pagination: CompanyPagination }>(
+        `${getApiBase()}/master/companies`,
+        {
+          params,
+          credentials: "include",
+        },
+      );
+
+      if (Array.isArray(response)) {
+        return { success: true, data: response || [] };
+      }
+
+      return {
+        success: true,
+        data: response.data || [],
+        pagination: response.pagination,
+      };
     } catch (error) {
       return { success: false, error: getErrorMessage(error), data: [] };
     }
@@ -69,7 +83,7 @@ export const companyApi = {
     }
   },
 
-  async updateCompany(id: string, companyData: Partial<Omit<Company, "id">>) {
+  async updateCompany(id: string, companyData: Partial<CreateCompanyInput>) {
     try {
       const data = await $fetch<Company>(`${getApiBase()}/master/companies/${id}`, {
         method: "PUT",

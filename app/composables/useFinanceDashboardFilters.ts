@@ -3,16 +3,6 @@ import { useFinanceDashboardPageState } from "./useFinanceDashboardPageState";
 /**
  * Filter state interfaces
  */
-export interface CogsFilters {
-  selectedYear: string;
-  searchQuery: string;
-  customerId: string;
-  serviceId: string;
-  sortBy: string;
-  sortOrder: "asc" | "desc";
-  showSortDropdown: boolean;
-}
-
 export interface TransactionFilters {
   year: string;
   type: string;
@@ -45,14 +35,8 @@ export interface ArApFilters {
 /**
  * Singletons to ensure consistency across the dashboard
  */
-// COGS Filter/Sort/Search state
+// Shared year selector (Overview/Assets)
 const selectedYear = ref<string>(new Date().getFullYear().toString());
-const searchQuery = ref<string>("");
-const cogsCustomerId = ref<string>("");
-const cogsServiceId = ref<string>("");
-const sortBy = ref<string>("createdAt");
-const sortOrder = ref<"asc" | "desc">("desc");
-const showSortDropdown = ref(false);
 
 // Transaction Filter/Sort/Search state
 const transactionYear = ref<string>("");
@@ -92,20 +76,6 @@ export function useAvailableYears() {
     }
     return years;
   });
-}
-
-/**
- * COGS Sort options
- */
-export function useCogsSortOptions() {
-  return [
-    { value: "createdAt", label: "Date" },
-    { value: "jobNumber", label: "Job Number" },
-    { value: "revenue", label: "Revenue" },
-    { value: "cogs", label: "COGS" },
-    { value: "profit", label: "Profit" },
-    { value: "margin", label: "Margin" },
-  ];
 }
 
 /**
@@ -182,21 +152,6 @@ export function useFinanceDashboardFilters() {
     resetPage: resetPageInStore,
   } = useFinanceDashboardPageState();
 
-  // Get current filters for COGS tab
-  const getCogsFilters = (): Record<string, string | number> => {
-    const filters: Record<string, string | number> = {
-      sortBy: sortBy.value,
-      sortOrder: sortOrder.value,
-      page: currentPage.value,
-      limit: 10,
-    };
-    if (searchQuery.value) filters.search = searchQuery.value;
-    if (cogsCustomerId.value) filters.companyId = cogsCustomerId.value;
-    if (cogsServiceId.value) filters.serviceId = cogsServiceId.value;
-    if (selectedYear.value) filters.year = parseInt(selectedYear.value);
-    return filters;
-  };
-
   // Get current filters for Transaction tab
   const getTransactionFilters = (): Record<string, string | number> => {
     const filters: Record<string, string | number> = {
@@ -259,10 +214,6 @@ export function useFinanceDashboardFilters() {
   };
 
   // Toggle sort dropdowns
-  const toggleSortDropdown = () => {
-    showSortDropdown.value = !showSortDropdown.value;
-  };
-
   const toggleTransactionSortDropdown = () => {
     showTransactionSortDropdown.value = !showTransactionSortDropdown.value;
   };
@@ -277,7 +228,6 @@ export function useFinanceDashboardFilters() {
 
   // Close all dropdowns
   const closeAllDropdowns = () => {
-    showSortDropdown.value = false;
     showTransactionSortDropdown.value = false;
     showFinanceCloseSortDropdown.value = false;
     showArApSortDropdown.value = false;
@@ -289,14 +239,7 @@ export function useFinanceDashboardFilters() {
     selectedPeriod,
     currentPage,
 
-    // COGS state
     selectedYear,
-    searchQuery,
-    cogsCustomerId,
-    cogsServiceId,
-    sortBy,
-    sortOrder,
-    showSortDropdown,
 
     // Transaction state
     transactionYear,
@@ -325,14 +268,12 @@ export function useFinanceDashboardFilters() {
     arApStatusFilter,
 
     // Filter getters
-    getCogsFilters,
     getTransactionFilters,
     getFinanceCloseFilters,
     getArApFilters,
 
     // Actions
     resetPage,
-    toggleSortDropdown,
     toggleTransactionSortDropdown,
     toggleFinanceCloseSortDropdown,
     toggleArApSortDropdown,

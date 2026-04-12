@@ -91,15 +91,56 @@ const { isOwner, isAdmin, canApproveJobs } = useAuth();
         <span>Dashboard</span>
       </NuxtLink>
 
-      <template v-for="item in navItems.slice(1)" :key="item.title">
-        <div v-if="item.children" class="space-y-1">
-          <button
-            @click="toggleExpand(item.title)"
+      <ClientOnly>
+        <template v-for="item in navItems.slice(1)" :key="item.title">
+          <div v-if="item.children" class="space-y-1">
+            <button
+              @click="toggleExpand(item.title)"
+              :class="
+                cn(
+                  'w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
+                  isChildActive(item.children) || expandedItems.includes(item.title)
+                    ? 'text-white'
+                    : 'text-white/80 hover:bg-white/5 hover:text-white',
+                )
+              "
+            >
+              <div class="flex items-center gap-3">
+                <span>{{ item.title }}</span>
+              </div>
+              <ChevronDown
+                class="w-4 h-4 transition-transform duration-200"
+                :class="expandedItems.includes(item.title) ? 'rotate-180' : ''"
+              />
+            </button>
+
+            <div v-if="expandedItems.includes(item.title)" class="space-y-1 pl-3">
+              <NuxtLink
+                v-for="child in item.children"
+                :key="child.href"
+                :to="child.href"
+                :class="
+                  cn(
+                    'block w-full text-left px-3 py-2 rounded-lg text-sm transition-colors',
+                    isActive(child.href)
+                      ? 'bg-[#1e4a7a] text-white font-medium'
+                      : 'text-white/70 hover:text-white hover:bg-white/5',
+                  )
+                "
+              >
+                {{ child.title }}
+              </NuxtLink>
+            </div>
+          </div>
+
+          <NuxtLink
+            v-else
+            :to="item.href!"
             :class="
               cn(
-                'w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
-                isChildActive(item.children) || expandedItems.includes(item.title)
-                  ? 'text-white'
+                'flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
+                isActive(item.href!)
+                  ? 'bg-white/10 text-white'
                   : 'text-white/80 hover:bg-white/5 hover:text-white',
               )
             "
@@ -107,49 +148,10 @@ const { isOwner, isAdmin, canApproveJobs } = useAuth();
             <div class="flex items-center gap-3">
               <span>{{ item.title }}</span>
             </div>
-            <ChevronDown
-              class="w-4 h-4 transition-transform duration-200"
-              :class="expandedItems.includes(item.title) ? 'rotate-180' : ''"
-            />
-          </button>
-
-          <div v-if="expandedItems.includes(item.title)" class="space-y-1 pl-3">
-            <NuxtLink
-              v-for="child in item.children"
-              :key="child.href"
-              :to="child.href"
-              :class="
-                cn(
-                  'block w-full text-left px-3 py-2 rounded-lg text-sm transition-colors',
-                  isActive(child.href)
-                    ? 'bg-[#1e4a7a] text-white font-medium'
-                    : 'text-white/70 hover:text-white hover:bg-white/5',
-                )
-              "
-            >
-              {{ child.title }}
-            </NuxtLink>
-          </div>
-        </div>
-
-        <NuxtLink
-          v-else
-          :to="item.href!"
-          :class="
-            cn(
-              'flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
-              isActive(item.href!)
-                ? 'bg-white/10 text-white'
-                : 'text-white/80 hover:bg-white/5 hover:text-white',
-            )
-          "
-        >
-          <div class="flex items-center gap-3">
-            <span>{{ item.title }}</span>
-          </div>
-          <ChevronRight class="w-4 h-4 text-white/50" />
-        </NuxtLink>
-      </template>
+            <ChevronRight class="w-4 h-4 text-white/50" />
+          </NuxtLink>
+        </template>
+      </ClientOnly>
     </nav>
 
     <!-- Footer / User -->

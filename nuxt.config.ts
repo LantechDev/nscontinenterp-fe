@@ -2,6 +2,18 @@
 export default defineNuxtConfig({
   compatibilityDate: "2025-07-15",
   devtools: { enabled: true },
+  vite: {
+    optimizeDeps: {
+      include: [
+        "vue3-apexcharts",
+        "@vueuse/core",
+        "lucide-vue-next",
+        "jspdf",
+        "clsx",
+        "tailwind-merge",
+      ],
+    },
+  },
   srcDir: "app/",
   alias: {
     "@": "~/",
@@ -40,21 +52,6 @@ export default defineNuxtConfig({
       apiBase: process.env.NUXT_PUBLIC_API_BASE || "http://localhost:9999/api",
     },
   },
-  // Performance optimization: Hybrid rendering with route rules
-  routeRules: {
-    // Static pages - disabled prerender so we can use runtime config for API
-    // "/": { prerender: true },
-    // "/login": { prerender: true },
-    // Dashboard and data pages - SWR caching for 1 hour
-    "/dashboard": { swr: 3600 },
-    "/master/**": { swr: 3600 },
-    "/operational/**": { swr: 3600 },
-    "/finance/**": { swr: 3600 },
-    "/sales/**": { swr: 3600 },
-    "/reports/**": { swr: 3600 },
-    "/settings/**": { swr: 3600 },
-  },
-  // NuxtLink performance optimization
   experimental: {
     defaults: {
       nuxtLink: {

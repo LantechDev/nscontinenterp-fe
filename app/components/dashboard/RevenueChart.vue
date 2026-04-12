@@ -2,6 +2,7 @@
 import { computed } from "vue";
 
 interface FinancialData {
+  categories: string[];
   income: number[];
   outcome: number[];
 }
@@ -9,6 +10,21 @@ interface FinancialData {
 const props = defineProps<{
   data?: FinancialData;
 }>();
+
+const fallbackCategories = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+];
 
 // Use backend data or fallback to static data
 const series = computed(() => [
@@ -21,6 +37,25 @@ const series = computed(() => [
     data: props.data?.outcome || [15, 22, 20, 25, 30, 45, 55, 45, 40, 58, 62, 55],
   },
 ]);
+
+const chartKey = computed(() =>
+  JSON.stringify({
+    categories: props.data?.categories || fallbackCategories,
+    income: props.data?.income || [],
+    outcome: props.data?.outcome || [],
+  }),
+);
+
+const yAxisMax = computed(() => {
+  const values = [...(props.data?.income || []), ...(props.data?.outcome || [])];
+  const maxValue = Math.max(...values, 0);
+
+  if (maxValue <= 0) {
+    return 10;
+  }
+
+  return Math.ceil(maxValue * 1.2);
+});
 
 const chartOptions = computed(() => ({
   chart: {
@@ -58,20 +93,7 @@ const chartOptions = computed(() => ({
     },
   },
   xaxis: {
-    categories: [
-      "Jan",
-      "Feb",
-      "Mar",
-      "Apr",
-      "Mei",
-      "Jun",
-      "Jul",
-      "Aug",
-      "Sep",
-      "Okt",
-      "Nov",
-      "Des",
-    ],
+    categories: props.data?.categories || fallbackCategories,
     axisBorder: {
       show: false,
     },
@@ -86,7 +108,7 @@ const chartOptions = computed(() => ({
     },
   },
   yaxis: {
-    max: 100,
+    max: yAxisMax.value,
     tickAmount: 5,
     labels: {
       style: {
@@ -144,7 +166,13 @@ const chartOptions = computed(() => ({
 
     <div class="flex-1 w-full min-h-[300px]">
       <ClientOnly>
-        <apexchart type="area" height="320" :options="chartOptions" :series="series" />
+        <apexchart
+          :key="chartKey"
+          type="area"
+          height="320"
+          :options="chartOptions"
+          :series="series"
+        />
       </ClientOnly>
     </div>
   </div>

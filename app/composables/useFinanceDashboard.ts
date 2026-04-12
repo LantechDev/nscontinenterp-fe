@@ -8,7 +8,6 @@
 
 import { useFinanceDashboardApi } from "./useFinanceDashboardApi";
 import { useFinanceDashboardOverview } from "./useFinanceDashboardOverview";
-import { useFinanceDashboardCogs } from "./useFinanceDashboardCogs";
 import { useFinanceDashboardTransactions } from "./useFinanceDashboardTransactions";
 import { useFinanceDashboardFinanceClose } from "./useFinanceDashboardFinanceClose";
 import { useFinanceDashboardArAp } from "./useFinanceDashboardArAp";
@@ -23,7 +22,6 @@ export function useFinanceDashboard() {
 
   // Sub-composables
   const overview = useFinanceDashboardOverview();
-  const cogs = useFinanceDashboardCogs();
   const transactions = useFinanceDashboardTransactions();
   const financeClose = useFinanceDashboardFinanceClose();
   const arAp = useFinanceDashboardArAp();
@@ -44,7 +42,6 @@ export function useFinanceDashboard() {
       await Promise.all([
         overview.fetchStats(period, year),
         overview.fetchOverviewStats(period, year),
-        cogs.fetchJobCosts(period, filters),
         transactions.fetchTransactions(period, 1, 10, filters),
       ]);
     } finally {
@@ -65,12 +62,6 @@ export function useFinanceDashboard() {
     fetchStats: overview.fetchStats,
     fetchOverviewStats: overview.fetchOverviewStats,
     fetchChartData: overview.fetchChartData,
-
-    // COGS data
-    jobCosts: cogs.jobCosts,
-    pagination: cogs.pagination, // Default/Legacy
-    cogsPagination: cogs.pagination,
-    fetchJobCosts: cogs.fetchJobCosts,
 
     // Transactions data
     transactions: transactions.transactions,

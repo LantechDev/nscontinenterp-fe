@@ -1,13 +1,17 @@
 <script setup lang="ts">
-import { MoreVertical, Building2, Mail, Phone } from "lucide-vue-next";
+import { MoreVertical, Building2, Mail, Phone, Pencil, Trash2 } from "lucide-vue-next";
 import type { MappedCompany } from "~/composables/useCompanies";
 
 defineProps<{
   companies: MappedCompany[];
+  activeMenuId: string | null;
 }>();
 
 defineEmits<{
   (e: "open-detail", company: MappedCompany): void;
+  (e: "toggle-menu", id: string): void;
+  (e: "edit", company: MappedCompany): void;
+  (e: "delete", company: MappedCompany): void;
 }>();
 </script>
 
@@ -29,9 +33,33 @@ defineEmits<{
             <p class="text-xs text-muted-foreground">{{ company.code }}</p>
           </div>
         </div>
-        <button class="text-muted-foreground hover:text-foreground" @click.stop>
-          <MoreVertical class="w-4 h-4" />
-        </button>
+        <div class="company-action-menu relative">
+          <button
+            class="text-muted-foreground hover:text-foreground"
+            @click.stop="$emit('toggle-menu', company.id)"
+          >
+            <MoreVertical class="w-4 h-4" />
+          </button>
+          <div
+            v-if="activeMenuId === company.id"
+            class="absolute right-0 top-6 z-50 min-w-[140px] rounded-lg border border-slate-200 bg-white py-1 shadow-lg"
+          >
+            <button
+              class="flex w-full items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+              @click.stop="$emit('edit', company)"
+            >
+              <Pencil class="w-3.5 h-3.5 text-slate-600" />
+              Edit
+            </button>
+            <button
+              class="flex w-full items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50"
+              @click.stop="$emit('delete', company)"
+            >
+              <Trash2 class="w-3.5 h-3.5 text-red-500" />
+              Delete
+            </button>
+          </div>
+        </div>
       </div>
 
       <div class="space-y-2 mb-6">
@@ -51,7 +79,12 @@ defineEmits<{
             company.type
           }}</span>
           <span
-            class="px-2 py-0.5 rounded border border-blue-200 text-blue-500 bg-white text-xs font-medium"
+            class="px-2 py-0.5 rounded border bg-white text-xs font-medium"
+            :class="
+              company.status === 'Active'
+                ? 'border-blue-200 text-blue-500'
+                : 'border-red-200 text-red-500'
+            "
           >
             {{ company.status }}
           </span>

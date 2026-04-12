@@ -35,6 +35,18 @@ export interface DashboardActivity {
   time: string;
 }
 
+export interface DashboardNotification {
+  id: string;
+  action: string;
+  targetModel: string;
+  targetId: string;
+  targetName: string | null;
+  title: string;
+  description: string;
+  actorName: string;
+  createdAt: string;
+}
+
 export interface DashboardJob {
   id: string;
   jobNumber: string;
@@ -61,6 +73,7 @@ export interface DashboardData {
   recentJobs: DashboardJob[];
   upcomingEvents: DashboardActivity[];
   financialOverview: {
+    categories: string[];
     income: number[];
     outcome: number[];
   };
@@ -72,6 +85,7 @@ export const useDashboard = () => {
   // Owner Dashboard State
   const stats = ref<DashboardStats | null>(null);
   const pendingApprovals = ref<PendingApprovalBl[]>([]);
+  const notifications = ref<DashboardNotification[]>([]);
   const isLoading = ref(false);
 
   /**
@@ -133,6 +147,24 @@ export const useDashboard = () => {
     }
   };
 
+  const fetchNotifications = async (limit = 8) => {
+    try {
+      const data = await $fetch<DashboardNotification[]>(
+        `${config.public.apiBase}/dashboard/notifications`,
+        {
+          credentials: "include",
+          query: { limit },
+        },
+      );
+      notifications.value = data;
+      return data;
+    } catch (error) {
+      console.error("Failed to fetch dashboard notifications:", error);
+      notifications.value = [];
+      return [];
+    }
+  };
+
   const approveBl = async (id: string) => {
     try {
       const resp = await $fetch<{ success: boolean; error?: string }>(
@@ -160,12 +192,14 @@ export const useDashboard = () => {
     // State
     stats,
     pendingApprovals,
+    notifications,
     isLoading,
 
     // Methods
     fetchDashboard,
     fetchStats,
     fetchPendingApprovals,
+    fetchNotifications,
     approveBl,
   };
 };

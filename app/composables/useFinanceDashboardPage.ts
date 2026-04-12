@@ -7,6 +7,7 @@ import type { TabName, PeriodType } from "~/types/finance";
 import type { TransactionItem } from "~/types/finance-dashboard";
 import { jsPDF } from "jspdf";
 import { formatRupiah } from "~/lib/utils";
+import { toast } from "vue-sonner";
 
 export function useFinanceDashboardPage() {
   // Router
@@ -20,12 +21,6 @@ export function useFinanceDashboardPage() {
   const filters = useFinanceDashboardFilters();
   const {
     selectedYear,
-    searchQuery,
-    cogsCustomerId,
-    cogsServiceId,
-    sortBy,
-    sortOrder,
-    showSortDropdown,
     transactionYear,
     transactionType,
     transactionCustomerId,
@@ -50,15 +45,13 @@ export function useFinanceDashboardPage() {
 
   // Tab modules
   const overview = useFinanceDashboardPageOverview();
-  const cogs = useFinanceDashboardPageCogs();
   const transactions = useFinanceDashboardPageTransactions();
   const financeClose = useFinanceDashboardPageFinanceClose();
   const arAp = useFinanceDashboardPageArAp();
 
   // Shared dashboard
   const dashboard = useFinanceDashboard();
-  const { isLoading, error, jobCosts, cogsPagination, transactionPagination, arApPagination } =
-    dashboard;
+  const { isLoading, error, transactionPagination, arApPagination } = dashboard;
 
   // API utilities for exports
   const api = useFinanceDashboardApi();
@@ -68,14 +61,12 @@ export function useFinanceDashboardPage() {
   // Computed pagination bridge for component compatibility
   const pagination = computed(() => {
     switch (activeTab.value) {
-      case "COGS":
-        return cogsPagination.value;
       case "Transaction":
         return transactionPagination.value;
       case "Accounts Receivable":
         return arApPagination.value;
       default:
-        return cogsPagination.value;
+        return transactionPagination.value;
     }
   });
 
@@ -93,9 +84,6 @@ export function useFinanceDashboardPage() {
         await overview.fetchOverview(period, year);
         break;
       }
-      case "COGS":
-        await dashboard.fetchAll(period, filters.getCogsFilters());
-        break;
       case "Transaction":
         await transactions.fetchTxData(period);
         break;
@@ -142,8 +130,10 @@ export function useFinanceDashboardPage() {
   async function handleTabChange(tab: TabName) {
     activeTab.value = tab;
     resetPage();
-    if (["COGS", "Transaction", "Finance Close"].includes(tab)) await loadCustomers();
-    if (tab === "COGS") await loadServices();
+    if (["Transaction", "Finance Close"].includes(tab)) await loadCustomers();
+    if (tab === "Assets") {
+      await Promise.all([loadCustomers(), loadServices()]);
+    }
     await fetchDataForTab(tab, selectedPeriod.value);
   }
 
@@ -151,12 +141,7 @@ export function useFinanceDashboardPage() {
     currentPage.value = newPage;
 
     const active = activeTab.value;
-    if (active === "COGS") {
-      await dashboard.fetchJobCosts(selectedPeriod.value, {
-        ...filters.getCogsFilters(),
-        page: newPage,
-      });
-    } else if (active === "Transaction") {
+    if (active === "Transaction") {
       await dashboard.fetchTransactions(
         selectedPeriod.value,
         newPage,
@@ -183,7 +168,7 @@ export function useFinanceDashboardPage() {
   // Lifecycle
   onMounted(async () => {
     document.addEventListener("click", handleClickOutside);
-    await Promise.all([loadCustomers(), loadServices()]);
+    await loadCustomers();
     await fetchDataForTab(activeTab.value, selectedPeriod.value);
   });
 
@@ -205,12 +190,6 @@ export function useFinanceDashboardPage() {
     activeTab,
     currentPage,
     selectedYear,
-    searchQuery,
-    cogsCustomerId,
-    cogsServiceId,
-    sortBy,
-    sortOrder,
-    showSortDropdown,
     transactionYear,
     transactionType,
     transactionCustomerId,
@@ -237,7 +216,6 @@ export function useFinanceDashboardPage() {
     // Data
     stats: overview.overviewStats,
     overviewStats: overview.overviewStats,
-    jobCosts,
     transactions: dashboard.transactions,
     transactionStats: dashboard.transactionStats,
     financeCloseStats: financeClose.financeCloseStats,
@@ -257,9 +235,11 @@ export function useFinanceDashboardPage() {
     top5ChartOptions: overview.top5ChartOptions,
     top5ChartSeries: overview.top5ChartSeries,
 
+    // Overview fetch function
+    fetchOverview: overview.fetchOverview,
+
     // Computed stats
     overviewStatsCards: overview.overviewStatsCards,
-    cogsStats: cogs.cogsStats,
     transactionStatsCards: transactions.transactionStatsCards,
     financeCloseData: financeClose.financeCloseData,
 
@@ -269,14 +249,6 @@ export function useFinanceDashboardPage() {
     handlePageChange,
     handleClosePeriod: financeClose.handleClosePeriod,
     handleReopenPeriod: financeClose.handleReopenPeriod,
-    handleYearChange: cogs.handleYearChange,
-    handleCogsCustomerChange: cogs.handleCustomerChange,
-    handleCogsServiceChange: cogs.handleServiceChange,
-    handleCogsSearch: cogs.handleSearch,
-    handleCogsSearchInput: cogs.handleSearchInput,
-    handleCogsSearchKeydown: cogs.handleSearchKeydown,
-    handleCogsSort: cogs.handleSort,
-    handleCogsSortDropdownToggle: cogs.handleSortDropdownToggle,
     handleTransactionYearChange: transactions.handleYearChange,
     handleTransactionTypeChange: transactions.handleTypeChange,
     handleTransactionCustomerChange: transactions.handleCustomerChange,
@@ -327,16 +299,16 @@ export function useFinanceDashboardPage() {
         doc.setFont("helvetica", "normal");
         yPos += 7;
 
-        const filters: string[] = [];
-        if (transactionYear.value) filters.push(`Year: ${transactionYear.value}`);
-        if (transactionType.value) filters.push(`Type: ${transactionType.value}`);
+        const filtersList: string[] = [];
+        if (transactionYear.value) filtersList.push(`Year: ${transactionYear.value}`);
+        if (transactionType.value) filtersList.push(`Type: ${transactionType.value}`);
         if (transactionCustomerId.value)
-          filters.push(`Customer ID: ${transactionCustomerId.value}`);
-        if (transactionSearch.value) filters.push(`Search: ${transactionSearch.value}`);
-        if (filters.length === 0) filters.push("None (All Data)");
+          filtersList.push(`Customer ID: ${transactionCustomerId.value}`);
+        if (transactionSearch.value) filtersList.push(`Search: ${transactionSearch.value}`);
+        if (filtersList.length === 0) filtersList.push("None (All Data)");
 
         doc.setTextColor(...grayColor);
-        filters.forEach((filter) => {
+        filtersList.forEach((filter) => {
           doc.text(filter, margin, yPos);
           yPos += 6;
         });
@@ -420,9 +392,9 @@ export function useFinanceDashboardPage() {
 
         // Download the PDF directly
         doc.save(filename);
-      } catch (error) {
-        console.error("Failed to export transactions PDF:", error);
-        alert("Failed to export PDF. Please try again.");
+      } catch (exportError) {
+        console.error("Failed to export transactions PDF:", exportError);
+        toast.error("Failed to export PDF. Please try again.");
       }
     },
     handleTransactionCreate: () => {

@@ -1,6 +1,7 @@
 import { getErrorMessage } from "~/lib/utils";
 import { useChartOfAccounts } from "./useChartOfAccounts";
 import type { SearchSelectFetchOptions } from "~/components/ui/SearchSelect.vue";
+import { useFinanceTax } from "./useFinanceTax";
 
 export interface JournalEntryLine {
   id: string;
@@ -58,6 +59,7 @@ export function useJournalEntry() {
     formatAccountDisplay,
     isLoading: isAccountsLoading,
   } = useChartOfAccounts();
+  const { fetchTaxes } = useFinanceTax();
 
   // State
   const isLoading = ref(false);
@@ -69,6 +71,8 @@ export function useJournalEntry() {
   const journalDate = ref(new Date().toISOString().split("T")[0]);
   const referenceNumber = ref("");
   const description = ref("");
+  const taxId = ref("");
+  const taxOptions = ref<Array<{ id: string; name: string; rate: number }>>([]);
   const entries = ref<JournalEntryLine[]>([
     { id: "1", accountId: "", debit: 0, credit: 0 },
     { id: "2", accountId: "", debit: 0, credit: 0 },
@@ -135,6 +139,7 @@ export function useJournalEntry() {
         journalDate: journalDate.value,
         referenceNumber: referenceNumber.value,
         description: description.value,
+        taxId: taxId.value || undefined,
         entries: entries.value
           .filter((entry) => entry.accountId && (entry.debit > 0 || entry.credit > 0))
           .map((entry) => ({
@@ -166,6 +171,12 @@ export function useJournalEntry() {
   // Initialize
   const initialize = async () => {
     await fetchAccounts();
+    try {
+      const taxes = await fetchTaxes({ isActive: true, limit: 100 });
+      taxOptions.value = taxes.items || [];
+    } catch {
+      taxOptions.value = [];
+    }
     referenceNumber.value = generateReferenceNumber();
   };
 
@@ -178,6 +189,8 @@ export function useJournalEntry() {
     journalDate,
     referenceNumber,
     description,
+    taxId,
+    taxOptions,
     entries,
     // From composable
     accounts,

@@ -5,6 +5,7 @@ import { useInvoices, type InvoiceDetail } from "~/composables/useInvoices";
 import { useInvoicePage } from "~/composables/useInvoicePage";
 import { InvoiceListView, InvoiceGridView, InvoiceEditModal } from "./components";
 import JobInvoicePreview from "~/components/operational/JobInvoicePreview.vue";
+import { toast } from "vue-sonner";
 
 definePageMeta({
   layout: "dashboard",
@@ -21,12 +22,12 @@ const {
   isSubmitting,
   editError,
   formData,
-  selectedTaxRate,
+  selectedTaxId,
   currentPage,
   pagination,
   statusOptions,
   editStatusOptions,
-  editTaxOptions,
+  taxOptions,
   companies,
   jobs,
   services,
@@ -64,7 +65,7 @@ const handleDownloadPdf = async (id: string) => {
     await previewRef.value?.generatePDF();
   } catch (err) {
     console.error("Failed to download invoice PDF:", err);
-    alert("Failed to download invoice. Please try again.");
+    toast.error("Failed to download invoice. Please try again.");
   } finally {
     isDownloading.value = false;
     downloadInvoice.value = null;
@@ -90,8 +91,8 @@ const handleEdit = (id: string) => {
   openEditModal(id);
 };
 
-const handleTaxRateChange = (value: number) => {
-  selectedTaxRate.value = value;
+const handleTaxIdChange = (value: string) => {
+  selectedTaxId.value = value;
 };
 
 onMounted(() => {
@@ -241,9 +242,9 @@ onMounted(() => {
       :is-submitting="isSubmitting"
       :edit-error="editError"
       :form-data="formData"
-      :selected-tax-rate="selectedTaxRate"
+      :selected-tax-id="selectedTaxId"
       :status-options="editStatusOptions"
-      :tax-options="editTaxOptions"
+      :tax-options="taxOptions"
       :companies="companies"
       :jobs="jobs"
       :services="services"
@@ -252,7 +253,7 @@ onMounted(() => {
       @add-line-item="addLineItem"
       @remove-line-item="removeLineItem"
       @update-item-amount="updateItemAmount"
-      @update-tax-rate="handleTaxRateChange"
+      @update-tax-id="handleTaxIdChange"
     />
 
     <!-- Job Detail Slide-over -->

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Save, Loader2, ChevronDown } from "lucide-vue-next";
 import Combobox from "~/components/ui/Combobox.vue";
+import { useFinanceTax } from "~/composables/useFinanceTax";
 
 interface ServiceData {
   name?: string;
@@ -46,13 +47,25 @@ const emit = defineEmits<{
 }>();
 
 const { categories, units, fetchCategories, fetchUnits } = useServices();
+const { fetchTaxes } = useFinanceTax();
 
 const categoryOptions = computed(() => categories.value.map((c) => ({ id: c.id, name: c.name })));
 const unitOptions = computed(() => units.value.map((u) => ({ id: u.id, name: u.name })));
+const taxOptions = ref<Array<{ id: string; name: string }>>([{ id: "0", name: "0%" }]);
 
 onMounted(async () => {
   if (categories.value.length === 0) await fetchCategories();
   if (units.value.length === 0) await fetchUnits();
+  try {
+    const taxes = await fetchTaxes({ isActive: true, limit: 100 });
+    const mapped = taxes.items.map((tax) => ({
+      id: String(tax.rate),
+      name: `${tax.name} (${tax.rate}%)`,
+    }));
+    taxOptions.value = [{ id: "0", name: "0%" }, ...mapped];
+  } catch {
+    taxOptions.value = [{ id: "0", name: "0%" }];
+  }
 });
 
 const formData = ref({
@@ -222,11 +235,7 @@ defineExpose({ resetForm });
           <label class="text-sm font-medium text-foreground">Tax Rate (%)</label>
           <Combobox
             v-model="formData.taxRate"
-            :options="[
-              { id: '0', name: '0%' },
-              { id: '1.1', name: '1.1%' },
-              { id: '11', name: '11%' },
-            ]"
+            :options="taxOptions"
             placeholder="Select Tax Rate"
           />
         </div>

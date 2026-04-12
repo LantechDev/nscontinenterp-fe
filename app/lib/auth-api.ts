@@ -14,6 +14,33 @@ function getApiBase() {
   return config.public.apiBase as string;
 }
 
+function normalizeOrganizationListResponse(
+  response:
+    | Organization[]
+    | { data?: Organization[] }
+    | { organizations?: Organization[] }
+    | null
+    | undefined,
+) {
+  if (!response) {
+    return [];
+  }
+
+  if (Array.isArray(response)) {
+    return response;
+  }
+
+  if ("data" in response && Array.isArray(response.data)) {
+    return response.data;
+  }
+
+  if ("organizations" in response && Array.isArray(response.organizations)) {
+    return response.organizations;
+  }
+
+  return [];
+}
+
 export const authApi = {
   async getSession(): Promise<AuthSession | null> {
     try {
@@ -180,10 +207,12 @@ export const authApi = {
 
   async listOrganizations(): Promise<AuthResponse<Organization[]>> {
     try {
-      const data = await $fetch<Organization[]>(`${getApiBase()}/auth/organization/list`, {
+      const response = await $fetch<
+        Organization[] | { data?: Organization[] } | { organizations?: Organization[] }
+      >(`${getApiBase()}/auth/organization/list`, {
         credentials: "include",
       });
-      return { success: true, data };
+      return { success: true, data: normalizeOrganizationListResponse(response) };
     } catch (error) {
       return handleApiError<Organization[]>(error);
     }

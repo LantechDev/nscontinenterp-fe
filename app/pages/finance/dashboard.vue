@@ -4,7 +4,6 @@ import { useFinanceDashboardPage } from "~/composables/useFinanceDashboardPage";
 import {
   useFinanceDashboardFilters,
   useAvailableYears,
-  useCogsSortOptions,
   useTransactionSortOptions,
   useTransactionTypeOptions,
   useArApSortOptions,
@@ -12,17 +11,19 @@ import {
   useAssetsSortOptions,
 } from "~/composables/useFinanceDashboardFilters";
 import { useFinanceDashboardAssets } from "~/composables/useFinanceDashboardAssets";
+import { useFinanceTax } from "~/composables/useFinanceTax";
 import { cn, formatRupiah } from "~/lib/utils";
 import { TABS, TIME_PERIODS, type PeriodType } from "~/types/finance";
 
 // Import tab components
-import CogsTab from "~/components/finance/dashboard/CogsTab.vue";
 import FinanceCloseTab from "~/components/finance/dashboard/FinanceCloseTab.vue";
 import OverviewTab from "~/components/finance/dashboard/OverviewTab.vue";
 import TransactionTab from "~/components/finance/dashboard/TransactionTab.vue";
 import TrialBalanceTab from "~/components/finance/dashboard/TrialBalanceTab.vue";
 import AccountsReceivableTab from "~/components/finance/dashboard/AccountsReceivableTab.vue";
 import AssetsTab from "~/components/finance/dashboard/AssetsTab.vue";
+import { toast } from "vue-sonner";
+import SearchSelect from "~/components/ui/SearchSelect.vue";
 
 definePageMeta({
   layout: "dashboard",
@@ -38,12 +39,6 @@ const {
   selectedPeriod,
   activeTab,
   selectedYear,
-  searchQuery,
-  cogsCustomerId,
-  cogsServiceId,
-  sortBy,
-  sortOrder,
-  showSortDropdown,
   transactionYear,
   transactionType,
   transactionCustomerId,
@@ -68,7 +63,6 @@ const {
   isLoadingServices,
 
   // Data
-  jobCosts,
   transactions,
   closedPeriods,
   arApItems,
@@ -76,6 +70,9 @@ const {
   pagination,
   companies,
   services,
+
+  // Overview fetch
+  fetchOverview,
 
   // Chart data
   chartData,
@@ -88,7 +85,6 @@ const {
 
   // Computed stats
   overviewStatsCards,
-  cogsStats,
   transactionStatsCards,
   financeCloseData,
 
@@ -97,14 +93,6 @@ const {
   handleTabChange,
   handlePageChange,
   handleReopenPeriod,
-  handleYearChange,
-  handleCogsCustomerChange,
-  handleCogsServiceChange,
-  handleCogsSearch,
-  handleCogsSearchInput,
-  handleCogsSearchKeydown,
-  handleCogsSort,
-  handleCogsSortDropdownToggle,
   handleTransactionYearChange,
   handleTransactionTypeChange,
   handleTransactionCustomerChange,
@@ -137,7 +125,6 @@ const {
 
 // Filter options
 const availableYears = useAvailableYears();
-const sortOptions = useCogsSortOptions();
 const transactionSortOptions = useTransactionSortOptions();
 const transactionTypeOptions = useTransactionTypeOptions();
 const arApSortOptions = useArApSortOptions();
@@ -153,6 +140,7 @@ const {
   fetchAssetStats,
   createAsset,
 } = useFinanceDashboardAssets();
+const { fetchTaxes } = useFinanceTax();
 
 // Local state for Assets tab
 const assetsSearch = ref("");
@@ -162,7 +150,30 @@ const assetsCompanyId = ref("");
 const assetsSortBy = ref("date");
 const assetsSortOrder = ref<"asc" | "desc">("desc");
 const assetsShowSortDropdown = ref(false);
+const showAssetModal = ref(false);
+const isSavingAsset = ref(false);
+const assetTaxOptions = ref<Array<{ id: string; name: string; rate: number }>>([]);
+const assetForm = ref({
+  name: "",
+  description: "",
+  price: 0,
+  date: new Date().toISOString().split("T")[0],
+  serviceId: "",
+  companyId: "",
+  taxId: "",
+});
 const isLoadingAssets = ref(false);
+
+// Computed for SearchSelect options
+const serviceOptions = computed(() =>
+  services.value.map((service) => ({ id: service.id, name: service.name })),
+);
+const companyOptions = computed(() =>
+  companies.value.map((company) => ({ id: company.id, name: company.name })),
+);
+const formattedAssetTaxOptions = computed(() =>
+  assetTaxOptions.value.map((tax) => ({ id: tax.id, name: `${tax.name} (${tax.rate}%)` })),
+);
 
 // Assets data - use the composable data
 const assetsData = computed(() => assets.value);
@@ -206,20 +217,26 @@ watch(
   { deep: true },
 );
 
-// Watch for tab change to load assets
+// Watch for tab change to load data for the selected tab
 watch(
   activeTab,
-  (newTab) => {
-    if (newTab === "Assets") {
+  async (newTab) => {
+    if (newTab === "Overview") {
+      const year = selectedYear.value ? parseInt(selectedYear.value) : undefined;
+      await fetchOverview(selectedPeriod.value, year);
+    } else if (newTab === "Assets") {
       loadAssets();
     }
   },
   { immediate: true },
 );
 
-// Watch for period change to reload assets
-watch(selectedPeriod, () => {
-  if (activeTab.value === "Assets") {
+// Watch for period change to reload data based on active tab
+watch(selectedPeriod, async () => {
+  if (activeTab.value === "Overview") {
+    const year = selectedYear.value ? parseInt(selectedYear.value) : undefined;
+    await fetchOverview(selectedPeriod.value, year);
+  } else if (activeTab.value === "Assets") {
     loadAssets();
   }
 });
@@ -386,16 +403,57 @@ function handleAssetsExport() {
 
     // Download the PDF directly
     doc.save(filename);
-  } catch (error) {
-    console.error("Failed to export assets PDF:", error);
-    alert("Failed to export PDF. Please try again.");
+  } catch (exportError) {
+    console.error("Failed to export assets PDF:", exportError);
+    toast.error("Failed to export PDF. Please try again.");
   }
 }
 
 async function handleAssetsAdd() {
-  // Navigate to asset creation page
-  const router = useRouter();
-  await router.push("/master/assets/create");
+  showAssetModal.value = true;
+  if (assetTaxOptions.value.length === 0) {
+    try {
+      const taxes = await fetchTaxes({ isActive: true, limit: 100 });
+      assetTaxOptions.value = taxes.items || [];
+    } catch {
+      assetTaxOptions.value = [];
+    }
+  }
+}
+
+function resetAssetForm() {
+  assetForm.value = {
+    name: "",
+    description: "",
+    price: 0,
+    date: new Date().toISOString().split("T")[0],
+    serviceId: "",
+    companyId: "",
+    taxId: "",
+  };
+}
+
+async function handleAssetSave() {
+  if (!assetForm.value.name || !assetForm.value.date || assetForm.value.price <= 0) return;
+  isSavingAsset.value = true;
+  try {
+    const result = await createAsset({
+      name: assetForm.value.name,
+      description: assetForm.value.description || undefined,
+      price: Number(assetForm.value.price),
+      date: assetForm.value.date,
+      serviceId: assetForm.value.serviceId || undefined,
+      companyId: assetForm.value.companyId || undefined,
+      taxId: assetForm.value.taxId || undefined,
+    });
+    if (result) {
+      await loadAssets();
+      showAssetModal.value = false;
+      resetAssetForm();
+    }
+  } finally {
+    isSavingAsset.value = false;
+  }
 }
 </script>
 
@@ -408,7 +466,7 @@ async function handleAssetsAdd() {
         <div>
           <h1 class="text-2xl font-bold">Finance</h1>
           <p class="text-muted-foreground text-base">
-            Manage cash flow, COGS, receivables/payables, and financial reports
+            Manage cash flow, receivables/payables, and financial reports
           </p>
         </div>
         <div class="flex items-center gap-1 bg-gray-100 border border-transparent rounded-lg p-1">
@@ -489,36 +547,6 @@ async function handleAssetsAdd() {
           :margin-trend-chart-series="marginTrendChartSeries"
         />
 
-        <CogsTab
-          v-else-if="activeTab === 'COGS'"
-          :stats-cards="cogsStats"
-          :jobs="jobCosts"
-          :is-loading="isLoading"
-          :is-loading-customers="isLoadingCustomers"
-          :is-loading-services="isLoadingServices"
-          :companies="companies"
-          :services="services"
-          :pagination="pagination"
-          v-model:selected-year="selectedYear"
-          v-model:search-query="searchQuery"
-          v-model:customer-id="cogsCustomerId"
-          v-model:service-id="cogsServiceId"
-          v-model:sort-by="sortBy"
-          v-model:sort-order="sortOrder"
-          v-model:show-sort-dropdown="showSortDropdown"
-          :available-years="availableYears"
-          :sort-options="sortOptions"
-          @year-change="handleYearChange"
-          @customer-change="handleCogsCustomerChange"
-          @service-change="handleCogsServiceChange"
-          @search="handleCogsSearch"
-          @search-input="handleCogsSearchInput"
-          @search-keydown="handleCogsSearchKeydown"
-          @sort="handleCogsSort"
-          @toggle-sort-dropdown="handleCogsSortDropdownToggle"
-          @page-change="handlePageChange"
-        />
-
         <TransactionTab
           v-else-if="activeTab === 'Transaction'"
           :stats-cards="transactionStatsCards"
@@ -588,7 +616,6 @@ async function handleAssetsAdd() {
           v-model:selected-year="selectedYear"
           :selected-period="selectedPeriod"
           :available-years="availableYears"
-          @year-change="handleYearChange"
         />
 
         <AccountsReceivableTab
@@ -653,5 +680,73 @@ async function handleAssetsAdd() {
         </div>
       </ClientOnly>
     </div>
+
+    <UiModal
+      v-model="showAssetModal"
+      title="Tambah Asset"
+      description="Catat asset baru"
+      width="max-w-lg"
+      @close="resetAssetForm"
+    >
+      <form class="space-y-4" @submit.prevent="handleAssetSave">
+        <div>
+          <label class="text-sm font-medium">Nama Asset</label>
+          <input v-model="assetForm.name" type="text" class="input-field" required />
+        </div>
+        <div>
+          <label class="text-sm font-medium">Tanggal</label>
+          <input v-model="assetForm.date" type="date" class="input-field" required />
+        </div>
+        <div>
+          <label class="text-sm font-medium">Harga</label>
+          <input v-model.number="assetForm.price" type="number" min="0" class="input-field" />
+        </div>
+        <div>
+          <label class="text-sm font-medium">Service</label>
+          <SearchSelect
+            v-model="assetForm.serviceId"
+            :initial-options="serviceOptions"
+            placeholder="Pilih service (opsional)"
+          />
+        </div>
+        <div>
+          <label class="text-sm font-medium">Company</label>
+          <SearchSelect
+            v-model="assetForm.companyId"
+            :initial-options="companyOptions"
+            placeholder="Pilih company (opsional)"
+          />
+        </div>
+        <div>
+          <label class="text-sm font-medium">Pajak</label>
+          <SearchSelect
+            v-model="assetForm.taxId"
+            :initial-options="formattedAssetTaxOptions"
+            placeholder="Pilih Pajak (opsional)"
+          />
+        </div>
+        <div>
+          <label class="text-sm font-medium">Deskripsi</label>
+          <textarea v-model="assetForm.description" rows="3" class="input-field"></textarea>
+        </div>
+
+        <div class="flex justify-end gap-2 pt-2">
+          <button
+            type="button"
+            class="px-4 py-2 text-sm border border-border rounded-lg"
+            @click="showAssetModal = false"
+          >
+            Batal
+          </button>
+          <button
+            type="submit"
+            class="px-4 py-2 text-sm bg-[#012D5A] text-white rounded-lg"
+            :disabled="isSavingAsset"
+          >
+            {{ isSavingAsset ? "Menyimpan..." : "Simpan" }}
+          </button>
+        </div>
+      </form>
+    </UiModal>
   </div>
 </template>

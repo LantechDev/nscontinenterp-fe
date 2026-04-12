@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import { ArrowLeft, Save } from "lucide-vue-next";
-import { useFinanceExpense, type Expense } from "~/composables/useFinanceExpense";
+import SearchSelect from "~/components/ui/SearchSelect.vue";
+import { useFinanceExpense } from "~/composables/useFinanceExpense";
 import { useCompanies } from "~/composables/useCompanies";
 import { useJobs } from "~/composables/useJobs";
 import { useServices } from "~/composables/useServices";
+import { useFinanceTax } from "~/composables/useFinanceTax";
+import { toast } from "vue-sonner";
 
 definePageMeta({
   layout: "dashboard",
@@ -13,6 +16,7 @@ const { createExpense, isLoading } = useFinanceExpense();
 const { fetchCompanies } = useCompanies();
 const { fetchJobs } = useJobs();
 const { fetchServices } = useServices();
+const { fetchTaxes } = useFinanceTax();
 
 const form = ref({
   number: "",
@@ -22,22 +26,42 @@ const form = ref({
   categoryId: "",
   vendorId: "",
   jobId: "",
+  taxId: "",
   notes: "",
 });
 
 const vendors = ref<unknown[]>([]);
 const jobs = ref<unknown[]>([]);
 const categories = ref<{ id: string; name: string }[]>([]);
+const taxes = ref<{ id: string; name: string; rate: number }[]>([]);
 
 // Typed helpers for template
 const vendorsList = computed(() => vendors.value as { id: string; name: string }[]);
 const jobsList = computed(() => jobs.value as { id: string; jobNumber: string }[]);
+const categoryOptions = computed(() =>
+  categories.value.map((cat) => ({ id: cat.id, name: cat.name })),
+);
+const jobOptions = computed(() =>
+  jobsList.value.map((job) => ({ id: job.id, name: job.jobNumber })),
+);
+const taxOptions = computed(() =>
+  taxes.value.map((tax) => ({ id: tax.id, name: `${tax.name} (${tax.rate}%)` })),
+);
+
+async function fetchVendorOptions({ query }: { query: string }) {
+  const result = await fetchCompanies({ type: "VENDOR", search: query, limit: 50 });
+  if (result.success && result.data) {
+    return { success: true, data: result.data.map((v) => ({ id: v.id, name: v.name })) };
+  }
+  return { success: false, error: result.error || "Failed to fetch vendors" };
+}
 
 async function loadInitialData() {
-  const [vendorRes, jobRes, serviceRes] = await Promise.all([
-    fetchCompanies({ type: "VENDOR" }),
+  const [vendorRes, jobRes, serviceRes, taxRes] = await Promise.all([
+    fetchCompanies({ type: "VENDOR", limit: 50 }),
     fetchJobs(),
     fetchServices(),
+    fetchTaxes({ isActive: true, limit: 100 }),
   ]);
 
   if (vendorRes.success && vendorRes.data) vendors.value = vendorRes.data;
@@ -53,6 +77,10 @@ async function loadInitialData() {
     }
     categories.value = Array.from(catMap.values());
   }
+
+  if (taxRes?.items) {
+    taxes.value = taxRes.items.map((t) => ({ id: t.id, name: t.name, rate: t.rate }));
+  }
 }
 
 async function handleSubmit() {
@@ -66,11 +94,12 @@ async function handleSubmit() {
     if (form.value.categoryId) payload.categoryId = form.value.categoryId;
     if (form.value.vendorId) payload.vendorId = form.value.vendorId;
     if (form.value.jobId) payload.jobId = form.value.jobId;
+    if (form.value.taxId) payload.taxId = form.value.taxId;
 
     await createExpense(payload);
     navigateTo("/finance/expenses");
   } catch (error) {
-    alert("Gagal mencatat biaya: " + (error as Error).message);
+    toast.error("Gagal mencatat biaya: " + (error as Error).message);
   }
 }
 
@@ -94,7 +123,7 @@ onMounted(() => {
       </div>
     </div>
 
-    <div class="max-w-3xl">
+    <div class="max-w-8xl">
       <form
         @submit.prevent="handleSubmit"
         class="space-y-6 bg-white p-8 rounded-xl border border-border"
@@ -131,27 +160,19 @@ onMounted(() => {
           </div>
           <div class="space-y-2">
             <label class="text-sm font-medium">Vendor</label>
-            <select
+            <SearchSelect
               v-model="form.vendorId"
-              class="w-full px-4 py-2 border rounded-lg focus:ring-1 focus:ring-primary outline-none bg-white"
-            >
-              <option value="">Pilih Vendor (Opsional)</option>
-              <option v-for="vendor in vendorsList" :key="vendor.id" :value="vendor.id">
-                {{ vendor.name }}
-              </option>
-            </select>
+              :fetch-options="fetchVendorOptions"
+              placeholder="Pilih Vendor (Opsional)"
+            />
           </div>
           <div class="space-y-2">
             <label class="text-sm font-medium">Kategori</label>
-            <select
+            <SearchSelect
               v-model="form.categoryId"
-              class="w-full px-4 py-2 border rounded-lg focus:ring-1 focus:ring-primary outline-none bg-white"
-            >
-              <option value="">Pilih Kategori (Opsional)</option>
-              <option v-for="cat in categories" :key="cat.id" :value="cat.id">
-                {{ cat.name }}
-              </option>
-            </select>
+              :initial-options="categoryOptions"
+              placeholder="Pilih Kategori (Opsional)"
+            />
           </div>
           <div class="space-y-2">
             <label class="text-sm font-medium">Jumlah (IDR)</label>
@@ -165,15 +186,19 @@ onMounted(() => {
           </div>
           <div class="space-y-2">
             <label class="text-sm font-medium">No. Job (Opsional)</label>
-            <select
+            <SearchSelect
               v-model="form.jobId"
-              class="w-full px-4 py-2 border rounded-lg focus:ring-1 focus:ring-primary outline-none bg-white"
-            >
-              <option value="">Pilih Job</option>
-              <option v-for="job in jobsList" :key="job.id" :value="job.id">
-                {{ job.jobNumber }}
-              </option>
-            </select>
+              :initial-options="jobOptions"
+              placeholder="Pilih Job"
+            />
+          </div>
+          <div class="space-y-2">
+            <label class="text-sm font-medium">Pajak</label>
+            <SearchSelect
+              v-model="form.taxId"
+              :initial-options="taxOptions"
+              placeholder="Pilih Pajak (Opsional)"
+            />
           </div>
           <div class="space-y-2 md:col-span-2">
             <label class="text-sm font-medium">Keterangan Tambahan</label>

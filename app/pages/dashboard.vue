@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onClickOutside } from "@vueuse/core";
+import { jsPDF } from "jspdf";
 import {
   Wallet,
   Ship,
@@ -9,14 +10,12 @@ import {
   Download,
   Plus,
   ChevronDown,
-  AlertCircle,
-  CheckCircle2,
-  ExternalLink,
   ArrowRight,
   Clock,
   Loader2,
 } from "lucide-vue-next";
 import { toast } from "vue-sonner";
+import { formatRupiah } from "~/lib/utils";
 
 definePageMeta({
   layout: "dashboard",
@@ -27,6 +26,7 @@ const { canApproveJobs, user } = useAuth();
 
 // State
 const loading = ref(true);
+const isExporting = ref(false);
 const dashboardData = ref<DashboardData | null>(null);
 const showPeriodDropdown = ref(false);
 const periodDropdownRef = ref<HTMLElement | null>(null);
@@ -46,6 +46,11 @@ const periodDisplay = computed(() => {
 });
 
 const applyPeriod = async () => {
+  if (selectedStartMonth.value > selectedEndMonth.value) {
+    toast.error("Start month must be before or equal to end month");
+    return;
+  }
+
   showPeriodDropdown.value = false;
   loading.value = true;
 
@@ -62,6 +67,114 @@ const applyPeriod = async () => {
   // Fetch dashboard data with new period
   dashboardData.value = await fetchDashboard(params);
   loading.value = false;
+};
+
+const handleExport = async () => {
+  if (!dashboardData.value) {
+    toast.error("Dashboard data is not ready yet");
+    return;
+  }
+
+  isExporting.value = true;
+
+  try {
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 16;
+    let yPos = 18;
+
+    const addLine = (
+      text: string,
+      options?: { bold?: boolean; indent?: number; size?: number },
+    ) => {
+      const indent = options?.indent || 0;
+      doc.setFont("helvetica", options?.bold ? "bold" : "normal");
+      doc.setFontSize(options?.size || 10);
+
+      const lines = doc.splitTextToSize(text, pageWidth - margin * 2 - indent);
+      if (yPos + lines.length * 6 > pageHeight - margin) {
+        doc.addPage();
+        yPos = margin;
+      }
+
+      doc.text(lines, margin + indent, yPos);
+      yPos += lines.length * 6;
+    };
+
+    const addSection = (title: string) => {
+      yPos += 4;
+      addLine(title, { bold: true, size: 12 });
+      yPos += 1;
+    };
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(18);
+    doc.text("Dashboard Summary", margin, yPos);
+    yPos += 8;
+
+    addLine(`Period: ${periodDisplay.value}`);
+    addLine(`Generated: ${new Date().toLocaleString("id-ID")}`);
+
+    addSection("Key Metrics");
+    const metricLines = [
+      `Total Income: ${dashboardData.value.stats.totalIncome}`,
+      `Active Job: ${dashboardData.value.stats.activeJobs}`,
+      `Invoice Pending: ${dashboardData.value.stats.pendingInvoices}`,
+      `Active Offer: ${dashboardData.value.stats.activeOffers}`,
+    ];
+    metricLines.forEach((line) => addLine(line, { indent: 2 }));
+
+    addSection("Financial Overview");
+    if (
+      dashboardData.value.financialOverview.categories &&
+      dashboardData.value.financialOverview.categories.length > 0 &&
+      dashboardData.value.financialOverview.income &&
+      dashboardData.value.financialOverview.outcome
+    ) {
+      dashboardData.value.financialOverview.categories.forEach((category, index) => {
+        const income = dashboardData.value?.financialOverview.income[index] || 0;
+        const outcome = dashboardData.value?.financialOverview.outcome[index] || 0;
+        addLine(
+          `${category}: Income ${formatRupiah(income * 1000000)} | Outcome ${formatRupiah(outcome * 1000000)}`,
+          { indent: 2 },
+        );
+      });
+    } else {
+      addLine("No financial data available", { indent: 2 });
+    }
+
+    addSection("Recent Jobs");
+    if (dashboardData.value.recentJobs.length === 0) {
+      addLine("No recent jobs", { indent: 2 });
+    } else {
+      dashboardData.value.recentJobs.forEach((job) => {
+        addLine(
+          `${job.jobNumber} • ${job.customer} • ${job.origin} -> ${job.destination} • ${job.status}`,
+          { indent: 2 },
+        );
+      });
+    }
+
+    addSection("Upcoming Activities");
+    if (dashboardData.value.upcomingEvents.length === 0) {
+      addLine("No upcoming activities", { indent: 2 });
+    } else {
+      dashboardData.value.upcomingEvents.forEach((activity) => {
+        addLine(`${activity.title} • ${activity.description} • ${activity.time}`, { indent: 2 });
+      });
+    }
+
+    doc.save(
+      `dashboard-summary-${selectedYear.value}-${selectedStartMonth.value + 1}-${selectedEndMonth.value + 1}.pdf`,
+    );
+    toast.success("Dashboard exported to PDF");
+  } catch (exportError) {
+    console.error("Failed to export dashboard PDF:", exportError);
+    toast.error("Failed to export dashboard");
+  } finally {
+    isExporting.value = false;
+  }
 };
 
 // Close dropdown when clicking outside
@@ -179,9 +292,12 @@ onMounted(async () => {
         </div>
         <button
           class="flex items-center gap-2 px-3 py-2 text-sm font-medium bg-muted hover:bg-muted/80 rounded-lg transition-colors"
+          :disabled="isExporting || loading"
+          @click="handleExport"
         >
-          <Download class="w-4 h-4 text-muted-foreground" />
-          <span>Export</span>
+          <Loader2 v-if="isExporting" class="w-4 h-4 text-muted-foreground animate-spin" />
+          <Download v-else class="w-4 h-4 text-muted-foreground" />
+          <span>{{ isExporting ? "Exporting..." : "Export" }}</span>
         </button>
         <NuxtLink
           to="/operational/jobs/create"

@@ -86,7 +86,6 @@ export const STATUS_CONFIG: Record<JobStatus, { label: string; class: string }> 
 
 export const TABS = [
   "Overview",
-  "COGS",
   "Transaction",
   "Assets",
   "Accounts Receivable",

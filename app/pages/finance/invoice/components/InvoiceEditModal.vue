@@ -8,9 +8,9 @@ interface Props {
   isSubmitting: boolean;
   editError: string | null;
   formData: InvoiceFormData;
-  selectedTaxRate: number;
+  selectedTaxId: string;
   statusOptions: Array<{ id: string; name: string }>;
-  taxOptions: Array<{ value: number; label: string }>;
+  taxOptions: Array<{ id: string; name: string; rate: number }>;
   companies: Array<{ id: string; name: string }>;
   jobs: Array<{ id: string; jobNumber: string }>;
   services: Array<{ id: string; name: string }>;
@@ -24,7 +24,7 @@ const emit = defineEmits<{
   addLineItem: [];
   removeLineItem: [index: number];
   updateItemAmount: [index: number];
-  updateTaxRate: [value: number];
+  updateTaxId: [value: string];
 }>();
 
 const formatCurrency = formatRupiah;
@@ -223,12 +223,13 @@ const formatCurrency = formatRupiah;
         <div class="space-y-1.5">
           <label class="text-sm font-medium text-foreground">PPN</label>
           <select
-            :model-value="selectedTaxRate"
+            :value="selectedTaxId"
             class="w-full px-3 py-2 rounded-lg border border-border focus:outline-none focus:ring-1 focus:ring-primary bg-white"
-            @update:model-value="emit('updateTaxRate', Number($event))"
+            @change="emit('updateTaxId', ($event.target as HTMLSelectElement).value)"
           >
-            <option v-for="tax in taxOptions" :key="tax.value" :value="tax.value">
-              {{ tax.label }}
+            <option value="">Tanpa Pajak</option>
+            <option v-for="tax in taxOptions" :key="tax.id" :value="tax.id">
+              {{ tax.name }} ({{ tax.rate }}%)
             </option>
           </select>
         </div>

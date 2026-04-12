@@ -24,7 +24,7 @@ export function useFinanceDashboardPageFinanceClose() {
     showFinanceCloseSortDropdown,
     getFinanceCloseFilters,
   } = useFinanceDashboardFilters();
-  const { transactions, fetchTransactions, pagination } = useFinanceDashboard();
+  const { transactions, fetchTransactions, transactionPagination } = useFinanceDashboard();
 
   // Finance Close Stats from API
   const financeCloseData = computed(() => {
@@ -73,7 +73,7 @@ export function useFinanceDashboardPageFinanceClose() {
     await fetchTransactions(
       selectedPeriod.value,
       currentPage.value,
-      pagination.value.limit,
+      transactionPagination.value.limit,
       getFinanceCloseFilters(),
     );
   }
@@ -86,7 +86,7 @@ export function useFinanceDashboardPageFinanceClose() {
     await fetchTransactions(
       selectedPeriod.value,
       currentPage.value,
-      pagination.value.limit,
+      transactionPagination.value.limit,
       getFinanceCloseFilters(),
     );
   }
@@ -97,7 +97,7 @@ export function useFinanceDashboardPageFinanceClose() {
     await fetchTransactions(
       selectedPeriod.value,
       currentPage.value,
-      pagination.value.limit,
+      transactionPagination.value.limit,
       getFinanceCloseFilters(),
     );
   }
@@ -108,7 +108,7 @@ export function useFinanceDashboardPageFinanceClose() {
     await fetchTransactions(
       selectedPeriod.value,
       currentPage.value,
-      pagination.value.limit,
+      transactionPagination.value.limit,
       getFinanceCloseFilters(),
     );
   }
@@ -124,7 +124,7 @@ export function useFinanceDashboardPageFinanceClose() {
     await fetchTransactions(
       selectedPeriod.value,
       currentPage.value,
-      pagination.value.limit,
+      transactionPagination.value.limit,
       getFinanceCloseFilters(),
     );
   }
@@ -180,7 +180,7 @@ export function useFinanceDashboardPageFinanceClose() {
     await fetchTransactions(
       period,
       currentPage.value,
-      pagination.value.limit,
+      transactionPagination.value.limit,
       getFinanceCloseFilters(),
     );
   }
@@ -190,7 +190,7 @@ export function useFinanceDashboardPageFinanceClose() {
     closedPeriods,
     financeCloseData,
     transactions,
-    pagination,
+    transactionPagination,
     financeCloseYear,
     financeCloseType,
     financeCloseCustomerId,

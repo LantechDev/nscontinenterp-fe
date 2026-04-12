@@ -25,6 +25,7 @@ export interface Company {
   name: string;
   email?: string;
   phone?: string;
+  totalJobs?: number;
   description?: string;
   notes?: string;
   addresses?: Address[];
@@ -87,10 +88,34 @@ export function useMasterData() {
 
   async function fetchCompanies() {
     try {
-      const data = await $fetch<Company[]>(`${config.public.apiBase}/master/companies`, {
-        credentials: "include",
-      });
-      return data;
+      const response = await $fetch<Company[] | { data?: Company[] }>(
+        `${config.public.apiBase}/master/companies`,
+        {
+          credentials: "include",
+        },
+      );
+      return Array.isArray(response) ? response : response.data || [];
+    } catch {
+      return [];
+    }
+  }
+
+  async function fetchCompaniesWithParams(params?: {
+    search?: string;
+    type?: "ALL" | "CUSTOMER" | "VENDOR" | "BOTH";
+    status?: "ALL" | "ACTIVE" | "INACTIVE";
+    page?: number;
+    limit?: number;
+  }) {
+    try {
+      const response = await $fetch<Company[] | { data?: Company[] }>(
+        `${config.public.apiBase}/master/companies`,
+        {
+          params,
+          credentials: "include",
+        },
+      );
+      return Array.isArray(response) ? response : response.data || [];
     } catch {
       return [];
     }
@@ -212,6 +237,7 @@ export function useMasterData() {
   return {
     isLoading,
     fetchCompanies,
+    fetchCompaniesWithParams,
     fetchContainerTypes,
     fetchPackageTypes,
     fetchVessels,

@@ -5,6 +5,8 @@ import { useServices } from "./useServices";
 import { useConfirm } from "./useConfirm";
 import { toNumber, formatRupiah } from "~/lib/utils";
 import type { ViewMode } from "./useExpensePage";
+import { useFinanceTax } from "./useFinanceTax";
+import { toast } from "vue-sonner";
 
 // Pure helper functions outside composable
 const formatDate = (dateStr: string) => {
@@ -70,6 +72,7 @@ export interface InvoiceFormData {
   jobId: string;
   notes: string;
   subTotal: number;
+  taxId: string;
   taxAmount: number;
   total: number;
   statusId: string;
@@ -95,6 +98,7 @@ export function useInvoicePage() {
   const { companies, fetchCompanies } = useCompanies();
   const { jobs, fetchJobs } = useJobs();
   const { services, fetchServices } = useServices();
+  const { fetchTaxes } = useFinanceTax();
 
   // State
   const invoices = ref<InvoiceData[]>([]);
@@ -117,12 +121,15 @@ export function useInvoicePage() {
     jobId: "",
     notes: "",
     subTotal: 0,
+    taxId: "",
     taxAmount: 0,
     total: 0,
     statusId: "",
     items: [],
   });
   const selectedTaxRate = ref(0);
+  const selectedTaxId = ref("");
+  const taxOptions = ref<Array<{ id: string; name: string; rate: number }>>([]);
 
   // Pagination
   const currentPage = ref(1);
@@ -158,12 +165,6 @@ export function useInvoicePage() {
     { id: "PAID", name: "Lunas (Paid)" },
     { id: "UNPAID", name: "Belum Lunas (Unpaid)" },
     { id: "OVERDUE", name: "Jatuh Tempo (Overdue)" },
-  ];
-
-  const editTaxOptions = [
-    { value: 0, label: "Tanpa PPN" },
-    { value: 1.1, label: "PPN 1.1% (Freight)" },
-    { value: 11, label: "PPN 11%" },
   ];
 
   // Format helpers
@@ -259,7 +260,13 @@ export function useInvoicePage() {
   };
 
   const loadDropdownData = async () => {
-    await Promise.all([fetchCompanies({ type: "CUSTOMER" }), fetchJobs(), fetchServices()]);
+    const [_, __, ___, taxes] = await Promise.all([
+      fetchCompanies({ type: "CUSTOMER" }),
+      fetchJobs(),
+      fetchServices(),
+      fetchTaxes({ isActive: true, limit: 100 }),
+    ]);
+    taxOptions.value = taxes?.items || [];
   };
 
   // Edit modal handlers
@@ -285,6 +292,7 @@ export function useInvoicePage() {
         jobId: inv.job?.id || "",
         notes: inv.notes || "",
         subTotal: toNumber(inv.subTotal),
+        taxId: inv.taxId || "",
         taxAmount: toNumber(inv.taxAmount),
         total: toNumber(inv.total),
         statusId: inv.status?.code || "",
@@ -299,7 +307,11 @@ export function useInvoicePage() {
           })) || [],
       };
 
-      if (inv.subTotal && inv.taxAmount) {
+      selectedTaxId.value = inv.taxId || "";
+      const selectedTax = taxOptions.value.find((tax) => tax.id === selectedTaxId.value);
+      if (selectedTax) {
+        selectedTaxRate.value = Number(selectedTax.rate) || 0;
+      } else if (inv.subTotal && inv.taxAmount) {
         selectedTaxRate.value = (toNumber(inv.taxAmount) / toNumber(inv.subTotal)) * 100;
       } else {
         selectedTaxRate.value = 0;
@@ -348,6 +360,7 @@ export function useInvoicePage() {
         jobId: formData.value.jobId || undefined,
         notes: formData.value.notes,
         subTotal,
+        taxId: selectedTaxId.value || undefined,
         taxAmount,
         total,
         balanceDue: total,
@@ -394,11 +407,11 @@ export function useInvoicePage() {
           await loadInvoices();
         } else {
           console.error("Failed to delete invoice:", result.error);
-          alert(result.error || "Failed to delete invoice");
+          toast.error(result.error || "Failed to delete invoice");
         }
-      } catch (error) {
-        console.error("Failed to delete invoice:", error);
-        alert("Failed to delete invoice. Please try again.");
+      } catch (deleteError) {
+        console.error("Failed to delete invoice:", deleteError);
+        toast.error("Failed to delete invoice. Please try again.");
       }
     }
   };
@@ -423,6 +436,13 @@ export function useInvoicePage() {
     recalculateTotals();
   });
 
+  watch(selectedTaxId, () => {
+    const selectedTax = taxOptions.value.find((tax) => tax.id === selectedTaxId.value);
+    selectedTaxRate.value = selectedTax ? Number(selectedTax.rate) || 0 : 0;
+    formData.value.taxId = selectedTaxId.value;
+    recalculateTotals();
+  });
+
   return {
     // State
     invoices,
@@ -437,12 +457,13 @@ export function useInvoicePage() {
     editingInvoiceId,
     formData,
     selectedTaxRate,
+    selectedTaxId,
     currentPage,
     pagination,
     // Options
     statusOptions,
     editStatusOptions,
-    editTaxOptions,
+    taxOptions,
     companies,
     jobs,
     services,

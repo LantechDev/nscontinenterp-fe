@@ -8,6 +8,7 @@ export interface Invoice {
   companyAddress?: string;
   companyId?: string;
   subTotal: number;
+  taxId?: string;
   taxAmount: number;
   total: number;
   balanceDue: number;
@@ -161,6 +162,7 @@ export function useInvoices() {
     issuedDate: string;
     dueDate: string;
     subTotal: number;
+    taxId?: string;
     taxAmount: number;
     total: number;
     balanceDue: number;
@@ -198,6 +200,7 @@ export function useInvoices() {
       jobId: string;
       notes: string;
       subTotal: number;
+      taxId: string;
       taxAmount: number;
       total: number;
       balanceDue: number;

@@ -6,7 +6,12 @@ import { formatRupiah } from "~/lib/utils";
  * Provides computed stats and handlers for the Transactions tab
  */
 export function useFinanceDashboardPageTransactions() {
-  const { transactions, transactionStats, fetchTransactions, pagination } = useFinanceDashboard();
+  const {
+    transactions,
+    transactionStats,
+    fetchTransactions,
+    transactionPagination: pagination,
+  } = useFinanceDashboard();
   const {
     selectedPeriod,
     currentPage,

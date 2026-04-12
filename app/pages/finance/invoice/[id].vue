@@ -4,6 +4,7 @@ import { useInvoices, type InvoiceDetail } from "~/composables/useInvoices";
 import { useCompanies } from "~/composables/useCompanies";
 import { useJobs } from "~/composables/useJobs";
 import { useServices } from "~/composables/useServices";
+import { useFinanceTax } from "~/composables/useFinanceTax";
 import { toNumber, formatRupiah } from "~/lib/utils";
 import { generateInvoicePdf } from "./utils/pdf-generator";
 
@@ -19,6 +20,7 @@ const { fetchInvoiceById, updateInvoice, isLoading } = useInvoices();
 const { companies, fetchCompanies } = useCompanies();
 const { jobs, fetchJobs } = useJobs();
 const { services, fetchServices } = useServices();
+const { fetchTaxes } = useFinanceTax();
 
 // Invoice data state
 const invoice = ref<InvoiceDetail | null>(null);
@@ -61,13 +63,8 @@ const statusOptions = [
   { id: "OVERDUE", name: "Jatuh Tempo (Overdue)" },
 ];
 
-// Tax options
-const taxOptions = [
-  { value: 0, label: "Tanpa PPN" },
-  { value: 1.1, label: "PPN 1.1% (Freight)" },
-  { value: 11, label: "PPN 11%" },
-];
-
+const taxOptions = ref<Array<{ id: string; name: string; rate: number }>>([]);
+const selectedTaxId = ref("");
 const selectedTaxRate = ref(0);
 
 // Status badge configuration
@@ -179,7 +176,13 @@ const loadInvoice = async () => {
 
 // Load dropdown data
 const loadDropdownData = async () => {
-  await Promise.all([fetchCompanies({ type: "CUSTOMER" }), fetchJobs(), fetchServices()]);
+  const [_, __, ___, taxes] = await Promise.all([
+    fetchCompanies({ type: "CUSTOMER" }),
+    fetchJobs(),
+    fetchServices(),
+    fetchTaxes({ isActive: true, limit: 100 }),
+  ]);
+  taxOptions.value = taxes?.items || [];
 };
 
 // Open edit modal with full form
@@ -215,8 +218,11 @@ const openEditModal = async () => {
       })) || [],
   };
 
-  // Calculate tax rate from existing tax amount
-  if (invoice.value.subTotal && invoice.value.taxAmount) {
+  selectedTaxId.value = inv.taxId || "";
+  const selectedTax = taxOptions.value.find((tax) => tax.id === selectedTaxId.value);
+  if (selectedTax) {
+    selectedTaxRate.value = Number(selectedTax.rate) || 0;
+  } else if (invoice.value.subTotal && invoice.value.taxAmount) {
     selectedTaxRate.value =
       (toNumber(invoice.value.taxAmount) / toNumber(invoice.value.subTotal)) * 100;
   } else {
@@ -264,6 +270,7 @@ const handleFullUpdate = async () => {
       jobId: formData.value.jobId || undefined,
       notes: formData.value.notes,
       subTotal,
+      taxId: selectedTaxId.value || undefined,
       taxAmount,
       total,
       balanceDue: total, // For simplicity, set balanceDue equal to total
@@ -288,6 +295,12 @@ const handleFullUpdate = async () => {
 
 // Watch for tax rate changes
 watch(selectedTaxRate, () => {
+  recalculateTotals();
+});
+
+watch(selectedTaxId, () => {
+  const selectedTax = taxOptions.value.find((tax) => tax.id === selectedTaxId.value);
+  selectedTaxRate.value = selectedTax ? Number(selectedTax.rate) || 0 : 0;
   recalculateTotals();
 });
 
@@ -605,11 +618,12 @@ onMounted(() => {
         <div class="space-y-1.5">
           <label class="text-sm font-medium text-foreground"> PPN </label>
           <select
-            v-model.number="selectedTaxRate"
+            v-model="selectedTaxId"
             class="w-full px-3 py-2 rounded-lg border border-border focus:outline-none focus:ring-1 focus:ring-primary bg-white"
           >
-            <option v-for="tax in taxOptions" :key="tax.value" :value="tax.value">
-              {{ tax.label }}
+            <option value="">Tanpa Pajak</option>
+            <option v-for="tax in taxOptions" :key="tax.id" :value="tax.id">
+              {{ tax.name }} ({{ tax.rate }}%)
             </option>
           </select>
         </div>

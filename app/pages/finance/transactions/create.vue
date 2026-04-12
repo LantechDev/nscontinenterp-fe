@@ -21,6 +21,8 @@ const {
   debitAccountId,
   creditAccountId,
   attachmentUrl,
+  taxId,
+  taxOptions,
   isAccountsLoading,
   canSave,
   handleAccountSearch,
@@ -31,6 +33,11 @@ const {
 } = useTransaction();
 
 const fileInput = ref<HTMLInputElement | null>(null);
+
+// Computed for SearchSelect
+const formattedTaxOptions = computed(() =>
+  taxOptions.value.map((tax) => ({ id: tax.id, name: `${tax.name} (${tax.rate}%)` })),
+);
 
 onMounted(() => {
   initialize();
@@ -117,6 +124,16 @@ onMounted(() => {
           step="0.01"
           placeholder="0"
           class="input-field"
+        />
+      </div>
+
+      <!-- Tax -->
+      <div class="space-y-2">
+        <label class="text-sm font-medium text-foreground">Pajak</label>
+        <SearchSelect
+          v-model="taxId"
+          :initial-options="formattedTaxOptions"
+          placeholder="Pilih Pajak (Opsional)"
         />
       </div>
 

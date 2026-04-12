@@ -3,8 +3,13 @@
  * Provides computed stats and handlers for the Accounts Receivable/Payable tab
  */
 export function useFinanceDashboardPageArAp() {
-  const { arApItems, arApStats, fetchArApItems, fetchArApStats, pagination } =
-    useFinanceDashboard();
+  const {
+    arApItems,
+    arApStats,
+    fetchArApItems,
+    fetchArApStats,
+    arApPagination: pagination,
+  } = useFinanceDashboard();
   // confirm is not used - keeping the import for potential future use
   useConfirm();
   const {

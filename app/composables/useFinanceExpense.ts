@@ -7,6 +7,7 @@ export interface Expense {
   categoryId?: string;
   vendorId?: string;
   jobId?: string;
+  taxId?: string;
   category?: { id: string; name: string };
   vendor?: { id: string; name: string };
   job?: { id: string; jobNumber: string };

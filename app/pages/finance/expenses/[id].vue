@@ -4,6 +4,7 @@ import { useFinanceExpense, type Expense } from "~/composables/useFinanceExpense
 import { useExpensePage } from "~/composables/useExpensePage";
 import { ExpenseEditModal } from "./components";
 import { jsPDF } from "jspdf";
+import { toast } from "vue-sonner";
 
 definePageMeta({
   layout: "dashboard",
@@ -23,6 +24,7 @@ const {
   categoryOptions,
   companies,
   jobs,
+  taxOptions,
   openEditModal,
   closeEditModal,
   handleUpdate,
@@ -46,7 +48,7 @@ async function handleDelete() {
       await deleteExpense(expenseId);
       navigateTo("/finance/expenses");
     } catch (error) {
-      alert("Gagal menghapus biaya: " + (error as Error).message);
+      toast.error("Gagal menghapus biaya: " + (error as Error).message);
     }
   }
 }
@@ -171,7 +173,7 @@ function handleDownloadPdf() {
     doc.save(filename);
   } catch (error) {
     console.error("Failed to download expense PDF:", error);
-    alert("Failed to download PDF. Please try again.");
+    toast.error("Failed to download PDF. Please try again.");
   }
 }
 
@@ -289,6 +291,7 @@ onMounted(() => {
     :category-options="categoryOptions"
     :companies="companies"
     :jobs="jobs"
+    :tax-options="taxOptions"
     @close="closeEditModal"
     @submit="handleUpdate"
   />

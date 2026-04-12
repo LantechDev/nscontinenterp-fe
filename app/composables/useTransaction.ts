@@ -1,6 +1,7 @@
 import { getErrorMessage } from "~/lib/utils";
 import { useChartOfAccounts } from "./useChartOfAccounts";
 import type { SearchSelectFetchOptions } from "~/components/ui/SearchSelect.vue";
+import { useFinanceTax } from "./useFinanceTax";
 
 export function useTransaction() {
   const config = useRuntimeConfig();
@@ -13,6 +14,7 @@ export function useTransaction() {
     formatAccountDisplay,
     isLoading: isAccountsLoading,
   } = useChartOfAccounts();
+  const { fetchTaxes } = useFinanceTax();
 
   // State
   const isSaving = ref(false);
@@ -27,6 +29,8 @@ export function useTransaction() {
   const debitAccountId = ref("");
   const creditAccountId = ref("");
   const attachmentUrl = ref("");
+  const taxId = ref("");
+  const taxOptions = ref<Array<{ id: string; name: string; rate: number }>>([]);
 
   // Computed
   const canSave = computed(() => {
@@ -97,6 +101,7 @@ export function useTransaction() {
         referenceNumber: referenceNumber.value,
         description: description.value,
         attachmentUrl: attachmentUrl.value,
+        taxId: taxId.value || undefined,
         entries: [
           {
             accountId: debitAccountId.value,
@@ -133,6 +138,12 @@ export function useTransaction() {
   // Initialize
   const initialize = async () => {
     await fetchAccounts();
+    try {
+      const taxes = await fetchTaxes({ isActive: true, limit: 100 });
+      taxOptions.value = taxes.items || [];
+    } catch {
+      taxOptions.value = [];
+    }
     // Generate reference number
     const date = new Date();
     const year = date.getFullYear().toString().slice(-2);
@@ -155,6 +166,8 @@ export function useTransaction() {
     debitAccountId,
     creditAccountId,
     attachmentUrl,
+    taxId,
+    taxOptions,
     // From composable
     accounts,
     isAccountsLoading,

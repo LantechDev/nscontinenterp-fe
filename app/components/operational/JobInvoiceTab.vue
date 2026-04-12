@@ -19,6 +19,7 @@ import JobPaymentTab from "./JobPaymentTab.vue";
 import PaymentEntryForm from "../finance/PaymentEntryForm.vue";
 import Modal from "~/components/ui/Modal.vue";
 import { useInvoices, type InvoiceDetail } from "~/composables/useInvoices";
+import { toast } from "vue-sonner";
 
 const props = defineProps<{
   jobId: string;
@@ -116,7 +117,7 @@ const handleVoid = async () => {
     await loadInvoiceDetail(activeInvoice.value.id);
     await loadInvoices();
   } else {
-    alert(result.error || "Failed to void invoice");
+    toast.error(result.error || "Failed to void invoice");
   }
   isVoiding.value = false;
 };

@@ -8,11 +8,31 @@ export type CreateCompanyInput = {
   description?: string;
   notes?: string;
   fullAddress?: string;
+  street?: string;
   country?: string;
   city?: string;
+  state?: string;
+  postalCode?: string;
+  eori?: string;
+  taxId?: string;
   isCustomer?: boolean;
   isVendor?: boolean;
 };
+
+export type CompanyQueryParams = {
+  search?: string;
+  type?: "ALL" | "CUSTOMER" | "VENDOR" | "BOTH";
+  status?: "ALL" | "ACTIVE" | "INACTIVE";
+  page?: number;
+  limit?: number;
+};
+
+export interface CompanyPagination {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
 
 export type CreateAddressInput = {
   label: string;
@@ -81,22 +101,30 @@ export type MappedCompany = Company & {
   type: string;
   status: string;
   totalJobs: number;
-  selected: boolean;
 };
 
 export function useCompanies() {
   const companies = useState<Company[]>("companies", () => []);
+  const pagination = useState<CompanyPagination>("company-pagination", () => ({
+    page: 1,
+    limit: 10,
+    total: 0,
+    totalPages: 0,
+  }));
   const isLoading = ref(false);
 
-  async function fetchCompanies(params?: {
-    search?: string;
-    type?: "ALL" | "CUSTOMER" | "VENDOR";
-  }) {
+  async function fetchCompanies(params?: CompanyQueryParams) {
     isLoading.value = true;
     try {
       const result = await companyApi.fetchCompanies(params);
       if (result.success && result.data) {
         companies.value = result.data;
+        pagination.value = result.pagination || {
+          page: params?.page || 1,
+          limit: params?.limit || result.data.length || 10,
+          total: result.data.length,
+          totalPages: result.data.length > 0 ? 1 : 0,
+        };
       }
       return result;
     } finally {
@@ -135,7 +163,7 @@ export function useCompanies() {
     }
   }
 
-  async function updateCompany(id: string, companyData: Partial<Omit<Company, "id">>) {
+  async function updateCompany(id: string, companyData: Partial<CreateCompanyInput>) {
     isLoading.value = true;
     try {
       const result = await companyApi.updateCompany(id, companyData);
@@ -194,6 +222,7 @@ export function useCompanies() {
 
   return {
     companies,
+    pagination,
     isLoading,
     fetchCompanies,
     getCompanyById,

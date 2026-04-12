@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ArrowLeft, Save } from "lucide-vue-next";
+import { toast } from "vue-sonner";
 import { useFinanceTax } from "~/composables/useFinanceTax";
 
 definePageMeta({
@@ -21,7 +22,7 @@ async function handleSubmit() {
     await createTax(form.value);
     navigateTo("/finance/tax");
   } catch (error) {
-    alert("Gagal menyimpan pajak: " + (error as Error).message);
+    toast.error("Gagal menyimpan pajak: " + (error as Error).message);
   }
 }
 </script>
@@ -40,7 +41,7 @@ async function handleSubmit() {
       </div>
     </div>
 
-    <div class="max-w-3xl">
+    <div class="max-w-8xl">
       <form
         @submit.prevent="handleSubmit"
         class="space-y-6 bg-white p-8 rounded-xl border border-border"

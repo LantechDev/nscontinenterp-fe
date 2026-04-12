@@ -31,6 +31,7 @@ const {
   editingExpenseId,
   formData,
   categoryOptions,
+  taxOptions,
   companies,
   jobs,
   formatCurrency,
@@ -116,9 +117,13 @@ onMounted(() => {
           class="px-3 py-2 rounded-lg border border-border bg-white text-sm focus:outline-none focus:ring-1 focus:ring-primary"
         >
           <option value="">Semua Kategori</option>
-          <option value="trucking">Trucking</option>
-          <option value="port">Port</option>
-          <option value="customs">Customs</option>
+          <option
+            v-for="opt in categoryOptions.filter((o) => o.value !== '')"
+            :key="opt.value"
+            :value="opt.value"
+          >
+            {{ opt.label }}
+          </option>
         </select>
         <NuxtLink
           to="/finance/expenses/create"
@@ -320,6 +325,7 @@ onMounted(() => {
     :category-options="categoryOptions"
     :companies="companies"
     :jobs="jobs"
+    :tax-options="taxOptions"
     @close="closeEditModal"
     @submit="handleUpdate"
   />

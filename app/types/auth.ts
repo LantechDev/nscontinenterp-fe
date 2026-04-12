@@ -26,6 +26,8 @@ export interface Organization {
   slug: string;
   logo?: string;
   metadata?: OrganizationMetadata;
+  role?: string;
+  isOwner?: boolean;
 }
 
 export interface Session {

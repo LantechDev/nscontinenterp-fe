@@ -1,4 +1,5 @@
 import { jsPDF } from "jspdf";
+import { toast } from "vue-sonner";
 import type { Expense } from "~/composables/useFinanceExpense";
 
 const formatCurrency = (value: number) => {
@@ -129,6 +130,6 @@ export async function generateExpensePdf(
     doc.save(filename);
   } catch (error) {
     console.error("Failed to download expense PDF:", error);
-    alert("Failed to download PDF. Please try again.");
+    toast.error("Failed to download PDF. Please try again.");
   }
 }

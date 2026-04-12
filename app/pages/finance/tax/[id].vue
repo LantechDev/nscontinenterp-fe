@@ -3,6 +3,7 @@ import { ArrowLeft, Calculator, Edit, Trash2, Download } from "lucide-vue-next";
 import { useFinanceTax, type Tax } from "~/composables/useFinanceTax";
 import { cn } from "~/lib/utils";
 import { jsPDF } from "jspdf";
+import { toast } from "vue-sonner";
 
 definePageMeta({
   layout: "dashboard",
@@ -29,7 +30,7 @@ async function handleDelete() {
       await deleteTax(taxId);
       navigateTo("/finance/tax");
     } catch (error) {
-      alert("Gagal menghapus pajak: " + (error as Error).message);
+      toast.error("Gagal menghapus pajak: " + (error as Error).message);
     }
   }
 }
@@ -146,7 +147,7 @@ function handleDownloadPdf() {
     doc.save(filename);
   } catch (error) {
     console.error("Failed to download tax PDF:", error);
-    alert("Failed to download PDF. Please try again.");
+    toast.error("Failed to download PDF. Please try again.");
   }
 }
 

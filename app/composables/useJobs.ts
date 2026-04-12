@@ -643,6 +643,52 @@ export function useJobs() {
     }
   }
 
+  async function completeJob(id: string): Promise<AuthResponse<JobWithBls>> {
+    isLoading.value = true;
+    try {
+      const data = await $fetch<JobWithBls>(
+        `${config.public.apiBase}/operational/jobs/${id}/complete`,
+        {
+          method: "POST",
+          credentials: "include",
+        },
+      );
+      const index = jobs.value.findIndex((j) => j.id === id);
+      if (index !== -1) {
+        jobs.value[index] = data;
+      }
+      currentJob.value = data;
+      return { success: true, data };
+    } catch (error) {
+      return handleApiError<JobWithBls>(error);
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  async function cancelCompleteJob(id: string): Promise<AuthResponse<JobWithBls>> {
+    isLoading.value = true;
+    try {
+      const data = await $fetch<JobWithBls>(
+        `${config.public.apiBase}/operational/jobs/${id}/cancel-complete`,
+        {
+          method: "POST",
+          credentials: "include",
+        },
+      );
+      const index = jobs.value.findIndex((j) => j.id === id);
+      if (index !== -1) {
+        jobs.value[index] = data;
+      }
+      currentJob.value = data;
+      return { success: true, data };
+    } catch (error) {
+      return handleApiError<JobWithBls>(error);
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
   async function getBlRender(id: string): Promise<AuthResponse<BlRenderResponse>> {
     isLoading.value = true;
     try {
@@ -721,6 +767,8 @@ export function useJobs() {
     fetchJobs,
     createJob,
     updateJob,
+    completeJob,
+    cancelCompleteJob,
     getJob,
     updateBl,
     updateBlDraft,

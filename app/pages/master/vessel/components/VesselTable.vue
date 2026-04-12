@@ -1,7 +1,6 @@
 <script setup lang="ts">
-import { MoreVertical, Pencil, Trash2, ChevronDown } from "lucide-vue-next";
+import { ChevronDown, MoreVertical, Pencil, Trash2 } from "lucide-vue-next";
 import { cn } from "~/lib/utils";
-import type { Vessel } from "~/composables/useVessels";
 
 interface VesselItem {
   id: string;
