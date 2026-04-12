@@ -1,15 +1,44 @@
 <script setup lang="ts">
-import { useFinanceCharts } from "~/composables/useFinanceCharts";
+interface Top5Item {
+  name: string;
+  value: number;
+}
 
-const { top5ChartOptions, top5ChartSeries } = useFinanceCharts();
+interface ChartData {
+  top5?: Top5Item[];
+}
 
-const top5Items = [
-  { name: "Lorem Ipsum", value: 40, color: "#1e3a8a" },
-  { name: "Dolor Sit", value: 30, color: "#38bdf8" },
-  { name: "Amet Consect", value: 22, color: "#3b82f6" },
-  { name: "Elit Sed", value: 10, color: "#60a5fa" },
-  { name: "Tempor Inc", value: 8, color: "#2563eb" },
-];
+const props = defineProps<{
+  chartData?: ChartData;
+  options: unknown;
+  series: unknown;
+}>();
+
+const colors = ["#1e3a8a", "#38bdf8", "#3b82f6", "#60a5fa", "#2563eb"];
+
+const dynamicTop5Items = computed(() => {
+  const data = props.chartData?.top5 || [];
+
+  if (data.length === 0) {
+    return [
+      { name: "Lorem Ipsum", value: 40, color: colors[0] },
+      { name: "Dolor Sit", value: 30, color: colors[1] },
+      { name: "Amet Consect", value: 22, color: colors[2] },
+      { name: "Elit Sed", value: 10, color: colors[3] },
+      { name: "Tempor Inc", value: 8, color: colors[4] },
+    ];
+  }
+
+  // Sort by value descending
+  const sortedData = data.toSorted((a, b) => b.value - a.value).slice(0, 5);
+  const totalValue = sortedData.reduce((acc, item) => acc + item.value, 0);
+
+  return sortedData.map((item, index) => ({
+    name: item.name,
+    value: totalValue > 0 ? Math.round((item.value / totalValue) * 100) : 0,
+    color: colors[index % colors.length],
+  }));
+});
 
 const selectedType = ref("Income");
 </script>
@@ -33,18 +62,17 @@ const selectedType = ref("Income");
     <!-- Donut Chart -->
     <div class="flex-1 flex items-center justify-center min-h-[200px]">
       <ClientOnly>
-        <apexchart
-          type="donut"
-          height="220"
-          :options="top5ChartOptions"
-          :series="top5ChartSeries"
-        />
+        <apexchart type="donut" height="220" :options="options" :series="series" />
       </ClientOnly>
     </div>
 
     <!-- Legend List (Vertical) -->
     <div class="flex flex-col gap-3 mt-2">
-      <div v-for="item in top5Items" :key="item.name" class="flex items-center justify-between">
+      <div
+        v-for="item in dynamicTop5Items"
+        :key="item.name"
+        class="flex items-center justify-between"
+      >
         <div class="flex items-center gap-2">
           <div class="w-1.5 h-1.5 rounded-full" :style="{ backgroundColor: item.color }"></div>
           <span class="text-xs text-gray-500">{{ item.name }}</span>

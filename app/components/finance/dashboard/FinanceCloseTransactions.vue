@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ArrowUpDown, Download, Filter, Search, ChevronDown } from "lucide-vue-next";
-import { cn } from "~/lib/utils";
+import { cn, formatRupiah } from "~/lib/utils";
 import type { TransactionItem } from "~/types/finance";
 
 const props = defineProps<{
@@ -37,14 +37,7 @@ const emit = defineEmits<{
   (e: "pageChange", page: number): void;
 }>();
 
-const formatCurrency = (value: number): string => {
-  return new Intl.NumberFormat("id-ID", {
-    style: "currency",
-    currency: "IDR",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(value);
-};
+const formatCurrency = formatRupiah;
 
 // Local refs for v-model binding
 const localSearchQuery = computed({
@@ -142,7 +135,7 @@ const localShowSortDropdown = computed({
       <div class="relative">
         <select
           v-model="localSelectedYear"
-          @change="emit('yearChange', localSelectedYear)"
+          @change="emit('yearChange', ($event.target as HTMLSelectElement).value)"
           class="appearance-none px-3 py-2 pr-8 text-sm border border-border rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
         >
           <option value="">All Years</option>
@@ -169,7 +162,7 @@ const localShowSortDropdown = computed({
       <!-- Customer Filter -->
       <select
         v-model="localCustomerId"
-        @change="emit('customerChange', localCustomerId)"
+        @change="emit('customerChange', ($event.target as HTMLSelectElement).value)"
         class="px-3 py-2 text-sm border border-border rounded-lg bg-white"
         :disabled="isLoadingCustomers"
       >

@@ -1,9 +1,11 @@
+import { formatRupiah } from "~/lib/utils";
+
 export function useFinanceCharts() {
   const config = useRuntimeConfig();
   const baseUrl = config.public.apiBase || "";
 
   // Request tracking
-  let currentRequestId = 0;
+  const requestIdRef = ref(0);
 
   // Reactive state
   const isLoading = ref(false);
@@ -38,7 +40,7 @@ export function useFinanceCharts() {
     period: "day" | "week" | "month" | "year" = "month",
     year?: number,
   ) {
-    const requestId = ++currentRequestId;
+    const requestId = ++requestIdRef.value;
 
     isLoading.value = true;
 
@@ -60,7 +62,7 @@ export function useFinanceCharts() {
         credentials: "include",
       });
 
-      if (requestId === currentRequestId) {
+      if (requestId === requestIdRef.value) {
         chartData.value = data;
       }
       return data;
@@ -68,7 +70,7 @@ export function useFinanceCharts() {
       console.error("Failed to fetch chart data:", error);
       return null;
     } finally {
-      if (requestId === currentRequestId) {
+      if (requestId === requestIdRef.value) {
         isLoading.value = false;
       }
     }
@@ -219,13 +221,10 @@ export function useFinanceCharts() {
       fontFamily: "inherit",
     },
     colors: ["#1e3a8a", "#38bdf8", "#3b82f6", "#60a5fa", "#2563eb"],
-    labels: chartData.value?.top5?.map((t) => t.name) || [
-      "Lorem Ipsum",
-      "Dolor Sit",
-      "Amet Consect",
-      "Elit Sed",
-      "Tempor Inc",
-    ],
+    labels:
+      chartData.value?.top5 && chartData.value.top5.length > 0
+        ? chartData.value.top5.map((t) => t.name)
+        : ["Lorem Ipsum", "Dolor Sit", "Amet Consect", "Elit Sed", "Tempor Inc"],
     dataLabels: { enabled: false },
     legend: { show: false },
     plotOptions: {
@@ -234,11 +233,22 @@ export function useFinanceCharts() {
           size: "70%",
           labels: {
             show: true,
+            value: {
+              show: true,
+              fontSize: "11px",
+              fontWeight: 500,
+              color: "#1e293b",
+              formatter: (val: number) => formatRupiah(val),
+            },
             total: {
               show: true,
               label: "Total",
               fontSize: "12px",
               color: "#64748b",
+              formatter: (w: { globals: { series: number[] } }) => {
+                const total = w.globals.series.reduce((a: number, b: number) => a + b, 0);
+                return formatRupiah(total);
+              },
             },
           },
         },
@@ -246,14 +256,15 @@ export function useFinanceCharts() {
     },
     stroke: { width: 0 },
     tooltip: {
-      y: { formatter: (val: number) => `Rp ${val}jt` },
+      y: { formatter: (val: number) => formatRupiah(val) },
     },
   }));
 
   // Top 5 Series - uses real data or fallback
-  const top5ChartSeries = computed(
-    () => chartData.value?.top5?.map((t) => t.value) || [40, 30, 22, 10, 8],
-  );
+  const top5ChartSeries = computed(() => {
+    const data = chartData.value?.top5;
+    return data && data.length > 0 ? data.map((t) => t.value) : [40, 30, 22, 10, 8];
+  });
 
   return {
     // State

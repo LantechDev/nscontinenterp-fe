@@ -1,111 +1,86 @@
-export interface Payment {
+import { toast } from "vue-sonner";
+
+export interface PaymentAllocation {
   id: string;
-  paymentNumber: string;
-  paymentDate: string;
+  invoiceId: string;
   amount: number;
-  invoice: {
+  invoice?: {
     invoiceNumber: string;
-    companyId?: string;
   };
-  invoiceNumber?: string;
-  companyName?: string;
-  paymentMethod?: {
-    code: string;
-    name: string;
-  };
-  reference?: string;
-  notes?: string;
-  recorder?: {
-    name: string;
-    email: string;
-  };
-  createdAt: string;
 }
 
-export interface PaymentDetail {
+export interface PaymentItem {
   id: string;
   paymentNumber: string;
   paymentDate: string;
   amount: number;
-  invoice: {
+  reference?: string;
+  notes?: string;
+  company?: {
+    name: string;
+    code: string;
+  };
+  paymentMethod?: {
+    name: string;
+    code: string;
+  };
+  allocations: PaymentAllocation[];
+}
+
+export interface OutstandingReport {
+  invoices: Array<{
     id: string;
     invoiceNumber: string;
-    company: {
-      id: string;
-      name: string;
-      email: string;
-      phone: string;
-      address: string;
-    };
-    items: Array<{
-      id: string;
-      description: string;
-      quantity: number;
-      unitPrice: number;
-      total: number;
-      service?: {
-        name: string;
-      };
-    }>;
+    total: number;
+    balanceDue: number;
+    issuedDate: string;
+    status: { name: string; code: string };
+    company: { name: string; code: string };
+  }>;
+  pagination: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
   };
-  paymentMethod?: {
-    code: string;
-    name: string;
+  summary: {
+    totalInvoiced: number;
+    totalPaid: number;
+    totalOutstanding: number;
+    count: number;
   };
+}
+
+export interface CreatePaymentPayload {
+  companyId: string;
+  amount: number;
+  paymentDate: string;
+  paymentMethodId?: string;
+  taxId?: string;
   reference?: string;
   notes?: string;
-  recorder?: {
-    name: string;
-    email: string;
-  };
-  createdAt: string;
+  useFifo?: boolean;
+  allocations?: { invoiceId: string; amount: number }[];
 }
 
-type ErrorResponse = {
-  message?: string;
-  error?: string;
-};
-
-function getErrorMessage(error: unknown): string {
-  if (error && typeof error === "object" && "data" in error) {
-    const errorData = (error as { data?: ErrorResponse }).data;
-    if (errorData?.message) return errorData.message;
-    if (errorData?.error) return errorData.error;
-  }
-  if (error instanceof Error) return error.message;
-  return "An error occurred";
-}
-
-export function usePayments() {
+export const usePayments = () => {
   const config = useRuntimeConfig();
   const isLoading = ref(false);
-
-  async function deletePayment(id: string): Promise<{ success: boolean; error?: string }> {
-    try {
-      await $fetch(`${config.public.apiBase}/finance/payment/${id}`, {
-        method: "DELETE",
-        credentials: "include",
-      });
-      return { success: true };
-    } catch (error) {
-      return { success: false, error: getErrorMessage(error) };
-    }
-  }
+  const isSaving = ref(false);
 
   async function fetchPayments(): Promise<{
     success: boolean;
-    data?: Payment[];
+    data?: PaymentItem[];
     error?: string;
   }> {
     isLoading.value = true;
     try {
-      const data = await $fetch<Payment[]>(`${config.public.apiBase}/finance/payment`, {
+      const data = await $fetch<PaymentItem[]>(`${config.public.apiBase}/finance/payment`, {
         credentials: "include",
       });
       return { success: true, data };
-    } catch (error) {
-      console.error("[Payments] Failed to fetch:", error);
-      return { success: false, error: getErrorMessage(error) };
+    } catch (error: unknown) {
+      return { success: false, error: (error as Error).message || "Failed to fetch payments" };
     } finally {
       isLoading.value = false;
     }
@@ -113,63 +88,113 @@ export function usePayments() {
 
   async function fetchPaymentById(
     id: string,
-  ): Promise<{ success: boolean; data?: PaymentDetail; error?: string }> {
+  ): Promise<{ success: boolean; data?: PaymentItem; error?: string }> {
     isLoading.value = true;
     try {
-      const data = await $fetch<PaymentDetail>(`${config.public.apiBase}/finance/payment/${id}`, {
+      const data = await $fetch<PaymentItem>(`${config.public.apiBase}/finance/payment/${id}`, {
         credentials: "include",
       });
       return { success: true, data };
-    } catch (error) {
-      return { success: false, error: getErrorMessage(error) };
+    } catch (error: unknown) {
+      return {
+        success: false,
+        error: (error as Error).message || "Failed to fetch payment details",
+      };
     } finally {
       isLoading.value = false;
     }
   }
 
-  async function createPayment(data: {
-    invoiceId: string;
-    paymentDate: string;
-    amount: number;
-    paymentMethodId?: string;
-    reference?: string;
-    notes?: string;
-  }): Promise<{ success: boolean; data?: Payment; error?: string }> {
-    isLoading.value = true;
+  async function createPayment(
+    data: CreatePaymentPayload,
+  ): Promise<{ success: boolean; data?: unknown; error?: string }> {
+    isSaving.value = true;
     try {
-      const responseData = await $fetch<Payment>(`${config.public.apiBase}/finance/payment`, {
+      const responseData = await $fetch(`${config.public.apiBase}/finance/payment`, {
         method: "POST",
         body: data,
         credentials: "include",
       });
+      toast.success("Payment recorded successfully");
       return { success: true, data: responseData };
-    } catch (error) {
-      return { success: false, error: getErrorMessage(error) };
+    } catch (error: unknown) {
+      const errorMsg = (error as Error).message || "Failed to record payment";
+      toast.error(errorMsg);
+      return { success: false, error: errorMsg };
+    } finally {
+      isSaving.value = false;
+    }
+  }
+
+  async function fetchOutstandingReport(
+    filters: {
+      companyId?: string;
+      month?: number;
+      year?: number;
+      page?: number;
+      limit?: number;
+    } = {},
+  ): Promise<{ success: boolean; data?: OutstandingReport; error?: string }> {
+    isLoading.value = true;
+    try {
+      const query: Record<string, string | number> = {};
+      if (filters.companyId) query.companyId = filters.companyId;
+      if (filters.month) query.month = filters.month;
+      if (filters.year) query.year = filters.year;
+      if (filters.page) query.page = filters.page;
+      if (filters.limit) query.limit = filters.limit;
+
+      const data = await $fetch<OutstandingReport>(
+        `${config.public.apiBase}/finance/report/outstanding`,
+        {
+          query,
+          credentials: "include",
+        },
+      );
+      return { success: true, data };
+    } catch (error: unknown) {
+      return {
+        success: false,
+        error: (error as Error).message || "Failed to fetch outstanding report",
+      };
     } finally {
       isLoading.value = false;
     }
   }
 
-  async function updatePayment(
-    id: string,
-    data: Partial<{
-      paymentDate: string;
-      amount: number;
-      paymentMethodId: string;
-      reference: string;
-      notes: string;
-    }>,
-  ): Promise<{ success: boolean; data?: Payment; error?: string }> {
+  async function deletePayment(id: string): Promise<{ success: boolean; error?: string }> {
     isLoading.value = true;
     try {
-      const responseData = await $fetch<Payment>(`${config.public.apiBase}/finance/payment/${id}`, {
-        method: "PATCH",
-        body: data,
+      await $fetch(`${config.public.apiBase}/finance/payment/${id}`, {
+        method: "DELETE",
         credentials: "include",
       });
-      return { success: true, data: responseData };
-    } catch (error) {
-      return { success: false, error: getErrorMessage(error) };
+      toast.success("Payment deleted successfully");
+      return { success: true };
+    } catch (error: unknown) {
+      const msg = (error as Error).message || "Failed to delete payment";
+      toast.error(msg);
+      return { success: false, error: msg };
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  async function voidPayment(id: string): Promise<{ success: boolean; error?: string }> {
+    isLoading.value = true;
+    try {
+      await $fetch(`${config.public.apiBase}/finance/payment/${id}/void`, {
+        method: "POST",
+        credentials: "include",
+      });
+
+      toast.success("Payment voided successfully");
+      return { success: true };
+    } catch (error: unknown) {
+      const e = error as { data?: { message?: string }; message?: string };
+      const errorMsg = e.data?.message || e.message || "Failed to void payment";
+      toast.error(errorMsg);
+      return { success: false, error: errorMsg };
     } finally {
       isLoading.value = false;
     }
@@ -177,10 +202,12 @@ export function usePayments() {
 
   return {
     isLoading,
+    isSaving,
     fetchPayments,
     fetchPaymentById,
     createPayment,
-    updatePayment,
+    fetchOutstandingReport,
     deletePayment,
+    voidPayment,
   };
-}
+};

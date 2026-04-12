@@ -31,6 +31,10 @@ export interface TransactionItem {
   type: string;
   total: number;
   isIncome: boolean;
+  paymentMethod?: string;
+  // Reference info for identifying auto-created transactions
+  referenceType?: string | null;
+  referenceId?: string | null;
 }
 
 export interface FinanceCloseStats {
@@ -82,8 +86,8 @@ export const STATUS_CONFIG: Record<JobStatus, { label: string; class: string }> 
 
 export const TABS = [
   "Overview",
-  "COGS",
   "Transaction",
+  "Assets",
   "Accounts Receivable",
   "Trial Balance",
   "Finance Close",

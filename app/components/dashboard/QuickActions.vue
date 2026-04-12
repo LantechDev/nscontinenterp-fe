@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { FileText, Ship, Receipt, Users } from "lucide-vue-next";
+import { Ship, Receipt, Users } from "lucide-vue-next";
 
 const actions = [
   {
@@ -10,25 +10,18 @@ const actions = [
     color: "bg-chart-1",
   },
   {
-    title: "Buat Penawaran",
-    description: "Kirim quotation ke customer",
-    icon: FileText,
-    href: "/sales/quotation/create",
-    color: "bg-chart-2",
-  },
-  {
     title: "Buat Invoice",
     description: "Tagihan untuk customer",
     icon: Receipt,
     href: "/finance/invoice/create",
-    color: "bg-chart-3",
+    color: "bg-chart-2",
   },
   {
     title: "Tambah Customer",
     description: "Registrasi customer baru",
     icon: Users,
     href: "/master/customer/create",
-    color: "bg-chart-4",
+    color: "bg-chart-3",
   },
 ];
 </script>

@@ -25,6 +25,7 @@ export interface Company {
   name: string;
   email?: string;
   phone?: string;
+  totalJobs?: number;
   description?: string;
   notes?: string;
   addresses?: Address[];
@@ -42,6 +43,21 @@ export interface ContainerType {
 }
 
 export interface PackageType {
+  id: string;
+  code: string;
+  name: string;
+}
+
+export interface Port {
+  code: string;
+  name: string;
+  city: string;
+  country: string;
+  province?: string;
+  timezone?: string;
+}
+
+export interface PaymentMethod {
   id: string;
   code: string;
   name: string;
@@ -72,10 +88,34 @@ export function useMasterData() {
 
   async function fetchCompanies() {
     try {
-      const data = await $fetch<Company[]>(`${config.public.apiBase}/master/companies`, {
-        credentials: "include",
-      });
-      return data;
+      const response = await $fetch<Company[] | { data?: Company[] }>(
+        `${config.public.apiBase}/master/companies`,
+        {
+          credentials: "include",
+        },
+      );
+      return Array.isArray(response) ? response : response.data || [];
+    } catch {
+      return [];
+    }
+  }
+
+  async function fetchCompaniesWithParams(params?: {
+    search?: string;
+    type?: "ALL" | "CUSTOMER" | "VENDOR" | "BOTH";
+    status?: "ALL" | "ACTIVE" | "INACTIVE";
+    page?: number;
+    limit?: number;
+  }) {
+    try {
+      const response = await $fetch<Company[] | { data?: Company[] }>(
+        `${config.public.apiBase}/master/companies`,
+        {
+          params,
+          credentials: "include",
+        },
+      );
+      return Array.isArray(response) ? response : response.data || [];
     } catch {
       return [];
     }
@@ -109,7 +149,7 @@ export function useMasterData() {
   async function fetchVessels(query?: string) {
     try {
       const data = await $fetch<Vessel[]>(`${config.public.apiBase}/master/vessels`, {
-        params: { q: query },
+        params: { search: query },
         credentials: "include",
       });
       return data;
@@ -118,7 +158,31 @@ export function useMasterData() {
     }
   }
 
-  async function createCompany(name: string): Promise<AuthResponse<Company>> {
+  async function fetchPorts(query?: string) {
+    try {
+      const data = await $fetch<Port[]>(`${config.public.apiBase}/master/ports`, {
+        params: { search: query },
+        credentials: "include",
+      });
+      return data;
+    } catch {
+      return [];
+    }
+  }
+
+  async function createCompany(
+    name: string,
+    address?: {
+      fullAddress: string;
+      street?: string;
+      city?: string;
+      state?: string;
+      postalCode?: string;
+      country?: string;
+      eori?: string;
+      taxId?: string;
+    },
+  ): Promise<AuthResponse<Company>> {
     try {
       isLoading.value = true;
       // Default to CUSTOMER for now as used in Create Job form
@@ -128,6 +192,7 @@ export function useMasterData() {
           name,
           isCustomer: true,
           isVendor: false,
+          ...address,
         },
         credentials: "include",
       });
@@ -155,12 +220,29 @@ export function useMasterData() {
     }
   }
 
+  async function fetchPaymentMethods() {
+    try {
+      const data = await $fetch<PaymentMethod[]>(
+        `${config.public.apiBase}/master/payment-methods`,
+        {
+          credentials: "include",
+        },
+      );
+      return data;
+    } catch {
+      return [];
+    }
+  }
+
   return {
     isLoading,
     fetchCompanies,
+    fetchCompaniesWithParams,
     fetchContainerTypes,
     fetchPackageTypes,
     fetchVessels,
+    fetchPorts,
+    fetchPaymentMethods,
     createCompany,
     createVessel,
   };

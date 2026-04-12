@@ -1,73 +1,235 @@
 <script setup lang="ts">
 import { ArrowLeft, Save } from "lucide-vue-next";
+import SearchSelect from "~/components/ui/SearchSelect.vue";
+import { useFinanceExpense } from "~/composables/useFinanceExpense";
+import { useCompanies } from "~/composables/useCompanies";
+import { useJobs } from "~/composables/useJobs";
+import { useServices } from "~/composables/useServices";
+import { useFinanceTax } from "~/composables/useFinanceTax";
+import { toast } from "vue-sonner";
 
 definePageMeta({
   layout: "dashboard",
 });
+
+const { createExpense, isLoading } = useFinanceExpense();
+const { fetchCompanies } = useCompanies();
+const { fetchJobs } = useJobs();
+const { fetchServices } = useServices();
+const { fetchTaxes } = useFinanceTax();
+
+const form = ref({
+  number: "",
+  description: "",
+  amount: 0,
+  date: new Date().toISOString().split("T")[0],
+  categoryId: "",
+  vendorId: "",
+  jobId: "",
+  taxId: "",
+  notes: "",
+});
+
+const vendors = ref<unknown[]>([]);
+const jobs = ref<unknown[]>([]);
+const categories = ref<{ id: string; name: string }[]>([]);
+const taxes = ref<{ id: string; name: string; rate: number }[]>([]);
+
+// Typed helpers for template
+const vendorsList = computed(() => vendors.value as { id: string; name: string }[]);
+const jobsList = computed(() => jobs.value as { id: string; jobNumber: string }[]);
+const categoryOptions = computed(() =>
+  categories.value.map((cat) => ({ id: cat.id, name: cat.name })),
+);
+const jobOptions = computed(() =>
+  jobsList.value.map((job) => ({ id: job.id, name: job.jobNumber })),
+);
+const taxOptions = computed(() =>
+  taxes.value.map((tax) => ({ id: tax.id, name: `${tax.name} (${tax.rate}%)` })),
+);
+
+async function fetchVendorOptions({ query }: { query: string }) {
+  const result = await fetchCompanies({ type: "VENDOR", search: query, limit: 50 });
+  if (result.success && result.data) {
+    return { success: true, data: result.data.map((v) => ({ id: v.id, name: v.name })) };
+  }
+  return { success: false, error: result.error || "Failed to fetch vendors" };
+}
+
+async function loadInitialData() {
+  const [vendorRes, jobRes, serviceRes, taxRes] = await Promise.all([
+    fetchCompanies({ type: "VENDOR", limit: 50 }),
+    fetchJobs(),
+    fetchServices(),
+    fetchTaxes({ isActive: true, limit: 100 }),
+  ]);
+
+  if (vendorRes.success && vendorRes.data) vendors.value = vendorRes.data;
+  if (jobRes.success && jobRes.data) jobs.value = jobRes.data;
+  // Use services as categories — each service has a category embedded
+  if (serviceRes.success && serviceRes.data) {
+    // Extract unique categories from services
+    const catMap = new Map<string, { id: string; name: string }>();
+    for (const svc of serviceRes.data) {
+      if (svc.category) {
+        catMap.set(svc.category.id, { id: svc.category.id, name: svc.category.name });
+      }
+    }
+    categories.value = Array.from(catMap.values());
+  }
+
+  if (taxRes?.items) {
+    taxes.value = taxRes.items.map((t) => ({ id: t.id, name: t.name, rate: t.rate }));
+  }
+}
+
+async function handleSubmit() {
+  try {
+    const payload: Record<string, unknown> = {
+      number: form.value.number,
+      description: form.value.description,
+      amount: Number(form.value.amount),
+      date: form.value.date,
+    };
+    if (form.value.categoryId) payload.categoryId = form.value.categoryId;
+    if (form.value.vendorId) payload.vendorId = form.value.vendorId;
+    if (form.value.jobId) payload.jobId = form.value.jobId;
+    if (form.value.taxId) payload.taxId = form.value.taxId;
+
+    await createExpense(payload);
+    navigateTo("/finance/expenses");
+  } catch (error) {
+    toast.error("Gagal mencatat biaya: " + (error as Error).message);
+  }
+}
+
+onMounted(() => {
+  loadInitialData();
+  form.value.number = `EXP-${Date.now().toString().slice(-6)}`;
+});
 </script>
 
 <template>
-  <div class="space-y-6 animate-fade-in">
+  <div class="space-y-6 animate-fade-in p-6">
     <div class="page-header">
       <div class="flex items-center gap-4">
         <NuxtLink to="/finance/expenses" class="p-2 rounded-lg hover:bg-muted transition-colors">
           <ArrowLeft class="w-5 h-5" />
         </NuxtLink>
         <div>
-          <h1 class="page-title">Catat Biaya</h1>
-          <p class="text-muted-foreground mt-1">Catat biaya operasional</p>
+          <h1 class="text-2xl font-bold">Catat Biaya Baru</h1>
+          <p class="text-muted-foreground mt-1">Masukkan detail pengeluaran operasional</p>
         </div>
       </div>
     </div>
 
-    <form class="card-elevated p-6 space-y-6">
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div class="space-y-2">
-          <label class="text-sm font-medium">Vendor</label>
-          <select class="input-field">
-            <option value="">Pilih vendor</option>
-            <option value="1">PT Pelayaran Nusantara</option>
-            <option value="2">CV Trucking Mandiri</option>
-          </select>
+    <div class="max-w-8xl">
+      <form
+        @submit.prevent="handleSubmit"
+        class="space-y-6 bg-white p-8 rounded-xl border border-border"
+      >
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div class="space-y-2">
+            <label class="text-sm font-medium">No. Biaya</label>
+            <input
+              v-model="form.number"
+              type="text"
+              required
+              class="w-full px-4 py-2 border rounded-lg focus:ring-1 focus:ring-primary outline-none"
+              placeholder="EXP-2024-XXXX"
+            />
+          </div>
+          <div class="space-y-2">
+            <label class="text-sm font-medium">Tanggal</label>
+            <input
+              v-model="form.date"
+              type="date"
+              required
+              class="w-full px-4 py-2 border rounded-lg focus:ring-1 focus:ring-primary outline-none"
+            />
+          </div>
+          <div class="space-y-2 md:col-span-2">
+            <label class="text-sm font-medium">Deskripsi</label>
+            <input
+              v-model="form.description"
+              type="text"
+              required
+              class="w-full px-4 py-2 border rounded-lg focus:ring-1 focus:ring-primary outline-none"
+              placeholder="Contoh: Biaya Trucking JOB..."
+            />
+          </div>
+          <div class="space-y-2">
+            <label class="text-sm font-medium">Vendor</label>
+            <SearchSelect
+              v-model="form.vendorId"
+              :fetch-options="fetchVendorOptions"
+              placeholder="Pilih Vendor (Opsional)"
+            />
+          </div>
+          <div class="space-y-2">
+            <label class="text-sm font-medium">Kategori</label>
+            <SearchSelect
+              v-model="form.categoryId"
+              :initial-options="categoryOptions"
+              placeholder="Pilih Kategori (Opsional)"
+            />
+          </div>
+          <div class="space-y-2">
+            <label class="text-sm font-medium">Jumlah (IDR)</label>
+            <input
+              v-model="form.amount"
+              type="number"
+              required
+              class="w-full px-4 py-2 border rounded-lg focus:ring-1 focus:ring-primary outline-none"
+              placeholder="0"
+            />
+          </div>
+          <div class="space-y-2">
+            <label class="text-sm font-medium">No. Job (Opsional)</label>
+            <SearchSelect
+              v-model="form.jobId"
+              :initial-options="jobOptions"
+              placeholder="Pilih Job"
+            />
+          </div>
+          <div class="space-y-2">
+            <label class="text-sm font-medium">Pajak</label>
+            <SearchSelect
+              v-model="form.taxId"
+              :initial-options="taxOptions"
+              placeholder="Pilih Pajak (Opsional)"
+            />
+          </div>
+          <div class="space-y-2 md:col-span-2">
+            <label class="text-sm font-medium">Keterangan Tambahan</label>
+            <textarea
+              v-model="form.notes"
+              rows="3"
+              class="w-full px-4 py-2 border rounded-lg focus:ring-1 focus:ring-primary outline-none resize-none"
+              placeholder="Tambahkan catatan jika perlu..."
+            ></textarea>
+          </div>
         </div>
-        <div class="space-y-2">
-          <label class="text-sm font-medium">No. Job (Opsional)</label>
-          <select class="input-field">
-            <option value="">Tidak terkait job</option>
-            <option value="1">JOB-2024-001234</option>
-          </select>
+
+        <div class="flex justify-end gap-3 pt-4 border-t">
+          <button
+            type="button"
+            @click="navigateTo('/finance/expenses')"
+            class="px-6 py-2 border rounded-lg hover:bg-muted transition-colors font-medium"
+          >
+            Batal
+          </button>
+          <button
+            type="submit"
+            :disabled="isLoading"
+            class="px-6 py-2 bg-[#012D5A] text-white rounded-lg hover:bg-[#012D5A]/90 transition-colors font-medium flex items-center gap-2"
+          >
+            <Save v-if="!isLoading" class="w-4 h-4" />
+            <span v-if="isLoading">Menyimpan...</span>
+            <span v-else>Simpan Biaya</span>
+          </button>
         </div>
-        <div class="space-y-2">
-          <label class="text-sm font-medium">Tanggal</label>
-          <input type="date" class="input-field" />
-        </div>
-        <div class="space-y-2">
-          <label class="text-sm font-medium">Kategori</label>
-          <select class="input-field">
-            <option value="trucking">Trucking</option>
-            <option value="port">Port Charges</option>
-            <option value="customs">Customs</option>
-            <option value="operational">Operasional</option>
-            <option value="salary">Gaji</option>
-            <option value="other">Lainnya</option>
-          </select>
-        </div>
-        <div class="space-y-2 md:col-span-2">
-          <label class="text-sm font-medium">Deskripsi</label>
-          <textarea rows="2" placeholder="Keterangan biaya..." class="input-field"></textarea>
-        </div>
-        <div class="space-y-2">
-          <label class="text-sm font-medium">Jumlah</label>
-          <input type="text" placeholder="Rp 0" class="input-field" />
-        </div>
-      </div>
-      <div class="flex justify-end gap-3 pt-4 border-t border-border">
-        <NuxtLink to="/finance/expenses" class="btn-secondary">Batal</NuxtLink>
-        <button type="submit" class="btn-primary">
-          <Save class="w-4 h-4 mr-2" />
-          Simpan
-        </button>
-      </div>
-    </form>
+      </form>
+    </div>
   </div>
 </template>

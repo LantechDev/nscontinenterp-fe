@@ -13,64 +13,11 @@ interface Job {
   date: string;
 }
 
-const defaultJobs: Job[] = [
-  {
-    id: "1",
-    jobNumber: "JOB-2024-001234",
-    customer: "PT Maju Mundur",
-    type: "Export",
-    status: "Active",
-    origin: "Jakarta",
-    destination: "Singapore",
-    date: "12 Jan 2026",
-  },
-  {
-    id: "2",
-    jobNumber: "JOB-2024-001234",
-    customer: "PT Maju Mundur",
-    type: "Import",
-    status: "Pending",
-    origin: "Jakarta",
-    destination: "Singapore",
-    date: "12 Jan 2026",
-  },
-  {
-    id: "3",
-    jobNumber: "JOB-2024-001234",
-    customer: "PT Maju Mundur",
-    type: "Import",
-    status: "Canceled",
-    origin: "Jakarta",
-    destination: "Singapore",
-    date: "12 Jan 2026",
-  },
-  {
-    id: "4",
-    jobNumber: "JOB-2024-001234",
-    customer: "PT Maju Mundur",
-    type: "Import",
-    status: "Active",
-    origin: "Jakarta",
-    destination: "Singapore",
-    date: "12 Jan 2026",
-  },
-  {
-    id: "5",
-    jobNumber: "JOB-2024-001234",
-    customer: "PT Maju Mundur",
-    type: "Import",
-    status: "Done",
-    origin: "Jakarta",
-    destination: "Singapore",
-    date: "12 Jan 2026",
-  },
-];
-
 const props = defineProps<{
   jobs?: Job[];
 }>();
 
-const jobs = computed(() => props.jobs || defaultJobs);
+const jobs = computed(() => props.jobs || []);
 
 const statusConfig: Record<Job["status"], { label: string; className: string }> = {
   Active: { label: "Active", className: "text-blue-600 border-blue-200 bg-blue-50 border" },
@@ -84,31 +31,55 @@ const statusConfig: Record<Job["status"], { label: string; className: string }> 
 </script>
 
 <template>
-  <div class="card-elevated p-6 overflow-hidden">
-    <div class="overflow-x-auto">
+  <div class="border border-border rounded-xl bg-white overflow-hidden">
+    <!-- Header -->
+    <div class="flex items-center justify-between p-5 border-b border-border">
+      <h3 class="text-lg font-semibold text-foreground">Recent Jobs</h3>
+      <NuxtLink
+        to="/operational/jobs"
+        class="text-sm font-semibold text-blue-600 hover:text-blue-700"
+      >
+        View All
+      </NuxtLink>
+    </div>
+
+    <!-- Empty state -->
+    <div
+      v-if="jobs.length === 0"
+      class="flex flex-col items-center justify-center text-center py-12"
+    >
+      <Ship class="w-10 h-10 text-muted-foreground/40 mb-3" />
+      <p class="text-sm font-medium text-muted-foreground">No recent jobs</p>
+      <p class="text-xs text-muted-foreground/60 mt-1">Jobs will appear here when created</p>
+    </div>
+
+    <!-- Table -->
+    <div v-else class="overflow-x-auto">
       <table class="w-full">
         <thead>
-          <tr class="border-b border-border text-left">
-            <th class="pb-3 pt-1 text-sm font-medium text-muted-foreground w-[200px]">No. Job</th>
-            <th class="pb-3 pt-1 text-sm font-medium text-muted-foreground">Customer</th>
-            <th class="pb-3 pt-1 text-sm font-medium text-muted-foreground">Route</th>
-            <th class="pb-3 pt-1 text-sm font-medium text-muted-foreground">ETA</th>
-            <th class="pb-3 pt-1 text-sm font-medium text-muted-foreground">Type</th>
-            <th class="pb-3 pt-1 text-sm font-medium text-muted-foreground">Status</th>
-            <th class="pb-3 pt-1 text-sm font-medium text-muted-foreground w-10"></th>
+          <tr class="border-b border-border bg-gray-50/50">
+            <th class="py-3 px-4 text-left text-sm font-medium text-gray-500">No. Job</th>
+            <th class="py-3 px-4 text-left text-sm font-medium text-gray-500">Customer</th>
+            <th class="py-3 px-4 text-left text-sm font-medium text-gray-500">Route</th>
+            <th class="py-3 px-4 text-left text-sm font-medium text-gray-500">ETA</th>
+            <th class="py-3 px-4 text-left text-sm font-medium text-gray-500">Type</th>
+            <th class="py-3 px-4 text-left text-sm font-medium text-gray-500">Status</th>
+            <th class="py-3 px-4 text-right text-sm font-medium text-gray-500 w-10"></th>
           </tr>
         </thead>
         <tbody>
           <tr
             v-for="job in jobs"
             :key="job.id"
-            class="group border-b border-border last:border-0 hover:bg-muted/30 transition-colors"
+            class="border-b border-gray-100 last:border-0 hover:bg-gray-50/50 transition-colors"
           >
-            <td class="py-4 text-sm font-semibold">{{ job.jobNumber }}</td>
-            <td class="py-4 text-sm">{{ job.customer }}</td>
-            <td class="py-4 text-sm">{{ job.origin }} → {{ job.destination }}</td>
-            <td class="py-4 text-sm">{{ job.date }}</td>
-            <td class="py-4">
+            <td class="py-3 px-4">
+              <span class="text-sm font-medium text-[#012D5A]">{{ job.jobNumber }}</span>
+            </td>
+            <td class="py-3 px-4 text-sm">{{ job.customer }}</td>
+            <td class="py-3 px-4 text-sm">{{ job.origin }} → {{ job.destination }}</td>
+            <td class="py-3 px-4 text-sm">{{ job.date }}</td>
+            <td class="py-3 px-4">
               <span
                 :class="
                   cn(
@@ -122,7 +93,7 @@ const statusConfig: Record<Job["status"], { label: string; className: string }> 
                 {{ job.type }}
               </span>
             </td>
-            <td class="py-4">
+            <td class="py-3 px-4">
               <span
                 :class="
                   cn(
@@ -134,9 +105,9 @@ const statusConfig: Record<Job["status"], { label: string; className: string }> 
                 {{ statusConfig[job.status]?.label }}
               </span>
             </td>
-            <td class="py-4 text-right">
+            <td class="py-3 px-4 text-right">
               <NuxtLink
-                :to="`/operational/jobs/${job.id}`"
+                :to="`/operational/jobs?id=${job.id}`"
                 class="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
               >
                 <Eye class="w-4 h-4" />

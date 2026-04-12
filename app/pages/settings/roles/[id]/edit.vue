@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ArrowLeft, Save, Loader2, Plus, X } from "lucide-vue-next";
+import { ArrowLeft, Save, Loader2 } from "lucide-vue-next";
 import { z } from "zod";
+import { PermissionsTable } from "../components";
 
 definePageMeta({
   layout: "dashboard",
@@ -30,11 +31,9 @@ const form = ref({
   permissions: {} as Record<string, string[]>,
 });
 
-// Auto-format code input
 const handleCodeInput = (event: Event) => {
   const input = event.target as HTMLInputElement;
   let value = input.value.toUpperCase();
-  // Replace spaces and hyphens with underscores, remove other non-allowed chars
   value = value.replace(/[\s-]/g, "_").replace(/[^A-Z0-9_]/g, "");
   form.value.code = value;
 };
@@ -54,15 +53,10 @@ const availableResources = [
 
 const errors = ref<Record<string, string>>({});
 
-const hasPermission = (resource: string, action: string) => {
-  return form.value.permissions[resource]?.includes(action) || false;
-};
-
 const togglePermission = (resource: string, action: string) => {
   if (!form.value.permissions[resource]) {
     form.value.permissions[resource] = [];
   }
-
   const actions = form.value.permissions[resource];
   if (actions.includes(action)) {
     form.value.permissions[resource] = actions.filter((a) => a !== action);
@@ -71,13 +65,11 @@ const togglePermission = (resource: string, action: string) => {
   }
 };
 
-const isAllSelected = (resource: string) => {
-  const current = form.value.permissions[resource];
-  return current && current.length === availableActions.length;
-};
-
 const toggleAll = (resource: string) => {
-  if (isAllSelected(resource)) {
+  const isAll =
+    form.value.permissions[resource] &&
+    form.value.permissions[resource].length === availableActions.length;
+  if (isAll) {
     form.value.permissions[resource] = [];
   } else {
     form.value.permissions[resource] = [...availableActions];
@@ -86,9 +78,8 @@ const toggleAll = (resource: string) => {
 
 onMounted(async () => {
   try {
-    await fetchRoles(); // Ensure we have latest list
+    await fetchRoles();
     const existingRole = roles.value.find((r) => r.id === roleId);
-
     if (existingRole) {
       form.value = {
         name: existingRole.name,
@@ -110,7 +101,6 @@ onMounted(async () => {
 const handleSubmit = async () => {
   errors.value = {};
   const validation = formSchema.safeParse(form.value);
-
   if (!validation.success) {
     validation.error.issues.forEach((issue) => {
       if (issue.path[0]) {
@@ -121,9 +111,7 @@ const handleSubmit = async () => {
   }
 
   isLoading.value = true;
-
   try {
-    // Filter out empty permission arrays to keep it clean
     const cleanPermissions: Record<string, string[]> = {};
     for (const [key, actions] of Object.entries(form.value.permissions)) {
       if (actions.length > 0) {
@@ -154,7 +142,7 @@ const handleSubmit = async () => {
 </script>
 
 <template>
-  <div class="space-y-6 animate-fade-in">
+  <div class="space-y-6 animate-fade-in p-6">
     <div class="page-header">
       <div class="flex items-center gap-4">
         <NuxtLink to="/settings/roles" class="p-2 rounded-lg hover:bg-muted transition-colors">
@@ -193,7 +181,6 @@ const handleSubmit = async () => {
 
       <form v-if="!fetchError" @submit.prevent="handleSubmit" class="card-elevated p-6 space-y-6">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <!-- Basic Info -->
           <div class="space-y-2">
             <label class="text-sm font-medium">Nama Role <span class="text-red-500">*</span></label>
             <input
@@ -230,67 +217,17 @@ const handleSubmit = async () => {
             ></textarea>
           </div>
 
-          <!-- Permissions Builder -->
           <div class="col-span-1 md:col-span-2 pt-4 border-t border-border">
             <div class="flex items-center justify-between mb-4">
               <label class="text-sm font-medium">Permissions</label>
             </div>
-
-            <div class="border border-border rounded-lg overflow-hidden bg-white">
-              <table class="w-full text-sm">
-                <thead class="bg-gray-50 border-b border-border">
-                  <tr>
-                    <th class="text-left py-3 px-4 font-medium text-muted-foreground w-1/3">
-                      Resource
-                    </th>
-                    <th
-                      v-for="action in availableActions"
-                      :key="action"
-                      class="text-center py-3 px-4 font-medium text-muted-foreground capitalize"
-                    >
-                      {{ action }}
-                    </th>
-                    <th class="text-center py-3 px-4 font-medium text-muted-foreground">All</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr
-                    v-for="(resource, index) in availableResources"
-                    :key="resource.key"
-                    class="border-b border-border last:border-0 hover:bg-gray-50/50 transition-colors"
-                  >
-                    <td class="py-3 px-4">
-                      <div class="font-medium text-foreground">
-                        {{ resource.label }}
-                      </div>
-                      <div class="text-xs text-muted-foreground">
-                        {{ resource.description }}
-                      </div>
-                    </td>
-                    <td
-                      v-for="action in availableActions"
-                      :key="action"
-                      class="text-center py-3 px-4"
-                    >
-                      <div class="flex justify-center">
-                        <UiCheckbox
-                          :model-value="hasPermission(resource.key, action)"
-                          @update:model-value="togglePermission(resource.key, action)"
-                        />
-                      </div>
-                    </td>
-                    <td class="text-center py-3 px-4">
-                      <div class="flex justify-center">
-                        <UiCheckbox
-                          :model-value="isAllSelected(resource.key)"
-                          @update:model-value="toggleAll(resource.key)"
-                        />
-                      </div>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+            <PermissionsTable
+              :permissions="form.permissions"
+              :available-actions="availableActions"
+              :available-resources="availableResources"
+              @toggle="togglePermission"
+              @toggle-all="toggleAll"
+            />
           </div>
         </div>
 

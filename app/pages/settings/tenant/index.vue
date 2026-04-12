@@ -19,6 +19,7 @@ const isLoading = ref(false);
 const errorRoot = ref("");
 const successMessage = ref("");
 const isEditing = ref(false);
+const logoPreviewError = ref(false);
 
 // Form Schema
 const formSchema = z.object({
@@ -66,6 +67,7 @@ const initData = async () => {
           email: org.metadata?.email || "",
           taxId: org.metadata?.taxId || "",
         };
+        logoPreviewError.value = false;
       }
     }
   } catch (e) {
@@ -86,6 +88,13 @@ watchEffect(() => {
     // Optional: auto-generate slug from name if needed, but for now leave empty
   }
 });
+
+watch(
+  () => form.value.logo,
+  () => {
+    logoPreviewError.value = false;
+  },
+);
 
 const handleSubmit = async () => {
   errors.value = {};
@@ -178,7 +187,7 @@ const handleSubmit = async () => {
 </script>
 
 <template>
-  <div class="space-y-6 animate-fade-in pb-10">
+  <div class="space-y-6 animate-fade-in p-6">
     <!-- Page header -->
     <div class="flex items-center justify-between">
       <div>
@@ -250,10 +259,21 @@ const handleSubmit = async () => {
             <label class="text-sm font-medium">Logo URL</label>
             <div class="flex gap-4 items-center">
               <div
-                v-if="form.logo"
+                v-if="form.logo && !logoPreviewError"
                 class="w-12 h-12 rounded border border-border overflow-hidden bg-white flex-shrink-0"
               >
-                <NuxtImg :src="form.logo" alt="Logo" class="w-full h-full object-contain" />
+                <img
+                  :src="form.logo"
+                  alt="Logo"
+                  class="h-full w-full object-contain"
+                  @error="logoPreviewError = true"
+                />
+              </div>
+              <div
+                v-else-if="form.logo"
+                class="w-12 h-12 rounded border border-dashed border-border bg-muted/40 flex items-center justify-center text-[10px] text-muted-foreground text-center px-1"
+              >
+                Invalid image
               </div>
               <input
                 v-model="form.logo"

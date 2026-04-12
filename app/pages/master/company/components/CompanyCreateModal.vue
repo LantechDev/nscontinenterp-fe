@@ -1,9 +1,15 @@
 <script setup lang="ts">
-import { ref, watch, computed } from "vue";
-import { ChevronDown, Save, Loader2 } from "lucide-vue-next";
-import { useCompanies, type CreateCompanyInput } from "~/composables/useCompanies";
+import { ref, watch, computed, onMounted } from "vue";
+import { Save, Loader2 } from "lucide-vue-next";
+import SearchSelect from "~/components/ui/SearchSelect.vue";
+import type { Company } from "~/composables/useMasterData";
+import { useCompanies } from "~/composables/useCompanies";
 
-const props = defineProps<{ modelValue: boolean }>();
+const props = defineProps<{
+  modelValue: boolean;
+  mode?: "create" | "edit";
+  company?: Company | null;
+}>();
 const emit = defineEmits<{
   (e: "update:modelValue", value: boolean): void;
   (e: "refresh"): void;
@@ -14,9 +20,39 @@ const isOpen = computed({
   set: (val) => emit("update:modelValue", val),
 });
 
-const { createCompany } = useCompanies();
+const isEditMode = computed(() => props.mode === "edit");
+const { createCompany, updateCompany } = useCompanies();
 const isSubmitting = ref(false);
 const formError = ref<string | null>(null);
+const phoneError = ref<string | null>(null);
+const phoneOptions = ref<{ code: string; dialCode: string }[]>([
+  { code: "ID", dialCode: "+62" },
+  { code: "US", dialCode: "+1" },
+  { code: "SG", dialCode: "+65" },
+  { code: "MY", dialCode: "+60" },
+]);
+const selectedCountryCode = ref("ID");
+
+const countryCodeOptions = computed(() =>
+  phoneOptions.value.map((opt) => ({ id: opt.code, name: `${opt.code} ${opt.dialCode}` })),
+);
+
+const isActive = ref(true);
+const selectedCompanyType = ref("customer");
+
+// Company type options for selection
+const companyTypeOptions = [
+  { id: "customer", name: "Customer" },
+  { id: "vendor", name: "Vendor" },
+  { id: "both", name: "Customer & Vendor" },
+];
+
+// Watch for company type changes to update formData
+watch(selectedCompanyType, (newType) => {
+  formData.value.isCustomer = newType === "customer" || newType === "both";
+  formData.value.isVendor = newType === "vendor" || newType === "both";
+});
+
 const formData = ref({
   name: "",
   email: "",
@@ -24,18 +60,86 @@ const formData = ref({
   countryCode: "ID",
   isCustomer: true,
   isVendor: false,
-  status: "active",
+  isActive: true,
   country: "",
   city: "",
   fullAddress: "",
   postalCode: "",
   state: "",
-  eoriNo: "",
+  eori: "",
   description: "",
   notes: "",
 });
 
+const dialCodeMap = computed(() => {
+  const map: Record<string, string> = {};
+  phoneOptions.value.forEach((option) => {
+    map[option.code] = option.dialCode.replace(/\D/g, "");
+  });
+  return map;
+});
+
+const phoneRules: Record<
+  string,
+  {
+    min: number;
+    max: number;
+  }
+> = {
+  ID: { min: 9, max: 13 },
+  US: { min: 10, max: 10 },
+  SG: { min: 8, max: 8 },
+  MY: { min: 9, max: 10 },
+};
+
+const normalizePhone = (countryCode: string, rawValue: string) => {
+  const dialCode = dialCodeMap.value[countryCode];
+  const digits = rawValue.replace(/\D/g, "");
+
+  if (!digits) {
+    return { error: "Phone number is required." };
+  }
+
+  let nationalNumber = digits;
+  if (dialCode && digits.startsWith(dialCode)) {
+    nationalNumber = digits.slice(dialCode.length);
+  }
+  nationalNumber = nationalNumber.replace(/^0+/, "");
+
+  const rule = phoneRules[countryCode];
+  if (rule && (nationalNumber.length < rule.min || nationalNumber.length > rule.max)) {
+    return {
+      error: `Phone number length for ${countryCode} must be ${rule.min}${
+        rule.max === rule.min ? "" : `-${rule.max}`
+      } digits.`,
+    };
+  }
+
+  return {
+    value: dialCode ? `+${dialCode}${nationalNumber}` : rawValue,
+  };
+};
+
+const parsePhone = (value?: string | null) => {
+  if (!value) {
+    return { countryCode: "ID", phone: "" };
+  }
+  const digits = value.replace(/\D/g, "");
+  const match = Object.entries(dialCodeMap.value).find(([, dial]) => digits.startsWith(dial));
+  if (match) {
+    const [code, dial] = match;
+    return {
+      countryCode: code,
+      phone: digits.slice(dial.length),
+    };
+  }
+  return { countryCode: "ID", phone: value };
+};
+
 const resetForm = () => {
+  isActive.value = true;
+  selectedCountryCode.value = "ID";
+  selectedCompanyType.value = "customer";
   formData.value = {
     name: "",
     email: "",
@@ -43,46 +147,124 @@ const resetForm = () => {
     countryCode: "ID",
     isCustomer: true,
     isVendor: false,
-    status: "active",
+    isActive: true,
     country: "",
     city: "",
     fullAddress: "",
     postalCode: "",
     state: "",
-    eoriNo: "",
+    eori: "",
     description: "",
     notes: "",
   };
   formError.value = null;
+  phoneError.value = null;
 };
 watch(isOpen, (val) => {
-  if (val) resetForm();
+  if (!val) return;
+  resetForm();
+  if (isEditMode.value && props.company) {
+    const parsedPhone = parsePhone(props.company.phone);
+    selectedCountryCode.value = parsedPhone.countryCode;
+    isActive.value = props.company.isActive ?? true;
+
+    // Determine company type
+    if (props.company.isCustomer && props.company.isVendor) {
+      selectedCompanyType.value = "both";
+    } else if (props.company.isVendor) {
+      selectedCompanyType.value = "vendor";
+    } else {
+      selectedCompanyType.value = "customer";
+    }
+
+    formData.value = {
+      name: props.company.name || "",
+      email: props.company.email || "",
+      phone: parsedPhone.phone,
+      countryCode: parsedPhone.countryCode,
+      isCustomer: props.company.isCustomer ?? true,
+      isVendor: props.company.isVendor ?? false,
+      isActive: props.company.isActive ?? true,
+      country: props.company.addresses?.[0]?.country || "",
+      city: props.company.addresses?.[0]?.city || "",
+      fullAddress: props.company.addresses?.[0]?.fullAddress || "",
+      postalCode: props.company.addresses?.[0]?.postalCode || "",
+      state: props.company.addresses?.[0]?.state || "",
+      eori: props.company.addresses?.[0]?.eori || "",
+      description: props.company.description || "",
+      notes: props.company.notes || "",
+    };
+  }
 });
 
-const handleCreateCompany = async () => {
+watch(
+  () => [formData.value.phone, formData.value.countryCode],
+  () => {
+    phoneError.value = null;
+  },
+);
+
+const loadPhoneOptions = async () => {
+  const config = useRuntimeConfig();
+  try {
+    const response = await $fetch<{ code: string; dial_code: string }[]>(
+      `${config.public.apiBase}/master/phone-numbers`,
+      { credentials: "include" },
+    );
+    const mapped = response.map((item) => ({ code: item.code, dialCode: item.dial_code }));
+    if (mapped.length > 0) {
+      phoneOptions.value = mapped;
+    }
+  } catch {
+    // Keep fallback options when API fails
+  }
+};
+
+onMounted(() => {
+  loadPhoneOptions();
+});
+
+const handleSubmitCompany = async () => {
   if (!formData.value.name || !formData.value.email || !formData.value.phone) {
     formError.value = "Please fill in all required fields (Name, Email, Phone)";
     return;
   }
+  if (isEditMode.value && !props.company?.id) {
+    formError.value = "Company data is missing.";
+    return;
+  }
+  phoneError.value = null;
+  const normalizedPhone = normalizePhone(formData.value.countryCode, formData.value.phone);
+  if (normalizedPhone.error) {
+    phoneError.value = normalizedPhone.error;
+    return;
+  }
   isSubmitting.value = true;
   formError.value = null;
-  const result = await createCompany({
+  const payload = {
     name: formData.value.name,
     email: formData.value.email,
-    phone: formData.value.phone,
+    phone: normalizedPhone.value,
     fullAddress: formData.value.fullAddress,
     country: formData.value.country,
     city: formData.value.city,
+    state: formData.value.state,
+    postalCode: formData.value.postalCode,
+    eori: formData.value.eori,
     isCustomer: formData.value.isCustomer,
     isVendor: formData.value.isVendor,
+    isActive: isActive.value,
     description: formData.value.description,
     notes: formData.value.notes,
-  });
+  };
+  const result = isEditMode.value
+    ? await updateCompany(props.company?.id || "", payload)
+    : await createCompany(payload);
   if (result.success) {
     isOpen.value = false;
     emit("refresh");
   } else {
-    formError.value = result.error || "Failed to create company";
+    formError.value = result.error || "Failed to save company";
   }
   isSubmitting.value = false;
 };
@@ -91,11 +273,11 @@ const handleCreateCompany = async () => {
 <template>
   <UiModal
     v-model="isOpen"
-    title="Add new Company"
-    description="Register your new Company"
+    :title="isEditMode ? 'Edit Company' : 'Add new Company'"
+    :description="isEditMode ? 'Update company information' : 'Register your new Company'"
     width="max-w-4xl"
   >
-    <form class="space-y-6" @submit.prevent="handleCreateCompany">
+    <form class="space-y-6" @submit.prevent="handleSubmitCompany">
       <!-- Error Message -->
       <div v-if="formError" class="p-4 bg-red-50 border border-red-200 rounded-lg">
         <p class="text-sm text-red-600">{{ formError }}</p>
@@ -134,58 +316,51 @@ const handleCreateCompany = async () => {
               >Phone number <span class="text-red-500">*</span></label
             >
             <div class="flex gap-2">
-              <select
-                v-model="formData.countryCode"
-                class="w-24 px-2 py-2 rounded-lg border border-border bg-white focus:outline-none focus:ring-1 focus:ring-primary"
-              >
-                <option value="ID">ID</option>
-                <option value="US">US</option>
-                <option value="SG">SG</option>
-                <option value="MY">MY</option>
-              </select>
+              <SearchSelect
+                v-model="selectedCountryCode"
+                :initial-options="countryCodeOptions"
+                placeholder="Code"
+                class="w-28"
+              />
               <input
                 v-model="formData.phone"
                 type="tel"
-                placeholder="+62 812-3456-7890"
+                placeholder="812-3456-7890"
                 class="flex-1 px-3 py-2 rounded-lg border border-border focus:outline-none focus:ring-1 focus:ring-primary"
                 required
               />
             </div>
+            <p v-if="phoneError" class="text-xs text-red-500">{{ phoneError }}</p>
           </div>
           <div class="space-y-1.5">
-            <label class="text-sm font-medium text-foreground">Role</label>
-            <div class="flex items-center gap-4 mt-2">
-              <label class="flex items-center gap-2 text-sm text-foreground">
-                <input
-                  type="checkbox"
-                  v-model="formData.isCustomer"
-                  class="rounded border-gray-300 text-primary focus:ring-primary"
-                />
-                Customer
-              </label>
-              <label class="flex items-center gap-2 text-sm text-foreground">
-                <input
-                  type="checkbox"
-                  v-model="formData.isVendor"
-                  class="rounded border-gray-300 text-primary focus:ring-primary"
-                />
-                Vendor
-              </label>
-            </div>
+            <label class="text-sm font-medium text-foreground">Type</label>
+            <SearchSelect
+              v-model="selectedCompanyType"
+              :initial-options="companyTypeOptions"
+              placeholder="Select type..."
+            />
           </div>
           <div class="space-y-1.5">
             <label class="text-sm font-medium text-foreground">Status</label>
-            <div class="relative">
-              <select
-                v-model="formData.status"
-                class="w-full px-3 py-2 rounded-lg border border-border bg-white focus:outline-none focus:ring-1 focus:ring-primary appearance-none"
-              >
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-              </select>
-              <ChevronDown
-                class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none"
-              />
+            <div class="flex items-center gap-4 mt-2">
+              <label class="flex items-center gap-2 text-sm text-foreground">
+                <input
+                  type="radio"
+                  :value="true"
+                  v-model="isActive"
+                  class="rounded border-gray-300 text-primary focus:ring-primary"
+                />
+                Active
+              </label>
+              <label class="flex items-center gap-2 text-sm text-foreground">
+                <input
+                  type="radio"
+                  :value="false"
+                  v-model="isActive"
+                  class="rounded border-gray-300 text-primary focus:ring-primary"
+                />
+                Inactive
+              </label>
             </div>
           </div>
         </div>
@@ -284,13 +459,13 @@ const handleCreateCompany = async () => {
       </button>
       <button
         type="button"
-        @click="handleCreateCompany"
+        @click="handleSubmitCompany"
         :disabled="isSubmitting"
         class="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-[#012D5A] text-white rounded-lg hover:bg-[#012D5A]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
       >
         <Loader2 v-if="isSubmitting" class="w-4 h-4 animate-spin" />
         <Save v-else class="w-4 h-4" />
-        {{ isSubmitting ? "Saving..." : "Save" }}
+        {{ isSubmitting ? "Saving..." : isEditMode ? "Update" : "Save" }}
       </button>
     </template>
   </UiModal>

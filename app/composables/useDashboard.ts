@@ -1,12 +1,53 @@
+import { ref } from "vue";
+import { useRuntimeConfig } from "#app";
+
 export interface DashboardStats {
-  totalIncome: string;
-  totalIncomeRaw: number;
-  activeJobs: number;
-  pendingInvoices: number;
-  activeOffers: number;
+  jobs: {
+    total: number;
+    confirmed: number;
+  };
+  bls: {
+    total: number;
+    pendingApproval: number;
+  };
 }
 
-export interface RecentJob {
+export interface PendingApprovalBl {
+  id: string;
+  blNumber: string | null;
+  jobId: string | null;
+  updatedAt: string;
+  status: {
+    id: string;
+    code: string;
+    name: string;
+  } | null;
+  job: {
+    id: string;
+    jobNumber: string;
+  } | null;
+}
+
+export interface DashboardActivity {
+  id: string;
+  title: string;
+  description: string;
+  time: string;
+}
+
+export interface DashboardNotification {
+  id: string;
+  action: string;
+  targetModel: string;
+  targetId: string;
+  targetName: string | null;
+  title: string;
+  description: string;
+  actorName: string;
+  createdAt: string;
+}
+
+export interface DashboardJob {
   id: string;
   jobNumber: string;
   customer: string;
@@ -17,18 +58,22 @@ export interface RecentJob {
   date: string;
 }
 
-export interface UpcomingEvent {
-  id: string;
-  title: string;
-  description: string;
-  time: string;
-}
-
 export interface DashboardData {
-  stats: DashboardStats;
-  recentJobs: RecentJob[];
-  upcomingEvents: UpcomingEvent[];
+  stats: {
+    totalIncome: string;
+    totalIncomeRaw: number;
+    totalIncomeChange: number;
+    activeJobs: number;
+    activeJobsChange: number;
+    pendingInvoices: number;
+    pendingInvoicesChange: number;
+    activeOffers: number;
+    activeOffersChange: number;
+  };
+  recentJobs: DashboardJob[];
+  upcomingEvents: DashboardActivity[];
   financialOverview: {
+    categories: string[];
     income: number[];
     outcome: number[];
   };
@@ -36,22 +81,125 @@ export interface DashboardData {
 
 export const useDashboard = () => {
   const config = useRuntimeConfig();
-  const baseUrl = config.public.apiBase || "";
 
-  const fetchDashboard = async (): Promise<DashboardData | null> => {
+  // Owner Dashboard State
+  const stats = ref<DashboardStats | null>(null);
+  const pendingApprovals = ref<PendingApprovalBl[]>([]);
+  const notifications = ref<DashboardNotification[]>([]);
+  const isLoading = ref(false);
+
+  /**
+   * Original Dashboard fetch (for dashboard.vue)
+   */
+  const fetchDashboard = async (params?: {
+    startDate?: string;
+    endDate?: string;
+  }): Promise<DashboardData | null> => {
+    isLoading.value = true;
     try {
-      const response = await $fetch<DashboardData>(`${baseUrl}/admin/dashboard`, {
-        method: "GET",
+      const query = params ? `?${new URLSearchParams(params).toString()}` : "";
+      const data = await $fetch<DashboardData>(`${config.public.apiBase}/admin/dashboard${query}`, {
         credentials: "include",
       });
-      return response;
+      return data;
     } catch (error) {
       console.error("Failed to fetch dashboard data:", error);
       return null;
+    } finally {
+      isLoading.value = false;
+    }
+  };
+
+  /**
+   * New Owner Dashboard - Stats
+   */
+  const fetchStats = async () => {
+    isLoading.value = true;
+    try {
+      const data = await $fetch<DashboardStats>(`${config.public.apiBase}/dashboard/stats`, {
+        credentials: "include",
+      });
+      stats.value = data;
+    } catch (error) {
+      console.error("Failed to fetch owner stats:", error);
+    } finally {
+      isLoading.value = false;
+    }
+  };
+
+  /**
+   * New Owner Dashboard - Pending Approvals
+   */
+  const fetchPendingApprovals = async () => {
+    isLoading.value = true;
+    try {
+      const data = await $fetch<PendingApprovalBl[]>(
+        `${config.public.apiBase}/dashboard/pending-approvals`,
+        {
+          credentials: "include",
+        },
+      );
+      pendingApprovals.value = data;
+    } catch (error) {
+      console.error("Failed to fetch pending approvals:", error);
+    } finally {
+      isLoading.value = false;
+    }
+  };
+
+  const fetchNotifications = async (limit = 8) => {
+    try {
+      const data = await $fetch<DashboardNotification[]>(
+        `${config.public.apiBase}/dashboard/notifications`,
+        {
+          credentials: "include",
+          query: { limit },
+        },
+      );
+      notifications.value = data;
+      return data;
+    } catch (error) {
+      console.error("Failed to fetch dashboard notifications:", error);
+      notifications.value = [];
+      return [];
+    }
+  };
+
+  const approveBl = async (id: string) => {
+    try {
+      const resp = await $fetch<{ success: boolean; error?: string }>(
+        `${config.public.apiBase}/operational/jobs/bl/${id}/finalize`,
+        {
+          method: "POST",
+          credentials: "include",
+        },
+      );
+      if (resp.success) {
+        // Refresh pending approvals
+        await fetchPendingApprovals();
+        return { success: true };
+      }
+      return { success: false, error: resp.error || "Failed to approve BL" };
+    } catch (error: unknown) {
+      return {
+        success: false,
+        error: (error as { data?: { message?: string } })?.data?.message || "An error occurred",
+      };
     }
   };
 
   return {
+    // State
+    stats,
+    pendingApprovals,
+    notifications,
+    isLoading,
+
+    // Methods
     fetchDashboard,
+    fetchStats,
+    fetchPendingApprovals,
+    fetchNotifications,
+    approveBl,
   };
 };

@@ -6,11 +6,14 @@ import {
   Eye,
   Calendar,
   MapPin,
-  Box,
   LayoutList,
   LayoutGrid,
   ArrowRight,
   MoreVertical,
+  ChevronLeft,
+  ChevronRight,
+  Edit,
+  Trash2,
 } from "lucide-vue-next";
 import { cn } from "~/lib/utils";
 
@@ -19,10 +22,17 @@ definePageMeta({
 });
 
 const { jobs, fetchJobs, isLoading } = useJobs();
+const route = useRoute();
+const router = useRouter();
 
 // Fetch jobs on mount
 onMounted(async () => {
   await fetchJobs();
+  document.addEventListener("click", handleClickOutside);
+});
+
+onUnmounted(() => {
+  document.removeEventListener("click", handleClickOutside);
 });
 
 const searchQuery = ref("");
@@ -45,27 +55,61 @@ const getStatusClass = (statusId: string | null | undefined) => {
   return "bg-blue-50 text-blue-700 border-blue-200";
 };
 
-// Pagination
-const currentPage = ref(1);
-const pagination = ref({
-  total: 0,
-  limit: 10,
-  page: 1,
-});
+const selectedJobId = ref("");
+const isDetailOpen = ref(false);
+const initialTab = ref<string | undefined>(undefined);
+const initialBlId = ref<string | undefined>(undefined);
+const activeActionMenu = ref<string | null>(null);
 
-const handlePageChange = (page: number) => {
-  currentPage.value = page;
-  fetchJobs();
+function openJobDetail(id: string, tab?: string, blId?: string) {
+  selectedJobId.value = id;
+  initialTab.value = tab;
+  initialBlId.value = blId;
+  isDetailOpen.value = true;
+}
+
+const toggleActionMenu = (id: string) => {
+  activeActionMenu.value = activeActionMenu.value === id ? null : id;
 };
+
+const closeActionMenu = () => {
+  activeActionMenu.value = null;
+};
+
+const handleClickOutside = (event: MouseEvent) => {
+  const target = event.target as HTMLElement;
+  if (!target.closest(".job-action-menu")) {
+    closeActionMenu();
+  }
+};
+
+watch(
+  () => route.query.id,
+  (newId) => {
+    if (newId) {
+      setTimeout(() => {
+        openJobDetail(
+          newId as string,
+          route.query.tab as string | undefined,
+          route.query.blId as string | undefined,
+        );
+        if (typeof window !== "undefined") {
+          window.history.replaceState({}, "", route.path);
+        }
+      }, 50);
+    }
+  },
+  { immediate: true },
+);
 </script>
 
 <template>
-  <div class="space-y-6 animate-fade-in pb-10">
+  <div class="space-y-6 animate-fade-in pb-10 p-6">
     <!-- Page header -->
     <div class="flex items-center justify-between">
       <div>
         <h1 class="text-2xl font-bold">Job / Shipment</h1>
-        <p class="text-muted-foreground mt-1">Kelola job dan shipment</p>
+        <p class="text-muted-foreground mt-1">Manage job and shipment</p>
       </div>
 
       <div class="flex items-center gap-2">
@@ -118,7 +162,7 @@ const handlePageChange = (page: number) => {
           class="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-[#012D5A] text-white hover:bg-[#012D5A]/90 rounded-lg transition-colors min-w-fit whitespace-nowrap"
         >
           <Plus class="w-4 h-4" />
-          <span>Open Job Baru</span>
+          <span>Open New Job</span>
         </NuxtLink>
       </div>
     </div>
@@ -148,7 +192,7 @@ const handlePageChange = (page: number) => {
               v-for="job in filteredJobs"
               :key="job.id"
               class="border-b border-border last:border-0 hover:bg-muted/30 transition-colors cursor-pointer"
-              @click="navigateTo(`/operational/jobs/${job.id}`)"
+              @click="openJobDetail(job.id)"
             >
               <td class="py-3 px-4">
                 <div class="flex items-center gap-2">
@@ -158,7 +202,9 @@ const handlePageChange = (page: number) => {
                   <span class="text-sm font-medium">{{ job.jobNumber }}</span>
                 </div>
               </td>
-              <td class="py-3 px-4 text-sm">{{ job.commodity }}</td>
+              <td class="py-3 px-4 text-sm max-w-xs truncate" :title="job.commodity">
+                {{ job.commodity }}
+              </td>
               <td class="py-3 px-4">
                 <div class="flex flex-col text-sm">
                   <span class="flex items-center gap-1 font-medium">
@@ -172,25 +218,65 @@ const handlePageChange = (page: number) => {
               <td class="py-3 px-4">
                 <div class="flex items-center gap-2 text-sm text-gray-600">
                   <Calendar class="w-3 h-3" />
-                  {{ job.eta || "-" }}
+                  {{ formatDate(job.eta as string) || "-" }}
                 </div>
               </td>
               <td class="py-3 px-4">
-                <span
-                  :class="
-                    cn(
-                      'px-2 py-0.5 rounded border text-xs font-medium',
-                      getStatusClass(job.status?.code),
-                    )
-                  "
-                >
-                  {{ job.status?.name || "Active" }}
-                </span>
+                <div class="flex flex-col gap-1 items-start">
+                  <span
+                    :class="
+                      cn(
+                        'px-2 py-0.5 rounded border text-xs font-medium',
+                        getStatusClass(job.status?.code),
+                      )
+                    "
+                  >
+                    {{ job.status?.name || "Active" }}
+                  </span>
+                  <span
+                    v-if="job.billsOfLading?.some((bl) => bl.status?.code === 'PENDING_APPROVAL')"
+                    class="px-2 py-0.5 rounded border border-amber-200 bg-amber-50 text-amber-700 text-[10px] font-bold flex items-center gap-1 shadow-sm"
+                  >
+                    <div class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                    PENDING BL APPROVAL
+                  </span>
+                </div>
               </td>
               <td class="py-3 px-4 text-right">
-                <button class="text-muted-foreground hover:text-foreground">
-                  <MoreVertical class="w-4 h-4" />
-                </button>
+                <div class="flex items-center justify-end gap-2 relative">
+                  <button
+                    class="p-1.5 text-muted-foreground hover:text-[#012D5A] hover:bg-blue-50 rounded transition-colors"
+                    @click.stop="openJobDetail(job.id)"
+                    title="View Details"
+                  >
+                    <Eye class="w-4 h-4" />
+                  </button>
+                  <button
+                    class="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors job-action-menu"
+                    @click.stop="toggleActionMenu(job.id)"
+                  >
+                    <MoreVertical class="w-4 h-4" />
+                  </button>
+                  <div
+                    v-if="activeActionMenu === job.id"
+                    class="absolute right-0 top-8 mt-1 w-40 bg-white rounded-lg shadow-lg border border-border z-50 py-1"
+                  >
+                    <button
+                      class="w-full px-4 py-2 text-left text-sm hover:bg-muted flex items-center gap-2"
+                      @click.stop="openJobDetail(job.id)"
+                    >
+                      <Eye class="w-4 h-4" />
+                      View Details
+                    </button>
+                    <NuxtLink
+                      :to="`/operational/jobs/${job.id}/edit`"
+                      class="w-full px-4 py-2 text-left text-sm hover:bg-muted flex items-center gap-2"
+                    >
+                      <Edit class="w-4 h-4" />
+                      Edit
+                    </NuxtLink>
+                  </div>
+                </div>
               </td>
             </tr>
             <tr v-if="filteredJobs.length === 0">
@@ -207,7 +293,7 @@ const handlePageChange = (page: number) => {
         v-for="job in filteredJobs"
         :key="job.id"
         class="border border-border rounded-xl bg-white p-5 hover:shadow-sm transition-shadow cursor-pointer"
-        @click="navigateTo(`/operational/jobs/${job.id}`)"
+        @click="openJobDetail(job.id)"
       >
         <div class="flex items-start justify-between mb-4">
           <div class="flex items-start gap-4">
@@ -218,12 +304,48 @@ const handlePageChange = (page: number) => {
             </div>
             <div>
               <h3 class="font-bold text-base text-foreground">{{ job.jobNumber }}</h3>
-              <p class="text-xs text-muted-foreground">{{ job.commodity }}</p>
+              <p
+                class="text-xs text-muted-foreground max-w-[200px] truncate"
+                :title="job.commodity"
+              >
+                {{ job.commodity }}
+              </p>
             </div>
           </div>
-          <button class="text-muted-foreground hover:text-foreground" @click.stop>
-            <MoreVertical class="w-4 h-4" />
-          </button>
+          <div class="flex items-center gap-1 relative">
+            <button
+              class="p-1.5 text-muted-foreground hover:text-[#012D5A] hover:bg-blue-50 rounded transition-colors"
+              @click.stop="openJobDetail(job.id)"
+              title="View Details"
+            >
+              <Eye class="w-4 h-4" />
+            </button>
+            <button
+              class="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors job-action-menu"
+              @click.stop="toggleActionMenu(job.id)"
+            >
+              <MoreVertical class="w-4 h-4" />
+            </button>
+            <div
+              v-if="activeActionMenu === job.id"
+              class="absolute right-0 top-8 mt-1 w-40 bg-white rounded-lg shadow-lg border border-border z-50 py-1"
+            >
+              <button
+                class="w-full px-4 py-2 text-left text-sm hover:bg-muted flex items-center gap-2"
+                @click.stop="openJobDetail(job.id)"
+              >
+                <Eye class="w-4 h-4" />
+                View Details
+              </button>
+              <NuxtLink
+                :to="`/operational/jobs/${job.id}/edit`"
+                class="w-full px-4 py-2 text-left text-sm hover:bg-muted flex items-center gap-2"
+              >
+                <Edit class="w-4 h-4" />
+                Edit
+              </NuxtLink>
+            </div>
+          </div>
         </div>
 
         <div class="space-y-3 mb-4">
@@ -247,6 +369,13 @@ const handlePageChange = (page: number) => {
           >
             {{ job.status?.name || "Active" }}
           </span>
+          <span
+            v-if="job.billsOfLading?.some((bl) => bl.status?.code === 'PENDING_APPROVAL')"
+            class="px-2 py-0.5 rounded border border-amber-200 bg-amber-50 text-amber-700 text-[10px] font-bold flex items-center gap-1"
+          >
+            <div class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+            PENDING BL APPROVAL
+          </span>
         </div>
       </div>
     </div>
@@ -254,12 +383,30 @@ const handlePageChange = (page: number) => {
     <!-- Pagination -->
     <div class="flex items-center justify-between text-sm text-muted-foreground">
       <p>{{ filteredJobs.length }} data found.</p>
-      <UiPagination
-        v-model:page="currentPage"
-        :total="pagination.total"
-        :items-per-page="pagination.limit"
-        @update:page="handlePageChange"
-      />
+      <div class="flex items-center gap-2">
+        <button class="p-1 hover:text-foreground disabled:opacity-50">
+          <ChevronLeft class="w-4 h-4" />
+          <span class="sr-only">Previous</span>
+        </button>
+        <button
+          class="w-8 h-8 flex items-center justify-center rounded border border-border bg-white text-foreground font-medium"
+        >
+          1
+        </button>
+        <span class="px-1">...</span>
+        <button class="flex items-center gap-1 hover:text-foreground">
+          Next
+          <ChevronRight class="w-4 h-4" />
+        </button>
+      </div>
     </div>
+
+    <!-- Job Details Slide-over -->
+    <OperationalJobDetailSlideOver
+      v-model="isDetailOpen"
+      :job-id="selectedJobId"
+      :initial-tab="initialTab"
+      :initial-bl-id="initialBlId"
+    />
   </div>
 </template>

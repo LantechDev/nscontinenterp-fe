@@ -1,8 +1,15 @@
 export interface Invoice {
   id: string;
   invoiceNumber: string;
-  invoiceDate: string;
+  issuedDate: string;
   dueDate: string;
+  currency: string;
+  companyName?: string;
+  companyAddress?: string;
+  companyId?: string;
+  subTotal: number;
+  taxId?: string;
+  taxAmount: number;
   total: number;
   balanceDue: number;
   status: {
@@ -12,7 +19,26 @@ export interface Invoice {
   company: {
     name: string;
   };
+  job?: {
+    id: string;
+    jobNumber: string;
+  };
   createdAt: string;
+  paymentAllocations?: Array<{
+    id: string;
+    amount: number;
+    payment: {
+      id: string;
+      paymentNumber?: string;
+      paymentDate: string;
+      status: string;
+      paymentMethod?: {
+        name: string;
+        code: string;
+      };
+      reference?: string;
+    };
+  }>;
 }
 
 export interface InvoiceDetail extends Invoice {
@@ -28,19 +54,37 @@ export interface InvoiceDetail extends Invoice {
     description: string;
     quantity: number;
     unitPrice: number;
-    total: number;
-    service?: {
-      name: string;
-    };
-  }>;
-  payments: Array<{
-    id: string;
     amount: number;
-    paymentDate: string;
-    paymentMethod?: {
+    service?: {
+      id: string;
       name: string;
     };
   }>;
+  job?: {
+    id: string;
+    jobNumber: string;
+    tradeTypeId?: string;
+    tradeType?: {
+      id: string;
+      name: string;
+    };
+    vessels?: Array<{
+      id: string;
+      vesselName: string;
+      vessel?: { name: string };
+      voyageNumber: string;
+    }>;
+    pol?: string;
+    pod?: string;
+    polName?: string;
+    podName?: string;
+    polPort?: { name: string };
+    podPort?: { name: string };
+    customerReference?: string;
+    billsOfLading?: Array<{
+      shipperReferences: string[];
+    }>;
+  };
   notes?: string;
 }
 
@@ -75,7 +119,7 @@ export function useInvoices() {
     }
   }
 
-  async function fetchInvoices(): Promise<{
+  async function fetchInvoices(jobId?: string): Promise<{
     success: boolean;
     data?: Invoice[];
     error?: string;
@@ -83,6 +127,7 @@ export function useInvoices() {
     isLoading.value = true;
     try {
       const data = await $fetch<Invoice[]>(`${config.public.apiBase}/finance/invoice`, {
+        query: jobId ? { jobId } : undefined,
         credentials: "include",
       });
       return { success: true, data };
@@ -111,14 +156,22 @@ export function useInvoices() {
   }
 
   async function createInvoice(data: {
+    jobId?: string;
+    invoiceNumber: string;
     companyId: string;
-    invoiceDate: string;
+    issuedDate: string;
     dueDate: string;
+    subTotal: number;
+    taxId?: string;
+    taxAmount: number;
+    total: number;
+    balanceDue: number;
     items: Array<{
       serviceId?: string;
       description: string;
       quantity: number;
       unitPrice: number;
+      amount: number;
     }>;
     notes?: string;
   }): Promise<{ success: boolean; data?: Invoice; error?: string }> {
@@ -140,10 +193,26 @@ export function useInvoices() {
   async function updateInvoice(
     id: string,
     data: Partial<{
-      invoiceDate: string;
+      invoiceNumber: string;
+      issuedDate: string;
       dueDate: string;
-      statusId: string;
+      companyId: string;
+      jobId: string;
       notes: string;
+      subTotal: number;
+      taxId: string;
+      taxAmount: number;
+      total: number;
+      balanceDue: number;
+      statusId: string;
+      items: Array<{
+        id?: string;
+        serviceId?: string;
+        description: string;
+        quantity: number;
+        unitPrice: number;
+        amount: number;
+      }>;
     }>,
   ): Promise<{ success: boolean; data?: Invoice; error?: string }> {
     isLoading.value = true;
@@ -161,6 +230,26 @@ export function useInvoices() {
     }
   }
 
+  async function voidInvoice(
+    id: string,
+  ): Promise<{ success: boolean; data?: Invoice; error?: string }> {
+    isLoading.value = true;
+    try {
+      const responseData = await $fetch<Invoice>(
+        `${config.public.apiBase}/finance/invoice/${id}/void`,
+        {
+          method: "POST",
+          credentials: "include",
+        },
+      );
+      return { success: true, data: responseData };
+    } catch (error) {
+      return { success: false, error: getErrorMessage(error) };
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
   return {
     isLoading,
     fetchInvoices,
@@ -168,5 +257,6 @@ export function useInvoices() {
     createInvoice,
     updateInvoice,
     deleteInvoice,
+    voidInvoice,
   };
 }

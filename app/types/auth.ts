@@ -10,7 +10,7 @@ export interface User {
   banned?: boolean;
   banReason?: string;
   banExpires?: string;
-  lastLogin?: string; // Not in spec but present in existing code usage
+  lastLogin?: string;
 }
 
 export interface OrganizationMetadata {
@@ -26,6 +26,8 @@ export interface Organization {
   slug: string;
   logo?: string;
   metadata?: OrganizationMetadata;
+  role?: string;
+  isOwner?: boolean;
 }
 
 export interface Session {

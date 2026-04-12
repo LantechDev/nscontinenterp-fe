@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { MoreVertical, ChevronDown } from "lucide-vue-next";
+import { MoreVertical, ChevronDown, Pencil, Trash2 } from "lucide-vue-next";
 import { cn } from "~/lib/utils";
 import type { MappedCompany } from "~/composables/useCompanies";
 import { UiCheckbox } from "#components";
@@ -9,12 +9,18 @@ defineProps<{
   sortField: string;
   sortDirection: "asc" | "desc";
   selectAll: boolean;
+  selectedIds: Set<string>;
+  activeMenuId: string | null;
 }>();
 
 defineEmits<{
   (e: "update:sort", field: string): void;
   (e: "open-detail", company: MappedCompany): void;
   (e: "update:selectAll", value: boolean): void;
+  (e: "toggle-select", payload: { id: string; value: boolean }): void;
+  (e: "toggle-menu", id: string): void;
+  (e: "edit", company: MappedCompany): void;
+  (e: "delete", company: MappedCompany): void;
 }>();
 </script>
 
@@ -95,7 +101,10 @@ defineEmits<{
             @click="$emit('open-detail', company)"
           >
             <td class="py-3 px-4" @click.stop>
-              <UiCheckbox v-model="company.selected" />
+              <UiCheckbox
+                :model-value="selectedIds.has(company.id)"
+                @update:model-value="$emit('toggle-select', { id: company.id, value: $event })"
+              />
             </td>
             <td class="py-3 px-4 text-sm font-medium">{{ company.code }}</td>
             <td class="py-3 px-4 text-sm font-medium">{{ company.name }}</td>
@@ -106,11 +115,11 @@ defineEmits<{
                 :class="
                   cn(
                     'px-2 py-1 rounded text-xs font-medium',
-                    company.type === 'Shipper'
-                      ? 'bg-gray-100 text-gray-700'
-                      : company.type === 'Consignee'
-                        ? 'bg-gray-100 text-gray-700'
-                        : 'bg-gray-900 text-white',
+                    company.type === 'Both'
+                      ? 'bg-gray-900 text-white'
+                      : company.type === 'Vendor'
+                        ? 'bg-blue-50 text-blue-700'
+                        : 'bg-gray-100 text-gray-700',
                   )
                 "
               >
@@ -132,9 +141,33 @@ defineEmits<{
               </span>
             </td>
             <td class="py-3 px-4 text-right">
-              <button class="text-muted-foreground hover:text-foreground" @click.stop>
-                <MoreVertical class="w-4 h-4" />
-              </button>
+              <div class="company-action-menu relative">
+                <button
+                  class="text-muted-foreground hover:text-foreground"
+                  @click.stop="$emit('toggle-menu', company.id)"
+                >
+                  <MoreVertical class="w-4 h-4" />
+                </button>
+                <div
+                  v-if="activeMenuId === company.id"
+                  class="absolute right-0 top-6 z-50 min-w-[140px] rounded-lg border border-slate-200 bg-white py-1 shadow-lg"
+                >
+                  <button
+                    class="flex w-full items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                    @click.stop="$emit('edit', company)"
+                  >
+                    <Pencil class="w-3.5 h-3.5 text-slate-600" />
+                    Edit
+                  </button>
+                  <button
+                    class="flex w-full items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50"
+                    @click.stop="$emit('delete', company)"
+                  >
+                    <Trash2 class="w-3.5 h-3.5 text-red-500" />
+                    Delete
+                  </button>
+                </div>
+              </div>
             </td>
           </tr>
           <tr v-if="companies.length === 0">

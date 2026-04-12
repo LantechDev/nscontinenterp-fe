@@ -2,8 +2,7 @@
 import { X, Save, Copy, Loader2 } from "lucide-vue-next";
 import Combobox from "~/components/ui/Combobox.vue";
 import type { Company, ContainerType, PackageType } from "~/composables/useMasterData";
-
-const { confirm } = useConfirm();
+import { toast } from "vue-sonner";
 
 interface BlParty {
   id: string;
@@ -123,11 +122,7 @@ async function loadBlData() {
     formData.notifyPartyId = notify?.companyId || "";
   } catch (error) {
     console.error("Failed to load BL", error);
-    await confirm({
-      title: "Error",
-      message: "Failed to load BL details",
-      type: "danger",
-    });
+    toast.error("Failed to load BL details");
   } finally {
     isLoading.value = false;
   }
@@ -154,11 +149,7 @@ watch(
 );
 
 async function handleCopyFromJob() {
-  const confirmed = await confirm({
-    title: "Copy from Job",
-    message: "This will overwrite existing parties with data from the Job. Continue?",
-  });
-  if (!confirmed) return;
+  if (!confirm("This will overwrite existing parties with data from the Job. Continue?")) return;
 
   isLoading.value = true;
   try {
@@ -166,17 +157,10 @@ async function handleCopyFromJob() {
       method: "POST",
     });
     await loadBlData();
-    await confirm({
-      title: "Success",
-      message: "Data copied from Job. You can now edit it for this BL.",
-    });
+    toast.success("Data copied from Job. You can now edit it for this BL.");
   } catch (error) {
     console.error("Copy failed", error);
-    await confirm({
-      title: "Error",
-      message: "Failed to copy data",
-      type: "danger",
-    });
+    toast.error("Failed to copy data");
   } finally {
     isLoading.value = false;
   }
@@ -203,11 +187,7 @@ async function handleSave() {
     emit("update:modelValue", false);
   } catch (error) {
     console.error("Save failed", error);
-    await confirm({
-      title: "Error",
-      message: "Failed to save BL",
-      type: "danger",
-    });
+    toast.error("Failed to save BL");
   } finally {
     isSaving.value = false;
   }
@@ -215,7 +195,7 @@ async function handleSave() {
 </script>
 
 <template>
-  <div v-if="modelValue" class="fixed inset-0 z-50 flex justify-end">
+  <div v-if="modelValue" class="fixed inset-0 z-[999] flex justify-end">
     <!-- Backdrop -->
     <div
       class="absolute inset-0 bg-black/50 transition-opacity"
@@ -224,7 +204,7 @@ async function handleSave() {
 
     <!-- Drawer Panel -->
     <div
-      class="relative w-full max-w-2xl bg-background h-full shadow-xl flex flex-col animate-slide-in-right"
+      class="relative w-full max-w-2xl bg-background h-full shadow-xl flex flex-col pt-16 animate-slide-in-right"
     >
       <!-- Header -->
       <div

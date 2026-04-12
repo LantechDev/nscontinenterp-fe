@@ -31,7 +31,7 @@ const variantStyles: Record<string, string> = {
   <div
     :class="
       cn(
-        'card-stat p-4 rounded-xl border border-border transition-all duration-300 hover:shadow-md',
+        'card-stat p-4 rounded-xl border border-border flex flex-col gap-4  justify-between transition-all duration-300 hover:shadow-md',
         props.variant === 'primary'
           ? 'bg-[#012D5A] text-white border-[#012D5A]'
           : 'bg-card text-card-foreground',
@@ -39,7 +39,7 @@ const variantStyles: Record<string, string> = {
     "
   >
     <!-- Header: Icon & Title -->
-    <div class="flex items-center gap-3 mb-3">
+    <div class="flex items-center gap-3">
       <div :class="cn('p-2 rounded-lg', props.variant === 'primary' ? 'bg-white/10' : 'bg-muted')">
         <component
           :is="props.icon"
@@ -62,7 +62,7 @@ const variantStyles: Record<string, string> = {
 
     <!-- Body: Value & Trend -->
     <div>
-      <div class="flex items-end justify-between gap-2">
+      <div class="flex items-end gap-2">
         <h3 class="text-2xl font-bold tracking-tight">{{ props.value }}</h3>
 
         <div
@@ -74,22 +74,22 @@ const variantStyles: Record<string, string> = {
             )
           "
         >
-          <TrendingUp v-if="isPositive" class="w-3 h-3" />
+          <TrendingUp v-if="isPositive" class="w-4 h-4" />
           <TrendingDown v-else class="w-3 h-3" />
           <span>{{ Math.abs(props.change).toString().replace(".", ",") }}%</span>
+          <p
+            v-if="props.changeLabel"
+            :class="
+              cn(
+                'text-xs mt-1',
+                props.variant === 'primary' ? 'text-white/50' : 'text-muted-foreground',
+              )
+            "
+          >
+            {{ props.changeLabel }}
+          </p>
         </div>
       </div>
-      <p
-        v-if="props.changeLabel"
-        :class="
-          cn(
-            'text-xs mt-1',
-            props.variant === 'primary' ? 'text-white/50' : 'text-muted-foreground',
-          )
-        "
-      >
-        {{ props.changeLabel }}
-      </p>
     </div>
   </div>
 </template>
