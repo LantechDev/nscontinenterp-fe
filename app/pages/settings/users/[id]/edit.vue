@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ArrowLeft, Save, Loader2, Trash2, AlertTriangle } from "lucide-vue-next";
 import { z } from "zod";
+import { toast } from "vue-sonner";
 
 definePageMeta({
   layout: "dashboard",
@@ -110,13 +111,14 @@ const handleSubmit = async () => {
     const result = await adminUpdateUser(userId, updateData);
 
     if (result.success) {
+      toast.success("User berhasil diupdate");
       router.push(`/settings/users/${userId}`);
     } else {
-      errors.value.root = result.error || "Gagal mengupdate user.";
+      toast.error(result.error || "Gagal mengupdate user.");
     }
   } catch (e) {
     const error = e as Error;
-    errors.value.root = error.message || "Terjadi kesalahan sistem.";
+    toast.error(error.message || "Terjadi kesalahan sistem.");
   } finally {
     isLoading.value = false;
   }
@@ -130,14 +132,15 @@ const handleDelete = async () => {
   try {
     const result = await deleteUser(userId);
     if (result.success) {
+      toast.success("User berhasil dihapus", { duration: 3000 });
       router.push("/settings/users");
     } else {
-      errors.value.root = result.error || "Gagal menghapus user.";
+      toast.error(result.error || "Gagal menghapus user.");
       showDeleteConfirm.value = false;
     }
   } catch (e) {
     const error = e as Error;
-    errors.value.root = error.message || "Terjadi kesalahan sistem.";
+    toast.error(error.message || "Terjadi kesalahan sistem.");
     showDeleteConfirm.value = false;
   } finally {
     isDeleting.value = false;
@@ -146,7 +149,7 @@ const handleDelete = async () => {
 </script>
 
 <template>
-  <div class="space-y-6 animate-fade-in">
+  <div class="space-y-6 animate-fade-in p-6">
     <div class="page-header">
       <div class="flex items-center gap-4">
         <NuxtLink
@@ -180,13 +183,6 @@ const handleDelete = async () => {
         <p class="font-medium">Error:</p>
         <p>{{ fetchError }}</p>
         <button @click="router.go(0)" class="text-sm underline mt-2">Coba lagi/Refresh</button>
-      </div>
-
-      <div
-        v-if="errors.root"
-        class="bg-red-50 text-red-600 p-3 rounded-lg text-sm border border-red-200 mb-6"
-      >
-        {{ errors.root }}
       </div>
 
       <form @submit.prevent="handleSubmit" class="card-elevated p-6 space-y-6">
@@ -283,7 +279,7 @@ const handleDelete = async () => {
   <!-- Delete Confirmation Modal -->
   <div
     v-if="showDeleteConfirm"
-    class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 animate-fade-in"
+    class="fixed inset-0 z-[1100] flex items-center justify-center bg-black/50 animate-fade-in"
   >
     <div class="bg-background rounded-lg shadow-lg max-w-md w-full p-6 mx-4">
       <div class="flex items-center gap-3 text-red-600 mb-4">

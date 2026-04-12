@@ -1,145 +1,29 @@
 <script setup lang="ts">
-import type { Component } from "vue";
-import {
-  LayoutDashboard,
-  Package,
-  FileText,
-  Ship,
-  Wallet,
-  BarChart3,
-  Settings,
-  ChevronDown,
-  ChevronRight,
-  User,
-} from "lucide-vue-next";
+import { ChevronDown, ChevronRight, User } from "lucide-vue-next";
 import { cn } from "~/lib/utils";
-import type { Organization } from "~/types/auth";
 
-const { user, session, logout, listOrganizations, setActiveOrganization } = useAuth();
-const router = useRouter();
+const {
+  user,
+  organizations,
+  isOrgDropdownOpen,
+  isUserDropdownOpen,
+  expandedItems,
+  currentOrg,
+  handleLogout,
+  toggleOrgDropdown,
+  handleOrgSwitch,
+  toggleExpand,
+  isActive,
+  isChildActive,
+  navItems,
+} = useAppSidebar();
 
-const organizations = ref<Organization[]>([]);
-const isOrgDropdownOpen = ref(false);
-const isUserDropdownOpen = ref(false);
-
-const handleLogout = async () => {
-  const res = await logout();
-  if (res.success) {
-    await router.push("/login");
-  }
-};
-
-const currentOrg = computed(() => {
-  if (!session.value?.activeOrganizationId) return null;
-  return organizations.value.find((o) => o.id === session.value?.activeOrganizationId) || null;
-});
-
-const toggleOrgDropdown = async () => {
-  if (!isOrgDropdownOpen.value) {
-    if (organizations.value.length === 0) {
-      const { success, data } = await listOrganizations();
-      if (success && data) {
-        organizations.value = data;
-      }
-    }
-  }
-  isOrgDropdownOpen.value = !isOrgDropdownOpen.value;
-};
-
-const handleOrgSwitch = async (orgId: string) => {
-  isOrgDropdownOpen.value = false;
-  await setActiveOrganization(orgId);
-  await router.push("/dashboard");
-};
-
-onMounted(async () => {
-  if (user.value?.role === "admin") {
-    const { success, data } = await listOrganizations();
-    if (success && data) {
-      organizations.value = data;
-    }
-  }
-});
-
-interface NavChild {
-  title: string;
-  href: string;
-}
-
-interface NavItem {
-  title: string;
-  href?: string;
-  icon: Component;
-  children?: NavChild[];
-}
-
-const navItems: NavItem[] = [
-  { title: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  {
-    title: "Master Data",
-    icon: Package,
-    children: [
-      { title: "Company", href: "/master/company" },
-      { title: "Service", href: "/master/services" },
-      { title: "Vessel", href: "/master/vessel" },
-    ],
-  },
-  {
-    title: "Operational",
-    icon: Ship,
-    children: [
-      { title: "Job", href: "/operational/jobs" },
-      { title: "eBL", href: "/operational/ebl" },
-      { title: "Closing Job", href: "/operational/closing" },
-    ],
-  },
-  {
-    title: "Finance",
-    icon: Wallet,
-    children: [
-      { title: "Dashboard", href: "/finance/dashboard" },
-      { title: "Invoice", href: "/finance/invoice" },
-      { title: "Pembayaran", href: "/finance/payment" },
-      { title: "Biaya Operasional", href: "/finance/expenses" },
-      { title: "Pajak", href: "/finance/tax" },
-    ],
-  },
-  {
-    title: "Reports",
-    icon: BarChart3,
-    href: "/reports",
-  },
-  {
-    title: "Settings",
-    icon: Settings,
-    children: [
-      { title: "Users", href: "/settings/users" },
-      { title: "Roles", href: "/settings/roles" },
-      { title: "Tenant", href: "/settings/tenant" },
-    ],
-  },
-];
-
-const route = useRoute();
-const expandedItems = ref<string[]>(["Master Data", "Operational", "Finance"]);
-
-const toggleExpand = (title: string) => {
-  if (expandedItems.value.includes(title)) {
-    expandedItems.value = expandedItems.value.filter((item) => item !== title);
-  } else {
-    expandedItems.value = [...expandedItems.value, title];
-  }
-};
-
-const isActive = (href: string): boolean => route.path === href;
-
-const isChildActive = (children?: NavChild[]): boolean =>
-  children?.some((child) => route.path === child.href) ?? false;
+const { isOwner, isAdmin, canApproveJobs } = useAuth();
 </script>
 
 <template>
   <aside
-    class="fixed left-0 top-0 z-40 h-screen w-64 bg-[#012D5A] text-white flex flex-col font-sans transition-all duration-300"
+    class="fixed inset-y-0 left-0 z-40 w-64 bg-[#012D5A] text-white flex flex-col font-sans transition-all duration-300"
   >
     <!-- Logo / Organization Switcher -->
     <div class="px-4 py-4 mb-2">
@@ -192,6 +76,7 @@ const isChildActive = (children?: NavChild[]): boolean =>
 
     <!-- Navigation -->
     <nav class="flex-1 overflow-y-auto px-4 space-y-1 scrollbar-hidden">
+      <!-- Main Dashboard -->
       <NuxtLink
         to="/dashboard"
         :class="
@@ -203,7 +88,6 @@ const isChildActive = (children?: NavChild[]): boolean =>
           )
         "
       >
-        <LayoutDashboard class="w-5 h-5" />
         <span>Dashboard</span>
       </NuxtLink>
 
@@ -221,7 +105,6 @@ const isChildActive = (children?: NavChild[]): boolean =>
             "
           >
             <div class="flex items-center gap-3">
-              <component :is="item.icon" class="w-5 h-5" />
               <span>{{ item.title }}</span>
             </div>
             <ChevronDown
@@ -262,7 +145,6 @@ const isChildActive = (children?: NavChild[]): boolean =>
           "
         >
           <div class="flex items-center gap-3">
-            <component :is="item.icon" class="w-5 h-5" />
             <span>{{ item.title }}</span>
           </div>
           <ChevronRight class="w-4 h-4 text-white/50" />
@@ -273,61 +155,63 @@ const isChildActive = (children?: NavChild[]): boolean =>
     <!-- Footer / User -->
     <div class="p-4 mt-auto relative">
       <!-- User Dropdown Menu -->
-      <div
-        v-if="isUserDropdownOpen"
-        class="absolute bottom-20 left-4 w-56 bg-white text-slate-900 rounded-lg shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200 border border-slate-200"
-      >
-        <div class="p-2 border-b border-border">
-          <p class="font-medium text-sm truncate px-2">{{ user?.name }}</p>
-          <p class="text-xs text-muted-foreground truncate px-2">{{ user?.email }}</p>
-        </div>
-        <div class="p-1">
-          <NuxtLink
-            v-if="user"
-            :to="`/settings/users/${user.id}`"
-            @click="isUserDropdownOpen = false"
-            class="flex items-center gap-2 w-full px-2 py-2 text-sm rounded-md hover:bg-slate-100 transition-colors"
-          >
-            <User class="w-4 h-4" />
-            <span>My Profile</span>
-          </NuxtLink>
-          <button
-            @click="handleLogout"
-            class="flex items-center gap-2 w-full px-2 py-2 text-sm rounded-md hover:bg-red-50 text-red-600 transition-colors"
-          >
-            <User class="w-4 h-4" />
-            <span>Log Out</span>
-          </button>
-        </div>
-      </div>
-
-      <!-- Backdrop -->
-      <div
-        v-if="isUserDropdownOpen"
-        @click="isUserDropdownOpen = false"
-        class="fixed inset-0 z-40 bg-transparent"
-      ></div>
-
-      <button
-        v-if="user"
-        @click="isUserDropdownOpen = !isUserDropdownOpen"
-        class="flex items-center gap-3 p-3 rounded-lg hover:bg-white/5 transition-colors group cursor-pointer w-full text-left"
-        :class="{ 'bg-white/5': isUserDropdownOpen }"
-      >
+      <ClientOnly>
         <div
-          class="w-10 h-10 rounded-lg bg-white flex items-center justify-center text-[#012D5A] shrink-0"
+          v-if="isUserDropdownOpen"
+          class="absolute bottom-20 left-4 w-56 bg-white text-slate-900 rounded-lg shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200 border border-slate-200"
         >
-          <User class="w-6 h-6" />
+          <div class="p-2 border-b border-border">
+            <p class="font-medium text-sm truncate px-2">{{ user?.name }}</p>
+            <p class="text-xs text-muted-foreground truncate px-2">{{ user?.email }}</p>
+          </div>
+          <div class="p-1">
+            <NuxtLink
+              v-if="user"
+              :to="`/settings/users/${user.id}`"
+              @click="isUserDropdownOpen = false"
+              class="flex items-center gap-2 w-full px-2 py-2 text-sm rounded-md hover:bg-slate-100 transition-colors"
+            >
+              <User class="w-4 h-4" />
+              <span>My Profile</span>
+            </NuxtLink>
+            <button
+              @click="handleLogout"
+              class="flex items-center gap-2 w-full px-2 py-2 text-sm rounded-md hover:bg-red-50 text-red-600 transition-colors"
+            >
+              <User class="w-4 h-4" />
+              <span>Log Out</span>
+            </button>
+          </div>
         </div>
-        <div class="flex-1 min-w-0">
-          <p class="text-sm font-medium text-white truncate">{{ user.name }}</p>
-          <p class="text-xs text-white/60 truncate">{{ user.email }}</p>
-        </div>
-        <ChevronRight
-          class="w-5 h-5 text-white/50 group-hover:text-white transition-transform duration-200"
-          :class="{ '-rotate-90': isUserDropdownOpen }"
-        />
-      </button>
+
+        <!-- Backdrop -->
+        <div
+          v-if="isUserDropdownOpen"
+          @click="isUserDropdownOpen = false"
+          class="fixed inset-0 z-40 bg-transparent"
+        ></div>
+
+        <button
+          v-if="user"
+          @click="isUserDropdownOpen = !isUserDropdownOpen"
+          class="flex items-center gap-3 p-3 rounded-lg hover:bg-white/5 transition-colors group cursor-pointer w-full text-left"
+          :class="{ 'bg-white/5': isUserDropdownOpen }"
+        >
+          <div
+            class="w-10 h-10 rounded-lg bg-white flex items-center justify-center text-[#012D5A] shrink-0"
+          >
+            <User class="w-6 h-6" />
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-medium text-white truncate">{{ user.name }}</p>
+            <p class="text-xs text-white/60 truncate">{{ user.email }}</p>
+          </div>
+          <ChevronRight
+            class="w-5 h-5 text-white/50 group-hover:text-white transition-transform duration-200"
+            :class="{ '-rotate-90': isUserDropdownOpen }"
+          />
+        </button>
+      </ClientOnly>
     </div>
   </aside>
 </template>

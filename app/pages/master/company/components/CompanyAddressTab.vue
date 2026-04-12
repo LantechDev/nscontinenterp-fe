@@ -24,7 +24,7 @@ const emit = defineEmits<{
       @click="emit('add-address')"
     >
       <MapPinPlus class="w-4 h-4 text-white" />
-      <div class="text-white text-xs font-medium font-['Inter'] leading-4">Add Address</div>
+      <div class="text-white text-sm font-medium font-['Inter'] leading-5">Add Address</div>
     </div>
   </div>
 
@@ -57,19 +57,19 @@ const emit = defineEmits<{
                     @click="emit('edit-address', 'tab-' + addr.id)"
                   >
                     <Pencil class="w-3.5 h-3.5 text-slate-600" />
-                    <span class="text-xs text-slate-700">Edit</span>
+                    <span class="text-sm text-slate-700">Edit</span>
                   </div>
                   <div
                     class="px-3 py-2 hover:bg-red-50 cursor-pointer flex items-center gap-2"
                     @click="emit('delete-address', addr.id)"
                   >
                     <Trash2 class="w-3.5 h-3.5 text-red-500" />
-                    <span class="text-xs text-red-500">Delete</span>
+                    <span class="text-sm text-red-500">Delete</span>
                   </div>
                 </div>
               </div>
             </div>
-            <div class="self-stretch text-gray-500 text-xs font-normal font-['Inter'] leading-4">
+            <div class="self-stretch text-gray-500 text-sm font-normal font-['Inter'] leading-5">
               {{ addr.fullAddress || "-" }}
             </div>
           </div>
@@ -79,7 +79,7 @@ const emit = defineEmits<{
         v-if="addr.isDefault"
         class="px-2 py-0.5 bg-blue-50 rounded-md shadow-sm outline outline-1 outline-offset-[-1px] outline-blue-200 flex justify-start items-center gap-1 mt-1"
       >
-        <div class="text-center text-blue-700 text-xs font-medium font-['Inter'] leading-4">
+        <div class="text-center text-blue-700 text-sm font-medium font-['Inter'] leading-5">
           Main
         </div>
       </div>

@@ -1,4 +1,5 @@
-import type { Company, Address } from "./useMasterData";
+import type { Company } from "./useMasterData";
+import { companyApi } from "~/lib/company-api";
 
 export type CreateCompanyInput = {
   name: string;
@@ -37,11 +38,7 @@ export interface CompanyActivityLog {
   newData: Record<string, unknown> | null;
   ipAddress: string | null;
   createdAt: string;
-  user?: {
-    id: string;
-    name: string;
-    email: string;
-  } | null;
+  user?: { id: string; name: string; email: string } | null;
 }
 
 export interface CompanyJob {
@@ -52,20 +49,9 @@ export interface CompanyJob {
   commodity: string;
   etd: string | null;
   eta: string | null;
-  status?: {
-    id: string;
-    code: string;
-    name: string;
-  } | null;
-  vessel?: {
-    id: string;
-    name: string;
-  } | null;
-  containerType?: {
-    id: string;
-    code: string;
-    name: string;
-  } | null;
+  status?: { id: string; code: string; name: string } | null;
+  vessel?: { id: string; name: string } | null;
+  containerType?: { id: string; code: string; name: string } | null;
   createdAt: string;
 }
 
@@ -78,16 +64,8 @@ export interface CompanyInvoice {
   currency: string;
   issuedDate: string;
   dueDate: string;
-  status?: {
-    id: string;
-    code: string;
-    name: string;
-  } | null;
-  type?: {
-    id: string;
-    code: string;
-    name: string;
-  } | null;
+  status?: { id: string; code: string; name: string } | null;
+  type?: { id: string; code: string; name: string } | null;
   createdAt: string;
 }
 
@@ -106,160 +84,87 @@ export type MappedCompany = Company & {
   selected: boolean;
 };
 
-type ErrorResponse = {
-  message?: string;
-  error?: string;
-};
-
-function getErrorMessage(error: unknown): string {
-  if (error && typeof error === "object" && "data" in error) {
-    const errorData = (error as { data?: ErrorResponse }).data;
-    if (errorData?.message) return errorData.message;
-    if (errorData?.error) return errorData.error;
-  }
-  if (error instanceof Error) return error.message;
-  return "An error occurred";
-}
-
 export function useCompanies() {
-  const config = useRuntimeConfig();
   const companies = useState<Company[]>("companies", () => []);
   const isLoading = ref(false);
 
   async function fetchCompanies(params?: {
     search?: string;
     type?: "ALL" | "CUSTOMER" | "VENDOR";
-  }): Promise<{
-    success: boolean;
-    data?: Company[];
-    error?: string;
-  }> {
+  }) {
     isLoading.value = true;
     try {
-      const data = await $fetch<Company[]>(`${config.public.apiBase}/master/companies`, {
-        params,
-        credentials: "include",
-      });
-      companies.value = data || [];
-      return { success: true, data: companies.value };
-    } catch (error) {
-      return { success: false, error: getErrorMessage(error) };
+      const result = await companyApi.fetchCompanies(params);
+      if (result.success && result.data) {
+        companies.value = result.data;
+      }
+      return result;
     } finally {
       isLoading.value = false;
     }
   }
 
-  async function getCompanyById(
-    id: string,
-  ): Promise<{ success: boolean; data?: Company; error?: string }> {
+  async function getCompanyById(id: string) {
     isLoading.value = true;
     try {
-      const data = await $fetch<Company>(`${config.public.apiBase}/master/companies/${id}`, {
-        credentials: "include",
-      });
-      return { success: true, data };
-    } catch (error) {
-      return { success: false, error: getErrorMessage(error) };
+      return await companyApi.getCompanyById(id);
     } finally {
       isLoading.value = false;
     }
   }
 
-  async function getCompanyDetails(
-    id: string,
-  ): Promise<{ success: boolean; data?: CompanyDetails; error?: string }> {
+  async function getCompanyDetails(id: string) {
     isLoading.value = true;
     try {
-      const data = await $fetch<CompanyDetails>(
-        `${config.public.apiBase}/master/companies/${id}/details`,
-        {
-          credentials: "include",
-        },
-      );
-      return { success: true, data };
-    } catch (error) {
-      return { success: false, error: getErrorMessage(error) };
+      return await companyApi.getCompanyDetails(id);
     } finally {
       isLoading.value = false;
     }
   }
 
-  async function createCompany(
-    companyData: CreateCompanyInput,
-  ): Promise<{ success: boolean; data?: Company; error?: string }> {
+  async function createCompany(companyData: CreateCompanyInput) {
     isLoading.value = true;
     try {
-      const data = await $fetch<Company>(`${config.public.apiBase}/master/companies`, {
-        method: "POST",
-        body: companyData,
-        credentials: "include",
-      });
-      companies.value = [data, ...companies.value];
-      return { success: true, data };
-    } catch (error) {
-      return { success: false, error: getErrorMessage(error) };
+      const result = await companyApi.createCompany(companyData);
+      if (result.success && result.data) {
+        companies.value = [result.data, ...companies.value];
+      }
+      return result;
     } finally {
       isLoading.value = false;
     }
   }
 
-  async function updateCompany(
-    id: string,
-    companyData: Partial<Omit<Company, "id">>,
-  ): Promise<{ success: boolean; data?: Company; error?: string }> {
+  async function updateCompany(id: string, companyData: Partial<Omit<Company, "id">>) {
     isLoading.value = true;
     try {
-      const data = await $fetch<Company>(`${config.public.apiBase}/master/companies/${id}`, {
-        method: "PUT",
-        body: companyData,
-        credentials: "include",
-      });
-      companies.value = companies.value.map((c) => (c.id === id ? { ...c, ...data } : c));
-      return { success: true, data };
-    } catch (error) {
-      return { success: false, error: getErrorMessage(error) };
+      const result = await companyApi.updateCompany(id, companyData);
+      if (result.success && result.data) {
+        companies.value = companies.value.map((c) => (c.id === id ? { ...c, ...result.data } : c));
+      }
+      return result;
     } finally {
       isLoading.value = false;
     }
   }
 
-  async function deleteCompany(id: string): Promise<{ success: boolean; error?: string }> {
+  async function deleteCompany(id: string) {
     isLoading.value = true;
     try {
-      await $fetch(`${config.public.apiBase}/master/companies/${id}`, {
-        method: "DELETE",
-        credentials: "include",
-      });
-      companies.value = companies.value.filter((c) => c.id !== id);
-      return { success: true };
-    } catch (error) {
-      return { success: false, error: getErrorMessage(error) };
+      const result = await companyApi.deleteCompany(id);
+      if (result.success) {
+        companies.value = companies.value.filter((c) => c.id !== id);
+      }
+      return result;
     } finally {
       isLoading.value = false;
     }
   }
 
-  // =====================
-  // Address CRUD
-  // =====================
-
-  async function createAddress(
-    companyId: string,
-    addressData: CreateAddressInput,
-  ): Promise<{ success: boolean; data?: Address; error?: string }> {
+  async function createAddress(companyId: string, addressData: CreateAddressInput) {
     isLoading.value = true;
     try {
-      const data = await $fetch<Address>(
-        `${config.public.apiBase}/master/companies/${companyId}/addresses`,
-        {
-          method: "POST",
-          body: addressData,
-          credentials: "include",
-        },
-      );
-      return { success: true, data };
-    } catch (error) {
-      return { success: false, error: getErrorMessage(error) };
+      return await companyApi.createAddress(companyId, addressData);
     } finally {
       isLoading.value = false;
     }
@@ -269,41 +174,19 @@ export function useCompanies() {
     companyId: string,
     addressId: string,
     addressData: UpdateAddressInput,
-  ): Promise<{ success: boolean; data?: Address; error?: string }> {
+  ) {
     isLoading.value = true;
     try {
-      const data = await $fetch<Address>(
-        `${config.public.apiBase}/master/companies/${companyId}/addresses/${addressId}`,
-        {
-          method: "PUT",
-          body: addressData,
-          credentials: "include",
-        },
-      );
-      return { success: true, data };
-    } catch (error) {
-      return { success: false, error: getErrorMessage(error) };
+      return await companyApi.updateAddress(companyId, addressId, addressData);
     } finally {
       isLoading.value = false;
     }
   }
 
-  async function deleteAddress(
-    companyId: string,
-    addressId: string,
-  ): Promise<{ success: boolean; error?: string }> {
+  async function deleteAddress(companyId: string, addressId: string) {
     isLoading.value = true;
     try {
-      await $fetch(
-        `${config.public.apiBase}/master/companies/${companyId}/addresses/${addressId}`,
-        {
-          method: "DELETE",
-          credentials: "include",
-        },
-      );
-      return { success: true };
-    } catch (error) {
-      return { success: false, error: getErrorMessage(error) };
+      return await companyApi.deleteAddress(companyId, addressId);
     } finally {
       isLoading.value = false;
     }

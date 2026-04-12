@@ -1,870 +1,657 @@
 <script setup lang="ts">
-import { useCompanies } from "~/composables/useCompanies";
-import { useFinanceCharts } from "~/composables/useFinanceCharts";
-import { useFinanceDashboard } from "~/composables/useFinanceDashboard";
-import { useServices } from "~/composables/useServices";
-import { cn } from "~/lib/utils";
-import type {
-  FinanceCloseStats,
-  JobItem,
-  JobStatus,
-  PeriodType,
-  StatCardData,
-  TabName,
-  TransactionItem,
-} from "~/types/finance";
-import { STATUS_CONFIG, TABS, TIME_PERIODS } from "~/types/finance";
-
-const { confirm } = useConfirm();
+import { jsPDF } from "jspdf";
+import { useFinanceDashboardPage } from "~/composables/useFinanceDashboardPage";
+import {
+  useFinanceDashboardFilters,
+  useAvailableYears,
+  useCogsSortOptions,
+  useTransactionSortOptions,
+  useTransactionTypeOptions,
+  useArApSortOptions,
+  useArApStatusOptions,
+  useAssetsSortOptions,
+} from "~/composables/useFinanceDashboardFilters";
+import { useFinanceDashboardAssets } from "~/composables/useFinanceDashboardAssets";
+import { cn, formatRupiah } from "~/lib/utils";
+import { TABS, TIME_PERIODS, type PeriodType } from "~/types/finance";
 
 // Import tab components
 import CogsTab from "~/components/finance/dashboard/CogsTab.vue";
 import FinanceCloseTab from "~/components/finance/dashboard/FinanceCloseTab.vue";
 import OverviewTab from "~/components/finance/dashboard/OverviewTab.vue";
 import TransactionTab from "~/components/finance/dashboard/TransactionTab.vue";
+import TrialBalanceTab from "~/components/finance/dashboard/TrialBalanceTab.vue";
+import AccountsReceivableTab from "~/components/finance/dashboard/AccountsReceivableTab.vue";
+import AssetsTab from "~/components/finance/dashboard/AssetsTab.vue";
 
 definePageMeta({
   layout: "dashboard",
   title: "Finance Dashboard",
+  hideHeader: true,
 });
 
-// Helper function for formatting currency
-const formatCurrency = (val: number) =>
-  new Intl.NumberFormat("id-ID", {
-    style: "currency",
-    currency: "IDR",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(val);
-
-// Composables
+// Use the extracted composable
 const {
+  // State
   isLoading,
-  stats,
-  overviewStats,
-  chartData,
+  error,
+  selectedPeriod,
+  activeTab,
+  selectedYear,
+  searchQuery,
+  cogsCustomerId,
+  cogsServiceId,
+  sortBy,
+  sortOrder,
+  showSortDropdown,
+  transactionYear,
+  transactionType,
+  transactionCustomerId,
+  transactionSearch,
+  transactionSortBy,
+  transactionSortOrder,
+  showTransactionSortDropdown,
+  financeCloseYear,
+  financeCloseType,
+  financeCloseCustomerId,
+  financeCloseSearch,
+  financeCloseSortBy,
+  financeCloseSortOrder,
+  showFinanceCloseSortDropdown,
+  arApToggle,
+  arApSearch,
+  arApSortBy,
+  arApSortOrder,
+  showArApSortDropdown,
+  arApStatusFilter,
+  isLoadingCustomers,
+  isLoadingServices,
+
+  // Data
   jobCosts,
   transactions,
-  transactionStats,
-  financeCloseStats,
   closedPeriods,
+  arApItems,
+  arApStats,
   pagination,
-  error,
-  fetchAll,
-  fetchOverviewStats,
-  fetchChartData,
-  fetchTransactions,
-  fetchFinanceCloseStats,
-  fetchClosedPeriods,
-  closePeriod,
-  reopenPeriod,
-  changePage,
-  changePeriod,
-} = useFinanceDashboard();
-const {
+  companies,
+  services,
+
+  // Chart data
+  chartData,
   financialChartOptions,
   financialChartSeries,
   marginTrendChartOptions,
   marginTrendChartSeries,
   top5ChartOptions,
   top5ChartSeries,
-  fetchChartData: fetchCharts,
-} = useFinanceCharts();
 
-// Tab state
-const activeTab = ref<TabName>("Overview");
-const selectedPeriod = ref<PeriodType>("month");
-const currentPage = ref(1);
+  // Computed stats
+  overviewStatsCards,
+  cogsStats,
+  transactionStatsCards,
+  financeCloseData,
 
-// COGS Filter/Sort/Search state
-// Initialize with empty year - year filter should only be set when user explicitly selects a year
-const selectedYear = ref<string>("");
-const searchQuery = ref<string>("");
-const cogsCustomerId = ref<string>("");
-const cogsServiceId = ref<string>("");
-const sortBy = ref<string>("createdAt");
-const sortOrder = ref<"asc" | "desc">("desc");
-const showSortDropdown = ref(false);
+  // Event handlers
+  handlePeriodChange,
+  handleTabChange,
+  handlePageChange,
+  handleReopenPeriod,
+  handleYearChange,
+  handleCogsCustomerChange,
+  handleCogsServiceChange,
+  handleCogsSearch,
+  handleCogsSearchInput,
+  handleCogsSearchKeydown,
+  handleCogsSort,
+  handleCogsSortDropdownToggle,
+  handleTransactionYearChange,
+  handleTransactionTypeChange,
+  handleTransactionCustomerChange,
+  handleTransactionSearch,
+  handleTransactionSearchInput,
+  handleTransactionSearchKeydown,
+  handleTransactionSort,
+  handleTransactionSortDropdownToggle,
+  handleTransactionExport,
+  handleTransactionCreate,
+  handleTransactionEdit,
+  handleTransactionDelete,
+  handleFinanceCloseYearChange,
+  handleFinanceCloseTypeChange,
+  handleFinanceCloseCustomerChange,
+  handleFinanceCloseSearch,
+  handleFinanceCloseSearchInput,
+  handleFinanceCloseSearchKeydown,
+  handleFinanceCloseSort,
+  handleFinanceCloseSortDropdownToggle,
+  handleArApToggleChange,
+  handleArApSearch,
+  handleArApSearchInput,
+  handleArApSearchKeydown,
+  handleArApSort,
+  handleArApSortDropdownToggle,
+  handleArApStatusFilterChange,
+  handleArApRefresh,
+} = useFinanceDashboardPage();
 
-// Transaction Filter/Sort/Search state
-const transactionYear = ref<string>("");
-const transactionType = ref<string>("all");
-const transactionCustomerId = ref<string>("");
-const transactionSearch = ref<string>("");
-const transactionSortBy = ref<string>("date");
-const transactionSortOrder = ref<"asc" | "desc">("desc");
-const showTransactionSortDropdown = ref(false);
+// Filter options
+const availableYears = useAvailableYears();
+const sortOptions = useCogsSortOptions();
+const transactionSortOptions = useTransactionSortOptions();
+const transactionTypeOptions = useTransactionTypeOptions();
+const arApSortOptions = useArApSortOptions();
+const arApStatusOptions = useArApStatusOptions();
+const assetsSortOptions = useAssetsSortOptions();
 
-// Finance Close Filter/Sort/Search state
-const financeCloseYear = ref<string>("");
-const financeCloseType = ref<string>("all");
-const financeCloseCustomerId = ref<string>("");
-const financeCloseSearch = ref<string>("");
-const financeCloseSortBy = ref<string>("date");
-const financeCloseSortOrder = ref<"asc" | "desc">("desc");
-const showFinanceCloseSortDropdown = ref(false);
+// Assets composable
+const {
+  assets,
+  assetStats,
+  pagination: assetsPagination,
+  fetchAssets,
+  fetchAssetStats,
+  createAsset,
+} = useFinanceDashboardAssets();
 
-// Customer and Service list for filters
-const { companies, fetchCompanies } = useCompanies();
-const { services, fetchServices } = useServices();
-const isLoadingCustomers = ref(false);
-const isLoadingServices = ref(false);
+// Local state for Assets tab
+const assetsSearch = ref("");
+const assetsYear = ref("");
+const assetsServiceId = ref("");
+const assetsCompanyId = ref("");
+const assetsSortBy = ref("date");
+const assetsSortOrder = ref<"asc" | "desc">("desc");
+const assetsShowSortDropdown = ref(false);
+const isLoadingAssets = ref(false);
 
-// Available years for dropdown
-const availableYears = computed(() => {
-  const currentYear = new Date().getFullYear();
-  const years = [];
-  for (let i = currentYear; i >= currentYear - 5; i--) {
-    years.push(i.toString());
-  }
-  return years;
-});
+// Assets data - use the composable data
+const assetsData = computed(() => assets.value);
 
-// Sort options
-const sortOptions = [
-  { value: "createdAt", label: "Date" },
-  { value: "jobNumber", label: "Job Number" },
-  { value: "revenue", label: "Revenue" },
-  { value: "cogs", label: "COGS" },
-  { value: "profit", label: "Profit" },
-  { value: "margin", label: "Margin" },
-];
-
-// Transaction sort options
-const transactionSortOptions = [
-  { value: "date", label: "Date" },
-  { value: "jobNumber", label: "Job Number" },
-  { value: "customer", label: "Customer" },
-  { value: "total", label: "Total Amount" },
-];
-
-// Transaction type options
-const transactionTypeOptions = [
-  { value: "all", label: "All" },
-  { value: "invoice", label: "Customer Invoice" },
-  { value: "payment", label: "Payment Out" },
-];
-
-// Overview Stats (from API)
-const overviewStatsCards = computed<StatCardData[]>(() => {
-  if (!overviewStats.value) {
-    return [
-      {
-        title: "Total Income",
-        value: "Rp0",
-        change: 0,
-        changeLabel: "vs Last Period",
-        isPrimary: true,
-      },
-      { title: "Total Outcome", value: "Rp0", change: 0, changeLabel: "vs Last Period" },
-      { title: "Net Profit", value: "Rp0", change: 0, changeLabel: "vs Last Period" },
-      { title: "Margins", value: "0%", changeLabel: "From income", suffix: "%" },
-    ];
-  }
-  const o = overviewStats.value;
+// Computed assets stats
+const assetsStatsCards = computed(() => {
+  const totalValue = assetStats.value?.totalValue || 0;
+  const totalCount = assetStats.value?.totalAssets || 0;
   return [
-    {
-      title: "Total Income",
-      value: o.totalIncomeFormatted,
-      change: o.incomeGrowth,
-      changeLabel: "vs Last Period",
-      isPrimary: true,
-    },
-    {
-      title: "Total Outcome",
-      value: o.totalOutcomeFormatted,
-      change: o.outcomeGrowth,
-      changeLabel: "vs Last Period",
-    },
-    {
-      title: "Net Profit",
-      value: o.netProfitFormatted,
-      change: o.incomeGrowth,
-      changeLabel: "vs Last Period",
-    },
-    { title: "Margins", value: `${o.margins}%`, changeLabel: "From income", suffix: "%" },
+    { title: "Total Assets", value: formatRupiah(totalValue), isPrimary: true },
+    { title: "Assets Count", value: totalCount.toString(), changeLabel: "", suffix: "" },
   ];
 });
 
-// COGS Stats (computed from API)
-const cogsStats = computed<StatCardData[]>(() => {
-  if (!stats.value) {
-    return [
-      { title: "Total COGS", value: "Rp0", changeLabel: "vs Last Period", isPrimary: true },
-      { title: "Average Cost/Job", value: "Rp0", changeLabel: "vs Last Period" },
-      { title: "Highest Job", value: "Rp0", changeLabel: "vs Last Period" },
-      { title: "Cost Growth", value: "0%", changeLabel: "From income", suffix: "%" },
-    ];
+// Fetch assets when filters change
+async function loadAssets() {
+  isLoadingAssets.value = true;
+  try {
+    await fetchAssets(assetsPagination.value.page, assetsPagination.value.limit, {
+      search: assetsSearch.value || undefined,
+      sortBy: assetsSortBy.value,
+      sortOrder: assetsSortOrder.value,
+      year: assetsYear.value || undefined,
+      serviceId: assetsServiceId.value || undefined,
+      companyId: assetsCompanyId.value || undefined,
+    });
+    await fetchAssetStats(assetsYear.value || undefined);
+  } finally {
+    isLoadingAssets.value = false;
   }
-  const s = stats.value;
-  return [
-    {
-      title: "Total COGS",
-      value: s.totalCogsFormatted,
-      change: s.costGrowth,
-      changeLabel: "vs Last Period",
-      isPrimary: true,
-    },
-    {
-      title: "Average Cost/Job",
-      value: s.averageCostPerJobFormatted,
-      change: s.costGrowth,
-      changeLabel: "vs Last Period",
-    },
-    {
-      title: "Highest Job",
-      value: s.highestJob.cogsFormatted,
-      change: s.costGrowth,
-      changeLabel: s.highestJob.jobNumber,
-    },
-    {
-      title: "Cost Growth",
-      value: `${s.costGrowth}%`,
-      changeLabel: "From previous period",
-      suffix: "%",
-    },
-  ];
-});
+}
 
-// Jobs from API
-const jobs = computed<JobItem[]>(() => {
-  if (!jobCosts.value?.length) return [];
-  return jobCosts.value.map((job) => ({
-    ...job,
-    status: job.status as JobStatus,
-  }));
-});
-
-// Transactions from API
-const transactionItems = computed<TransactionItem[]>(() => {
-  return transactions.value || [];
-});
-
-// Transaction Stats from API
-const transactionStatsCards = computed<StatCardData[]>(() => {
-  if (!transactionStats.value) {
-    return [
-      { title: "Journal", value: "Rp0", isPrimary: true },
-      { title: "Total Income", value: "Rp0", change: 0, changeLabel: "vs Last Period" },
-      { title: "Total Outcome", value: "Rp0", change: 0, changeLabel: "vs Last Period" },
-      { title: "Today Transaction", value: "0", changeLabel: "", suffix: "" },
-    ];
-  }
-  const t = transactionStats.value;
-  return [
-    { title: "Journal", value: formatCurrency(t.totalJournal), isPrimary: true },
-    {
-      title: "Total Income",
-      value: formatCurrency(t.totalIncome),
-      change: 0,
-      changeLabel: "vs Last Period",
-    },
-    {
-      title: "Total Outcome",
-      value: formatCurrency(t.totalOutcome),
-      change: 0,
-      changeLabel: "vs Last Period",
-    },
-    { title: "Today Transaction", value: `${t.todayTransactions}`, changeLabel: "", suffix: "" },
-  ];
-});
-
-// Finance Close Stats from API
-const financeCloseData = computed<FinanceCloseStats>(() => {
-  return (
-    financeCloseStats.value || {
-      period: "Loading...",
-      status: "Open",
-      description: "Loading...",
-      revenue: "Rp0",
-      cogs: "Rp0",
-      nettPL: "Rp0",
-      readinessScore: 0,
+// Watch for filter changes and reload assets
+watch(
+  [assetsSearch, assetsYear, assetsServiceId, assetsCompanyId, assetsSortBy, assetsSortOrder],
+  () => {
+    if (activeTab.value === "Assets") {
+      loadAssets();
     }
-  );
-});
+  },
+  { deep: true },
+);
 
-// Helper functions
-const getStatusConfig = (status: JobStatus) => STATUS_CONFIG[status];
+// Watch for tab change to load assets
+watch(
+  activeTab,
+  (newTab) => {
+    if (newTab === "Assets") {
+      loadAssets();
+    }
+  },
+  { immediate: true },
+);
 
-// Get current filters for COGS tab
-const getCogsFilters = () => ({
-  search: searchQuery.value || undefined,
-  companyId: cogsCustomerId.value || undefined,
-  serviceId: cogsServiceId.value || undefined,
-  sortBy: sortBy.value as "jobNumber" | "revenue" | "cogs" | "profit" | "margin" | "createdAt",
-  sortOrder: sortOrder.value,
-  year: selectedYear.value ? parseInt(selectedYear.value) : undefined,
-});
-
-// Get current filters for Transaction tab
-const getTransactionFilters = () => ({
-  search: transactionSearch.value || undefined,
-  sortBy: transactionSortBy.value as "date" | "jobNumber" | "customer" | "total",
-  sortOrder: transactionSortOrder.value,
-  type: transactionType.value as "invoice" | "payment" | "all",
-  companyId: transactionCustomerId.value || undefined,
-  year: transactionYear.value ? parseInt(transactionYear.value) : undefined,
-});
-
-// Get current filters for Finance Close tab
-const getFinanceCloseFilters = () => ({
-  search: financeCloseSearch.value || undefined,
-  sortBy: financeCloseSortBy.value as "date" | "jobNumber" | "customer" | "total",
-  sortOrder: financeCloseSortOrder.value,
-  type: financeCloseType.value as "invoice" | "payment" | "all",
-  companyId: financeCloseCustomerId.value || undefined,
-  year: financeCloseYear.value ? parseInt(financeCloseYear.value) : undefined,
-});
-
-// Fetch data based on active tab
-const fetchDataForTab = async (tab: TabName, period: PeriodType) => {
-  switch (tab) {
-    case "Overview":
-      const overviewYear = selectedYear.value ? parseInt(selectedYear.value) : undefined;
-      await fetchOverviewStats(period, overviewYear);
-      await fetchCharts(period, overviewYear);
-      break;
-    case "COGS":
-      await fetchAll(period, getCogsFilters());
-      break;
-    case "Transaction":
-      await fetchTransactions(
-        period,
-        currentPage.value,
-        pagination.value.limit,
-        getTransactionFilters(),
-      );
-      break;
-    case "Finance Close":
-      const financeCloseYearValue = financeCloseYear.value
-        ? parseInt(financeCloseYear.value)
-        : undefined;
-      await fetchFinanceCloseStats(period, financeCloseYearValue);
-      await fetchClosedPeriods();
-      await fetchTransactions(
-        period,
-        currentPage.value,
-        pagination.value.limit,
-        getFinanceCloseFilters(),
-      );
-      break;
+// Watch for period change to reload assets
+watch(selectedPeriod, () => {
+  if (activeTab.value === "Assets") {
+    loadAssets();
   }
-};
+});
 
-// Event handlers
-const handlePeriodChange = async (period: PeriodType) => {
-  selectedPeriod.value = period;
-  currentPage.value = 1;
+// Assets event handlers
+function handleAssetsSearch() {
+  loadAssets();
+}
 
-  // Preserve year filters across period changes to allow user to view past months/weeks/days
-  // The backend has been updated to use the provided year as the reference for all periods.
+function handleAssetsSearchInput(event: Event) {
+  // Could implement debounced search here
+}
 
-  await fetchDataForTab(activeTab.value, period);
-};
-
-const handleTabChange = async (tab: TabName) => {
-  activeTab.value = tab;
-  currentPage.value = 1;
-
-  // Load customers when switching to relevant tabs
-  if (["COGS", "Transaction", "Finance Close"].includes(tab) && !companies.value.length) {
-    await loadCustomers();
-  }
-
-  // Load services when switching to COGS tab
-  if (tab === "COGS" && !services.value.length) {
-    await loadServices();
-  }
-
-  await fetchDataForTab(tab, selectedPeriod.value);
-};
-
-// COGS Tab handlers
-const handleYearChange = async (year: string) => {
-  selectedYear.value = year;
-  currentPage.value = 1;
-  await fetchAll(selectedPeriod.value, getCogsFilters());
-};
-
-const handleCogsCustomerChange = async (customerId: string) => {
-  cogsCustomerId.value = customerId;
-  currentPage.value = 1;
-  await fetchAll(selectedPeriod.value, getCogsFilters());
-};
-
-const handleCogsServiceChange = async (serviceId: string) => {
-  cogsServiceId.value = serviceId;
-  currentPage.value = 1;
-  await fetchAll(selectedPeriod.value, getCogsFilters());
-};
-
-const handleSearch = async () => {
-  currentPage.value = 1;
-  await fetchAll(selectedPeriod.value, getCogsFilters());
-};
-
-const handleSearchInput = (event: Event) => {
-  const target = event.target as HTMLInputElement;
-  searchQuery.value = target.value;
-};
-
-const handleSearchKeydown = async (event: KeyboardEvent) => {
+function handleAssetsSearchKeydown(event: KeyboardEvent) {
   if (event.key === "Enter") {
-    await handleSearch();
+    loadAssets();
   }
-};
+}
 
-const handleSort = async (field: string) => {
-  if (sortBy.value === field) {
-    sortOrder.value = sortOrder.value === "asc" ? "desc" : "asc";
+function handleAssetsSort(field: string) {
+  if (assetsSortBy.value === field) {
+    assetsSortOrder.value = assetsSortOrder.value === "asc" ? "desc" : "asc";
   } else {
-    sortBy.value = field;
-    sortOrder.value = "desc";
+    assetsSortBy.value = field;
+    assetsSortOrder.value = "desc";
   }
-  showSortDropdown.value = false;
-  currentPage.value = 1;
-  await fetchAll(selectedPeriod.value, getCogsFilters());
-};
+}
 
-const toggleSortDropdown = () => {
-  showSortDropdown.value = !showSortDropdown.value;
-};
+function handleAssetsPageChange(page: number) {
+  assetsPagination.value.page = page;
+  loadAssets();
+}
 
-// Transaction Tab handlers
-const handleTransactionYearChange = async (year: string) => {
-  transactionYear.value = year;
-  currentPage.value = 1;
-  await fetchTransactions(
-    selectedPeriod.value,
-    currentPage.value,
-    pagination.value.limit,
-    getTransactionFilters(),
-  );
-};
-
-const handleTransactionTypeChange = async (type: string) => {
-  transactionType.value = type;
-  currentPage.value = 1;
-  await fetchTransactions(
-    selectedPeriod.value,
-    currentPage.value,
-    pagination.value.limit,
-    getTransactionFilters(),
-  );
-};
-
-const handleTransactionCustomerChange = async (customerId: string) => {
-  transactionCustomerId.value = customerId;
-  currentPage.value = 1;
-  await fetchTransactions(
-    selectedPeriod.value,
-    currentPage.value,
-    pagination.value.limit,
-    getTransactionFilters(),
-  );
-};
-
-const handleTransactionSearch = async () => {
-  currentPage.value = 1;
-  await fetchTransactions(
-    selectedPeriod.value,
-    currentPage.value,
-    pagination.value.limit,
-    getTransactionFilters(),
-  );
-};
-
-const handleTransactionSearchInput = (event: Event) => {
-  const target = event.target as HTMLInputElement;
-  transactionSearch.value = target.value;
-};
-
-const handleTransactionSearchKeydown = async (event: KeyboardEvent) => {
-  if (event.key === "Enter") {
-    await handleTransactionSearch();
-  }
-};
-
-const handleTransactionSort = async (field: string) => {
-  if (transactionSortBy.value === field) {
-    transactionSortOrder.value = transactionSortOrder.value === "asc" ? "desc" : "asc";
-  } else {
-    transactionSortBy.value = field;
-    transactionSortOrder.value = "desc";
-  }
-  showTransactionSortDropdown.value = false;
-  currentPage.value = 1;
-  await fetchTransactions(
-    selectedPeriod.value,
-    currentPage.value,
-    pagination.value.limit,
-    getTransactionFilters(),
-  );
-};
-
-const toggleTransactionSortDropdown = () => {
-  showTransactionSortDropdown.value = !showTransactionSortDropdown.value;
-};
-
-// Load customers for filter
-const loadCustomers = async () => {
-  isLoadingCustomers.value = true;
+function handleAssetsExport() {
+  // Generate PDF export with filter values using jsPDF
   try {
-    await fetchCompanies({ type: "CUSTOMER" });
-  } finally {
-    isLoadingCustomers.value = false;
-  }
-};
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 20;
+    const contentWidth = pageWidth - margin * 2;
+    let yPos = margin;
 
-// Load services for COGS filter
-const loadServices = async () => {
-  isLoadingServices.value = true;
-  try {
-    await fetchServices();
-  } finally {
-    isLoadingServices.value = false;
-  }
-};
+    // Colors
+    const primaryColor: [number, number, number] = [1, 45, 90]; // #012D5A
+    const textColor: [number, number, number] = [31, 41, 55]; // #1f2937
+    const grayColor: [number, number, number] = [107, 114, 128]; // #6b7280
+    const lightGrayColor: [number, number, number] = [229, 231, 235]; // #e5e7eb
 
-// Finance Close Tab handlers
-const handleFinanceCloseYearChange = async (year: string) => {
-  financeCloseYear.value = year;
-  currentPage.value = 1;
-  const yearValue = year ? parseInt(year) : undefined;
-  await fetchFinanceCloseStats(selectedPeriod.value, yearValue);
-  await fetchTransactions(
-    selectedPeriod.value,
-    currentPage.value,
-    pagination.value.limit,
-    getFinanceCloseFilters(),
-  );
-};
+    // Company Header
+    doc.setFillColor(...primaryColor);
+    doc.rect(0, 0, pageWidth, 40, "F");
 
-const handleFinanceCloseTypeChange = async (type: string) => {
-  financeCloseType.value = type;
-  currentPage.value = 1;
-  await fetchTransactions(
-    selectedPeriod.value,
-    currentPage.value,
-    pagination.value.limit,
-    getFinanceCloseFilters(),
-  );
-};
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(24);
+    doc.setFont("helvetica", "bold");
+    doc.text("ASSETS REPORT", margin, 25);
 
-const handleFinanceCloseCustomerChange = async (customerId: string) => {
-  financeCloseCustomerId.value = customerId;
-  currentPage.value = 1;
-  await fetchTransactions(
-    selectedPeriod.value,
-    currentPage.value,
-    pagination.value.limit,
-    getFinanceCloseFilters(),
-  );
-};
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "normal");
+    const yearLabel = assetsYear.value ? `Year: ${assetsYear.value}` : "All Years";
+    doc.text(yearLabel, pageWidth - margin, 20, { align: "right" });
+    const dateLabel = new Date().toLocaleDateString("id-ID");
+    doc.text(`Generated: ${dateLabel}`, pageWidth - margin, 30, { align: "right" });
 
-const handleFinanceCloseSearch = async () => {
-  currentPage.value = 1;
-  await fetchTransactions(
-    selectedPeriod.value,
-    currentPage.value,
-    pagination.value.limit,
-    getFinanceCloseFilters(),
-  );
-};
+    yPos = 55;
 
-const handleFinanceCloseSearchInput = (event: Event) => {
-  const target = event.target as HTMLInputElement;
-  financeCloseSearch.value = target.value;
-};
+    // Filter info
+    doc.setTextColor(...textColor);
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "bold");
+    doc.text("Filters:", margin, yPos);
+    doc.setFont("helvetica", "normal");
+    yPos += 7;
 
-const handleFinanceCloseSearchKeydown = async (event: KeyboardEvent) => {
-  if (event.key === "Enter") {
-    await handleFinanceCloseSearch();
-  }
-};
+    const filters: string[] = [];
+    if (assetsYear.value) filters.push(`Year: ${assetsYear.value}`);
+    if (assetsServiceId.value) filters.push(`Service ID: ${assetsServiceId.value}`);
+    if (assetsCompanyId.value) filters.push(`Company ID: ${assetsCompanyId.value}`);
+    if (filters.length === 0) filters.push("None (All Data)");
 
-const handleFinanceCloseSort = async (field: string) => {
-  if (financeCloseSortBy.value === field) {
-    financeCloseSortOrder.value = financeCloseSortOrder.value === "asc" ? "desc" : "asc";
-  } else {
-    financeCloseSortBy.value = field;
-    financeCloseSortOrder.value = "desc";
-  }
-  showFinanceCloseSortDropdown.value = false;
-  currentPage.value = 1;
-  await fetchTransactions(
-    selectedPeriod.value,
-    currentPage.value,
-    pagination.value.limit,
-    getFinanceCloseFilters(),
-  );
-};
-
-const toggleFinanceCloseSortDropdown = () => {
-  showFinanceCloseSortDropdown.value = !showFinanceCloseSortDropdown.value;
-};
-
-// Close dropdown when clicking outside
-const handleClickOutside = (event: MouseEvent) => {
-  const target = event.target as HTMLElement;
-  if (!target.closest(".relative")) {
-    showSortDropdown.value = false;
-    showTransactionSortDropdown.value = false;
-    showFinanceCloseSortDropdown.value = false;
-  }
-};
-
-// Handle page change (preserves all filters for all tabs)
-const handlePageChange = async (newPage: number) => {
-  currentPage.value = newPage;
-  if (activeTab.value === "COGS") {
-    await fetchAll(selectedPeriod.value, { ...getCogsFilters(), page: newPage });
-  } else if (activeTab.value === "Transaction") {
-    await fetchTransactions(
-      selectedPeriod.value,
-      newPage,
-      pagination.value.limit,
-      getTransactionFilters(),
-    );
-  } else if (activeTab.value === "Finance Close") {
-    const yearValue = financeCloseYear.value ? parseInt(financeCloseYear.value) : undefined;
-    await fetchFinanceCloseStats(selectedPeriod.value, yearValue);
-    await fetchTransactions(
-      selectedPeriod.value,
-      newPage,
-      pagination.value.limit,
-      getFinanceCloseFilters(),
-    );
-  }
-};
-
-const handleClosePeriod = async () => {
-  const confirmed = await confirm({
-    title: "Close Period",
-    message: "Are you sure you want to close this period? This action cannot be undone.",
-    type: "danger",
-  });
-  if (!confirmed) {
-    return;
-  }
-  const result = await closePeriod(selectedPeriod.value);
-  if (result) {
-    await confirm({
-      title: result.success ? "Success" : "Error",
-      message: result.message,
-      type: result.success ? undefined : "danger",
+    doc.setTextColor(...grayColor);
+    filters.forEach((filter) => {
+      doc.text(filter, margin, yPos);
+      yPos += 6;
     });
-  }
-};
 
-const handleReopenPeriod = async (periodCloseId: string) => {
-  const confirmed = await confirm({
-    title: "Reopen Period",
-    message:
-      "Are you sure you want to reopen this period? This will allow modifications to transactions in this period.",
-  });
-  if (!confirmed) {
-    return;
-  }
-  const result = await reopenPeriod(periodCloseId);
-  if (result) {
-    await confirm({
-      title: result.success ? "Success" : "Error",
-      message: result.message,
-      type: result.success ? undefined : "danger",
+    yPos += 10;
+
+    // Table Header
+    doc.setFillColor(...primaryColor);
+    doc.rect(margin, yPos, contentWidth, 10, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "bold");
+    doc.text("No.", margin + 2, yPos + 7);
+    doc.text("Name", margin + 20, yPos + 7);
+    doc.text("Date", margin + 80, yPos + 7);
+    doc.text("Service", margin + 110, yPos + 7);
+    doc.text("Price", margin + 160, yPos + 7);
+
+    yPos += 10;
+
+    // Table Content
+    doc.setTextColor(...textColor);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+
+    const assetsList = assetsData.value || [];
+    let totalValue = 0;
+
+    assetsList.forEach(
+      (asset: { name: string; date: string; service?: string; price: number }, index: number) => {
+        // Check if we need a new page
+        if (yPos > pageHeight - 30) {
+          doc.addPage();
+          yPos = margin;
+        }
+
+        // Alternate row colors
+        if (index % 2 === 0) {
+          doc.setFillColor(249, 250, 251);
+          doc.rect(margin, yPos, contentWidth, 10, "F");
+        }
+
+        doc.setTextColor(...textColor);
+        doc.text((index + 1).toString(), margin + 2, yPos + 7);
+        doc.text(asset.name?.substring(0, 25) || "-", margin + 20, yPos + 7);
+        doc.text(
+          asset.date ? new Date(asset.date).toLocaleDateString("id-ID") : "-",
+          margin + 80,
+          yPos + 7,
+        );
+        doc.text(asset.service?.substring(0, 20) || "-", margin + 110, yPos + 7);
+        doc.text(formatRupiah(asset.price || 0), margin + 160, yPos + 7);
+
+        totalValue += asset.price || 0;
+        yPos += 10;
+      },
+    );
+
+    // Total row
+    yPos += 5;
+    doc.setFillColor(...lightGrayColor);
+    doc.rect(margin, yPos, contentWidth, 12, "F");
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(...textColor);
+    doc.text("TOTAL", margin + 2, yPos + 8);
+    doc.text(formatRupiah(totalValue), margin + 160, yPos + 8);
+
+    // Footer
+    const footerY = pageHeight - 15;
+    doc.setFillColor(...primaryColor);
+    doc.rect(0, footerY - 5, pageWidth, 20, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.text("PT. Nusantara Continent - Assets Report", pageWidth / 2, footerY + 5, {
+      align: "center",
     });
+
+    // Generate filename
+    const filename = `Assets_Report${assetsYear.value ? `_${assetsYear.value}` : ""}.pdf`;
+
+    // Download the PDF directly
+    doc.save(filename);
+  } catch (error) {
+    console.error("Failed to export assets PDF:", error);
+    alert("Failed to export PDF. Please try again.");
   }
-};
+}
 
-onMounted(async () => {
-  document.addEventListener("click", handleClickOutside);
-  await fetchDataForTab(activeTab.value, selectedPeriod.value);
-});
-
-onUnmounted(() => {
-  document.removeEventListener("click", handleClickOutside);
-});
+async function handleAssetsAdd() {
+  // Navigate to asset creation page
+  const router = useRouter();
+  await router.push("/master/assets/create");
+}
 </script>
 
 <template>
-  <div class="space-y-6 animate-fade-in pb-10 relative">
-    <!-- Page Header -->
-    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
-      <div>
-        <h1 class="text-2xl font-bold">Dashboard</h1>
-        <p class="text-muted-foreground mt-1">
-          Manage cash flow, COGS, receivables/payables, and financial reports
-        </p>
+  <div class="flex flex-col h-screen overflow-hidden">
+    <!-- Sticky Header -->
+    <div class="shrink-0 bg-white border-b border-border">
+      <!-- Page Header -->
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 p-6">
+        <div>
+          <h1 class="text-2xl font-bold">Finance</h1>
+          <p class="text-muted-foreground text-base">
+            Manage cash flow, COGS, receivables/payables, and financial reports
+          </p>
+        </div>
+        <div class="flex items-center gap-1 bg-gray-100 border border-transparent rounded-lg p-1">
+          <button
+            v-for="period in TIME_PERIODS"
+            :key="period.value"
+            :class="
+              cn(
+                'px-3 py-1.5 text-sm font-medium rounded-md transition-colors',
+                selectedPeriod === period.value
+                  ? 'bg-[#012D5A] text-white'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted',
+              )
+            "
+            @click="handlePeriodChange(period.value)"
+          >
+            {{ period.label }}
+          </button>
+        </div>
       </div>
-      <div class="flex items-center gap-1 bg-white border border-border rounded-lg p-1">
-        <button
-          v-for="period in TIME_PERIODS"
-          :key="period.value"
-          :class="
-            cn(
-              'px-3 py-1.5 text-sm font-medium rounded-md transition-colors',
-              selectedPeriod === period.value
-                ? 'bg-[#012D5A] text-white'
-                : 'text-muted-foreground hover:text-foreground hover:bg-muted',
-            )
-          "
-          @click="handlePeriodChange(period.value)"
-        >
-          {{ period.label }}
-        </button>
+
+      <!-- Tab Navigation -->
+      <div class="">
+        <nav class="flex gap-1 overflow-x-auto -mb-px">
+          <button
+            v-for="tab in TABS"
+            :key="tab"
+            :class="
+              cn(
+                'px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors',
+                activeTab === tab
+                  ? 'border-[#012D5A] text-[#012D5A]'
+                  : 'text-muted-foreground border-transparent hover:text-foreground hover:border-gray-300',
+              )
+            "
+            @click="handleTabChange(tab)"
+          >
+            {{ tab }}
+          </button>
+        </nav>
       </div>
     </div>
 
-    <!-- Tab Navigation -->
-    <div class="border-b border-border">
-      <nav class="flex gap-1 overflow-x-auto -mb-px">
-        <button
-          v-for="tab in TABS"
-          :key="tab"
-          :class="
-            cn(
-              'px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors',
-              activeTab === tab
-                ? 'border-[#012D5A] text-[#012D5A]'
-                : 'border-transparent text-muted-foreground hover:text-foreground hover:border-gray-300',
-            )
-          "
-          @click="handleTabChange(tab)"
-        >
-          {{ tab }}
-        </button>
-      </nav>
-    </div>
+    <!-- Scrollable Tab Content -->
+    <div class="flex-1 overflow-y-auto relative pt-6 pb-10">
+      <!-- Change Error message to vue-sonner -->
+      <!-- <div
+        v-if="error"
+        class="mx-6 mb-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg"
+      >
+        {{ error }}
+      </div> -->
 
-    <!-- Loading & Error -->
-    <div
-      v-if="isLoading"
-      class="absolute inset-0 bg-white/50 z-10 flex items-center justify-center"
-    >
-      <div class="flex items-center gap-2">
+      <ClientOnly>
+        <!-- Loading Overlay - using v-show inside the container -->
         <div
-          class="w-4 h-4 border-2 border-[#012D5A] border-t-transparent rounded-full animate-spin"
-        ></div>
-        <span class="text-sm text-muted-foreground">Loading...</span>
-      </div>
-    </div>
-    <div v-if="error" class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-      {{ error }}
-    </div>
+          v-show="isLoading"
+          class="absolute inset-0 bg-white/80 z-20 flex items-center justify-center backdrop-blur-[1px]"
+        >
+          <div class="flex items-center gap-2">
+            <div
+              class="w-4 h-4 border-2 border-[#012D5A] border-t-transparent rounded-full animate-spin"
+            ></div>
+            <span class="text-sm text-muted-foreground">Loading...</span>
+          </div>
+        </div>
 
-    <!-- ==================== OVERVIEW TAB ==================== -->
-    <OverviewTab
-      v-if="activeTab === 'Overview'"
-      :stats-cards="overviewStatsCards"
-      :financial-chart-options="financialChartOptions"
-      :financial-chart-series="financialChartSeries"
-      :top5-chart-options="top5ChartOptions"
-      :top5-chart-series="top5ChartSeries"
-      :margin-trend-chart-options="marginTrendChartOptions"
-      :margin-trend-chart-series="marginTrendChartSeries"
-    />
+        <!-- ==================== TAB COMPONENTS ==================== -->
+        <OverviewTab
+          v-if="activeTab === 'Overview'"
+          :stats-cards="overviewStatsCards"
+          :financial-chart-options="financialChartOptions"
+          :financial-chart-series="financialChartSeries"
+          :top5-chart-options="top5ChartOptions"
+          :top5-chart-series="top5ChartSeries"
+          :chart-data="chartData || {}"
+          :margin-trend-chart-options="marginTrendChartOptions"
+          :margin-trend-chart-series="marginTrendChartSeries"
+        />
 
-    <!-- ==================== COGS TAB ==================== -->
-    <CogsTab
-      v-if="activeTab === 'COGS'"
-      :stats-cards="cogsStats"
-      :jobs="jobs"
-      :is-loading="isLoading"
-      :is-loading-customers="isLoadingCustomers"
-      :is-loading-services="isLoadingServices"
-      :companies="companies"
-      :services="services"
-      :pagination="pagination"
-      v-model:selected-year="selectedYear"
-      v-model:search-query="searchQuery"
-      v-model:customer-id="cogsCustomerId"
-      v-model:service-id="cogsServiceId"
-      v-model:sort-by="sortBy"
-      v-model:sort-order="sortOrder"
-      v-model:show-sort-dropdown="showSortDropdown"
-      :available-years="availableYears"
-      :sort-options="sortOptions"
-      @year-change="handleYearChange"
-      @customer-change="handleCogsCustomerChange"
-      @service-change="handleCogsServiceChange"
-      @search="handleSearch"
-      @search-input="handleSearchInput"
-      @search-keydown="handleSearchKeydown"
-      @sort="handleSort"
-      @toggle-sort-dropdown="toggleSortDropdown"
-      @page-change="handlePageChange"
-    />
+        <CogsTab
+          v-else-if="activeTab === 'COGS'"
+          :stats-cards="cogsStats"
+          :jobs="jobCosts"
+          :is-loading="isLoading"
+          :is-loading-customers="isLoadingCustomers"
+          :is-loading-services="isLoadingServices"
+          :companies="companies"
+          :services="services"
+          :pagination="pagination"
+          v-model:selected-year="selectedYear"
+          v-model:search-query="searchQuery"
+          v-model:customer-id="cogsCustomerId"
+          v-model:service-id="cogsServiceId"
+          v-model:sort-by="sortBy"
+          v-model:sort-order="sortOrder"
+          v-model:show-sort-dropdown="showSortDropdown"
+          :available-years="availableYears"
+          :sort-options="sortOptions"
+          @year-change="handleYearChange"
+          @customer-change="handleCogsCustomerChange"
+          @service-change="handleCogsServiceChange"
+          @search="handleCogsSearch"
+          @search-input="handleCogsSearchInput"
+          @search-keydown="handleCogsSearchKeydown"
+          @sort="handleCogsSort"
+          @toggle-sort-dropdown="handleCogsSortDropdownToggle"
+          @page-change="handlePageChange"
+        />
 
-    <!-- ==================== TRANSACTION TAB ==================== -->
-    <TransactionTab
-      v-if="activeTab === 'Transaction'"
-      :stats-cards="transactionStatsCards"
-      :transactions="transactionItems"
-      :is-loading="isLoading"
-      :is-loading-customers="isLoadingCustomers"
-      :pagination="pagination"
-      :companies="companies"
-      v-model:search-query="transactionSearch"
-      v-model:selected-year="transactionYear"
-      v-model:transaction-type="transactionType"
-      v-model:customer-id="transactionCustomerId"
-      v-model:sort-by="transactionSortBy"
-      v-model:sort-order="transactionSortOrder"
-      v-model:show-sort-dropdown="showTransactionSortDropdown"
-      :available-years="availableYears"
-      :sort-options="transactionSortOptions"
-      :type-options="transactionTypeOptions"
-      @year-change="handleTransactionYearChange"
-      @type-change="handleTransactionTypeChange"
-      @customer-change="handleTransactionCustomerChange"
-      @search="handleTransactionSearch"
-      @search-input="handleTransactionSearchInput"
-      @search-keydown="handleTransactionSearchKeydown"
-      @sort="handleTransactionSort"
-      @toggle-sort-dropdown="toggleTransactionSortDropdown"
-      @page-change="handlePageChange"
-    />
+        <TransactionTab
+          v-else-if="activeTab === 'Transaction'"
+          :stats-cards="transactionStatsCards"
+          :transactions="transactions"
+          :is-loading="isLoading"
+          :is-loading-customers="isLoadingCustomers"
+          :pagination="pagination"
+          :companies="companies"
+          v-model:search-query="transactionSearch"
+          v-model:selected-year="transactionYear"
+          v-model:transaction-type="transactionType"
+          v-model:customer-id="transactionCustomerId"
+          v-model:sort-by="transactionSortBy"
+          v-model:sort-order="transactionSortOrder"
+          v-model:show-sort-dropdown="showTransactionSortDropdown"
+          :available-years="availableYears"
+          :sort-options="transactionSortOptions"
+          :type-options="transactionTypeOptions"
+          @year-change="handleTransactionYearChange"
+          @type-change="handleTransactionTypeChange"
+          @customer-change="handleTransactionCustomerChange"
+          @search="handleTransactionSearch"
+          @search-input="handleTransactionSearchInput"
+          @search-keydown="handleTransactionSearchKeydown"
+          @sort="handleTransactionSort"
+          @toggle-sort-dropdown="handleTransactionSortDropdownToggle"
+          @export="handleTransactionExport"
+          @page-change="handlePageChange"
+          @create="handleTransactionCreate"
+          @edit="handleTransactionEdit"
+          @delete="handleTransactionDelete"
+        />
 
-    <!-- ==================== FINANCE CLOSE TAB ==================== -->
-    <FinanceCloseTab
-      v-if="activeTab === 'Finance Close'"
-      :finance-close-data="financeCloseData"
-      :transactions="transactionItems"
-      :is-loading="isLoading"
-      :is-loading-customers="isLoadingCustomers"
-      :pagination="pagination"
-      :companies="companies"
-      v-model:search-query="financeCloseSearch"
-      v-model:selected-year="financeCloseYear"
-      v-model:transaction-type="financeCloseType"
-      v-model:customer-id="financeCloseCustomerId"
-      v-model:sort-by="financeCloseSortBy"
-      v-model:sort-order="financeCloseSortOrder"
-      v-model:show-sort-dropdown="showFinanceCloseSortDropdown"
-      :available-years="availableYears"
-      :sort-options="transactionSortOptions"
-      :type-options="transactionTypeOptions"
-      :closed-periods="closedPeriods"
-      @year-change="handleFinanceCloseYearChange"
-      @type-change="handleFinanceCloseTypeChange"
-      @customer-change="handleFinanceCloseCustomerChange"
-      @search="handleFinanceCloseSearch"
-      @search-input="handleFinanceCloseSearchInput"
-      @search-keydown="handleFinanceCloseSearchKeydown"
-      @sort="handleFinanceCloseSort"
-      @toggle-sort-dropdown="toggleFinanceCloseSortDropdown"
-      @page-change="handlePageChange"
-      @close-period="handleClosePeriod"
-      @reopen-period="handleReopenPeriod"
-    />
+        <FinanceCloseTab
+          v-else-if="activeTab === 'Finance Close'"
+          :finance-close-data="financeCloseData"
+          :transactions="transactions"
+          :is-loading="isLoading"
+          :is-loading-customers="isLoadingCustomers"
+          :pagination="pagination"
+          :companies="companies"
+          v-model:search-query="financeCloseSearch"
+          v-model:selected-year="financeCloseYear"
+          v-model:transaction-type="financeCloseType"
+          v-model:customer-id="financeCloseCustomerId"
+          v-model:sort-by="financeCloseSortBy"
+          v-model:sort-order="financeCloseSortOrder"
+          v-model:show-sort-dropdown="showFinanceCloseSortDropdown"
+          :available-years="availableYears"
+          :sort-options="transactionSortOptions"
+          :type-options="transactionTypeOptions"
+          :closed-periods="closedPeriods"
+          @year-change="handleFinanceCloseYearChange"
+          @type-change="handleFinanceCloseTypeChange"
+          @customer-change="handleFinanceCloseCustomerChange"
+          @search="handleFinanceCloseSearch"
+          @search-input="handleFinanceCloseSearchInput"
+          @search-keydown="handleFinanceCloseSearchKeydown"
+          @sort="handleFinanceCloseSort"
+          @toggle-sort-dropdown="handleFinanceCloseSortDropdownToggle"
+          @page-change="handlePageChange"
+          @reopen-period="handleReopenPeriod"
+        />
 
-    <!-- Placeholder for other tabs -->
-    <div
-      v-if="!['Overview', 'COGS', 'Transaction', 'Finance Close'].includes(activeTab)"
-      class="bg-gray-50 rounded-xl border border-border p-8 text-center"
-    >
-      <p class="text-muted-foreground">{{ activeTab }} - Coming Soon</p>
+        <TrialBalanceTab
+          v-else-if="activeTab === 'Trial Balance'"
+          v-model:selected-year="selectedYear"
+          :selected-period="selectedPeriod"
+          :available-years="availableYears"
+          @year-change="handleYearChange"
+        />
+
+        <AccountsReceivableTab
+          v-else-if="activeTab === 'Accounts Receivable'"
+          :stats="arApStats || { totalAr: 0, overdueAr: 0, totalAp: 0, overdueAp: 0 }"
+          :items="arApItems"
+          :is-loading="isLoading"
+          :pagination="pagination"
+          v-model:search-query="arApSearch"
+          v-model:ar-ap-toggle="arApToggle"
+          v-model:sort-by="arApSortBy"
+          v-model:sort-order="arApSortOrder"
+          v-model:show-sort-dropdown="showArApSortDropdown"
+          v-model:status-filter="arApStatusFilter"
+          :sort-options="arApSortOptions"
+          :status-options="arApStatusOptions"
+          @search="handleArApSearch"
+          @search-input="handleArApSearchInput"
+          @search-keydown="handleArApSearchKeydown"
+          @sort="handleArApSort"
+          @toggle-sort-dropdown="handleArApSortDropdownToggle"
+          @status-filter-change="handleArApStatusFilterChange"
+          @page-change="handlePageChange"
+          @refresh="handleArApRefresh"
+        />
+
+        <AssetsTab
+          v-else-if="activeTab === 'Assets'"
+          :stats-cards="assetsStatsCards"
+          :assets="assetsData"
+          :is-loading="isLoadingAssets"
+          :is-loading-services="isLoadingServices"
+          :is-loading-companies="isLoadingCustomers"
+          :pagination="assetsPagination"
+          :services="services"
+          :companies="companies"
+          v-model:search-query="assetsSearch"
+          v-model:selected-year="assetsYear"
+          v-model:service-id="assetsServiceId"
+          v-model:company-id="assetsCompanyId"
+          v-model:sort-by="assetsSortBy"
+          v-model:sort-order="assetsSortOrder"
+          v-model:show-sort-dropdown="assetsShowSortDropdown"
+          :available-years="availableYears"
+          :sort-options="assetsSortOptions"
+          @year-change="(y) => (assetsYear = y)"
+          @service-change="(s) => (assetsServiceId = s)"
+          @company-change="(c) => (assetsCompanyId = c)"
+          @search="handleAssetsSearch"
+          @search-input="handleAssetsSearchInput"
+          @search-keydown="handleAssetsSearchKeydown"
+          @sort="handleAssetsSort"
+          @toggle-sort-dropdown="() => (assetsShowSortDropdown = !assetsShowSortDropdown)"
+          @page-change="handleAssetsPageChange"
+          @export="handleAssetsExport"
+          @add-asset="handleAssetsAdd"
+        />
+
+        <!-- Placeholder for other tabs -->
+        <div v-else class="bg-gray-50 rounded-xl border border-border p-8 text-center">
+          <p class="text-muted-foreground">{{ activeTab }} - Coming Soon</p>
+        </div>
+      </ClientOnly>
     </div>
   </div>
 </template>

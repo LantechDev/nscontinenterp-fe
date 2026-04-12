@@ -31,10 +31,10 @@ const formatShortDate = (dateString?: string | null) => {
       <div class="self-stretch flex justify-between items-start">
         <div class="flex justify-start items-start gap-3">
           <div class="inline-flex flex-col justify-start items-start gap-1">
-            <div class="text-black text-xs font-semibold font-['Inter'] leading-4">
+            <div class="text-black text-sm font-semibold font-['Inter'] leading-5">
               {{ invoice.invoiceNumber }}
             </div>
-            <div class="text-gray-500 text-xs font-normal font-['Inter'] leading-4">
+            <div class="text-gray-500 text-sm font-normal font-['Inter'] leading-5">
               {{ invoice.currency }} {{ Number(invoice.total).toLocaleString() }}
             </div>
           </div>
@@ -42,13 +42,13 @@ const formatShortDate = (dateString?: string | null) => {
             v-if="invoice.status"
             class="px-2 py-0.5 bg-blue-50 rounded-md shadow-sm outline outline-1 outline-offset-[-1px] outline-blue-200 flex justify-start items-center gap-1"
           >
-            <div class="text-center text-blue-700 text-xs font-medium font-['Inter'] leading-4">
+            <div class="text-center text-blue-700 text-sm font-medium font-['Inter'] leading-5">
               {{ invoice.status.name }}
             </div>
           </div>
         </div>
       </div>
-      <div class="text-gray-500 text-xs">
+      <div class="text-gray-500 text-sm">
         Issued: {{ formatShortDate(invoice.issuedDate) }} | Due:
         {{ formatShortDate(invoice.dueDate) }}
       </div>

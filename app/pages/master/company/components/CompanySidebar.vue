@@ -35,7 +35,7 @@ const formatDate = (dateString?: string) => {
 
 <template>
   <div
-    class="w-80 shrink-0 self-stretch p-4 border-r border-slate-200 flex flex-col justify-between items-start overflow-y-auto"
+    class="w-96 shrink-0 self-stretch p-5 border-r border-slate-200 flex flex-col justify-between items-start overflow-y-auto"
   >
     <div class="self-stretch flex flex-col justify-start items-start gap-4">
       <!-- Title & Code -->
@@ -44,7 +44,7 @@ const formatDate = (dateString?: string) => {
           <div class="text-black text-base font-semibold font-['Inter'] leading-6">
             {{ company.name }}
           </div>
-          <div class="text-gray-500 text-xs font-normal font-['Inter'] leading-4">
+          <div class="text-gray-500 text-sm font-normal font-['Inter'] leading-5">
             {{ company.code }}
           </div>
         </div>
@@ -53,10 +53,10 @@ const formatDate = (dateString?: string) => {
       <!-- New Job Button -->
       <div class="self-stretch inline-flex justify-center items-center gap-4">
         <div
-          class="flex-1 px-4 py-2 bg-primary rounded-md flex justify-center items-center gap-1.5 cursor-pointer hover:bg-primary/90 transition-colors"
+          class="flex-1 px-4 py-2.5 bg-primary rounded-md flex justify-center items-center gap-1.5 cursor-pointer hover:bg-primary/90 transition-colors"
           @click="emit('new-job')"
         >
-          <Plus class="w-3.5 h-3.5 text-white" />
+          <Plus class="w-4 h-4 text-white" />
           <div class="text-white text-sm font-medium font-['Inter'] leading-5">New Job</div>
         </div>
       </div>
@@ -67,7 +67,7 @@ const formatDate = (dateString?: string) => {
           <div class="text-black text-sm font-semibold font-['Inter'] leading-5">Description</div>
           <div class="self-stretch h-px bg-slate-100"></div>
         </div>
-        <div class="self-stretch text-black text-xs font-normal font-['Inter'] leading-4">
+        <div class="self-stretch text-black text-sm font-normal font-['Inter'] leading-5">
           {{ company.description || "-" }}
         </div>
       </div>
@@ -85,13 +85,13 @@ const formatDate = (dateString?: string) => {
             <div
               class="p-2 bg-slate-100 rounded-full inline-flex flex-col justify-start items-start gap-2.5 overflow-hidden"
             >
-              <Mail class="w-3.5 h-3.5 text-[#012D5A]" />
+              <Mail class="w-4 h-4 text-[#012D5A]" />
             </div>
             <div class="inline-flex flex-col justify-center items-start">
-              <div class="text-gray-500 text-xs font-normal font-['Inter'] leading-4">
+              <div class="text-gray-500 text-sm font-normal font-['Inter'] leading-5">
                 Email Address
               </div>
-              <div class="text-black text-xs font-semibold font-['Inter'] leading-4">
+              <div class="text-black text-sm font-semibold font-['Inter'] leading-5">
                 {{ company.email || "-" }}
               </div>
             </div>
@@ -100,11 +100,11 @@ const formatDate = (dateString?: string) => {
             <div
               class="p-2 bg-slate-100 rounded-full inline-flex flex-col justify-start items-start gap-2.5 overflow-hidden"
             >
-              <Phone class="w-3.5 h-3.5 text-[#012D5A]" />
+              <Phone class="w-4 h-4 text-[#012D5A]" />
             </div>
             <div class="inline-flex flex-col justify-center items-start">
-              <div class="text-gray-500 text-xs font-normal font-['Inter'] leading-4">Phone</div>
-              <div class="text-black text-xs font-semibold font-['Inter'] leading-4">
+              <div class="text-gray-500 text-sm font-normal font-['Inter'] leading-5">Phone</div>
+              <div class="text-black text-sm font-semibold font-['Inter'] leading-5">
                 {{ company.phone || "-" }}
               </div>
             </div>
@@ -122,7 +122,7 @@ const formatDate = (dateString?: string) => {
               @click="emit('add-address')"
             >
               <MapPinPlus class="w-4 h-4 text-primary" />
-              <div class="text-primary text-xs font-medium font-['Inter'] leading-4">
+              <div class="text-primary text-sm font-medium font-['Inter'] leading-5">
                 Add Address
               </div>
             </div>
@@ -159,20 +159,20 @@ const formatDate = (dateString?: string) => {
                           @click="emit('edit-address', addr.id)"
                         >
                           <Pencil class="w-3.5 h-3.5 text-slate-600" />
-                          <span class="text-xs text-slate-700">Edit</span>
+                          <span class="text-sm text-slate-700">Edit</span>
                         </div>
                         <div
                           class="px-3 py-2 hover:bg-red-50 cursor-pointer flex items-center gap-2"
                           @click="emit('delete-address', addr.id)"
                         >
                           <Trash2 class="w-3.5 h-3.5 text-red-500" />
-                          <span class="text-xs text-red-500">Delete</span>
+                          <span class="text-sm text-red-500">Delete</span>
                         </div>
                       </div>
                     </div>
                   </div>
                   <div
-                    class="self-stretch text-gray-500 text-xs font-normal font-['Inter'] leading-4"
+                    class="self-stretch text-gray-500 text-sm font-normal font-['Inter'] leading-5"
                   >
                     {{ addr.fullAddress || "-" }}
                   </div>
@@ -183,7 +183,7 @@ const formatDate = (dateString?: string) => {
               v-if="addr.isDefault"
               class="px-2 py-0.5 bg-blue-50 rounded-md shadow-sm outline outline-1 outline-offset-[-1px] outline-blue-200 inline-flex justify-start items-center gap-1 mt-1"
             >
-              <div class="text-center text-blue-700 text-xs font-medium font-['Inter'] leading-4">
+              <div class="text-center text-blue-700 text-sm font-medium font-['Inter'] leading-5">
                 Main
               </div>
             </div>
@@ -191,7 +191,7 @@ const formatDate = (dateString?: string) => {
         </template>
         <div
           v-else
-          class="self-stretch text-gray-400 text-xs font-normal font-['Inter'] leading-4 py-4"
+          class="self-stretch text-gray-400 text-sm font-normal font-['Inter'] leading-5 py-4"
         >
           No address available
         </div>
@@ -202,7 +202,7 @@ const formatDate = (dateString?: string) => {
     <div class="self-stretch flex flex-col justify-start items-start gap-3 mt-6">
       <div class="inline-flex justify-center items-center gap-2.5">
         <div class="inline-flex flex-col justify-center items-start">
-          <div class="text-gray-400 text-xs font-normal font-['Inter'] leading-4">
+          <div class="text-gray-400 text-sm font-normal font-['Inter'] leading-5">
             Created {{ formatDate(company.createdAt) }}
           </div>
         </div>

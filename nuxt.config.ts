@@ -8,6 +8,9 @@ export default defineNuxtConfig({
   },
   modules: ["@nuxt/image"],
   css: ["~/assets/css/main.css"],
+  build: {
+    transpile: ["vue-sonner"],
+  },
   postcss: {
     plugins: {
       tailwindcss: {},
@@ -34,7 +37,7 @@ export default defineNuxtConfig({
   },
   runtimeConfig: {
     public: {
-      apiBase: process.env.NUXT_PUBLIC_API_BASE || "http://localhost:3010/api",
+      apiBase: process.env.NUXT_PUBLIC_API_BASE || "http://localhost:9999/api",
     },
   },
   // Performance optimization: Hybrid rendering with route rules

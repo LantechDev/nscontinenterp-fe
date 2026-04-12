@@ -12,7 +12,7 @@ defineProps<{
     v-if="notes"
     class="self-stretch p-4 rounded-lg outline outline-1 outline-offset-[-1px] outline-slate-200 bg-slate-50"
   >
-    <p class="text-black text-xs font-normal font-['Inter'] leading-5 whitespace-pre-wrap">
+    <p class="text-black text-sm font-normal font-['Inter'] leading-5 whitespace-pre-wrap">
       {{ notes }}
     </p>
   </div>

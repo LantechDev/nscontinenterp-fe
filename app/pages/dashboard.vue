@@ -9,13 +9,21 @@ import {
   Download,
   Plus,
   ChevronDown,
+  AlertCircle,
+  CheckCircle2,
+  ExternalLink,
+  ArrowRight,
+  Clock,
+  Loader2,
 } from "lucide-vue-next";
+import { toast } from "vue-sonner";
 
 definePageMeta({
   layout: "dashboard",
 });
 
-const { fetchDashboard } = useDashboard();
+const { fetchDashboard, pendingApprovals, fetchPendingApprovals } = useDashboard();
+const { canApproveJobs, user } = useAuth();
 
 // State
 const loading = ref(true);
@@ -37,10 +45,23 @@ const periodDisplay = computed(() => {
   return `${start} - ${end}, ${selectedYear.value}`;
 });
 
-const applyPeriod = () => {
+const applyPeriod = async () => {
   showPeriodDropdown.value = false;
-  // TODO: Fetch dashboard data with new period
-  // fetchDashboard({ startDate, endDate });
+  loading.value = true;
+
+  // Calculate start and end dates from selected period
+  const startDate = new Date(selectedYear.value, selectedStartMonth.value, 1);
+  const endDate = new Date(selectedYear.value, selectedEndMonth.value + 1, 0, 23, 59, 59);
+
+  // Format dates as ISO strings for API
+  const params = {
+    startDate: startDate.toISOString(),
+    endDate: endDate.toISOString(),
+  };
+
+  // Fetch dashboard data with new period
+  dashboardData.value = await fetchDashboard(params);
+  loading.value = false;
 };
 
 // Close dropdown when clicking outside
@@ -51,13 +72,24 @@ onClickOutside(periodDropdownRef as Ref<HTMLElement>, () => {
 // Fetch dashboard data
 onMounted(async () => {
   loading.value = true;
-  dashboardData.value = await fetchDashboard();
+
+  const promises: Promise<void>[] = [
+    fetchDashboard().then((data) => {
+      dashboardData.value = data;
+    }),
+  ];
+
+  if (canApproveJobs.value) {
+    promises.push(fetchPendingApprovals());
+  }
+
+  await Promise.all(promises);
   loading.value = false;
 });
 </script>
 
 <template>
-  <div class="space-y-6 animate-fade-in pb-10">
+  <div class="space-y-6 animate-fade-in p-6">
     <!-- Page header -->
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
       <h1 class="page-title text-2xl font-bold">Dashboard</h1>
@@ -161,6 +193,68 @@ onMounted(async () => {
       </div>
     </div>
 
+    <!-- Pending Approvals (Only for Owner/Admin) -->
+    <div
+      v-if="canApproveJobs && pendingApprovals.length > 0"
+      class="border border-border rounded-xl bg-white overflow-hidden animate-in fade-in slide-in-from-top-4 duration-500"
+    >
+      <div class="flex items-center justify-between p-5 border-b border-border">
+        <div class="flex items-center gap-2">
+          <div class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></div>
+          <h3 class="text-lg font-semibold text-foreground">Pending BL Approvals</h3>
+          <span class="ml-2 px-2 py-0.5 bg-amber-100 text-amber-700 text-xs font-medium rounded-md">
+            {{ pendingApprovals.length }} Action Required
+          </span>
+        </div>
+        <NuxtLink
+          v-if="pendingApprovals.length > 3"
+          to="/operational/jobs"
+          class="text-sm font-semibold text-blue-600 hover:text-blue-700"
+        >
+          View All
+        </NuxtLink>
+      </div>
+
+      <div class="divide-y divide-border">
+        <div
+          v-for="bl in pendingApprovals.slice(0, 5)"
+          :key="bl.id"
+          class="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-gray-50/50 transition-colors group"
+        >
+          <div class="flex items-center gap-4">
+            <div
+              class="p-2.5 bg-blue-50 border border-blue-100 rounded-xl text-blue-600 group-hover:scale-110 transition-transform"
+            >
+              <FileText class="w-5 h-5" />
+            </div>
+            <div>
+              <div class="flex items-center gap-2">
+                <p class="font-semibold text-foreground">{{ bl.blNumber || "DRAFT BL" }}</p>
+                <span
+                  class="text-xs font-medium text-gray-600 bg-gray-100 px-2 py-0.5 rounded uppercase"
+                  >{{ bl.job?.jobNumber }}</span
+                >
+              </div>
+              <p class="text-xs text-muted-foreground flex items-center gap-1 mt-1">
+                <Clock class="w-3.5 h-3.5" /> Requested
+                {{ new Date(bl.updatedAt).toLocaleDateString() }}
+              </p>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <NuxtLink
+              :to="`/operational/jobs?id=${bl.jobId || bl.job?.id}&tab=ebl&blId=${bl.id}`"
+              class="px-4 py-2 bg-[#012D5A] text-white text-sm font-medium rounded-lg hover:bg-[#012D5A]/90 transition-colors flex items-center gap-2"
+            >
+              Review EBL
+              <ArrowRight class="w-4 h-4" />
+            </NuxtLink>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Loading state -->
     <div v-if="loading" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
       <div
@@ -178,7 +272,7 @@ onMounted(async () => {
       <DashboardStatCard
         title="Total Income"
         :value="dashboardData?.stats?.totalIncome || 'Rp0'"
-        :change="18.7"
+        :change="dashboardData?.stats?.totalIncomeChange ?? 0"
         icon-name="Wallet"
         :icon="Wallet"
         variant="primary"
@@ -186,21 +280,21 @@ onMounted(async () => {
       <DashboardStatCard
         title="Active Job"
         :value="String(dashboardData?.stats?.activeJobs || 0)"
-        :change="8.2"
+        :change="dashboardData?.stats?.activeJobsChange ?? 0"
         change-label="vs Last Year"
         :icon="Ship"
       />
       <DashboardStatCard
         title="Invoice Pending"
         :value="String(dashboardData?.stats?.pendingInvoices || 0)"
-        :change="-3.4"
+        :change="dashboardData?.stats?.pendingInvoicesChange ?? 0"
         change-label="vs Last Year"
         :icon="Receipt"
       />
       <DashboardStatCard
         title="Active Offer"
         :value="String(dashboardData?.stats?.activeOffers || 0)"
-        :change="18.7"
+        :change="dashboardData?.stats?.activeOffersChange ?? 0"
         change-label="vs Last Year"
         :icon="FileText"
       />

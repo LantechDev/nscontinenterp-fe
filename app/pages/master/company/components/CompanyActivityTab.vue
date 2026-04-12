@@ -39,15 +39,15 @@ const formatDate = (dateString?: string) => {
           <Building2 class="w-4 h-4 text-[#012D5A]" />
         </div>
         <div class="self-stretch inline-flex flex-col justify-between items-start">
-          <div class="justify-start text-black text-xs font-semibold font-['Inter'] leading-4">
+          <div class="justify-start text-black text-sm font-semibold font-['Inter'] leading-5">
             {{ activity.action }}
           </div>
-          <div class="justify-start text-black text-xs font-normal font-['Inter'] leading-4">
+          <div class="justify-start text-black text-sm font-normal font-['Inter'] leading-5">
             by {{ activity.user?.name || "System" }}
           </div>
         </div>
       </div>
-      <div class="justify-start text-gray-500 text-xs font-normal font-['Inter'] leading-4">
+      <div class="justify-start text-gray-500 text-sm font-normal font-['Inter'] leading-5">
         {{ formatDate(activity.createdAt) }}
       </div>
     </div>

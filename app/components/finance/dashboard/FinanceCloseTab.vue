@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import type { TransactionItem, FinanceCloseStats, FinanceClosePeriod } from "~/types/finance";
+import { useRouter } from "#app";
+
+const router = useRouter();
 
 const props = defineProps<{
   financeCloseData: FinanceCloseStats;
@@ -38,16 +41,11 @@ const emit = defineEmits<{
   (e: "sort", field: string): void;
   (e: "toggleSortDropdown"): void;
   (e: "pageChange", page: number): void;
-  (e: "closePeriod"): void;
   (e: "reopenPeriod", periodCloseId: string): void;
 }>();
 
 // Expose transactions for template use
 const transactionsList = computed(() => props.transactions || []);
-
-// Modal state for period details
-const showPeriodModal = ref(false);
-const selectedPeriod = ref<FinanceClosePeriod | null>(null);
 
 // Format date for closed periods
 function formatClosedDate(dateString?: string): string {
@@ -64,41 +62,14 @@ function formatClosedDate(dateString?: string): string {
   }
 }
 
-// Parse currency string to number
-function parseCurrency(value: string): number {
-  if (!value) return 0;
-  const cleaned = value.replace(/[^0-9.-]/g, "");
-  return Number(cleaned) || 0;
-}
-
-// Calculate gross profit (revenue - COGS)
-function calculateGrossProfit(revenue: string, cogs: string): string {
-  const rev = parseCurrency(revenue);
-  const cogsValue = parseCurrency(cogs);
-  const grossProfit = rev - cogsValue;
-  return grossProfit.toLocaleString("en-US", { style: "currency", currency: "USD" });
-}
-
-// Handle row click to show period details
+// Handle row click to navigate to period detail page
 function handleRowClick(period: FinanceClosePeriod) {
-  selectedPeriod.value = period;
-  showPeriodModal.value = true;
-}
-
-// Close modal
-function closePeriodModal() {
-  showPeriodModal.value = false;
-  selectedPeriod.value = null;
-}
-
-// Format readiness score with percentage
-function formatReadinessScore(score: number): string {
-  return `${score}%`;
+  router.push(`/finance/finance-close/${period.id}`);
 }
 </script>
 
 <template>
-  <div>
+  <div class="space-y-4 px-6">
     <!-- Closed Periods List -->
     <div v-if="closedPeriods && closedPeriods.length > 0" class="mb-6">
       <h3 class="text-sm font-semibold text-gray-700 mb-3">Closed Periods History</h3>
@@ -154,114 +125,7 @@ function formatReadinessScore(score: number): string {
       </div>
     </div>
 
-    <!-- Period Details Modal -->
-    <UiModal
-      v-model="showPeriodModal"
-      title="Period Details"
-      width="max-w-lg"
-      @close="closePeriodModal"
-    >
-      <div v-if="selectedPeriod" class="space-y-4">
-        <!-- Period Header -->
-        <div class="flex items-center justify-between pb-3 border-b border-gray-100">
-          <div>
-            <h4 class="text-lg font-semibold text-gray-900">{{ selectedPeriod.period }}</h4>
-            <span
-              class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 mt-1"
-            >
-              {{ selectedPeriod.status }}
-            </span>
-          </div>
-          <div class="text-right">
-            <p class="text-xs text-gray-500">Readiness Score</p>
-            <p
-              class="text-2xl font-bold"
-              :class="
-                selectedPeriod.readinessScore >= 80
-                  ? 'text-green-600'
-                  : selectedPeriod.readinessScore >= 50
-                    ? 'text-yellow-600'
-                    : 'text-red-600'
-              "
-            >
-              {{ formatReadinessScore(selectedPeriod.readinessScore) }}
-            </p>
-          </div>
-        </div>
-
-        <!-- Description -->
-        <div v-if="selectedPeriod.description" class="bg-gray-50 rounded-lg p-3">
-          <p class="text-sm text-gray-600">{{ selectedPeriod.description }}</p>
-        </div>
-
-        <!-- Financial Details Grid -->
-        <div class="grid grid-cols-2 gap-4">
-          <div class="bg-gray-50 rounded-lg p-3">
-            <p class="text-xs text-gray-500 uppercase tracking-wide">Revenue</p>
-            <p class="text-lg font-semibold text-gray-900 mt-1">{{ selectedPeriod.revenue }}</p>
-          </div>
-          <div class="bg-gray-50 rounded-lg p-3">
-            <p class="text-xs text-gray-500 uppercase tracking-wide">COGS</p>
-            <p class="text-lg font-semibold text-gray-900 mt-1">{{ selectedPeriod.cogs }}</p>
-          </div>
-          <div class="bg-gray-50 rounded-lg p-3">
-            <p class="text-xs text-gray-500 uppercase tracking-wide">Gross Profit</p>
-            <p class="text-lg font-semibold text-gray-900 mt-1">
-              {{ calculateGrossProfit(selectedPeriod.revenue, selectedPeriod.cogs) }}
-            </p>
-          </div>
-          <div class="bg-gray-50 rounded-lg p-3">
-            <p class="text-xs text-gray-500 uppercase tracking-wide">Nett P&L</p>
-            <p
-              class="text-lg font-semibold mt-1"
-              :class="
-                Number(selectedPeriod.nettPL.replace(/[^0-9.-]/g, '')) >= 0
-                  ? 'text-green-600'
-                  : 'text-red-600'
-              "
-            >
-              {{ selectedPeriod.nettPL }}
-            </p>
-          </div>
-        </div>
-
-        <!-- Date Details -->
-        <div class="grid grid-cols-2 gap-4 pt-2 border-t border-gray-100">
-          <div>
-            <p class="text-xs text-gray-500">Period Start</p>
-            <p class="text-sm font-medium text-gray-900 mt-1">
-              {{ formatClosedDate(selectedPeriod.periodStart) || "-" }}
-            </p>
-          </div>
-          <div>
-            <p class="text-xs text-gray-500">Period End</p>
-            <p class="text-sm font-medium text-gray-900 mt-1">
-              {{ formatClosedDate(selectedPeriod.periodEnd) || "-" }}
-            </p>
-          </div>
-          <div class="col-span-2">
-            <p class="text-xs text-gray-500">Closed Date</p>
-            <p class="text-sm font-medium text-gray-900 mt-1">
-              {{ formatClosedDate(selectedPeriod.closedAt) || "-" }}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <template #footer>
-        <button
-          @click="closePeriodModal"
-          class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium transition-colors"
-        >
-          Close
-        </button>
-      </template>
-    </UiModal>
-
-    <FinanceDashboardFinanceCloseStatus
-      :finance-close-data="financeCloseData"
-      @close-period="emit('closePeriod')"
-    />
+    <FinanceDashboardFinanceCloseStatus :finance-close-data="financeCloseData" />
     <FinanceDashboardFinanceCloseTransactions
       :transactions="transactionsList"
       :is-loading="isLoading"

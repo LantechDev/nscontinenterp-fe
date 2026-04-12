@@ -23,7 +23,7 @@ const categories = [
 </script>
 
 <template>
-  <div class="space-y-6 animate-fade-in">
+  <div class="space-y-6 animate-fade-in p-6">
     <div class="page-header">
       <div>
         <h1 class="page-title">Laporan Laba Rugi</h1>

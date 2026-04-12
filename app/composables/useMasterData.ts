@@ -47,6 +47,21 @@ export interface PackageType {
   name: string;
 }
 
+export interface Port {
+  code: string;
+  name: string;
+  city: string;
+  country: string;
+  province?: string;
+  timezone?: string;
+}
+
+export interface PaymentMethod {
+  id: string;
+  code: string;
+  name: string;
+}
+
 type ErrorResponse = {
   message?: string;
   error?: string;
@@ -109,7 +124,7 @@ export function useMasterData() {
   async function fetchVessels(query?: string) {
     try {
       const data = await $fetch<Vessel[]>(`${config.public.apiBase}/master/vessels`, {
-        params: { q: query },
+        params: { search: query },
         credentials: "include",
       });
       return data;
@@ -118,7 +133,31 @@ export function useMasterData() {
     }
   }
 
-  async function createCompany(name: string): Promise<AuthResponse<Company>> {
+  async function fetchPorts(query?: string) {
+    try {
+      const data = await $fetch<Port[]>(`${config.public.apiBase}/master/ports`, {
+        params: { search: query },
+        credentials: "include",
+      });
+      return data;
+    } catch {
+      return [];
+    }
+  }
+
+  async function createCompany(
+    name: string,
+    address?: {
+      fullAddress: string;
+      street?: string;
+      city?: string;
+      state?: string;
+      postalCode?: string;
+      country?: string;
+      eori?: string;
+      taxId?: string;
+    },
+  ): Promise<AuthResponse<Company>> {
     try {
       isLoading.value = true;
       // Default to CUSTOMER for now as used in Create Job form
@@ -128,6 +167,7 @@ export function useMasterData() {
           name,
           isCustomer: true,
           isVendor: false,
+          ...address,
         },
         credentials: "include",
       });
@@ -155,12 +195,28 @@ export function useMasterData() {
     }
   }
 
+  async function fetchPaymentMethods() {
+    try {
+      const data = await $fetch<PaymentMethod[]>(
+        `${config.public.apiBase}/master/payment-methods`,
+        {
+          credentials: "include",
+        },
+      );
+      return data;
+    } catch {
+      return [];
+    }
+  }
+
   return {
     isLoading,
     fetchCompanies,
     fetchContainerTypes,
     fetchPackageTypes,
     fetchVessels,
+    fetchPorts,
+    fetchPaymentMethods,
     createCompany,
     createVessel,
   };

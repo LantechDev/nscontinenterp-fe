@@ -1,123 +1,106 @@
 <script setup lang="ts">
-import {
-  Plus,
-  Search,
-  Receipt,
-  Download,
-  LayoutList,
-  LayoutGrid,
-  MoreVertical,
-} from "lucide-vue-next";
+import { Plus, Search, Receipt, LayoutList, LayoutGrid } from "lucide-vue-next";
 import { cn } from "~/lib/utils";
-import { useInvoices } from "~/composables/useInvoices";
+import { useInvoices, type InvoiceDetail } from "~/composables/useInvoices";
+import { useInvoicePage } from "~/composables/useInvoicePage";
+import { InvoiceListView, InvoiceGridView, InvoiceEditModal } from "./components";
+import JobInvoicePreview from "~/components/operational/JobInvoicePreview.vue";
 
 definePageMeta({
   layout: "dashboard",
 });
 
-const { fetchInvoices } = useInvoices();
+const { fetchInvoiceById, isLoading: isInvoiceLoading } = useInvoices();
+const {
+  loading,
+  error,
+  searchQuery,
+  selectedStatus,
+  viewMode,
+  isEditModalOpen,
+  isSubmitting,
+  editError,
+  formData,
+  selectedTaxRate,
+  currentPage,
+  pagination,
+  statusOptions,
+  editStatusOptions,
+  editTaxOptions,
+  companies,
+  jobs,
+  services,
+  formatCurrency,
+  formatDate,
+  getStatusConfig,
+  filteredInvoices,
+  openEditModal,
+  closeEditModal,
+  handleFullUpdate,
+  handleRowClick,
+  handleDelete,
+  handlePageChange,
+  addLineItem,
+  removeLineItem,
+  updateItemAmount,
+  initialize,
+} = useInvoicePage();
 
-interface InvoiceData {
-  id: string;
-  invoiceNumber: string;
-  invoiceDate: string;
-  dueDate: string;
-  total: number;
-  balanceDue: number;
-  status: {
-    code: string;
-    name: string;
-  };
-  company: {
-    name: string;
-  };
-}
+const isDownloading = ref(false);
+const downloadInvoice = ref<InvoiceDetail | null>(null);
+const previewRef = ref<InstanceType<typeof JobInvoicePreview> | null>(null);
 
-const invoices = ref<InvoiceData[]>([]);
-const loading = ref(true);
-const error = ref<string | null>(null);
-
-const statusMap: Record<string, "pending" | "paid" | "overdue"> = {
-  UNPAID: "pending",
-  PARTIALLY_PAID: "pending",
-  PAID: "paid",
-  OVERDUE: "overdue",
-};
-
-const statusConfig: Record<"pending" | "paid" | "overdue", { label: string; class: string }> = {
-  pending: { label: "Pending", class: "bg-yellow-50 text-yellow-700 border-yellow-200" },
-  paid: { label: "Lunas", class: "bg-green-50 text-green-700 border-green-200" },
-  overdue: { label: "Jatuh Tempo", class: "bg-red-50 text-red-700 border-red-200" },
-};
-
-type ViewMode = "list" | "grid";
-const viewMode = ref<ViewMode>("list");
-
-const formatCurrency = (value: number) => {
-  return new Intl.NumberFormat("id-ID", {
-    style: "currency",
-    currency: "IDR",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(value);
-};
-
-const formatDate = (dateStr: string) => {
-  return new Date(dateStr).toLocaleDateString("id-ID", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
-};
-
-const getStatusType = (statusCode: string): "pending" | "paid" | "overdue" => {
-  return statusMap[statusCode] || "pending";
-};
-
-const getStatusConfig = (statusCode: string) => {
-  const type = getStatusType(statusCode);
-  return statusConfig[type];
-};
-
-const loadInvoices = async () => {
+const handleDownloadPdf = async (id: string) => {
+  if (isDownloading.value) return;
+  isDownloading.value = true;
   try {
-    loading.value = true;
-    error.value = null;
-    const result = await fetchInvoices();
-    if (result.success && result.data) {
-      invoices.value = result.data;
-    } else {
-      throw new Error(result.error || "Failed to load invoices");
+    const result = await fetchInvoiceById(id);
+    if (!result.success || !result.data) {
+      throw new Error(result.error || "Failed to fetch invoice");
     }
-  } catch (e) {
-    console.error("Failed to fetch invoices:", e);
-    error.value = "Failed to load invoices";
-    invoices.value = [];
+    downloadInvoice.value = result.data;
+    await nextTick();
+    await nextTick(); // double tick to ensure JobInvoicePreview renders
+    await previewRef.value?.generatePDF();
+  } catch (err) {
+    console.error("Failed to download invoice PDF:", err);
+    alert("Failed to download invoice. Please try again.");
   } finally {
-    loading.value = false;
+    isDownloading.value = false;
+    downloadInvoice.value = null;
   }
 };
 
-// Pagination
-const currentPage = ref(1);
-const pagination = ref({
-  total: 0,
-  limit: 10,
-  page: 1,
-});
+const isJobDetailOpen = ref(false);
+const selectedJobId = ref("");
+const initialInvoiceId = ref("");
 
-const handlePageChange = (page: number) => {
-  currentPage.value = page;
-  loadInvoices();
+const handleInvoiceClick = (id: string) => {
+  const invoice = filteredInvoices.value.find((inv) => inv.id === id);
+  if (invoice?.job?.id) {
+    selectedJobId.value = invoice.job.id;
+    initialInvoiceId.value = id;
+    isJobDetailOpen.value = true;
+  } else {
+    handleRowClick(id); // Fallback to original behavior if no job id
+  }
+};
+
+const handleEdit = (id: string) => {
+  openEditModal(id);
+};
+
+const handleTaxRateChange = (value: number) => {
+  selectedTaxRate.value = value;
 };
 
 onMounted(() => {
-  loadInvoices();
+  initialize();
 });
 </script>
 
 <template>
-  <div class="space-y-6 animate-fade-in pb-10">
+  <div class="space-y-6 animate-fade-in p-6">
     <!-- Page header -->
     <div class="flex items-center justify-between">
       <div>
@@ -126,6 +109,16 @@ onMounted(() => {
       </div>
 
       <div class="flex items-center gap-2">
+        <!-- Status Filter -->
+        <select
+          v-model="selectedStatus"
+          class="bg-white border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#012D5A]"
+        >
+          <option v-for="option in statusOptions" :key="option.value" :value="option.value">
+            {{ option.label }}
+          </option>
+        </select>
+
         <div class="flex items-center bg-white border border-border rounded-lg p-1 mr-2">
           <button
             @click="viewMode = 'list'"
@@ -162,6 +155,7 @@ onMounted(() => {
       <div class="relative w-full max-w-sm">
         <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
         <input
+          v-model="searchQuery"
           type="text"
           placeholder="Cari invoice..."
           class="w-full pl-10 pr-4 py-2 text-sm border border-border rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground"
@@ -169,14 +163,6 @@ onMounted(() => {
       </div>
 
       <div class="flex items-center gap-3">
-        <select
-          class="px-3 py-2 rounded-lg border border-border bg-white text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-        >
-          <option value="">Semua Status</option>
-          <option value="pending">Pending</option>
-          <option value="paid">Lunas</option>
-          <option value="overdue">Jatuh Tempo</option>
-        </select>
         <NuxtLink
           to="/finance/invoice/create"
           class="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-[#012D5A] text-white hover:bg-[#012D5A]/90 rounded-lg transition-colors min-w-fit whitespace-nowrap"
@@ -195,14 +181,14 @@ onMounted(() => {
     <!-- Error state -->
     <div v-else-if="error" class="text-center py-12">
       <p class="text-red-500">{{ error }}</p>
-      <button @click="loadInvoices" class="mt-4 px-4 py-2 bg-[#012D5A] text-white rounded-lg">
+      <button @click="initialize" class="mt-4 px-4 py-2 bg-[#012D5A] text-white rounded-lg">
         Retry
       </button>
     </div>
 
     <!-- Empty state -->
     <div
-      v-else-if="invoices.length === 0"
+      v-else-if="filteredInvoices.length === 0"
       class="text-center py-12 border border-border rounded-xl bg-white"
     >
       <Receipt class="w-12 h-12 text-muted-foreground mx-auto mb-4" />
@@ -217,148 +203,81 @@ onMounted(() => {
     </div>
 
     <!-- List View -->
-    <div
+    <InvoiceListView
       v-else-if="viewMode === 'list'"
-      class="border border-border rounded-xl bg-white overflow-hidden"
-    >
-      <div class="overflow-x-auto">
-        <table class="w-full">
-          <thead>
-            <tr class="border-b border-border bg-white text-left">
-              <th class="py-3 px-4 text-sm font-medium text-foreground">No. Invoice</th>
-              <th class="py-3 px-4 text-sm font-medium text-foreground">Customer</th>
-              <th class="py-3 px-4 text-sm font-medium text-foreground">Tanggal</th>
-              <th class="py-3 px-4 text-sm font-medium text-foreground">Jatuh Tempo</th>
-              <th class="py-3 px-4 text-sm font-medium text-foreground">Total</th>
-              <th class="py-3 px-4 text-sm font-medium text-foreground">Status</th>
-              <th class="py-3 px-4 w-10"></th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr
-              v-for="invoice in invoices"
-              :key="invoice.id"
-              class="border-b border-border last:border-0 hover:bg-muted/30 transition-colors cursor-pointer"
-              @click="navigateTo(`/finance/invoice/${invoice.id}`)"
-            >
-              <td class="py-3 px-4">
-                <div class="flex items-center gap-2">
-                  <div class="p-1.5 rounded bg-blue-50 text-[#012D5A]">
-                    <Receipt class="w-4 h-4" />
-                  </div>
-                  <span class="text-sm font-medium">{{ invoice.invoiceNumber }}</span>
-                </div>
-              </td>
-              <td class="py-3 px-4 text-sm font-medium">
-                {{ invoice.company?.name || "N/A" }}
-              </td>
-              <td class="py-3 px-4 text-sm text-muted-foreground">
-                {{ formatDate(invoice.invoiceDate) }}
-              </td>
-              <td class="py-3 px-4 text-sm text-muted-foreground">
-                {{ formatDate(invoice.dueDate) }}
-              </td>
-              <td class="py-3 px-4 text-sm font-medium">
-                {{ formatCurrency(invoice.total) }}
-              </td>
-              <td class="py-3 px-4">
-                <span
-                  :class="
-                    cn(
-                      'px-2 py-0.5 rounded border text-xs font-medium',
-                      getStatusConfig(invoice.status?.code || 'UNPAID').class,
-                    )
-                  "
-                >
-                  {{ getStatusConfig(invoice.status?.code || "UNPAID").label }}
-                </span>
-              </td>
-              <td class="py-3 px-4 text-right">
-                <div class="flex gap-1 justify-end">
-                  <button class="p-1.5 rounded hover:bg-muted transition-colors" @click.stop>
-                    <Download class="w-4 h-4 text-muted-foreground" />
-                  </button>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
+      :invoices="filteredInvoices"
+      :get-status-config="getStatusConfig"
+      :format-currency="formatCurrency"
+      :format-date="formatDate"
+      @row-click="handleInvoiceClick"
+      @download-pdf="handleDownloadPdf"
+    />
 
     <!-- Grid View -->
-    <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      <div
-        v-for="invoice in invoices"
-        :key="invoice.id"
-        class="border border-border rounded-xl bg-white p-5 hover:shadow-sm transition-shadow cursor-pointer"
-        @click="navigateTo(`/finance/invoice/${invoice.id}`)"
-      >
-        <div class="flex items-start justify-between mb-4">
-          <div class="flex items-start gap-4">
-            <div
-              class="w-12 h-12 rounded-lg bg-blue-50 text-[#012D5A] flex items-center justify-center shrink-0"
-            >
-              <Receipt class="w-6 h-6" />
-            </div>
-            <div>
-              <h3 class="font-bold text-base text-foreground">
-                {{ invoice.invoiceNumber }}
-              </h3>
-              <p class="text-xs text-muted-foreground">
-                {{ formatDate(invoice.invoiceDate) }}
-              </p>
-            </div>
-          </div>
-          <button class="text-muted-foreground hover:text-foreground" @click.stop>
-            <MoreVertical class="w-4 h-4" />
-          </button>
-        </div>
-
-        <div class="space-y-3 mb-4">
-          <div>
-            <p class="text-xs text-muted-foreground mb-1">Customer</p>
-            <p class="text-sm font-medium">{{ invoice.company?.name || "N/A" }}</p>
-          </div>
-          <div>
-            <p class="text-xs text-muted-foreground mb-1">Total Amount</p>
-            <p class="text-lg font-bold text-[#012D5A]">
-              {{ formatCurrency(invoice.total) }}
-            </p>
-          </div>
-          <div>
-            <p class="text-xs text-muted-foreground mb-1">Due Date</p>
-            <p class="text-sm text-gray-700">{{ formatDate(invoice.dueDate) }}</p>
-          </div>
-        </div>
-
-        <div class="flex items-center justify-between pt-4 border-t border-border">
-          <span
-            :class="
-              cn(
-                'px-2 py-0.5 rounded border text-xs font-medium',
-                getStatusConfig(invoice.status?.code || 'UNPAID').class,
-              )
-            "
-          >
-            {{ getStatusConfig(invoice.status?.code || "UNPAID").label }}
-          </span>
-          <button class="p-1.5 rounded hover:bg-muted transition-colors" @click.stop>
-            <Download class="w-4 h-4 text-muted-foreground" />
-          </button>
-        </div>
-      </div>
-    </div>
+    <InvoiceGridView
+      v-else
+      :invoices="filteredInvoices"
+      :get-status-config="getStatusConfig"
+      :format-currency="formatCurrency"
+      :format-date="formatDate"
+      @row-click="handleInvoiceClick"
+      @download-pdf="handleDownloadPdf"
+    />
 
     <!-- Pagination -->
     <div class="flex items-center justify-between text-sm text-muted-foreground">
-      <p>{{ invoices.length }} data found.</p>
+      <p>{{ filteredInvoices.length }} data found.</p>
       <UiPagination
         v-model:page="currentPage"
         :total="pagination.total"
         :items-per-page="pagination.limit"
         @update:page="handlePageChange"
       />
+    </div>
+
+    <!-- Edit Modal -->
+    <InvoiceEditModal
+      :is-open="isEditModalOpen"
+      :is-submitting="isSubmitting"
+      :edit-error="editError"
+      :form-data="formData"
+      :selected-tax-rate="selectedTaxRate"
+      :status-options="editStatusOptions"
+      :tax-options="editTaxOptions"
+      :companies="companies"
+      :jobs="jobs"
+      :services="services"
+      @close="closeEditModal"
+      @submit="handleFullUpdate"
+      @add-line-item="addLineItem"
+      @remove-line-item="removeLineItem"
+      @update-item-amount="updateItemAmount"
+      @update-tax-rate="handleTaxRateChange"
+    />
+
+    <!-- Job Detail Slide-over -->
+    <OperationalJobDetailSlideOver
+      v-model="isJobDetailOpen"
+      :job-id="selectedJobId"
+      initial-tab="invoice"
+      :initial-invoice-id="initialInvoiceId"
+    />
+
+    <!-- Hidden invoice preview used only for PDF generation -->
+    <div
+      v-if="downloadInvoice"
+      aria-hidden="true"
+      style="
+        position: fixed;
+        left: -9999px;
+        top: 0;
+        opacity: 0;
+        pointer-events: none;
+        z-index: -1;
+        width: 210mm;
+      "
+    >
+      <JobInvoicePreview ref="previewRef" :invoice="downloadInvoice" />
     </div>
   </div>
 </template>

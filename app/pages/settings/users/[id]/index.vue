@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ArrowLeft, Edit, User, Shield } from "lucide-vue-next";
 import type { User as AuthUser } from "~/types/auth";
+import { toast } from "vue-sonner";
 
 interface DisplayUser {
   id: string;
@@ -35,15 +36,31 @@ onMounted(async () => {
         email: u.email,
         role: u.role,
         status: u.banned ? "inactive" : "active",
-        lastLogin: u.lastLogin ? new Date(u.lastLogin).toLocaleString() : "-",
-        createdAt: u.createdAt ? new Date(u.createdAt).toLocaleDateString() : "-",
+        lastLogin: u.lastLogin
+          ? new Date(u.lastLogin).toLocaleString("id-ID", {
+              day: "numeric",
+              month: "short",
+              year: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+            })
+          : "-",
+        createdAt: u.createdAt
+          ? new Date(u.createdAt).toLocaleDateString("id-ID", {
+              day: "numeric",
+              month: "short",
+              year: "numeric",
+            })
+          : "-",
       } as DisplayUser;
     } else {
       errorMessage.value = result.error || "Gagal mengambil data user.";
+      toast.error(errorMessage.value);
     }
   } catch (e) {
     const error = e as Error;
     errorMessage.value = error.message || "Terjadi kesalahan.";
+    toast.error(errorMessage.value);
   } finally {
     isLoading.value = false;
   }
@@ -51,7 +68,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="space-y-6 animate-fade-in">
+  <div class="space-y-6 animate-fade-in p-6">
     <div class="page-header">
       <div class="flex items-center gap-4">
         <NuxtLink to="/settings/users" class="p-2 rounded-lg hover:bg-muted transition-colors">
@@ -92,26 +109,22 @@ onMounted(async () => {
         </div>
         <span
           :class="[
-            'ml-auto inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium',
-            user.status === 'active' ? 'badge-success' : 'bg-muted text-muted-foreground',
+            'ml-auto px-2 py-0.5 rounded border text-xs font-medium bg-white',
+            user.status === 'active'
+              ? 'text-blue-500 border-blue-200'
+              : 'text-red-500 border-red-200',
           ]"
         >
-          {{ user.status === "active" ? "Aktif" : "Tidak Aktif" }}
+          {{ user.status === "active" ? "Active" : "Inactive" }}
         </span>
       </div>
 
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
         <div class="space-y-1">
           <p class="text-sm text-muted-foreground">Role</p>
-          <p class="font-medium flex items-center gap-2">
-            <Shield class="w-4 h-4 text-accent" />
+          <p class="font-medium flex items-center gap-2 text-primary">
+            <Shield class="w-4 h-4" />
             {{ user.role }}
-          </p>
-        </div>
-        <div class="space-y-1">
-          <p class="text-sm text-muted-foreground">Status</p>
-          <p class="font-medium">
-            {{ user.status === "active" ? "Aktif" : "Tidak Aktif" }}
           </p>
         </div>
         <div class="space-y-1">

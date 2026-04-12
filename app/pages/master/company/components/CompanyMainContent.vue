@@ -38,11 +38,11 @@ const totalJobs = computed(() => props.company.totalJobs || 0);
   <div class="flex-1 self-stretch flex flex-col justify-center items-end gap-4 overflow-hidden">
     <div class="self-stretch flex-1 flex flex-col justify-start items-start overflow-hidden">
       <!-- Stats Widgets -->
-      <div class="self-stretch p-4 flex justify-start items-center gap-4">
+      <div class="self-stretch p-5 flex justify-start items-center gap-4">
         <div
-          class="flex-1 p-2 bg-slate-50 rounded-md shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] flex flex-col justify-center items-start"
+          class="flex-1 p-3 bg-slate-50 rounded-md shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] flex flex-col justify-center items-start"
         >
-          <div class="justify-start text-gray-500 text-xs font-normal font-['Inter'] leading-4">
+          <div class="justify-start text-gray-500 text-sm font-normal font-['Inter'] leading-5">
             Total Job
           </div>
           <div
@@ -52,9 +52,9 @@ const totalJobs = computed(() => props.company.totalJobs || 0);
           </div>
         </div>
         <div
-          class="flex-1 p-2 bg-slate-50 rounded-md shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] flex flex-col justify-center items-start"
+          class="flex-1 p-3 bg-slate-50 rounded-md shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] flex flex-col justify-center items-start"
         >
-          <div class="justify-start text-gray-500 text-xs font-normal font-['Inter'] leading-4">
+          <div class="justify-start text-gray-500 text-sm font-normal font-['Inter'] leading-5">
             Type
           </div>
           <div
@@ -67,9 +67,9 @@ const totalJobs = computed(() => props.company.totalJobs || 0);
           </div>
         </div>
         <div
-          class="flex-1 p-2 bg-slate-50 rounded-md shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] flex flex-col justify-center items-start"
+          class="flex-1 p-3 bg-slate-50 rounded-md shadow-[0px_1px_2px_0px_rgba(16,24,40,0.05)] flex flex-col justify-center items-start"
         >
-          <div class="justify-start text-gray-500 text-xs font-normal font-['Inter'] leading-4">
+          <div class="justify-start text-gray-500 text-sm font-normal font-['Inter'] leading-5">
             Status
           </div>
           <div
@@ -99,7 +99,7 @@ const totalJobs = computed(() => props.company.totalJobs || 0);
           >
             <div
               :class="[
-                'justify-start text-xs leading-4',
+                'justify-start text-sm leading-5',
                 activeTab === tab
                   ? 'text-[#012D5A] font-semibold font-[\'Inter\']'
                   : 'text-black font-normal font-[\'Inter\']',
@@ -112,7 +112,7 @@ const totalJobs = computed(() => props.company.totalJobs || 0);
 
         <!-- Tab Content -->
         <div
-          class="self-stretch px-4 flex flex-col justify-start items-start gap-4 overflow-y-auto flex-1 pb-4"
+          class="self-stretch px-5 flex flex-col justify-start items-start gap-4 overflow-y-auto flex-1 pb-4"
         >
           <CompanyActivityTab v-if="activeTab === 'Activity'" :activities="activities" />
           <CompanyJobTab

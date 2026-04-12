@@ -9,39 +9,11 @@ interface Activity {
   time: string;
 }
 
-// Default fallback activities
-const defaultActivities: Activity[] = [
-  {
-    id: "1",
-    title: "Kapal ETD - MV Sinar Jaya",
-    description: "JOB-2026-001234",
-    time: "02:30 WIB",
-  },
-  {
-    id: "2",
-    title: "Kapal ETD - MV Sinar Jaya",
-    description: "JOB-2026-001234",
-    time: "02:30 WIB",
-  },
-  {
-    id: "3",
-    title: "Kapal ETD - MV Sinar Jaya",
-    description: "JOB-2026-001234",
-    time: "02:30 WIB",
-  },
-  {
-    id: "4",
-    title: "Kapal ETD - MV Sinar Jaya",
-    description: "JOB-2026-001234",
-    time: "02:30 WIB",
-  },
-];
-
 const props = defineProps<{
   events?: Activity[];
 }>();
 
-const activities = computed(() => props.events || defaultActivities);
+const activities = computed(() => props.events || []);
 </script>
 
 <template>
@@ -56,7 +28,19 @@ const activities = computed(() => props.events || defaultActivities);
       </NuxtLink>
     </div>
 
-    <div class="space-y-4 flex-1 overflow-auto pr-2">
+    <!-- Empty state -->
+    <div
+      v-if="activities.length === 0"
+      class="flex-1 flex flex-col items-center justify-center text-center py-8"
+    >
+      <Calendar class="w-10 h-10 text-muted-foreground/40 mb-3" />
+      <p class="text-sm font-medium text-muted-foreground">No upcoming activities</p>
+      <p class="text-xs text-muted-foreground/60 mt-1">
+        Activities will appear here when scheduled
+      </p>
+    </div>
+
+    <div v-else class="space-y-4 flex-1 overflow-auto pr-2">
       <div
         v-for="activity in activities"
         :key="activity.id"

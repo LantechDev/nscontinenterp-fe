@@ -3,10 +3,11 @@ import {
   Plus,
   Search,
   FileText,
-  Download,
   LayoutList,
   LayoutGrid,
   MoreVertical,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-vue-next";
 import { cn } from "~/lib/utils";
 
@@ -67,22 +68,40 @@ const getStatusInfo = (ebl: EblItem): { label: string; class: string } => {
 type ViewMode = "list" | "grid";
 const viewMode = ref<ViewMode>("list");
 
-// Pagination
-const currentPage = ref(1);
-const pagination = ref({
-  total: 0,
-  limit: 10,
-  page: 1,
-});
+const selectedJobId = ref("");
+const initialBlId = ref("");
+const isDetailOpen = ref(false);
 
-const handlePageChange = (page: number) => {
-  currentPage.value = page;
-  fetchEbls();
-};
+function openBlDetail(id: string) {
+  const ebl = ebls.value.find((e) => e.id === id);
+  if (ebl) {
+    selectedJobId.value = ebl.jobId;
+    initialBlId.value = id;
+    isDetailOpen.value = true;
+  }
+}
+
+const groupedEbls = computed(() => {
+  const groups: Record<string, { jobId: string; jobNumber: string; ebls: EblItem[] }> = {};
+
+  ebls.value.forEach((ebl) => {
+    const jobId = ebl.jobId;
+    if (!groups[jobId]) {
+      groups[jobId] = {
+        jobId,
+        jobNumber: ebl.job?.jobNumber || "Unknown Job",
+        ebls: [],
+      };
+    }
+    groups[jobId].ebls.push(ebl);
+  });
+
+  return Object.values(groups);
+});
 </script>
 
 <template>
-  <div class="space-y-6 animate-fade-in pb-10">
+  <div class="space-y-6 animate-fade-in p-6">
     <!-- Page header -->
     <div class="flex items-center justify-between">
       <div>
@@ -159,44 +178,58 @@ const handlePageChange = (page: number) => {
               <th class="py-3 px-4 text-sm font-medium text-foreground">No. eBL</th>
               <th class="py-3 px-4 text-sm font-medium text-foreground">No. Job</th>
               <th class="py-3 px-4 text-sm font-medium text-foreground">Status</th>
-              <th class="py-3 px-4 w-10"></th>
             </tr>
           </thead>
           <tbody>
-            <tr
-              v-for="ebl in ebls"
-              :key="ebl.id"
-              class="border-b border-border last:border-0 hover:bg-muted/30 transition-colors cursor-pointer"
-              @click="navigateTo(`/operational/ebl/${ebl.id}`)"
-            >
-              <td class="py-3 px-4">
-                <div class="flex items-center gap-2">
-                  <div class="p-1.5 rounded bg-blue-50 text-[#012D5A]">
-                    <FileText class="w-4 h-4" />
+            <template v-for="group in groupedEbls" :key="group.jobId">
+              <!-- Job Header Row -->
+              <tr class="bg-gray-50 border-b border-border">
+                <td colspan="3" class="py-2.5 px-4">
+                  <div class="flex items-center gap-2">
+                    <span
+                      class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest"
+                      >Job:</span
+                    >
+                    <span class="text-sm font-bold text-[#012D5A]">{{ group.jobNumber }}</span>
+                    <span
+                      class="text-[10px] px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded-full font-black ml-2"
+                    >
+                      {{ group.ebls.length }} BL{{ group.ebls.length > 1 ? "S" : "" }}
+                    </span>
                   </div>
-                  <span class="text-sm font-medium">{{ ebl.blNumber }}</span>
-                </div>
-              </td>
-              <td class="py-3 px-4 text-sm text-muted-foreground">
-                {{ ebl.job?.jobNumber || "-" }}
-              </td>
-              <td class="py-3 px-4">
-                <span
-                  :class="
-                    cn('px-2 py-0.5 rounded border text-xs font-medium', getStatusInfo(ebl).class)
-                  "
-                >
-                  {{ getStatusInfo(ebl).label }}
-                </span>
-              </td>
-              <td class="py-3 px-4 text-right">
-                <button class="p-1.5 rounded hover:bg-muted transition-colors" @click.stop>
-                  <Download class="w-4 h-4 text-muted-foreground" />
-                </button>
-              </td>
-            </tr>
+                </td>
+              </tr>
+              <!-- BL Rows -->
+              <tr
+                v-for="ebl in group.ebls"
+                :key="ebl.id"
+                class="border-b border-border last:border-b hover:bg-muted/30 transition-colors cursor-pointer"
+                @click="openBlDetail(ebl.id)"
+              >
+                <td class="py-3 px-4 pl-8">
+                  <div class="flex items-center gap-2">
+                    <div class="p-1.5 rounded bg-blue-50 text-[#012D5A]">
+                      <FileText class="w-4 h-4" />
+                    </div>
+                    <span class="text-sm font-medium">{{ ebl.blNumber }}</span>
+                  </div>
+                </td>
+                <td class="py-3 px-4 text-sm text-muted-foreground">
+                  {{ ebl.job?.jobNumber || "-" }}
+                </td>
+                <td class="py-3 px-4">
+                  <span
+                    :class="
+                      cn('px-2 py-0.5 rounded border text-xs font-medium', getStatusInfo(ebl).class)
+                    "
+                  >
+                    {{ getStatusInfo(ebl).label }}
+                  </span>
+                </td>
+              </tr>
+            </template>
             <tr v-if="ebls.length === 0">
-              <td colspan="4" class="p-8 text-center text-muted-foreground">Belum ada data eBL.</td>
+              <td colspan="3" class="p-8 text-center text-muted-foreground">Belum ada data eBL.</td>
             </tr>
           </tbody>
         </table>
@@ -209,7 +242,7 @@ const handlePageChange = (page: number) => {
         v-for="ebl in ebls"
         :key="ebl.id"
         class="border border-border rounded-xl bg-white p-5 hover:shadow-sm transition-shadow cursor-pointer"
-        @click="navigateTo(`/operational/ebl/${ebl.id}`)"
+        @click="openBlDetail(ebl.id)"
       >
         <div class="flex items-start justify-between mb-4">
           <div class="flex items-start gap-4">
@@ -236,9 +269,6 @@ const handlePageChange = (page: number) => {
           >
             {{ getStatusInfo(ebl).label }}
           </span>
-          <button class="p-1.5 rounded hover:bg-muted transition-colors" @click.stop>
-            <Download class="w-4 h-4 text-muted-foreground" />
-          </button>
         </div>
       </div>
       <div v-if="ebls.length === 0" class="col-span-full p-8 text-center text-muted-foreground">
@@ -252,12 +282,30 @@ const handlePageChange = (page: number) => {
       class="flex items-center justify-between text-sm text-muted-foreground"
     >
       <p>{{ ebls.length }} data found.</p>
-      <UiPagination
-        v-model:page="currentPage"
-        :total="pagination.total"
-        :items-per-page="pagination.limit"
-        @update:page="handlePageChange"
-      />
+      <div class="flex items-center gap-2">
+        <button class="p-1 hover:text-foreground disabled:opacity-50">
+          <ChevronLeft class="w-4 h-4" />
+          <span class="sr-only">Previous</span>
+        </button>
+        <button
+          class="w-8 h-8 flex items-center justify-center rounded border border-border bg-white text-foreground font-medium"
+        >
+          1
+        </button>
+        <span class="px-1">...</span>
+        <button class="flex items-center gap-1 hover:text-foreground">
+          Next
+          <ChevronRight class="w-4 h-4" />
+        </button>
+      </div>
     </div>
+
+    <!-- Job Details Slide-over showing eBL tab -->
+    <OperationalJobDetailSlideOver
+      v-model="isDetailOpen"
+      :job-id="selectedJobId"
+      initial-tab="ebl"
+      :initial-bl-id="initialBlId"
+    />
   </div>
 </template>
