@@ -39,8 +39,8 @@ export default defineNuxtConfig({
         },
       ],
       link: [
-        { rel: "icon", type: "image/png", href: "/images/logo2.png" },
-        { rel: "apple-touch-icon", href: "/images/logo2.png" },
+        { rel: "icon", type: "image/png", href: "/images/logo2.jpeg" },
+        { rel: "apple-touch-icon", href: "/images/logo2.jpeg" },
         // Preconnect to Google Fonts for faster loading
         { rel: "preconnect", href: "https://fonts.googleapis.com" },
         { rel: "preconnect", href: "https://fonts.gstatic.com", crossorigin: "anonymous" },

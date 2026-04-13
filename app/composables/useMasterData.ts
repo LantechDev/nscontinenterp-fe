@@ -19,6 +19,12 @@ export interface Address {
   updatedAt?: string;
 }
 
+export interface CompanyCategory {
+  id: string;
+  name: string;
+  code: string;
+}
+
 export interface Company {
   id: string;
   code: string;
@@ -29,6 +35,8 @@ export interface Company {
   description?: string;
   notes?: string;
   addresses?: Address[];
+  categoryId?: string;
+  category?: CompanyCategory;
   isVendor: boolean;
   isCustomer: boolean;
   isActive: boolean;
@@ -146,6 +154,20 @@ export function useMasterData() {
     }
   }
 
+  async function fetchCompanyCategories() {
+    try {
+      const data = await $fetch<CompanyCategory[]>(
+        `${config.public.apiBase}/master/company-categories`,
+        {
+          credentials: "include",
+        },
+      );
+      return data;
+    } catch {
+      return [];
+    }
+  }
+
   async function fetchVessels(query?: string) {
     try {
       const data = await $fetch<Vessel[]>(`${config.public.apiBase}/master/vessels`, {
@@ -220,6 +242,25 @@ export function useMasterData() {
     }
   }
 
+  async function createCompanyCategory(name: string): Promise<AuthResponse<CompanyCategory>> {
+    try {
+      isLoading.value = true;
+      const data = await $fetch<CompanyCategory>(
+        `${config.public.apiBase}/master/company-categories`,
+        {
+          method: "POST",
+          body: { name },
+          credentials: "include",
+        },
+      );
+      return { success: true, data };
+    } catch (error) {
+      return handleApiError<CompanyCategory>(error);
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
   async function fetchPaymentMethods() {
     try {
       const data = await $fetch<PaymentMethod[]>(
@@ -243,7 +284,9 @@ export function useMasterData() {
     fetchVessels,
     fetchPorts,
     fetchPaymentMethods,
+    fetchCompanyCategories,
     createCompany,
     createVessel,
+    createCompanyCategory,
   };
 }

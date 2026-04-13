@@ -6,7 +6,8 @@ import CompanyGrid from "./components/CompanyGrid.vue";
 import CompanyCreateModal from "./components/CompanyCreateModal.vue";
 import CompanyDetailModal from "./components/CompanyDetailModal.vue";
 import SearchSelect from "~/components/ui/SearchSelect.vue";
-import type { MappedCompany } from "~/composables/useCompanies";
+import { useCompanies, type MappedCompany } from "~/composables/useCompanies";
+import { useMasterData } from "~/composables/useMasterData";
 import { cn } from "~/lib/utils";
 
 definePageMeta({
@@ -40,6 +41,7 @@ const openDetailModal = (company: MappedCompany) => {
 const searchQuery = ref("");
 const selectedType = ref<string>("all");
 const selectedStatus = ref<string>("all");
+const selectedCategory = ref<string>("all");
 const pageSize = ref(50); // Increase to fetch more for client-side filtering
 let filterDebounce: ReturnType<typeof setTimeout> | null = null;
 
@@ -55,6 +57,7 @@ const sortedCompanies = computed(() => {
     phone: c.phone || "-",
     address: c.addresses?.[0]?.fullAddress || "-",
     type: c.isVendor && c.isCustomer ? "Both" : c.isVendor ? "Vendor" : "Customer",
+    categoryName: c.category?.name || "-",
     status: c.isActive ? "Active" : "Inactive",
     totalJobs: jobCounts.value[c.id] ?? c.totalJobs ?? 0,
   }));
@@ -71,6 +74,9 @@ const sortedCompanies = computed(() => {
         break;
       case "type":
         comparison = a.type.localeCompare(b.type);
+        break;
+      case "category":
+        comparison = a.categoryName.localeCompare(b.categoryName);
         break;
       case "status":
         comparison = a.status.localeCompare(b.status);
@@ -116,7 +122,7 @@ const toQueryType = () => {
 };
 
 const typeOptions = [
-  { id: "all", name: "All Types" },
+  { id: "all", name: "All Roles" },
   { id: "customer", name: "Customer" },
   { id: "vendor", name: "Vendor" },
   { id: "both", name: "Customer & Vendor" },
@@ -128,6 +134,17 @@ const statusOptions = [
   { id: "inactive", name: "Inactive" },
 ];
 
+const { fetchCompanyCategories } = useMasterData();
+const categoryOptions = ref([{ id: "all", name: "All Types" }]);
+
+const loadCategories = async () => {
+  const data = await fetchCompanyCategories();
+  categoryOptions.value = [
+    { id: "all", name: "All Types" },
+    ...data.map((c) => ({ id: c.id, name: c.name })),
+  ];
+};
+
 // Apply client-side filtering since API might not filter correctly
 const filteredCompanies = computed(() => {
   let result = companiesList.value;
@@ -135,8 +152,8 @@ const filteredCompanies = computed(() => {
   // Filter by type
   if (selectedType.value !== "all") {
     result = result.filter((c) => {
-      if (selectedType.value === "customer") return c.isCustomer && !c.isVendor;
-      if (selectedType.value === "vendor") return c.isVendor && !c.isCustomer;
+      if (selectedType.value === "customer") return c.isCustomer;
+      if (selectedType.value === "vendor") return c.isVendor;
       if (selectedType.value === "both") return c.isCustomer && c.isVendor;
       return true;
     });
@@ -146,6 +163,11 @@ const filteredCompanies = computed(() => {
   if (selectedStatus.value !== "all") {
     const isActiveFilter = selectedStatus.value === "active";
     result = result.filter((c) => c.isActive === isActiveFilter);
+  }
+
+  // Filter by category
+  if (selectedCategory.value !== "all") {
+    result = result.filter((c) => c.categoryId === selectedCategory.value);
   }
 
   // Search filter
@@ -302,8 +324,8 @@ watch(searchQuery, () => {
   // Search is handled by computed filteredCompanies
 });
 
-// Watch for type/status changes to reload data and filter
-watch([selectedType, selectedStatus], () => {
+// Watch for type/status/category changes to reload data and filter
+watch([selectedType, selectedStatus, selectedCategory], () => {
   fetchWithFilters(1);
   fetchJobCounts();
 });
@@ -311,6 +333,7 @@ watch([selectedType, selectedStatus], () => {
 onMounted(async () => {
   await fetchWithFilters(1);
   await fetchJobCounts();
+  await loadCategories();
   document.addEventListener("click", handleClickOutside);
 });
 
@@ -374,12 +397,17 @@ onUnmounted(() => {
         <SearchSelect
           v-model="selectedType"
           :initial-options="typeOptions"
-          placeholder="Filter by type..."
+          placeholder="Filter by role..."
         />
         <SearchSelect
           v-model="selectedStatus"
           :initial-options="statusOptions"
           placeholder="Filter by status..."
+        />
+        <SearchSelect
+          v-model="selectedCategory"
+          :initial-options="categoryOptions"
+          placeholder="Filter by type..."
         />
         <button
           @click="openCreateModal"

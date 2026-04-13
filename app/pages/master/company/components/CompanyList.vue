@@ -63,13 +63,26 @@ defineEmits<{
               </div>
             </th>
             <th class="py-3 px-4 text-sm font-medium text-foreground">Email</th>
+            <th
+              class="py-3 px-4 text-sm font-medium text-foreground cursor-pointer hover:bg-muted/50"
+              @click="$emit('update:sort', 'category')"
+            >
+              <div class="flex items-center gap-1">
+                Type
+                <ChevronDown
+                  v-if="sortField === 'category'"
+                  class="w-4 h-4"
+                  :class="{ 'rotate-180': sortDirection === 'desc' }"
+                />
+              </div>
+            </th>
             <th class="py-3 px-4 text-sm font-medium text-foreground">Total Job</th>
             <th
               class="py-3 px-4 text-sm font-medium text-foreground cursor-pointer hover:bg-muted/50"
               @click="$emit('update:sort', 'type')"
             >
               <div class="flex items-center gap-1">
-                Type
+                Role
                 <ChevronDown
                   v-if="sortField === 'type'"
                   class="w-4 h-4"
@@ -109,6 +122,9 @@ defineEmits<{
             <td class="py-3 px-4 text-sm font-medium">{{ company.code }}</td>
             <td class="py-3 px-4 text-sm font-medium">{{ company.name }}</td>
             <td class="py-3 px-4 text-sm font-normal">{{ company.email }}</td>
+            <td class="py-3 px-4 text-sm font-normal text-muted-foreground italic">
+              {{ company.categoryName }}
+            </td>
             <td class="py-3 px-4 text-sm">{{ company.totalJobs }}</td>
             <td class="py-3 px-4">
               <span
