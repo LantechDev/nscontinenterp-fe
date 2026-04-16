@@ -61,7 +61,6 @@ const activeItemIndex = ref<number | null>(null);
 const serviceForm = reactive({
   name: "",
   code: "",
-  customerPrice: 0,
 });
 
 onMounted(async () => {
@@ -84,15 +83,14 @@ const onServiceChange = (index: number) => {
   const service = services.value.find((s) => s.id === item.serviceId);
   if (service) {
     item.description = service.name;
-    item.unitPrice = Number(service.customerPrice) || 0;
-    item.taxRate = Number(service.taxRate) || 0;
+    item.unitPrice = 0;
+    item.taxRate = 0;
   }
 };
 
 const handleCreateService = (name: string, index: number) => {
   serviceForm.name = name;
   serviceForm.code = name.toUpperCase().replace(/\s+/g, "_").substring(0, 10);
-  serviceForm.customerPrice = 0;
   activeItemIndex.value = index;
   isServiceModalOpen.value = true;
 };
@@ -108,7 +106,6 @@ async function submitServiceForm() {
     const result = await createService({
       name: serviceForm.name,
       code: serviceForm.code,
-      customerPrice: Number(serviceForm.customerPrice),
     });
 
     if (result.success && result.data) {
@@ -118,7 +115,7 @@ async function submitServiceForm() {
         if (item) {
           item.serviceId = result.data.id;
           item.description = result.data.name;
-          item.unitPrice = Number(result.data.customerPrice) || 0;
+          item.unitPrice = 0;
         }
       }
       isServiceModalOpen.value = false;
@@ -496,23 +493,6 @@ const formatCurrency = (amount: number) => {
             class="input-field"
             placeholder="e.g. OF_001"
           />
-        </div>
-        <div class="space-y-2">
-          <label class="text-xs font-bold text-muted-foreground uppercase"
-            >Default Customer Price</label
-          >
-          <div class="relative">
-            <span
-              class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-xs font-bold"
-              >{{ form.currency }}</span
-            >
-            <input
-              v-model.number="serviceForm.customerPrice"
-              type="number"
-              class="input-field pl-12"
-              placeholder="0"
-            />
-          </div>
         </div>
         <div class="flex justify-end gap-3 pt-4">
           <button type="button" @click="isServiceModalOpen = false" class="btn-outline px-4 py-2">

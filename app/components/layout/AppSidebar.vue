@@ -36,7 +36,7 @@ const { isOwner, isAdmin, canApproveJobs } = useAuth();
             class="w-8 h-8 rounded-md bg-white flex items-center justify-center shrink-0 overflow-hidden"
           >
             <NuxtImg
-              src="/images/logo2.png"
+              src="/images/logo2.jpeg"
               alt="NS Continent"
               class="w-full h-full object-contain"
             />

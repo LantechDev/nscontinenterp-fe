@@ -40,22 +40,17 @@ const searchQuery = ref("");
 const containerRef = ref<HTMLElement | null>(null);
 const inputRef = ref<HTMLInputElement | null>(null);
 
-// Compute dropdown position for teleport
-const dropdownStyle = computed(() => {
-  if (!containerRef.value) return {};
-
-  const rect = containerRef.value.getBoundingClientRect();
-  return {
-    top: `${rect.bottom + 4}px`,
-    left: `${rect.left}px`,
-    width: `${rect.width}px`,
-    maxWidth: `${rect.width}px`,
-  };
-});
-
-const options = ref<SearchSelectOption[]>([]);
+// Fetched options for async mode
+const fetchedOptions = ref<SearchSelectOption[]>([]);
 const isLoading = ref(false);
 const hasFetched = ref(false);
+
+// Merged options: Use fetched options if available (usually for search),
+// otherwise fallback to initialOptions
+const allOptions = computed(() => {
+  if (fetchedOptions.value.length > 0) return fetchedOptions.value;
+  return props.initialOptions || [];
+});
 
 // Default format display function
 const defaultFormatDisplay = (option: SearchSelectOption): string => {
@@ -65,7 +60,6 @@ const defaultFormatDisplay = (option: SearchSelectOption): string => {
   return option.name || option.label || "";
 };
 
-// Use provided formatDisplay or default
 const formatDisplayFn = computed(() => props.formatDisplay || defaultFormatDisplay);
 
 const getOptionValue = (option: SearchSelectOption): string => {
@@ -81,27 +75,30 @@ const getOptionLabel = (option: SearchSelectOption): string => {
 
 // Filter options based on search query (client-side filtering)
 const filteredOptions = computed(() => {
-  if (!options.value || options.value.length === 0) return [];
-  if (!searchQuery.value) return options.value;
+  if (allOptions.value.length === 0) return [];
+  if (!searchQuery.value) return allOptions.value;
 
-  // If we have async fetch, just return all loaded options
-  if (props.fetchOptions) {
-    return options.value;
+  // If we have async fetch, we assume results are already filtered by backend
+  if (props.fetchOptions && fetchedOptions.value.length > 0) {
+    return fetchedOptions.value;
   }
 
-  // Client-side filtering for non-async mode
+  // Client-side filtering
   const lowerQuery = searchQuery.value.toLowerCase();
-  return options.value.filter((opt) => getOptionLabel(opt).toLowerCase().includes(lowerQuery));
+  return allOptions.value.filter((opt) => getOptionLabel(opt).toLowerCase().includes(lowerQuery));
 });
 
 const selectedLabel = computed(() => {
   if (!props.modelValue) {
     return props.placeholder || "Select option...";
   }
-  const selected = options.value.find((opt) => getOptionValue(opt) === props.modelValue);
+
+  // Try to find in all available options
+  const selected = allOptions.value.find((opt) => getOptionValue(opt) === props.modelValue);
   if (selected) {
     return getOptionLabel(selected);
   }
+
   return props.placeholder || "Select option...";
 });
 
@@ -113,7 +110,7 @@ const debouncedSearch = useDebounceFn(async (query: string) => {
   try {
     const result = await props.fetchOptions({ query, limit: 50 });
     if (result.success && result.data) {
-      options.value = result.data;
+      fetchedOptions.value = result.data;
       hasFetched.value = true;
     }
   } catch (error) {
@@ -123,34 +120,26 @@ const debouncedSearch = useDebounceFn(async (query: string) => {
   }
 }, props.debounceMs || 300);
 
-// Handle search query changes
 watch(searchQuery, (newQuery) => {
   if (props.fetchOptions) {
     debouncedSearch(newQuery);
   }
 });
 
-// Initial fetch
 async function initialFetch() {
-  if (props.initialOptions && props.initialOptions.length > 0) {
-    options.value = props.initialOptions;
-    hasFetched.value = true;
-    return;
-  }
+  if (!props.fetchOptions || hasFetched.value) return;
 
-  if (props.fetchOptions && !hasFetched.value) {
-    isLoading.value = true;
-    try {
-      const result = await props.fetchOptions({ query: "", limit: 50 });
-      if (result.success && result.data) {
-        options.value = result.data;
-        hasFetched.value = true;
-      }
-    } catch (error) {
-      console.error("[SearchSelect] Initial fetch failed:", error);
-    } finally {
-      isLoading.value = false;
+  isLoading.value = true;
+  try {
+    const result = await props.fetchOptions({ query: "", limit: 50 });
+    if (result.success && result.data) {
+      fetchedOptions.value = result.data;
+      hasFetched.value = true;
     }
+  } catch (error) {
+    console.error("[SearchSelect] Initial fetch failed:", error);
+  } finally {
+    isLoading.value = false;
   }
 }
 
@@ -164,22 +153,34 @@ watch(open, (isOpen) => {
   if (isOpen) {
     nextTick(() => {
       inputRef.value?.focus();
-      // Fetch initial options when opening
-      if (!hasFetched.value) {
+      if (!hasFetched.value && props.fetchOptions) {
         initialFetch();
       }
     });
   }
 });
 
-// Click outside to close
-onClickOutside(containerRef as Ref<HTMLElement>, () => {
+onClickOutside(containerRef, () => {
   open.value = false;
 });
 
-// Expose refresh method
+// Compute dropdown position for teleport
+const dropdownStyle = computed(() => {
+  if (!containerRef.value) return {};
+  const rect = containerRef.value.getBoundingClientRect();
+  return {
+    top: `${rect.bottom + 4}px`,
+    left: `${rect.left}px`,
+    width: `${rect.width}px`,
+    maxWidth: `${rect.width}px`,
+  };
+});
+
 defineExpose({
-  refresh: initialFetch,
+  refresh: () => {
+    hasFetched.value = false;
+    initialFetch();
+  },
 });
 </script>
 
@@ -187,10 +188,8 @@ defineExpose({
   <div ref="containerRef" class="relative">
     <button
       type="button"
-      class="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-      :class="{
-        'opacity-50': disabled,
-      }"
+      class="flex h-10 w-full items-center justify-between rounded-lg border border-border bg-white px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary disabled:cursor-not-allowed disabled:opacity-50 transition-all hover:border-slate-300"
+      :class="{ 'opacity-50': disabled }"
       :disabled="disabled"
       @click="open = !open"
     >
@@ -201,21 +200,21 @@ defineExpose({
     <Teleport to="body">
       <div
         v-if="open"
-        class="fixed z-[1200] mt-1 max-h-60 w-full overflow-auto rounded-md border bg-popover text-popover-foreground shadow-lg animate-in fade-in-0 zoom-in-95"
+        class="fixed z-[1200] mt-1 max-h-60 w-full overflow-auto rounded-xl border border-border bg-white text-popover-foreground shadow-xl animate-in fade-in-0 zoom-in-95"
         :style="dropdownStyle"
       >
-        <div class="flex items-center border-b px-3 sticky top-0 bg-popover">
+        <div class="flex items-center border-b border-border px-3 sticky top-0 bg-white z-10">
           <input
             ref="inputRef"
             v-model="searchQuery"
             class="flex h-10 w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50"
             placeholder="Search..."
             :disabled="disabled"
+            @keydown.escape="open = false"
           />
           <Loader2 v-if="isLoading" class="h-4 w-4 animate-spin text-muted-foreground" />
         </div>
-        <div class="p-1">
-          <!-- Loading state -->
+        <div class="p-1 custom-scrollbar">
           <div
             v-if="isLoading && filteredOptions.length === 0"
             class="py-6 text-center text-sm text-muted-foreground"
@@ -223,33 +222,48 @@ defineExpose({
             <Loader2 class="h-4 w-4 animate-spin mx-auto mb-2" />
             Loading...
           </div>
-
-          <!-- No results -->
           <div
             v-else-if="!isLoading && filteredOptions.length === 0"
             class="py-6 text-center text-sm text-muted-foreground"
           >
             No results found.
           </div>
-
-          <!-- Options list -->
           <div
             v-for="option in filteredOptions"
             :key="getOptionValue(option)"
-            class="relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50"
-            :class="{
-              'bg-accent': modelValue === getOptionValue(option),
-            }"
+            class="relative flex cursor-pointer select-none items-center rounded-lg px-3 py-2 text-sm outline-none transition-colors hover:bg-slate-50 group"
+            :class="{ 'bg-slate-50': modelValue === getOptionValue(option) }"
             @click="selectOption(option)"
           >
             <Check
-              class="mr-2 h-4 w-4"
+              class="mr-2 h-4 w-4 text-[#012D5A]"
               :class="modelValue === getOptionValue(option) ? 'opacity-100' : 'opacity-0'"
+              stroke-width="3"
             />
-            {{ getOptionLabel(option) }}
+            <span
+              :class="{ 'font-semibold text-[#012D5A]': modelValue === getOptionValue(option) }"
+            >
+              {{ getOptionLabel(option) }}
+            </span>
           </div>
         </div>
       </div>
     </Teleport>
   </div>
 </template>
+
+<style scoped>
+.custom-scrollbar::-webkit-scrollbar {
+  width: 5px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #e2e8f0;
+  border-radius: 10px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #cbd5e1;
+}
+</style>

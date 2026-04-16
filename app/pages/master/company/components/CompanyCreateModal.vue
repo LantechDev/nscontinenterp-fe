@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import { ref, watch, computed, onMounted } from "vue";
 import { Save, Loader2 } from "lucide-vue-next";
-import SearchSelect from "~/components/ui/SearchSelect.vue";
-import type { Company } from "~/composables/useMasterData";
 import { useCompanies } from "~/composables/useCompanies";
+import { useMasterData } from "~/composables/useMasterData";
+import Combobox from "~/components/ui/Combobox.vue";
+import MultiSelect from "~/components/ui/MultiSelect.vue";
+import SearchSelect from "~/components/ui/SearchSelect.vue";
+import Radio from "~/components/ui/Radio.vue";
 
 const props = defineProps<{
   modelValue: boolean;
@@ -38,20 +41,44 @@ const countryCodeOptions = computed(() =>
 );
 
 const isActive = ref(true);
-const selectedCompanyType = ref("customer");
 
-// Company type options for selection
-const companyTypeOptions = [
+const { fetchCompanyCategories, createCompanyCategory } = useMasterData();
+const categories = ref<{ id: string; name: string }[]>([]);
+const isCategoryLoading = ref(false);
+
+const loadCategories = async () => {
+  isCategoryLoading.value = true;
+  categories.value = await fetchCompanyCategories();
+  isCategoryLoading.value = false;
+};
+
+const handleCreateCategory = async (name: string) => {
+  const result = await createCompanyCategory(name);
+  if (result.success && result.data) {
+    await loadCategories();
+    formData.value.categoryId = result.data.id;
+  }
+};
+
+const roleOptions = [
   { id: "customer", name: "Customer" },
   { id: "vendor", name: "Vendor" },
-  { id: "both", name: "Customer & Vendor" },
 ];
 
-// Watch for company type changes to update formData
-watch(selectedCompanyType, (newType) => {
-  formData.value.isCustomer = newType === "customer" || newType === "both";
-  formData.value.isVendor = newType === "vendor" || newType === "both";
+const selectedRoles = computed({
+  get: () => {
+    const roles: string[] = [];
+    if (formData.value.isCustomer) roles.push("customer");
+    if (formData.value.isVendor) roles.push("vendor");
+    return roles;
+  },
+  set: (roles: string[]) => {
+    formData.value.isCustomer = roles.includes("customer");
+    formData.value.isVendor = roles.includes("vendor");
+  },
 });
+
+// Categories logic
 
 const formData = ref({
   name: "",
@@ -61,6 +88,7 @@ const formData = ref({
   isCustomer: true,
   isVendor: false,
   isActive: true,
+  categoryId: "",
   country: "",
   city: "",
   fullAddress: "",
@@ -139,7 +167,6 @@ const parsePhone = (value?: string | null) => {
 const resetForm = () => {
   isActive.value = true;
   selectedCountryCode.value = "ID";
-  selectedCompanyType.value = "customer";
   formData.value = {
     name: "",
     email: "",
@@ -148,6 +175,7 @@ const resetForm = () => {
     isCustomer: true,
     isVendor: false,
     isActive: true,
+    categoryId: "",
     country: "",
     city: "",
     fullAddress: "",
@@ -168,14 +196,7 @@ watch(isOpen, (val) => {
     selectedCountryCode.value = parsedPhone.countryCode;
     isActive.value = props.company.isActive ?? true;
 
-    // Determine company type
-    if (props.company.isCustomer && props.company.isVendor) {
-      selectedCompanyType.value = "both";
-    } else if (props.company.isVendor) {
-      selectedCompanyType.value = "vendor";
-    } else {
-      selectedCompanyType.value = "customer";
-    }
+    isActive.value = props.company.isActive ?? true;
 
     formData.value = {
       name: props.company.name || "",
@@ -185,6 +206,7 @@ watch(isOpen, (val) => {
       isCustomer: props.company.isCustomer ?? true,
       isVendor: props.company.isVendor ?? false,
       isActive: props.company.isActive ?? true,
+      categoryId: props.company.categoryId || "",
       country: props.company.addresses?.[0]?.country || "",
       city: props.company.addresses?.[0]?.city || "",
       fullAddress: props.company.addresses?.[0]?.fullAddress || "",
@@ -222,6 +244,7 @@ const loadPhoneOptions = async () => {
 
 onMounted(() => {
   loadPhoneOptions();
+  loadCategories();
 });
 
 const handleSubmitCompany = async () => {
@@ -253,6 +276,7 @@ const handleSubmitCompany = async () => {
     eori: formData.value.eori,
     isCustomer: formData.value.isCustomer,
     isVendor: formData.value.isVendor,
+    categoryId: formData.value.categoryId,
     isActive: isActive.value,
     description: formData.value.description,
     notes: formData.value.notes,
@@ -333,35 +357,35 @@ const handleSubmitCompany = async () => {
             <p v-if="phoneError" class="text-xs text-red-500">{{ phoneError }}</p>
           </div>
           <div class="space-y-1.5">
-            <label class="text-sm font-medium text-foreground">Type</label>
-            <SearchSelect
-              v-model="selectedCompanyType"
-              :initial-options="companyTypeOptions"
-              placeholder="Select type..."
+            <label class="text-sm font-medium text-foreground">Status</label>
+            <div class="flex items-center gap-4 h-[42px]">
+              <label class="flex items-center gap-2 text-sm text-foreground cursor-pointer group">
+                <Radio :value="true" v-model="isActive" />
+                <span class="group-hover:text-[#012D5A] transition-colors">Active</span>
+              </label>
+              <label class="flex items-center gap-2 text-sm text-foreground cursor-pointer group">
+                <Radio :value="false" v-model="isActive" />
+                <span class="group-hover:text-[#012D5A] transition-colors">Inactive</span>
+              </label>
+            </div>
+          </div>
+          <div class="space-y-1.5">
+            <label class="text-sm font-medium text-foreground">Role</label>
+            <MultiSelect
+              v-model="selectedRoles"
+              :options="roleOptions"
+              placeholder="Select roles..."
             />
           </div>
           <div class="space-y-1.5">
-            <label class="text-sm font-medium text-foreground">Status</label>
-            <div class="flex items-center gap-4 mt-2">
-              <label class="flex items-center gap-2 text-sm text-foreground">
-                <input
-                  type="radio"
-                  :value="true"
-                  v-model="isActive"
-                  class="rounded border-gray-300 text-primary focus:ring-primary"
-                />
-                Active
-              </label>
-              <label class="flex items-center gap-2 text-sm text-foreground">
-                <input
-                  type="radio"
-                  :value="false"
-                  v-model="isActive"
-                  class="rounded border-gray-300 text-primary focus:ring-primary"
-                />
-                Inactive
-              </label>
-            </div>
+            <label class="text-sm font-medium text-foreground">Type</label>
+            <Combobox
+              v-model="formData.categoryId"
+              :options="categories"
+              placeholder="Select type..."
+              allow-create
+              @create="handleCreateCategory"
+            />
           </div>
         </div>
       </div>

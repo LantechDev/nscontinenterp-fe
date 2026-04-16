@@ -75,9 +75,17 @@ defineEmits<{
 
       <div class="flex items-center justify-between pt-4 border-t border-border">
         <div class="flex items-center gap-2">
+          <!-- Role (Customer/Vendor) -->
           <span class="px-2 py-1 rounded bg-gray-100 text-gray-700 text-xs font-medium">{{
             company.type
           }}</span>
+          <!-- Type (Dynamic Category) -->
+          <span
+            v-if="company.categoryName !== '-'"
+            class="px-2 py-1 rounded bg-blue-50 text-blue-700 text-xs font-medium italic"
+          >
+            {{ company.categoryName }}
+          </span>
           <span
             class="px-2 py-0.5 rounded border bg-white text-xs font-medium"
             :class="

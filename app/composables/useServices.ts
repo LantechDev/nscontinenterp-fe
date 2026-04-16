@@ -18,10 +18,6 @@ export interface Service {
   category?: ServiceCategory | null;
   unitId?: string | null;
   unit?: ServiceUnit | null;
-  vendorPrice?: number | null;
-  customerPrice?: number | null;
-  currency?: string | null;
-  taxRate?: number | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -32,10 +28,6 @@ export interface CreateService {
   name: string;
   categoryId?: string;
   unitId?: string;
-  vendorPrice?: number;
-  customerPrice?: number;
-  currency?: string;
-  taxRate?: number;
   isActive?: boolean;
 }
 
@@ -44,9 +36,6 @@ export interface UpdateService {
   name?: string;
   categoryId?: string;
   unitId?: string;
-  vendorPrice?: number;
-  customerPrice?: number;
-  taxRate?: number;
   isActive?: boolean;
 }
 

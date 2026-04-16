@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { Eye, EyeOff, Loader2 } from "lucide-vue-next";
+import Checkbox from "~/components/ui/Checkbox.vue";
 import loginIllustrationUrl from "~/assets/css/login.svg?url";
 
 definePageMeta({
@@ -79,7 +80,7 @@ const handleSubmit = async () => {
             class="flex items-center justify-center w-14 h-14 rounded-2xl bg-white/20 backdrop-blur-sm"
           >
             <NuxtImg
-              src="/favicon.png"
+              src="/images/logo2.jpeg"
               alt="Logo"
               class="w-full h-full object-cover object-left rounded-lg"
             />
@@ -127,7 +128,7 @@ const handleSubmit = async () => {
           <div
             class="flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-primary/20 backdrop-blur-sm"
           >
-            <NuxtImg src="/favicon.png" alt="Logo" class="w-8 h-8" />
+            <NuxtImg src="/images/logo2.jpeg" alt="Logo" class="w-8 h-8" />
           </div>
           <div>
             <h1 class="text-2xl font-bold text-foreground">Lantech</h1>
@@ -192,12 +193,8 @@ const handleSubmit = async () => {
           </div>
 
           <div class="flex items-center gap-2">
-            <input
-              id="remember"
-              type="checkbox"
-              class="w-4 h-4 rounded border-border text-primary focus:ring-primary"
-            />
-            <label for="remember" class="text-sm text-muted-foreground">
+            <Checkbox id="remember" />
+            <label for="remember" class="text-sm text-muted-foreground cursor-pointer">
               Ingat saya di perangkat ini
             </label>
           </div>

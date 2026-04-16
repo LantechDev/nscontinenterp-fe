@@ -6,10 +6,6 @@ import { useFinanceTax } from "~/composables/useFinanceTax";
 interface ServiceData {
   name?: string;
   code?: string;
-  vendorPrice?: number | null;
-  customerPrice?: number | null;
-  currency?: string | null;
-  taxRate?: number | string | null;
   isActive?: boolean;
   unitId?: string | null;
   categoryId?: string | null;
@@ -35,10 +31,6 @@ const emit = defineEmits<{
     data: {
       name: string;
       code: string;
-      vendorPrice: string;
-      customerPrice: string;
-      currency: string;
-      taxRate: string;
       status: string;
       unitId: string;
       categoryId: string;
@@ -71,10 +63,6 @@ onMounted(async () => {
 const formData = ref({
   name: "",
   code: "",
-  vendorPrice: "",
-  customerPrice: "",
-  currency: "IDR",
-  taxRate: "0",
   status: "Active",
   unitId: "",
   categoryId: "",
@@ -84,10 +72,6 @@ const resetForm = () => {
   formData.value = {
     name: "",
     code: "",
-    vendorPrice: "",
-    customerPrice: "",
-    currency: "IDR",
-    taxRate: "0",
     status: "Active",
     unitId: "",
     categoryId: "",
@@ -99,16 +83,6 @@ const syncForm = () => {
     formData.value = {
       name: props.initialData.name || "",
       code: props.initialData.code || "",
-      vendorPrice:
-        props.initialData.vendorPrice !== undefined && props.initialData.vendorPrice !== null
-          ? Number(props.initialData.vendorPrice).toLocaleString("id-ID")
-          : "",
-      customerPrice:
-        props.initialData.customerPrice !== undefined && props.initialData.customerPrice !== null
-          ? Number(props.initialData.customerPrice).toLocaleString("id-ID")
-          : "",
-      currency: props.initialData.currency || "IDR",
-      taxRate: String(props.initialData.taxRate ?? "0"),
       status: props.initialData.isActive ? "Active" : "Inactive",
       unitId: props.initialData.unitId || "",
       categoryId: props.initialData.categoryId || "",
@@ -129,19 +103,6 @@ watch(
     if (newVal) syncForm();
   },
 );
-
-const handlePriceInput = (field: "vendorPrice" | "customerPrice", event: Event) => {
-  const input = event.target as HTMLInputElement;
-  const val = input.value;
-  const numericValue = val.replace(/\D/g, "");
-  if (numericValue === "") {
-    formData.value[field] = "";
-  } else {
-    formData.value[field] = Number(numericValue).toLocaleString("id-ID");
-  }
-  // Force update the input element value to match formatted state
-  input.value = formData.value[field];
-};
 
 const handleSubmit = () => {
   emit("submit", { ...formData.value });
@@ -218,27 +179,7 @@ defineExpose({ resetForm });
         </div>
       </div>
 
-      <div class="grid grid-cols-3 gap-4">
-        <div class="space-y-1.5">
-          <label class="text-sm font-medium text-foreground">Currency</label>
-          <Combobox
-            v-model="formData.currency"
-            :options="[
-              { id: 'IDR', name: 'IDR' },
-              { id: 'USD', name: 'USD' },
-              { id: 'EUR', name: 'EUR' },
-            ]"
-            placeholder="Select Currency"
-          />
-        </div>
-        <div class="space-y-1.5">
-          <label class="text-sm font-medium text-foreground">Tax Rate (%)</label>
-          <Combobox
-            v-model="formData.taxRate"
-            :options="taxOptions"
-            placeholder="Select Tax Rate"
-          />
-        </div>
+      <div class="grid grid-cols-1 gap-4">
         <div class="space-y-1.5">
           <label class="text-sm font-medium text-foreground">Status</label>
           <Combobox
@@ -249,46 +190,6 @@ defineExpose({ resetForm });
             ]"
             placeholder="Select Status"
           />
-        </div>
-      </div>
-
-      <div class="grid grid-cols-2 gap-4">
-        <div class="space-y-1.5">
-          <label class="text-sm font-medium text-foreground">Cost Price (Vendor)</label>
-          <div class="relative">
-            <div
-              class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-medium"
-            >
-              {{ formData.currency }}
-            </div>
-            <input
-              :value="formData.vendorPrice"
-              @input="handlePriceInput('vendorPrice', $event)"
-              type="text"
-              placeholder="0"
-              class="w-full pl-12 pr-3 py-2 rounded-lg border border-border focus:outline-none focus:ring-1 focus:ring-primary"
-            />
-          </div>
-        </div>
-        <div class="space-y-1.5">
-          <label class="text-sm font-medium text-foreground"
-            >Selling Price (Customer) <span class="text-red-500">*</span></label
-          >
-          <div class="relative">
-            <div
-              class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-medium"
-            >
-              {{ formData.currency }}
-            </div>
-            <input
-              :value="formData.customerPrice"
-              @input="handlePriceInput('customerPrice', $event)"
-              type="text"
-              placeholder="0"
-              class="w-full pl-12 pr-3 py-2 rounded-lg border border-border focus:outline-none focus:ring-1 focus:ring-primary"
-              required
-            />
-          </div>
         </div>
       </div>
     </form>

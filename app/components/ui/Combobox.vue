@@ -62,6 +62,12 @@ const filteredOptions = computed(() => {
   return props.options.filter((opt) => getOptionLabel(opt).toLowerCase().includes(lowerQuery));
 });
 
+const hasExactMatch = computed(() => {
+  if (!searchQuery.value) return true;
+  const lowerQuery = searchQuery.value.toLowerCase();
+  return filteredOptions.value.some((opt) => getOptionLabel(opt).toLowerCase() === lowerQuery);
+});
+
 const cachedSelectedOption = ref<ComboboxOption | null>(null);
 
 watch(
@@ -159,7 +165,7 @@ onClickOutside(containerRef as Ref<HTMLElement>, () => {
         </div>
 
         <div
-          v-if="filteredOptions.length === 0 && allowCreate && searchQuery"
+          v-if="allowCreate && searchQuery && !hasExactMatch"
           class="relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none bg-[#012D5A]/10 hover:bg-[#012D5A] hover:text-white"
           @click="handleCreate"
         >
