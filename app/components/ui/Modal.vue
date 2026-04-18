@@ -7,6 +7,7 @@ const props = defineProps<{
   title?: string;
   description?: string;
   width?: string;
+  position?: "center" | "right";
 }>();
 
 const emit = defineEmits<{
@@ -22,7 +23,15 @@ const close = () => {
 
 <template>
   <Teleport defer to="body">
-    <div v-if="modelValue" class="fixed inset-0 z-[1100] flex items-center justify-center p-4">
+    <div
+      v-if="modelValue"
+      :class="
+        cn(
+          'fixed inset-0 z-[1100] flex p-4',
+          props.position === 'right' ? 'justify-end' : 'items-center justify-center',
+        )
+      "
+    >
       <!-- Backdrop -->
       <div
         class="fixed inset-0 bg-black/50 transition-opacity backdrop-blur-sm"
@@ -33,13 +42,15 @@ const close = () => {
       <div
         :class="
           cn(
-            'relative bg-white rounded-xl shadow-xl w-full max-h-[90vh] flex flex-col transition-all duration-200 animate-in fade-in zoom-in-95',
-            props.width || 'max-w-3xl',
+            'relative bg-white shadow-xl w-full flex flex-col transition-all duration-200 animate-in fade-in zoom-in-95',
+            props.position === 'right'
+              ? cn('rounded-none rounded-l-xl h-full', props.width || 'max-w-2xl')
+              : cn('rounded-xl max-h-[90vh]', props.width || 'max-w-3xl'),
           )
         "
       >
         <!-- Header -->
-        <div class="flex items-start justify-between px-6 py-4 border-b border-border">
+        <div class="flex items-start justify-between px-6 py-4 border-b border-border shrink-0">
           <div>
             <h2
               v-if="title"
@@ -60,14 +71,15 @@ const close = () => {
         </div>
 
         <!-- Body -->
-        <div class="p-6 overflow-y-auto">
+        <div :class="cn('p-6 overflow-y-auto', props.position === 'right' && 'flex-1 min-h-0')">
           <slot></slot>
         </div>
 
         <!-- Footer -->
         <div
           v-if="$slots.footer"
-          class="px-6 py-4 border-t border-border bg-gray-50/50 rounded-b-xl flex items-center justify-end gap-3"
+          class="px-6 py-4 border-t border-border bg-gray-50/50 flex items-center justify-end gap-3 shrink-0"
+          :class="props.position === 'right' ? '' : 'rounded-b-xl'"
         >
           <slot name="footer"></slot>
         </div>

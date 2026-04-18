@@ -12,14 +12,16 @@ import {
   TrendingUp,
   TrendingDown,
   DollarSign,
+  X,
 } from "lucide-vue-next";
 import { cn } from "~/lib/utils";
+import Modal from "~/components/ui/Modal.vue";
 
 definePageMeta({
   layout: "dashboard",
 });
 
-const closingJobs = [
+const closingJobs: ClosingJob[] = [
   {
     id: "1",
     jobId: "3",
@@ -42,8 +44,26 @@ const closingJobs = [
   },
 ];
 
+interface ClosingJob {
+  id: string;
+  jobId: string;
+  number: string;
+  customer: string;
+  totalRevenue: string;
+  totalCost: string;
+  profit: string;
+  status: "closed" | "pending";
+}
+
 type ViewMode = "list" | "grid";
 const viewMode = ref<ViewMode>("list");
+const selectedJob = ref<ClosingJob | null>(null);
+const showJobModal = ref(false);
+
+const openJobModal = (job: ClosingJob): void => {
+  selectedJob.value = job;
+  showJobModal.value = true;
+};
 </script>
 
 <template>
@@ -122,7 +142,7 @@ const viewMode = ref<ViewMode>("list");
               v-for="job in closingJobs"
               :key="job.id"
               class="border-b border-border last:border-0 hover:bg-muted/30 transition-colors cursor-pointer"
-              @click="navigateTo(`/operational/jobs?id=${job.jobId}`)"
+              @click="openJobModal(job)"
             >
               <td class="py-3 px-4">
                 <span class="text-sm font-medium">{{ job.number }}</span>
@@ -168,7 +188,7 @@ const viewMode = ref<ViewMode>("list");
         v-for="job in closingJobs"
         :key="job.id"
         class="border border-border rounded-xl bg-white p-5 hover:shadow-sm transition-shadow cursor-pointer"
-        @click="navigateTo(`/operational/jobs?id=${job.jobId}`)"
+        @click="openJobModal(job)"
       >
         <div class="flex items-start justify-between mb-4">
           <div>
@@ -215,6 +235,71 @@ const viewMode = ref<ViewMode>("list");
         </div>
       </div>
     </div>
+
+    <!-- Job Detail Modal -->
+    <Modal
+      v-model="showJobModal"
+      title="Job Closing Details"
+      :description="selectedJob?.number"
+      width="max-w-2xl"
+      position="right"
+    >
+      <div class="space-y-4">
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <p class="text-sm text-muted-foreground">Customer</p>
+            <p class="font-medium">{{ selectedJob?.customer }}</p>
+          </div>
+          <div>
+            <p class="text-sm text-muted-foreground">Status</p>
+            <span
+              v-if="selectedJob?.status === 'closed'"
+              class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-200"
+            >
+              <CheckCircle class="w-3 h-3" /> Closed
+            </span>
+            <span
+              v-else
+              class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-50 text-yellow-700 border border-yellow-200"
+            >
+              <Clock class="w-3 h-3" /> Pending
+            </span>
+          </div>
+        </div>
+
+        <div class="border-t pt-4">
+          <div class="grid grid-cols-3 gap-4">
+            <div>
+              <p class="text-sm text-muted-foreground">Revenue</p>
+              <p class="font-medium text-green-600">{{ selectedJob?.totalRevenue }}</p>
+            </div>
+            <div>
+              <p class="text-sm text-muted-foreground">Cost</p>
+              <p class="font-medium text-red-600">{{ selectedJob?.totalCost }}</p>
+            </div>
+            <div>
+              <p class="text-sm text-muted-foreground">Profit</p>
+              <p class="font-bold text-[#012D5A]">{{ selectedJob?.profit }}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <template #footer>
+        <button
+          @click="showJobModal = false"
+          class="px-4 py-2 text-sm border border-border rounded-lg hover:bg-muted"
+        >
+          Cancel
+        </button>
+        <button
+          v-if="selectedJob?.status === 'pending'"
+          class="px-4 py-2 text-sm bg-[#012D5A] text-white rounded-lg hover:bg-[#012D5A]/90"
+        >
+          Close Job
+        </button>
+      </template>
+    </Modal>
 
     <!-- Pagination -->
     <div class="flex items-center justify-between text-sm text-muted-foreground">
