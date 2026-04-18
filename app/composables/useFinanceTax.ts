@@ -48,6 +48,9 @@ export function useFinanceTax() {
     try {
       return await $fetch<Tax>(`${config.public.apiBase}/finance/tax/${id}`, {
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
     } catch (error) {
       console.error("[Tax] Failed to fetch by ID:", error);
@@ -64,6 +67,9 @@ export function useFinanceTax() {
         method: "POST",
         body: data,
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
     } catch (error) {
       console.error("[Tax] Failed to create:", error);
@@ -80,6 +86,9 @@ export function useFinanceTax() {
         method: "PATCH",
         body: data,
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
     } catch (error) {
       console.error("[Tax] Failed to update:", error);
@@ -95,6 +104,9 @@ export function useFinanceTax() {
       await $fetch(`${config.public.apiBase}/finance/tax/${id}`, {
         method: "DELETE",
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
       return { success: true };
     } catch (error) {

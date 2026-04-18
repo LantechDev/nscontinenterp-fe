@@ -413,6 +413,9 @@ export function useJobs() {
     try {
       const data = await $fetch<JobWithBls[]>(`${config.public.apiBase}/operational/jobs`, {
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
       jobs.value = data || [];
       return { success: true, data: jobs.value };
@@ -430,6 +433,9 @@ export function useJobs() {
         method: "POST",
         body: payload,
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
       jobs.value = [...jobs.value, data];
       return { success: true, data };
@@ -445,6 +451,9 @@ export function useJobs() {
     try {
       const data = await $fetch<JobWithBls>(`${config.public.apiBase}/operational/jobs/${id}`, {
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
       currentJob.value = data;
       return { success: true, data };
@@ -464,6 +473,9 @@ export function useJobs() {
           method: "PUT",
           body: payload,
           credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
         },
       );
       if (currentJob.value && currentJob.value.billsOfLading) {
@@ -492,6 +504,9 @@ export function useJobs() {
           method: "PATCH",
           body: payload,
           credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
         },
       );
       return { success: true, data };
@@ -510,6 +525,9 @@ export function useJobs() {
         {
           method: "POST",
           credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
         },
       );
       if (currentJob.value && currentJob.value.billsOfLading) {
@@ -534,6 +552,9 @@ export function useJobs() {
         {
           method: "POST",
           credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
         },
       );
       if (currentJob.value && currentJob.value.billsOfLading) {
@@ -558,6 +579,9 @@ export function useJobs() {
         {
           method: "POST",
           credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
         },
       );
       if (currentJob.value && currentJob.value.billsOfLading) {
@@ -580,6 +604,9 @@ export function useJobs() {
       await $fetch(`${config.public.apiBase}/operational/jobs/bl/${id}`, {
         method: "DELETE",
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
       if (currentJob.value && currentJob.value.billsOfLading) {
         currentJob.value.billsOfLading = currentJob.value.billsOfLading.filter(
@@ -602,6 +629,9 @@ export function useJobs() {
         {
           method: "POST",
           credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
           body: { reason },
         },
       );
@@ -629,6 +659,9 @@ export function useJobs() {
         method: "PUT",
         body: payload,
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
       const index = jobs.value.findIndex((j) => j.id === id);
       if (index !== -1) {
@@ -651,6 +684,9 @@ export function useJobs() {
         {
           method: "POST",
           credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
         },
       );
       const index = jobs.value.findIndex((j) => j.id === id);
@@ -674,6 +710,9 @@ export function useJobs() {
         {
           method: "POST",
           credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
         },
       );
       const index = jobs.value.findIndex((j) => j.id === id);
@@ -696,6 +735,9 @@ export function useJobs() {
         `${config.public.apiBase}/operational/jobs/bl/${id}/render`,
         {
           credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
         },
       );
       return { success: true, data };
@@ -712,6 +754,9 @@ export function useJobs() {
         `${config.public.apiBase}/operational/jobs/${jobId}/documents`,
         {
           credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
         },
       );
       return { success: true, data };
@@ -735,6 +780,9 @@ export function useJobs() {
           method: "POST",
           body: formData,
           credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
         },
       );
       return { success: true, data };
@@ -751,6 +799,9 @@ export function useJobs() {
       await $fetch(`${config.public.apiBase}/operational/jobs/${jobId}/documents/${docId}`, {
         method: "DELETE",
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
       return { success: true };
     } catch (error) {

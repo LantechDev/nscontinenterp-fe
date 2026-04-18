@@ -27,6 +27,9 @@ async function fetchPeriodDetails() {
       {
         method: "GET",
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       },
     );
     period.value = data;

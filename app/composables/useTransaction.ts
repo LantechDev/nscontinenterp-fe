@@ -120,6 +120,9 @@ export function useTransaction() {
         method: "POST",
         body: payload,
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
 
       successMessage.value = "Transaksi berhasil disimpan!";

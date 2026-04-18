@@ -105,6 +105,9 @@ export async function getActivityLogs(filters: ActivityLogFilters = {}) {
     `${getApiBase()}/admin/activity-logs?${params.toString()}`,
     {
       credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+      },
     },
   );
 
@@ -121,6 +124,9 @@ export async function getRecentActivityLogs(organizationId?: string, limit = 10)
     `${getApiBase()}/admin/activity-logs/recent?${params.toString()}`,
     {
       credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+      },
     },
   );
 

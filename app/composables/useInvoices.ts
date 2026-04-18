@@ -112,6 +112,9 @@ export function useInvoices() {
       await $fetch(`${config.public.apiBase}/finance/invoice/${id}`, {
         method: "DELETE",
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
       return { success: true };
     } catch (error) {
@@ -129,6 +132,9 @@ export function useInvoices() {
       const data = await $fetch<Invoice[]>(`${config.public.apiBase}/finance/invoice`, {
         query: jobId ? { jobId } : undefined,
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
       return { success: true, data };
     } catch (error) {
@@ -146,6 +152,9 @@ export function useInvoices() {
     try {
       const data = await $fetch<InvoiceDetail>(`${config.public.apiBase}/finance/invoice/${id}`, {
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
       return { success: true, data };
     } catch (error) {
@@ -181,6 +190,9 @@ export function useInvoices() {
         method: "POST",
         body: data,
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
       return { success: true, data: responseData };
     } catch (error) {
@@ -221,6 +233,9 @@ export function useInvoices() {
         method: "PATCH",
         body: data,
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
       return { success: true, data: responseData };
     } catch (error) {
@@ -240,6 +255,9 @@ export function useInvoices() {
         {
           method: "POST",
           credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
         },
       );
       return { success: true, data: responseData };

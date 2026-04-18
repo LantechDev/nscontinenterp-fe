@@ -31,6 +31,7 @@ function handleApiError<T = unknown>(error: unknown): AuthResponse<T> {
 }
 
 export function useRoles() {
+  const headers = useRequestHeaders(["cookie"]);
   const config = useRuntimeConfig();
   const isLoading = ref(false);
   const roles = useState<Role[]>("roles-list", () => []);
@@ -39,6 +40,7 @@ export function useRoles() {
     isLoading.value = true;
     try {
       const data = await $fetch<Role[]>(`${config.public.apiBase}/admin/roles`, {
+        headers,
         credentials: "include",
       });
       roles.value = data || [];
@@ -62,6 +64,7 @@ export function useRoles() {
         method: "POST",
         body: roleData,
         credentials: "include",
+        headers,
       });
       roles.value = [...roles.value, data];
       return { success: true, data };
@@ -87,6 +90,7 @@ export function useRoles() {
         method: "PUT",
         body: roleData,
         credentials: "include",
+        headers,
       });
       roles.value = roles.value.map((r) => (r.id === id ? { ...r, ...data } : r));
       return { success: true, data };
@@ -103,6 +107,7 @@ export function useRoles() {
       await $fetch(`${config.public.apiBase}/admin/roles/${id}`, {
         method: "DELETE",
         credentials: "include",
+        headers,
       });
       roles.value = roles.value.filter((r) => r.id !== id);
       return { success: true };

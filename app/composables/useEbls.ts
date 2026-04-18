@@ -54,6 +54,9 @@ export function useEbls() {
     try {
       const data = await $fetch<EblData[]>(`${config.public.apiBase}/operational/jobs/bls`, {
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
       ebls.value = data || [];
       return ebls.value;
@@ -73,6 +76,9 @@ export function useEbls() {
     try {
       const data = await $fetch<EblData>(`${config.public.apiBase}/operational/jobs/bl/${id}`, {
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
       return data;
     } catch (err) {

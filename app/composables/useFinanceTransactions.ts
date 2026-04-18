@@ -56,6 +56,9 @@ export function useFinanceTransactions() {
         method: "GET",
         query: queryParams,
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
 
       if (requestId === currentRequestId) {
@@ -101,6 +104,9 @@ export function useFinanceTransactions() {
           method: "GET",
           query: { period },
           credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
         },
       );
 

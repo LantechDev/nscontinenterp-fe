@@ -81,7 +81,7 @@ export interface DashboardData {
 
 export const useDashboard = () => {
   const config = useRuntimeConfig();
-
+  const headers = useRequestHeaders(["cookie"]);
   // Owner Dashboard State
   const stats = ref<DashboardStats | null>(null);
   const pendingApprovals = ref<PendingApprovalBl[]>([]);
@@ -100,6 +100,7 @@ export const useDashboard = () => {
       const query = params ? `?${new URLSearchParams(params).toString()}` : "";
       const data = await $fetch<DashboardData>(`${config.public.apiBase}/admin/dashboard${query}`, {
         credentials: "include",
+        headers,
       });
       return data;
     } catch (error) {
@@ -118,6 +119,7 @@ export const useDashboard = () => {
     try {
       const data = await $fetch<DashboardStats>(`${config.public.apiBase}/dashboard/stats`, {
         credentials: "include",
+        headers,
       });
       stats.value = data;
     } catch (error) {
@@ -137,6 +139,7 @@ export const useDashboard = () => {
         `${config.public.apiBase}/dashboard/pending-approvals`,
         {
           credentials: "include",
+          headers,
         },
       );
       pendingApprovals.value = data;
@@ -153,6 +156,7 @@ export const useDashboard = () => {
         `${config.public.apiBase}/dashboard/notifications`,
         {
           credentials: "include",
+          headers,
           query: { limit },
         },
       );
@@ -172,6 +176,7 @@ export const useDashboard = () => {
         {
           method: "POST",
           credentials: "include",
+          headers,
         },
       );
       if (resp.success) {

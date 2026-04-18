@@ -66,6 +66,9 @@ export function useFinanceExpense() {
     try {
       return await $fetch<Expense>(`${config.public.apiBase}/finance/expense/${id}`, {
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
     } catch (error) {
       console.error("[Expense] Failed to fetch by ID:", error);
@@ -82,6 +85,9 @@ export function useFinanceExpense() {
         method: "POST",
         body: data,
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
     } catch (error) {
       console.error("[Expense] Failed to create:", error);
@@ -98,6 +104,9 @@ export function useFinanceExpense() {
         method: "PATCH",
         body: data,
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
     } catch (error) {
       console.error("[Expense] Failed to update:", error);
@@ -113,6 +122,9 @@ export function useFinanceExpense() {
       await $fetch(`${config.public.apiBase}/finance/expense/${id}`, {
         method: "DELETE",
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
       return { success: true };
     } catch (error) {

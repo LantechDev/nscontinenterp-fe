@@ -45,6 +45,9 @@ const handleJobSearch = async (options: { query: string; page?: number; limit?: 
       {
         params: { search: options.query, limit: options.limit || 50 },
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       },
     );
     return {

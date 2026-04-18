@@ -70,6 +70,9 @@ export function useVessels() {
       const data = await $fetch<Vessel[]>(`${config.public.apiBase}/master/vessels`, {
         params: { search },
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
       vessels.value = data || [];
       return { success: true, data: vessels.value };
@@ -90,6 +93,9 @@ export function useVessels() {
         method: "POST",
         body: vesselData,
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
       vessels.value = [data, ...vessels.value];
       return { success: true, data };
@@ -111,6 +117,9 @@ export function useVessels() {
         method: "PUT",
         body: vesselData,
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
       vessels.value = vessels.value.map((v) => (v.id === id ? { ...v, ...data } : v));
       return { success: true, data };
@@ -128,6 +137,9 @@ export function useVessels() {
       await $fetch(`${config.public.apiBase}/master/vessels/${id}`, {
         method: "DELETE",
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
       vessels.value = vessels.value.filter((v) => v.id !== id);
       return { success: true };
@@ -146,6 +158,9 @@ export function useVessels() {
     try {
       const data = await $fetch<Vessel>(`${config.public.apiBase}/master/vessels/${id}`, {
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
       return { success: true, data };
     } catch (error) {

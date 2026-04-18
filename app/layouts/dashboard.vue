@@ -110,6 +110,9 @@ const performSearch = async (query: string) => {
     try {
       const companiesResponse = await $fetch<unknown>(`${config.public.apiBase}/master/companies`, {
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
         query: { search: query, limit: 5 },
       });
 
@@ -149,6 +152,9 @@ const performSearch = async (query: string) => {
         }[]
       >(`${config.public.apiBase}/operational/jobs`, {
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
       console.log("[SEARCH] Jobs API response count:", jobsResponse?.length || 0);
 
@@ -192,6 +198,9 @@ const performSearch = async (query: string) => {
         }[]
       >(`${config.public.apiBase}/finance/invoice`, {
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
       if (invoicesResponse && Array.isArray(invoicesResponse)) {
         const queryLower = query.toLowerCase();
@@ -227,6 +236,9 @@ const performSearch = async (query: string) => {
         { id: string; paymentNumber: string; customer?: { name: string } | string }[]
       >(`${config.public.apiBase}/finance/payment`, {
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
       if (paymentsResponse && Array.isArray(paymentsResponse)) {
         const queryLower = query.toLowerCase();
@@ -262,6 +274,9 @@ const performSearch = async (query: string) => {
         `${config.public.apiBase}/master/services`,
         {
           credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
         },
       );
       if (servicesResponse && Array.isArray(servicesResponse)) {
@@ -294,6 +309,9 @@ const performSearch = async (query: string) => {
         `${config.public.apiBase}/master/vessels`,
         {
           credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
         },
       );
       if (vesselsResponse && Array.isArray(vesselsResponse)) {
