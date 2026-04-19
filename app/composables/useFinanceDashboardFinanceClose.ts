@@ -41,6 +41,9 @@ export function useFinanceDashboardFinanceClose() {
         method: "GET",
         query: queryParams,
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
 
       if (isLatestRequest("financeClose", requestId)) financeCloseStats.value = data;
@@ -70,6 +73,9 @@ export function useFinanceDashboardFinanceClose() {
         {
           method: "GET",
           credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
         },
       );
 
@@ -100,6 +106,9 @@ export function useFinanceDashboardFinanceClose() {
         method: "POST",
         body: { notes },
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
       await fetchClosedPeriods();
       return { success: true, message: "Period closed successfully" };
@@ -124,6 +133,9 @@ export function useFinanceDashboardFinanceClose() {
       await $fetch(`${baseUrl}/finance/dashboard/finance-close/periods/${periodId}/reopen`, {
         method: "POST",
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
       await fetchClosedPeriods();
       return { success: true, message: "Period reopened successfully" };

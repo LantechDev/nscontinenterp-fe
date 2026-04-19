@@ -87,6 +87,9 @@ export function useFinanceDashboardAssets() {
         method: "GET",
         query: queryParams,
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
 
       if (isLatestRequest("assets", requestId)) {
@@ -128,6 +131,9 @@ export function useFinanceDashboardAssets() {
         method: "GET",
         query: queryParams,
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
 
       if (isLatestRequest("assetsStats", requestId)) assetStats.value = data;
@@ -159,6 +165,9 @@ export function useFinanceDashboardAssets() {
         method: "POST",
         body: data,
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
       return result;
     } catch (err) {

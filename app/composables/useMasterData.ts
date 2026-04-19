@@ -100,6 +100,9 @@ export function useMasterData() {
         `${config.public.apiBase}/master/companies`,
         {
           credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
         },
       );
       return Array.isArray(response) ? response : response.data || [];
@@ -121,6 +124,9 @@ export function useMasterData() {
         {
           params,
           credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
         },
       );
       return Array.isArray(response) ? response : response.data || [];
@@ -135,6 +141,9 @@ export function useMasterData() {
         `${config.public.apiBase}/master/container-types`,
         {
           credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
         },
       );
       return data;
@@ -147,6 +156,9 @@ export function useMasterData() {
     try {
       const data = await $fetch<PackageType[]>(`${config.public.apiBase}/master/package-types`, {
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
       return data;
     } catch {
@@ -160,6 +172,9 @@ export function useMasterData() {
         `${config.public.apiBase}/master/company-categories`,
         {
           credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
         },
       );
       return data;
@@ -173,6 +188,9 @@ export function useMasterData() {
       const data = await $fetch<Vessel[]>(`${config.public.apiBase}/master/vessels`, {
         params: { search: query },
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
       return data;
     } catch {
@@ -185,6 +203,9 @@ export function useMasterData() {
       const data = await $fetch<Port[]>(`${config.public.apiBase}/master/ports`, {
         params: { search: query },
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
       return data;
     } catch {
@@ -217,6 +238,9 @@ export function useMasterData() {
           ...address,
         },
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
       return { success: true, data };
     } catch (error) {
@@ -233,6 +257,9 @@ export function useMasterData() {
         method: "POST",
         body: { name },
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
       return { success: true, data };
     } catch (error) {
@@ -251,6 +278,9 @@ export function useMasterData() {
           method: "POST",
           body: { name },
           credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
         },
       );
       return { success: true, data };
@@ -267,6 +297,9 @@ export function useMasterData() {
         `${config.public.apiBase}/master/payment-methods`,
         {
           credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
         },
       );
       return data;

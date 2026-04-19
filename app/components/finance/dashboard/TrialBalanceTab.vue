@@ -50,9 +50,11 @@ async function fetchTrialBalance() {
       queryParams.append("year", props.selectedYear);
     }
 
+    const headers = useRequestHeaders(["cookie"]);
     const data = await $fetch<TrialBalanceGroup[]>(
       `${baseUrl}/finance/dashboard/trial-balance?${queryParams.toString()}`,
       {
+        headers,
         method: "GET",
         credentials: "include",
       },

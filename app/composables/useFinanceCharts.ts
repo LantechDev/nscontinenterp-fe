@@ -60,6 +60,9 @@ export function useFinanceCharts() {
         method: "GET",
         query: queryParams,
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
 
       if (requestId === requestIdRef.value) {

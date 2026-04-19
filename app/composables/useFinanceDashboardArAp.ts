@@ -79,6 +79,9 @@ export function useFinanceDashboardArAp() {
         method: "GET",
         query: queryParams,
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
 
       if (isLatestRequest("arAp", requestId)) {
@@ -120,6 +123,9 @@ export function useFinanceDashboardArAp() {
         method: "GET",
         query: { period },
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
 
       if (isLatestRequest("arApStats", requestId)) arApStats.value = data;

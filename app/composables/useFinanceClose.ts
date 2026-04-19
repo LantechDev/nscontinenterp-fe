@@ -41,6 +41,9 @@ export function useFinanceClose() {
         method: "GET",
         query: queryParams,
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
 
       if (requestId === currentRequestId) {
@@ -75,6 +78,9 @@ export function useFinanceClose() {
         {
           method: "GET",
           credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
         },
       );
 
@@ -109,6 +115,9 @@ export function useFinanceClose() {
         method: "POST",
         body: { notes },
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
 
       // Refresh data after closing
@@ -140,6 +149,9 @@ export function useFinanceClose() {
       await $fetch(`${baseUrl}/finance/dashboard/finance-close/periods/${periodId}/reopen`, {
         method: "POST",
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
 
       // Refresh data after reopening

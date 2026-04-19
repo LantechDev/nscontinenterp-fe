@@ -55,6 +55,9 @@ export function useFinanceDashboardTransactions() {
         method: "POST",
         body: data,
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
 
       // Refresh transactions after creation
@@ -99,6 +102,9 @@ export function useFinanceDashboardTransactions() {
           method: "PUT",
           body: data,
           credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
         },
       );
 
@@ -129,6 +135,9 @@ export function useFinanceDashboardTransactions() {
       await $fetch(`${baseUrl}/finance/dashboard/transactions/${id}`, {
         method: "DELETE",
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
 
       // Refresh transactions after deletion
@@ -174,6 +183,9 @@ export function useFinanceDashboardTransactions() {
         method: "GET",
         query: queryParams,
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
 
       if (isLatestRequest("transactions", requestId)) {
@@ -225,6 +237,9 @@ export function useFinanceDashboardTransactions() {
           method: "GET",
           query: queryParams,
           credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
         },
       );
 

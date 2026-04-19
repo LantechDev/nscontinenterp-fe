@@ -26,11 +26,13 @@ function getErrorMessage(error: unknown): string {
 export const companyApi = {
   async fetchCompanies(params?: CompanyQueryParams) {
     try {
+      const headers = useRequestHeaders(["cookie"]);
       const response = await $fetch<Company[] | { data: Company[]; pagination: CompanyPagination }>(
         `${getApiBase()}/master/companies`,
         {
           params,
           credentials: "include",
+          headers,
         },
       );
 
@@ -52,6 +54,9 @@ export const companyApi = {
     try {
       const data = await $fetch<Company>(`${getApiBase()}/master/companies/${id}`, {
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
       return { success: true, data };
     } catch (error) {
@@ -63,6 +68,9 @@ export const companyApi = {
     try {
       const data = await $fetch<CompanyDetails>(`${getApiBase()}/master/companies/${id}/details`, {
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
       return { success: true, data };
     } catch (error) {
@@ -76,6 +84,9 @@ export const companyApi = {
         method: "POST",
         body: companyData,
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
       return { success: true, data };
     } catch (error) {
@@ -89,6 +100,9 @@ export const companyApi = {
         method: "PUT",
         body: companyData,
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
       return { success: true, data };
     } catch (error) {
@@ -101,6 +115,9 @@ export const companyApi = {
       await $fetch(`${getApiBase()}/master/companies/${id}`, {
         method: "DELETE",
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
       return { success: true };
     } catch (error) {
@@ -116,6 +133,9 @@ export const companyApi = {
           method: "POST",
           body: addressData,
           credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
         },
       );
       return { success: true, data };
@@ -132,6 +152,9 @@ export const companyApi = {
           method: "PUT",
           body: addressData,
           credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
         },
       );
       return { success: true, data };
@@ -145,6 +168,9 @@ export const companyApi = {
       await $fetch(`${getApiBase()}/master/companies/${companyId}/addresses/${addressId}`, {
         method: "DELETE",
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
       return { success: true };
     } catch (error) {

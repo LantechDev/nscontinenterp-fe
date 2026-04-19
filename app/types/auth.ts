@@ -2,15 +2,16 @@ export interface User {
   id: string;
   name: string;
   email: string;
-  emailVerified: boolean;
+  emailVerified?: boolean;
   image?: string;
-  createdAt: string;
-  updatedAt: string;
+  createdAt?: string;
+  updatedAt?: string;
   role?: string;
   banned?: boolean;
   banReason?: string;
   banExpires?: string;
   lastLogin?: string;
+  activeOrganizationId?: string | null;
 }
 
 export interface OrganizationMetadata {

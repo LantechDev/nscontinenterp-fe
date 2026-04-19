@@ -73,6 +73,9 @@ export function useServices() {
       const data = await $fetch<Service[]>(`${config.public.apiBase}/master/services`, {
         params: { search, categoryId },
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
       services.value = data || [];
       return { success: true, data: services.value };
@@ -89,6 +92,9 @@ export function useServices() {
         `${config.public.apiBase}/master/service-categories`,
         {
           credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
         },
       );
       categories.value = data || [];
@@ -102,6 +108,9 @@ export function useServices() {
     try {
       const data = await $fetch<ServiceUnit[]>(`${config.public.apiBase}/master/service-units`, {
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
       units.value = data || [];
       return { success: true, data: units.value };
@@ -115,6 +124,9 @@ export function useServices() {
     try {
       const data = await $fetch<Service>(`${config.public.apiBase}/master/services/${id}`, {
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
       currentService.value = data;
       return { success: true, data };
@@ -132,6 +144,9 @@ export function useServices() {
         method: "POST",
         body: payload,
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
       services.value = [...services.value, data];
       return { success: true, data };
@@ -149,6 +164,9 @@ export function useServices() {
         method: "PUT",
         body: payload,
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
       if (currentService.value?.id === id) {
         currentService.value = data;
@@ -168,6 +186,9 @@ export function useServices() {
       await $fetch(`${config.public.apiBase}/master/services/${id}`, {
         method: "DELETE",
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
       services.value = services.value.filter((s) => s.id !== id);
       if (currentService.value?.id === id) {

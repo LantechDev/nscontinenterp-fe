@@ -43,9 +43,11 @@ function normalizeOrganizationListResponse(
 
 export const authApi = {
   async getSession(): Promise<AuthSession | null> {
+    const headers = useRequestHeaders(["cookie"]);
     try {
       return await $fetch<AuthSession>(`${getApiBase()}/auth/get-session`, {
         credentials: "include",
+        headers,
       });
     } catch (error) {
       console.warn("[Auth] Session fetch failed:", error);
@@ -54,11 +56,13 @@ export const authApi = {
   },
 
   async signIn(email: string, password: string): Promise<AuthResponse<LoginResponse>> {
+    const headers = useRequestHeaders(["cookie"]);
     try {
-      const data = await $fetch<LoginResponse>(`${getApiBase()}/auth/sign-in/email`, {
+      const data = await $fetch<LoginResponse>(`${getApiBase()}/auth/login`, {
         method: "POST",
         body: { email, password },
         credentials: "include",
+        headers,
       });
       return { success: true, data };
     } catch (error) {
@@ -67,10 +71,12 @@ export const authApi = {
   },
 
   async signOut(): Promise<AuthResponse> {
+    const headers = useRequestHeaders(["cookie"]);
     try {
-      await $fetch(`${getApiBase()}/auth/sign-out`, {
+      await $fetch(`${getApiBase()}/auth/logout`, {
         method: "POST",
         credentials: "include",
+        headers,
       });
       return { success: true };
     } catch (error) {
@@ -84,11 +90,13 @@ export const authApi = {
     password: string,
     role: string,
   ): Promise<AuthResponse<SignUpResponse>> {
+    const headers = useRequestHeaders(["cookie"]);
     try {
       const data = await $fetch<SignUpResponse>(`${getApiBase()}/auth/admin/create-user`, {
         method: "POST",
         body: { name, email, password, role },
         credentials: "include",
+        headers,
       });
       return { success: true, data };
     } catch (error) {
@@ -102,6 +110,9 @@ export const authApi = {
         method: "POST",
         body: { email, redirectTo },
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
       return { success: true };
     } catch (error) {
@@ -115,6 +126,9 @@ export const authApi = {
         method: "POST",
         body: { newPassword, token },
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
       return { success: true };
     } catch (error) {
@@ -128,6 +142,9 @@ export const authApi = {
         method: "POST",
         body: { currentPassword, newPassword },
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
       return { success: true };
     } catch (error) {
@@ -141,6 +158,9 @@ export const authApi = {
         method: "POST",
         body: data,
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
       return { success: true, data: responseData };
     } catch (error) {
@@ -149,9 +169,11 @@ export const authApi = {
   },
 
   async fetchUsers(): Promise<AuthResponse<UserListResponse>> {
+    const headers = useRequestHeaders(["cookie"]);
     try {
       const data = await $fetch<UserListResponse>(`${getApiBase()}/admin/users`, {
         credentials: "include",
+        headers,
       });
       return { success: true, data };
     } catch (error) {
@@ -163,6 +185,9 @@ export const authApi = {
     try {
       const data = await $fetch<User>(`${getApiBase()}/admin/users/${id}`, {
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
       return { success: true, data: { user: data } };
     } catch (error) {
@@ -185,6 +210,9 @@ export const authApi = {
         method: "POST",
         body: { userId, data },
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
       return { success: true, data: responseData };
     } catch (error) {
@@ -198,6 +226,9 @@ export const authApi = {
         method: "POST",
         body: { userId },
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
       return { success: true };
     } catch (error) {
@@ -209,8 +240,11 @@ export const authApi = {
     try {
       const response = await $fetch<
         Organization[] | { data?: Organization[] } | { organizations?: Organization[] }
-      >(`${getApiBase()}/auth/organization/list`, {
+      >(`${getApiBase()}/organization/list`, {
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
       return { success: true, data: normalizeOrganizationListResponse(response) };
     } catch (error) {
@@ -220,10 +254,13 @@ export const authApi = {
 
   async setActiveOrganization(organizationId: string): Promise<AuthResponse> {
     try {
-      await $fetch(`${getApiBase()}/auth/organization/set-active`, {
+      await $fetch(`${getApiBase()}/organization/set-active`, {
         method: "POST",
         body: { organizationId },
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
       return { success: true };
     } catch (error) {
@@ -242,6 +279,9 @@ export const authApi = {
         method: "POST",
         body: data,
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
       return { success: true, data: responseData };
     } catch (error) {
@@ -263,6 +303,9 @@ export const authApi = {
         method: "POST",
         body: { organizationId, data },
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
       return { success: true, data: responseData };
     } catch (error) {

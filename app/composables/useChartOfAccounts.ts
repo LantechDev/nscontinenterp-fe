@@ -50,6 +50,9 @@ export function useChartOfAccounts() {
         `${config.public.apiBase}/finance/chart-of-accounts`,
         {
           credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
         },
       );
       accounts.value = data || [];
