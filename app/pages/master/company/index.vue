@@ -1,26 +1,29 @@
 <script setup lang="ts">
-import { Plus, Search, LayoutList, LayoutGrid, ChevronDown, Loader2 } from "lucide-vue-next";
+import { LayoutGrid, LayoutList, Loader2, Plus, Search } from "lucide-vue-next";
 import { toast } from "vue-sonner";
-import CompanyList from "./components/CompanyList.vue";
-import CompanyGrid from "./components/CompanyGrid.vue";
-import CompanyCreateModal from "./components/CompanyCreateModal.vue";
-import CompanyDetailModal from "./components/CompanyDetailModal.vue";
 import SearchSelect from "~/components/ui/SearchSelect.vue";
 import { useCompanies, type MappedCompany } from "~/composables/useCompanies";
 import { useMasterData } from "~/composables/useMasterData";
 import { cn } from "~/lib/utils";
+import CompanyCreateModal from "./components/CompanyCreateModal.vue";
+import CompanyDetailModal from "./components/CompanyDetailModal.vue";
+import CompanyGrid from "./components/CompanyGrid.vue";
+import CompanyList from "./components/CompanyList.vue";
 
 definePageMeta({
   layout: "dashboard",
 });
 
-const {
-  companies: companiesList,
-  isLoading,
-  fetchCompanies,
-  pagination,
-  deleteCompany,
-} = useCompanies();
+const { companies: companiesList, fetchCompanies, pagination, deleteCompany } = useCompanies();
+
+const { pending } = await useAsyncData("companies", async () => {
+  return await fetchCompanies({
+    page: 1,
+    limit: 50,
+    type: "ALL",
+    status: "ALL",
+  });
+});
 const { confirm } = useConfirm();
 
 // Modal state
@@ -420,7 +423,7 @@ onUnmounted(() => {
     </div>
 
     <!-- Loading State -->
-    <div v-if="isLoading" class="flex items-center justify-center py-12">
+    <div v-if="pending" class="flex items-center justify-center py-12">
       <Loader2 class="w-8 h-8 animate-spin text-[#012D5A]" />
     </div>
 
