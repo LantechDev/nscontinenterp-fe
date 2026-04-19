@@ -26,13 +26,10 @@ function getErrorMessage(error: unknown): string {
 export const companyApi = {
   async fetchCompanies(params?: CompanyQueryParams) {
     try {
-      const headers = useRequestHeaders(["cookie"]);
       const response = await $fetch<Company[] | { data: Company[]; pagination: CompanyPagination }>(
         `${getApiBase()}/master/companies`,
         {
           params,
-          credentials: "include",
-          headers,
         },
       );
 
@@ -46,7 +43,11 @@ export const companyApi = {
         pagination: response.pagination,
       };
     } catch (error) {
-      return { success: false, error: getErrorMessage(error), data: [] };
+      return {
+        success: false,
+        error: getErrorMessage(error),
+        data: [],
+      };
     }
   },
 

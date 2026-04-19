@@ -54,11 +54,10 @@ export default defineNuxtConfig({
     },
   },
   routeRules: {
-    "/api/**": {
-      proxy: process.env.NUXT_PUBLIC_API_TARGET
-        ? process.env.NUXT_PUBLIC_API_TARGET + "/api/**"
-        : "http://localhost:9999/api/**",
-    },
+    "/api/master/**": { cors: true },
+    "/api/**": process.env.NUXT_PUBLIC_API_TARGET
+      ? { proxy: process.env.NUXT_PUBLIC_API_TARGET + "/api/**" }
+      : { cors: true },
   },
   experimental: {
     defaults: {
