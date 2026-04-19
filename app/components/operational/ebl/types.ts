@@ -104,10 +104,10 @@ export interface ActiveJobData {
   finalDestination?: string | null;
   vessel?: { name?: string } | null;
   voyageNumber?: string | null;
-  quantity?: number | null;
-  grossWeight?: number | null;
-  netWeight?: number | null;
-  measurement?: number | null;
+  quantity?: number | string | null;
+  grossWeight?: number | string | null;
+  netWeight?: number | string | null;
+  measurement?: number | string | null;
   shippingMark?: string | null;
   commodity?: string | null;
   mainDescription?: string | null;

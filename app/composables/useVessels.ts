@@ -47,7 +47,6 @@ function getErrorMessage(error: unknown): string {
 }
 
 export function useVessels() {
-  const config = useRuntimeConfig();
   const vessels = useState<Vessel[]>("vessels", () => []);
   const isLoading = ref(false);
 
@@ -67,12 +66,8 @@ export function useVessels() {
   ): Promise<{ success: boolean; data?: Vessel[]; error?: string }> => {
     isLoading.value = true;
     try {
-      const data = await $fetch<Vessel[]>(`${config.public.apiBase}/master/vessels`, {
+      const data = await $fetch<Vessel[]>("/api/master/vessels", {
         params: { search },
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
       });
       vessels.value = data || [];
       return { success: true, data: vessels.value };
@@ -89,13 +84,9 @@ export function useVessels() {
   ): Promise<{ success: boolean; data?: Vessel; error?: string }> => {
     isLoading.value = true;
     try {
-      const data = await $fetch<Vessel>(`${config.public.apiBase}/master/vessels`, {
+      const data = await $fetch<Vessel>("/api/master/vessels", {
         method: "POST",
         body: vesselData,
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
       });
       vessels.value = [data, ...vessels.value];
       return { success: true, data };
@@ -113,13 +104,9 @@ export function useVessels() {
   ): Promise<{ success: boolean; data?: Vessel; error?: string }> => {
     isLoading.value = true;
     try {
-      const data = await $fetch<Vessel>(`${config.public.apiBase}/master/vessels/${id}`, {
+      const data = await $fetch<Vessel>(`/api/master/vessels/${id}`, {
         method: "PUT",
         body: vesselData,
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
       });
       vessels.value = vessels.value.map((v) => (v.id === id ? { ...v, ...data } : v));
       return { success: true, data };
@@ -134,12 +121,8 @@ export function useVessels() {
   const deleteVessel = async (id: string): Promise<{ success: boolean; error?: string }> => {
     isLoading.value = true;
     try {
-      await $fetch(`${config.public.apiBase}/master/vessels/${id}`, {
+      await $fetch(`/api/master/vessels/${id}`, {
         method: "DELETE",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
       });
       vessels.value = vessels.value.filter((v) => v.id !== id);
       return { success: true };
@@ -156,12 +139,7 @@ export function useVessels() {
   ): Promise<{ success: boolean; data?: Vessel; error?: string }> => {
     isLoading.value = true;
     try {
-      const data = await $fetch<Vessel>(`${config.public.apiBase}/master/vessels/${id}`, {
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
+      const data = await $fetch<Vessel>(`/api/master/vessels/${id}`);
       return { success: true, data };
     } catch (error) {
       return { success: false, error: getErrorMessage(error) };

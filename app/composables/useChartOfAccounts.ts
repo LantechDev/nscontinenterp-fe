@@ -32,7 +32,6 @@ function getErrorMessage(error: unknown): string {
 }
 
 export function useChartOfAccounts() {
-  const config = useRuntimeConfig();
   const isLoading = ref(false);
   const accounts = ref<ChartOfAccount[]>([]);
 
@@ -46,15 +45,7 @@ export function useChartOfAccounts() {
   }> {
     isLoading.value = true;
     try {
-      const data = await $fetch<ChartOfAccount[]>(
-        `${config.public.apiBase}/finance/chart-of-accounts`,
-        {
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        },
-      );
+      const data = await $fetch<ChartOfAccount[]>("/api/finance/chart-of-accounts");
       accounts.value = data || [];
       return { success: true, data: accounts.value };
     } catch (error) {

@@ -10,8 +10,7 @@ const getErrorMessage = (err: unknown): string => {
  * Handles fetching and managing finance close data
  */
 export function useFinanceClose() {
-  const config = useRuntimeConfig();
-  const baseUrl = config.public.apiBase || "";
+  const baseUrl = "/api";
 
   let currentRequestId = 0;
 
@@ -40,10 +39,6 @@ export function useFinanceClose() {
       const data = await $fetch<FinanceCloseStats>(`${baseUrl}/finance/dashboard/finance-close`, {
         method: "GET",
         query: queryParams,
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
       });
 
       if (requestId === currentRequestId) {
@@ -77,10 +72,6 @@ export function useFinanceClose() {
         `${baseUrl}/finance/dashboard/finance-close/periods`,
         {
           method: "GET",
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
         },
       );
 
@@ -114,10 +105,6 @@ export function useFinanceClose() {
       await $fetch(`${baseUrl}/finance/dashboard/finance-close/periods/${periodId}/close`, {
         method: "POST",
         body: { notes },
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
       });
 
       // Refresh data after closing
@@ -148,10 +135,6 @@ export function useFinanceClose() {
     try {
       await $fetch(`${baseUrl}/finance/dashboard/finance-close/periods/${periodId}/reopen`, {
         method: "POST",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
       });
 
       // Refresh data after reopening

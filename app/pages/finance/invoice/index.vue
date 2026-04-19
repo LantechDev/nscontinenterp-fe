@@ -11,9 +11,10 @@ definePageMeta({
   layout: "dashboard",
 });
 
-const { fetchInvoiceById, isLoading: isInvoiceLoading } = useInvoices();
+const { fetchInvoiceById } = useInvoices();
 const {
   loading,
+  invoices,
   error,
   searchQuery,
   selectedStatus,
@@ -39,13 +40,34 @@ const {
   closeEditModal,
   handleFullUpdate,
   handleRowClick,
-  handleDelete,
   handlePageChange,
   addLineItem,
   removeLineItem,
   updateItemAmount,
   initialize,
 } = useInvoicePage();
+
+// SSR-first: fetch initial data
+const { data: invoicesData } = await useAsyncData("invoice-list", async () => {
+  return await $fetch("/api/finance/invoice");
+});
+
+// Inject SSR data into composable state
+if (invoicesData.value) {
+  const data = invoicesData.value as
+    | InvoiceData[]
+    | { items?: InvoiceData[]; pagination?: { total: number; limit: number; page: number } };
+  if (Array.isArray(data)) {
+    invoices.value = data;
+    pagination.value = { total: data.length, limit: 10, page: 1 };
+  } else if (data?.items) {
+    invoices.value = data.items;
+    if (data?.pagination) {
+      pagination.value = data.pagination;
+    }
+  }
+  loading.value = false;
+}
 
 const isDownloading = ref(false);
 const downloadInvoice = ref<InvoiceDetail | null>(null);
@@ -64,7 +86,6 @@ const handleDownloadPdf = async (id: string) => {
     await nextTick(); // double tick to ensure JobInvoicePreview renders
     await previewRef.value?.generatePDF();
   } catch (err) {
-    console.error("Failed to download invoice PDF:", err);
     toast.error("Failed to download invoice. Please try again.");
   } finally {
     isDownloading.value = false;
@@ -94,10 +115,6 @@ const handleEdit = (id: string) => {
 const handleTaxIdChange = (value: string) => {
   selectedTaxId.value = value;
 };
-
-onMounted(() => {
-  initialize();
-});
 </script>
 
 <template>
@@ -268,15 +285,7 @@ onMounted(() => {
     <div
       v-if="downloadInvoice"
       aria-hidden="true"
-      style="
-        position: fixed;
-        left: -9999px;
-        top: 0;
-        opacity: 0;
-        pointer-events: none;
-        z-index: -1;
-        width: 210mm;
-      "
+      class="fixed left-[-9999px] top-0 opacity-0 pointer-events-none z-[-1] w-[210mm]"
     >
       <JobInvoicePreview ref="previewRef" :invoice="downloadInvoice" />
     </div>

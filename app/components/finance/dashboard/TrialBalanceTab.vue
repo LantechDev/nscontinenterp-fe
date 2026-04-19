@@ -32,8 +32,7 @@ const expandedGroups = ref<string[]>([
 const formatCurrency = formatRupiah;
 
 // Get API base URL
-const config = useRuntimeConfig();
-const baseUrl = config.public.apiBase || "";
+const baseUrl = "/api";
 
 // Fetch trial balance data
 async function fetchTrialBalance() {
@@ -50,13 +49,10 @@ async function fetchTrialBalance() {
       queryParams.append("year", props.selectedYear);
     }
 
-    const headers = useRequestHeaders(["cookie"]);
     const data = await $fetch<TrialBalanceGroup[]>(
       `${baseUrl}/finance/dashboard/trial-balance?${queryParams.toString()}`,
       {
-        headers,
         method: "GET",
-        credentials: "include",
       },
     );
 

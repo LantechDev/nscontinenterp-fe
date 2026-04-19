@@ -412,4 +412,361 @@ if (error.value) {
 
 ---
 
+You are a senior Nuxt 3 architect.
+
+Refactor my Nuxt 3 application into a production-grade, SSR-first, scalable architecture.
+
+This must cover ALL layers:
+
+* Page
+* Composable
+* Component
+* API (using a single catch-all proxy `/server/api/[...path].ts`)
+
+---
+
+# 🎯 OBJECTIVES
+
+* Fix slow production performance
+* Eliminate blank screen on initial load
+* Enforce SSR-first rendering
+* Prevent duplicate fetching
+* Remove ALL client-only initial fetch patterns
+* Ensure clean separation of concerns
+* Make architecture reusable across all modules
+
+---
+
+# 🚫 HARD RULES (ZERO TOLERANCE)
+
+You MUST reject and refactor any of the following patterns:
+
+### ❌ FORBIDDEN:
+
+```ts
+onMounted(() => fetchData())
+```
+
+```ts
+if (import.meta.client) {
+  initialize()
+}
+```
+
+```ts
+fetchData() // auto run inside composable
+```
+
+```ts
+$fetch("https://external-api.com/...")
+```
+
+```ts
+useAsyncData inside component
+```
+
+```ts
+component fetching its own data
+```
+
+---
+
+### ❗ KEY PRINCIPLE:
+
+If data is needed on FIRST RENDER → it MUST be fetched on SERVER via `useAsyncData`.
+
+---
+
+# 🧱 REQUIRED ARCHITECTURE
+
+---
+
+## 1. PAGE LAYER (SSR ENTRY POINT)
+
+### ✅ MUST:
+
+* Use:
+
+```ts
+const { data, pending, error, refresh } = await useAsyncData("key", () =>
+  $fetch("/api/...")
+)
+```
+
+* Responsibilities:
+
+  * initial data fetching (SSR)
+  * read query params (filters, pagination)
+  * pass data into composable
+
+---
+
+### ❌ MUST NOT:
+
+* use `onMounted` for initial fetch
+* use `import.meta.client`
+* fetch directly inside template or component
+* duplicate fetching with composable
+
+---
+
+### ✅ MUST INJECT DATA:
+
+```ts
+const module = useModule()
+
+if (data.value) {
+  module.setData(data.value)
+}
+```
+
+---
+
+## 2. COMPOSABLE LAYER (STATE + LOGIC ONLY)
+
+### ✅ MUST CONTAIN:
+
+* `ref`, `reactive`
+* computed
+* business logic
+* CRUD actions
+
+---
+
+### ❌ MUST NOT:
+
+* perform initial fetch automatically
+* run fetch on import
+* contain SSR logic
+
+---
+
+### ✅ MUST PROVIDE:
+
+```ts
+function setData(data) {
+  state.value = data
+}
+```
+
+---
+
+### ✅ ALLOWED FETCH:
+
+ONLY for:
+
+* pagination change
+* filter change
+* user actions (create/update/delete)
+
+---
+
+## 3. COMPONENT LAYER (PURE UI ONLY — STRICT)
+
+---
+
+### ❌ COMPONENT MUST NOT:
+
+* call `$fetch`
+* use `useAsyncData`
+* fetch data
+* mutate global state directly
+* contain heavy watchers
+* compute expensive logic repeatedly
+
+---
+
+### ✅ COMPONENT MUST:
+
+* receive data via props
+* emit events upward
+* use computed instead of watch
+
+---
+
+## 3.1 DATA PASSING STRATEGY
+
+❌ BAD:
+
+```ts
+:company="company"
+```
+
+✅ GOOD:
+
+```ts
+:name="company.name"
+:status="company.status"
+```
+
+---
+
+## 3.2 EVENT-DRIVEN DESIGN
+
+```ts
+emit("edit", id)
+emit("delete", id)
+emit("refresh")
+```
+
+---
+
+## 3.3 PERFORMANCE RULES
+
+* Use `v-memo` for large lists
+* Use stable `:key`
+* Avoid inline functions in template
+* Avoid deep watchers
+* Memoize expensive computed
+* Avoid mapping large objects in template
+
+---
+
+## 3.4 LIST OPTIMIZATION
+
+* Use pagination OR virtual scrolling
+* NEVER render full dataset blindly
+* Pre-map data in composable, not template
+
+---
+
+## 4. SERVER API (CATCH-ALL ONLY)
+
+Use ONLY:
+
+```
+/server/api/[...path].ts
+```
+
+---
+
+### MUST:
+
+* proxy to backend API
+* forward cookies
+* support all HTTP methods
+* normalize headers
+* include caching:
+
+```ts
+export default cachedEventHandler(handler, {
+  maxAge: 60,
+  swr: true,
+})
+```
+
+---
+
+## 5. API USAGE RULE (FRONTEND)
+
+### ✅ MUST:
+
+```ts
+$fetch("/api/finance/expense")
+```
+
+---
+
+### ❌ NEVER:
+
+```ts
+$fetch("https://erp.nscontinent.com/api/...")
+```
+
+---
+
+## 6. DATA FLOW (FINAL ARCHITECTURE)
+
+```
+Page (SSR)
+  ↓
+useAsyncData
+  ↓
+/api/[...path] (proxy + cache)
+  ↓
+Backend API
+  ↓
+Composable (state + logic)
+  ↓
+Component (pure UI)
+```
+
+---
+
+## 7. LOADING STRATEGY
+
+* Initial load → use `pending` from `useAsyncData`
+* Subsequent actions → use `isLoading` from composable
+
+---
+
+## 8. PERFORMANCE GUARANTEES
+
+After refactor:
+
+* No blank screen
+* No client-only first fetch
+* No duplicate API calls
+* Minimal re-render
+* Fast TTFB + fast hydration
+* Scalable across all modules
+
+---
+
+## 9. OUTPUT FORMAT
+
+You MUST output:
+
+1. Refactored Page (SSR-first)
+2. Refactored Composable (no initial fetch)
+3. Refactored Components (pure UI)
+4. Optimized `[...path].ts` (if needed)
+5. Explanation:
+
+   * what was wrong
+   * what was fixed
+   * why it improves performance
+
+---
+
+## ⚠️ HARD CONSTRAINTS
+
+* DO NOT remove business logic
+* DO NOT reduce features
+* DO NOT merge layers into one file
+* DO NOT create new API files (use `[...path].ts`)
+* KEEP strict TypeScript
+* KEEP existing functionality intact
+
+---
+
+## 🧠 BONUS OPTIMIZATION (APPLY IF POSSIBLE)
+
+* Debounce search input
+* Lazy-load dropdown data
+* Split heavy components
+* Cache expensive computed
+* Avoid unnecessary reactive dependencies
+
+---
+
+## 🔥 FINAL RULE (MOST IMPORTANT)
+
+If you see ANY of these:
+
+```ts
+onMounted(fetchData)
+initialize()
+import.meta.client
+```
+
+You MUST:
+
+* DELETE IT
+* MOVE logic into `useAsyncData`
+* RESTRUCTURE properly
+
+NO EXCEPTIONS.
+
+
 **End of Guide**

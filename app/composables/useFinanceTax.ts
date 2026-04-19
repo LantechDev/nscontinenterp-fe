@@ -17,7 +17,6 @@ export interface TaxFilters {
 }
 
 export function useFinanceTax() {
-  const config = useRuntimeConfig();
   const isLoading = ref(false);
 
   async function fetchTaxes(filters?: TaxFilters) {
@@ -32,8 +31,7 @@ export function useFinanceTax() {
         });
       }
       return await $fetch<{ items: Tax[]; pagination: Pagination }>(
-        `${config.public.apiBase}/finance/tax?${query.toString()}`,
-        { credentials: "include" },
+        `/api/finance/tax?${query.toString()}`,
       );
     } catch (error) {
       console.error("[Tax] Failed to fetch:", error);
@@ -46,12 +44,7 @@ export function useFinanceTax() {
   async function fetchTaxById(id: string) {
     isLoading.value = true;
     try {
-      return await $fetch<Tax>(`${config.public.apiBase}/finance/tax/${id}`, {
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
+      return await $fetch<Tax>(`/api/finance/tax/${id}`);
     } catch (error) {
       console.error("[Tax] Failed to fetch by ID:", error);
       throw error;
@@ -63,13 +56,9 @@ export function useFinanceTax() {
   async function createTax(data: Partial<Tax>) {
     isLoading.value = true;
     try {
-      return await $fetch<Tax>(`${config.public.apiBase}/finance/tax`, {
+      return await $fetch<Tax>("/api/finance/tax", {
         method: "POST",
         body: data,
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
       });
     } catch (error) {
       console.error("[Tax] Failed to create:", error);
@@ -82,13 +71,9 @@ export function useFinanceTax() {
   async function updateTax(id: string, data: Partial<Tax>) {
     isLoading.value = true;
     try {
-      return await $fetch<Tax>(`${config.public.apiBase}/finance/tax/${id}`, {
+      return await $fetch<Tax>(`/api/finance/tax/${id}`, {
         method: "PATCH",
         body: data,
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
       });
     } catch (error) {
       console.error("[Tax] Failed to update:", error);
@@ -101,12 +86,8 @@ export function useFinanceTax() {
   async function deleteTax(id: string) {
     isLoading.value = true;
     try {
-      await $fetch(`${config.public.apiBase}/finance/tax/${id}`, {
+      await $fetch(`/api/finance/tax/${id}`, {
         method: "DELETE",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
       });
       return { success: true };
     } catch (error) {

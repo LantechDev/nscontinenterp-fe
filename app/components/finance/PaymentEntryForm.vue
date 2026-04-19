@@ -219,7 +219,7 @@ const formatCurrency = (amount: number) => {
         </label>
         <Combobox
           v-model="form.companyId"
-          :options="companies as any"
+          :options="companies"
           label-key="name"
           value-key="id"
           placeholder="Search customer..."

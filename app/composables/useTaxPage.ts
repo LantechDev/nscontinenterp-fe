@@ -203,6 +203,16 @@ export function useTaxPage() {
     loadTaxes();
   };
 
+  // SSR Data Injection - for useAsyncData integration
+  const setData = (data: { items: Tax[]; pagination: Pagination }) => {
+    if (data?.items) {
+      taxes.value = data.items;
+    }
+    if (data?.pagination) {
+      pagination.value = data.pagination;
+    }
+  };
+
   return {
     // State
     taxes,
@@ -230,5 +240,6 @@ export function useTaxPage() {
     handleUpdate,
     handleDelete,
     initialize,
+    setData,
   };
 }

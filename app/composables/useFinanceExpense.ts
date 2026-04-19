@@ -35,7 +35,6 @@ export interface ExpenseFilters {
 }
 
 export function useFinanceExpense() {
-  const config = useRuntimeConfig();
   const isLoading = ref(false);
 
   async function fetchExpenses(filters?: ExpenseFilters) {
@@ -50,8 +49,7 @@ export function useFinanceExpense() {
         });
       }
       return await $fetch<{ items: Expense[]; pagination: Pagination }>(
-        `${config.public.apiBase}/finance/expense?${query.toString()}`,
-        { credentials: "include" },
+        `/api/finance/expense?${query.toString()}`,
       );
     } catch (error) {
       console.error("[Expense] Failed to fetch:", error);
@@ -64,12 +62,7 @@ export function useFinanceExpense() {
   async function fetchExpenseById(id: string) {
     isLoading.value = true;
     try {
-      return await $fetch<Expense>(`${config.public.apiBase}/finance/expense/${id}`, {
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
+      return await $fetch<Expense>(`/api/finance/expense/${id}`);
     } catch (error) {
       console.error("[Expense] Failed to fetch by ID:", error);
       throw error;
@@ -81,13 +74,9 @@ export function useFinanceExpense() {
   async function createExpense(data: Partial<Expense>) {
     isLoading.value = true;
     try {
-      return await $fetch<Expense>(`${config.public.apiBase}/finance/expense`, {
+      return await $fetch<Expense>("/api/finance/expense", {
         method: "POST",
         body: data,
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
       });
     } catch (error) {
       console.error("[Expense] Failed to create:", error);
@@ -100,13 +89,9 @@ export function useFinanceExpense() {
   async function updateExpense(id: string, data: Partial<Expense>) {
     isLoading.value = true;
     try {
-      return await $fetch<Expense>(`${config.public.apiBase}/finance/expense/${id}`, {
+      return await $fetch<Expense>(`/api/finance/expense/${id}`, {
         method: "PATCH",
         body: data,
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
       });
     } catch (error) {
       console.error("[Expense] Failed to update:", error);
@@ -119,12 +104,8 @@ export function useFinanceExpense() {
   async function deleteExpense(id: string) {
     isLoading.value = true;
     try {
-      await $fetch(`${config.public.apiBase}/finance/expense/${id}`, {
+      await $fetch(`/api/finance/expense/${id}`, {
         method: "DELETE",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
       });
       return { success: true };
     } catch (error) {

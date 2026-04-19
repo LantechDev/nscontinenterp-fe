@@ -43,8 +43,7 @@ const error = ref<string | null>(null);
  * Provides base URL, request tracking, and error handling
  */
 export function useFinanceDashboardApi() {
-  const config = useRuntimeConfig();
-  const baseUrl = config.public.apiBase || "";
+  const baseUrl = "/api";
 
   /**
    * Increment request ID for a specific data type

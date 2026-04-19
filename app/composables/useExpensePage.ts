@@ -5,11 +5,12 @@ import {
   type Pagination,
 } from "./useFinanceExpense";
 import { useCompanies } from "./useCompanies";
-import { useJobs } from "./useJobs";
+import { useJobs, type JobWithBls } from "./useJobs";
 import { useConfirm } from "./useConfirm";
-import { useFinanceTax } from "./useFinanceTax";
+import { useFinanceTax, type Tax } from "./useFinanceTax";
 import { useServices } from "./useServices";
 import { toast } from "vue-sonner";
+import type { Company } from "./useMasterData";
 
 // Pure helper functions outside composable
 export const formatDate = (dateStr: string) => {
@@ -37,7 +38,7 @@ export const formatCurrency = (value: number) => {
 
 // Navigation handler
 const navigateToExpense = (id: string) => {
-  navigateTo(`/finance/expenses/${id}`);
+  navigateTo(`/finance/expense/${id}`);
 };
 
 export interface ExpenseFormData {
@@ -292,6 +293,31 @@ export function useExpensePage() {
     await Promise.all([loadExpenses(), loadDropdownData()]);
   };
 
+  // SSR Data Injection
+  const setData = (data: {
+    items?: Expense[];
+    pagination?: Pagination;
+    companies?: Company[];
+    jobs?: JobWithBls[];
+    taxOptions?: Tax[];
+  }) => {
+    if (data?.items) {
+      expenses.value = data.items;
+    }
+    if (data?.pagination) {
+      pagination.value = data.pagination;
+    }
+    if (data?.companies) {
+      companies.value = data.companies;
+    }
+    if (data?.jobs) {
+      jobs.value = data.jobs;
+    }
+    if (data?.taxOptions) {
+      taxOptions.value = data.taxOptions;
+    }
+  };
+
   return {
     // State
     expenses,
@@ -325,5 +351,6 @@ export function useExpensePage() {
     handleUpdate,
     handleDelete,
     initialize,
+    setData,
   };
 }

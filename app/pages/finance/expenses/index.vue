@@ -11,6 +11,9 @@ import {
 } from "lucide-vue-next";
 import { cn } from "~/lib/utils";
 import { useExpensePage } from "~/composables/useExpensePage";
+import { type Expense, type Pagination } from "~/composables/useFinanceExpense";
+import { type Company } from "~/composables/useMasterData";
+import { type Tax } from "~/composables/useFinanceTax";
 import { useFinanceExpense } from "~/composables/useFinanceExpense";
 import { ExpenseEditModal } from "./components";
 import { generateExpensePdf } from "./utils/pdf-generator";
@@ -43,7 +46,7 @@ const {
   closeEditModal,
   handleUpdate,
   handleDelete,
-  initialize,
+  setData,
 } = useExpensePage();
 
 const { fetchExpenseById } = useFinanceExpense();
@@ -53,9 +56,32 @@ const handleDownloadPdf = async (id: string) => {
   await generateExpensePdf(id, fetchExpenseById);
 };
 
-onMounted(() => {
-  initialize();
+// SSR-first: fetch initial data and inject into composable
+const { data: expensesData } = await useAsyncData("expense-list", async () => {
+  const [expensesResp, companiesResp, jobsResp, taxesResp] = await Promise.all([
+    $fetch<{ items: Expense[]; pagination: Pagination }>("/api/finance/expense"),
+    $fetch<Company[]>("/api/master/companies?type=CUSTOMER"),
+    $fetch("/api/operational/jobs"),
+    $fetch<{ items: Tax[] }>("/api/finance/tax?isActive=true"),
+  ]);
+  return { expenses: expensesResp, companies: companiesResp, jobs: jobsResp, taxes: taxesResp };
 });
+
+// Inject SSR data into composable
+if (expensesData.value) {
+  setData({
+    items: expensesData.value.expenses?.items || [],
+    pagination: expensesData.value.expenses?.pagination || {
+      total: 0,
+      limit: 10,
+      page: 1,
+      totalPages: 0,
+    },
+    companies: expensesData.value.companies,
+    jobs: expensesData.value.jobs as JobWithBls[],
+    taxOptions: expensesData.value.taxes?.items,
+  });
+}
 </script>
 
 <template>
@@ -126,7 +152,7 @@ onMounted(() => {
           </option>
         </select>
         <NuxtLink
-          to="/finance/expenses/create"
+          to="/finance/expense/create"
           class="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-[#012D5A] text-white hover:bg-[#012D5A]/90 rounded-lg transition-colors min-w-fit whitespace-nowrap"
         >
           <Plus class="w-4 h-4" />

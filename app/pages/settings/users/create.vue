@@ -9,11 +9,11 @@ definePageMeta({
 
 const router = useRouter();
 const { createUser } = useAuth();
-const { roles, fetchRoles } = useRoles();
 const isLoading = ref(false);
 
-onMounted(() => {
-  fetchRoles();
+// Fetch roles eagerly on page load
+const { data: roles } = await useAsyncData<Role[]>("roles-create", async () => {
+  return await $fetch<Role[]>("/api/admin/roles");
 });
 
 const formSchema = z

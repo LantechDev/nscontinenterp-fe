@@ -227,12 +227,9 @@ watch(
 );
 
 const loadPhoneOptions = async () => {
-  const config = useRuntimeConfig();
   try {
-    const response = await $fetch<{ code: string; dial_code: string }[]>(
-      `${config.public.apiBase}/master/phone-numbers`,
-      { credentials: "include" },
-    );
+    const response =
+      await $fetch<{ code: string; dial_code: string }[]>(`/api/master/phone-numbers`);
     const mapped = response.map((item) => ({ code: item.code, dialCode: item.dial_code }));
     if (mapped.length > 0) {
       phoneOptions.value = mapped;

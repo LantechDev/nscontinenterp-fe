@@ -1,8 +1,7 @@
 import { formatRupiah } from "~/lib/utils";
 
 export function useFinanceCharts() {
-  const config = useRuntimeConfig();
-  const baseUrl = config.public.apiBase || "";
+  const baseUrl = "/api";
 
   // Request tracking
   const requestIdRef = ref(0);
@@ -59,10 +58,6 @@ export function useFinanceCharts() {
       }>(`${baseUrl}/finance/dashboard/charts`, {
         method: "GET",
         query: queryParams,
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
       });
 
       if (requestId === requestIdRef.value) {

@@ -31,18 +31,13 @@ function handleApiError<T = unknown>(error: unknown): AuthResponse<T> {
 }
 
 export function useRoles() {
-  const headers = useRequestHeaders(["cookie"]);
-  const config = useRuntimeConfig();
   const isLoading = ref(false);
   const roles = useState<Role[]>("roles-list", () => []);
 
   async function fetchRoles(): Promise<AuthResponse<Role[]>> {
     isLoading.value = true;
     try {
-      const data = await $fetch<Role[]>(`${config.public.apiBase}/admin/roles`, {
-        headers,
-        credentials: "include",
-      });
+      const data = await $fetch<Role[]>("/api/admin/roles");
       roles.value = data || [];
       return { success: true, data: roles.value };
     } catch (error) {
@@ -60,11 +55,9 @@ export function useRoles() {
   }): Promise<AuthResponse<Role>> {
     isLoading.value = true;
     try {
-      const data = await $fetch<Role>(`${config.public.apiBase}/admin/roles`, {
+      const data = await $fetch<Role>("/api/admin/roles", {
         method: "POST",
         body: roleData,
-        credentials: "include",
-        headers,
       });
       roles.value = [...roles.value, data];
       return { success: true, data };
@@ -86,11 +79,9 @@ export function useRoles() {
   ): Promise<AuthResponse<Role>> {
     isLoading.value = true;
     try {
-      const data = await $fetch<Role>(`${config.public.apiBase}/admin/roles/${id}`, {
+      const data = await $fetch<Role>(`/api/admin/roles/${id}`, {
         method: "PUT",
         body: roleData,
-        credentials: "include",
-        headers,
       });
       roles.value = roles.value.map((r) => (r.id === id ? { ...r, ...data } : r));
       return { success: true, data };
@@ -104,10 +95,8 @@ export function useRoles() {
   async function deleteRole(id: string): Promise<AuthResponse> {
     isLoading.value = true;
     try {
-      await $fetch(`${config.public.apiBase}/admin/roles/${id}`, {
+      await $fetch(`/api/admin/roles/${id}`, {
         method: "DELETE",
-        credentials: "include",
-        headers,
       });
       roles.value = roles.value.filter((r) => r.id !== id);
       return { success: true };

@@ -9,8 +9,7 @@ definePageMeta({
 const route = useRoute();
 const periodId = route.params.id as string;
 
-const config = useRuntimeConfig();
-const baseUrl = config.public.apiBase || "";
+const baseUrl = "/api";
 
 const isLoading = ref(true);
 const error = ref<string | null>(null);
@@ -26,10 +25,6 @@ async function fetchPeriodDetails() {
       `${baseUrl}/finance/dashboard/finance-close/periods/${periodId}`,
       {
         method: "GET",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
       },
     );
     period.value = data;

@@ -11,18 +11,19 @@ definePageMeta({
 
 const route = useRoute();
 const taxId = route.params.id as string;
-const { fetchTaxById, deleteTax, isLoading } = useFinanceTax();
+const { fetchTaxById, deleteTax } = useFinanceTax();
 
-const tax = ref<Tax | null>(null);
+// SSR-first: fetch tax detail
+const {
+  data: taxData,
+  pending: loading,
+  error,
+} = await useAsyncData<Tax>(`tax-${taxId}`, async () => {
+  return await fetchTaxById(taxId);
+});
 
-async function loadTax() {
-  try {
-    tax.value = await fetchTaxById(taxId);
-  } catch (error) {
-    console.error("Failed to load tax:", error);
-    navigateTo("/finance/tax");
-  }
-}
+const tax = computed(() => taxData.value);
+const isLoading = computed(() => loading.value);
 
 async function handleDelete() {
   if (confirm("Apakah Anda yakin ingin menghapus pajak ini?")) {
@@ -150,10 +151,6 @@ function handleDownloadPdf() {
     toast.error("Failed to download PDF. Please try again.");
   }
 }
-
-onMounted(() => {
-  loadTax();
-});
 </script>
 
 <template>

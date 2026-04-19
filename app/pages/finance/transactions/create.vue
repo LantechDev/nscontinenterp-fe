@@ -2,6 +2,7 @@
 import { ArrowLeft, Save, Upload, X } from "lucide-vue-next";
 import SearchSelect from "~/components/ui/SearchSelect.vue";
 import { useTransaction } from "~/composables/useTransaction";
+import type { ChartOfAccount } from "~/composables/useChartOfAccounts";
 
 definePageMeta({
   layout: "dashboard",
@@ -30,6 +31,7 @@ const {
   removeAttachment,
   saveTransaction,
   initialize,
+  setData,
 } = useTransaction();
 
 const fileInput = ref<HTMLInputElement | null>(null);
@@ -39,9 +41,15 @@ const formattedTaxOptions = computed(() =>
   taxOptions.value.map((tax) => ({ id: tax.id, name: `${tax.name} (${tax.rate}%)` })),
 );
 
-onMounted(() => {
-  initialize();
+// SSR-first: fetch initial data and inject into composable
+const { data: accountsData } = await useAsyncData("transaction-create-accounts", async () => {
+  return await $fetch("/api/finance/accounts");
 });
+
+// Inject SSR data into composable
+if (accountsData.value) {
+  setData({ accounts: accountsData.value as ChartOfAccount[] });
+}
 </script>
 
 <template>

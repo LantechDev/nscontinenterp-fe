@@ -10,8 +10,7 @@ const getErrorMessage = (err: unknown): string => {
  * Handles fetching COGS stats (fetchStats)
  */
 export function useFinanceStats() {
-  const config = useRuntimeConfig();
-  const baseUrl = config.public.apiBase || "";
+  const baseUrl = "/api";
 
   let currentRequestId = 0;
 
@@ -40,10 +39,6 @@ export function useFinanceStats() {
       const data = await $fetch<FinanceDashboardStats>(`${baseUrl}/finance/dashboard`, {
         method: "GET",
         query: queryParams,
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
       });
 
       if (requestId === currentRequestId) {

@@ -10,10 +10,20 @@ definePageMeta({
 const route = useRoute();
 const router = useRouter();
 const roleId = route.params.id as string;
-const { updateRole, roles, fetchRoles } = useRoles();
+const { updateRole } = useRoles();
 const isLoading = ref(false);
-const isFetching = ref(true);
-const fetchError = ref("");
+
+// Fetch role data directly
+const { data: roleData, error: fetchError } = await useAsyncData<Role>(
+  `role-${roleId}`,
+  async () => {
+    const data = await $fetch<Role>(`/api/admin/roles/${roleId}`);
+    if (!data) throw new Error("Role not found");
+    return data;
+  },
+);
+
+const isFetching = computed(() => !roleData.value && !fetchError.value);
 
 const formSchema = z.object({
   name: z.string().min(1, "Nama Role wajib diisi"),
@@ -76,27 +86,21 @@ const toggleAll = (resource: string) => {
   }
 };
 
-onMounted(async () => {
-  try {
-    await fetchRoles();
-    const existingRole = roles.value.find((r) => r.id === roleId);
-    if (existingRole) {
+// Populate form when role data is loaded
+watch(
+  () => roleData.value,
+  (role) => {
+    if (role) {
       form.value = {
-        name: existingRole.name,
-        code: existingRole.code,
-        description: existingRole.description || "",
-        permissions: existingRole.permissions || {},
+        name: role.name,
+        code: role.code,
+        description: role.description || "",
+        permissions: role.permissions || {},
       };
-    } else {
-      fetchError.value = "Role tidak ditemukan.";
     }
-  } catch (e) {
-    const error = e as Error;
-    fetchError.value = error.message || "Gagal memuat data role.";
-  } finally {
-    isFetching.value = false;
-  }
-});
+  },
+  { immediate: true },
+);
 
 const handleSubmit = async () => {
   errors.value = {};

@@ -2,10 +2,8 @@
 import { ArrowLeft, Save } from "lucide-vue-next";
 import SearchSelect from "~/components/ui/SearchSelect.vue";
 import { useFinanceExpense } from "~/composables/useFinanceExpense";
-import { useCompanies } from "~/composables/useCompanies";
-import { useJobs } from "~/composables/useJobs";
-import { useServices } from "~/composables/useServices";
-import { useFinanceTax } from "~/composables/useFinanceTax";
+import { useFinanceTax, type Tax } from "~/composables/useFinanceTax";
+import { type Tax as TaxType } from "~/composables/useFinanceTax";
 import { toast } from "vue-sonner";
 
 definePageMeta({
@@ -13,10 +11,67 @@ definePageMeta({
 });
 
 const { createExpense, isLoading } = useFinanceExpense();
-const { fetchCompanies } = useCompanies();
-const { fetchJobs } = useJobs();
-const { fetchServices } = useServices();
-const { fetchTaxes } = useFinanceTax();
+
+// SSR-first: fetch initial dropdown data
+const { data: dropdownData } = await useAsyncData<{
+  vendors: Array<{ id: string; name: string }>;
+  jobs: Array<{ id: string; jobNumber: string }>;
+  categories: Array<{ id: string; name: string }>;
+  taxes: TaxType[];
+}>("expense-create-data", async () => {
+  const [vendorRes, jobRes, serviceRes, taxRes] = await Promise.all([
+    $fetch("/api/master/companies?type=VENDOR&limit=50"),
+    $fetch("/api/operational/jobs"),
+    $fetch("/api/master/services"),
+    $fetch<{ items: TaxType[] }>("/api/finance/taxes?isActive=true&limit=100"),
+  ]);
+
+  const vendors =
+    (vendorRes as { success: boolean; data?: Array<{ id: string; name: string }> })?.data || [];
+  const jobs =
+    (jobRes as { success: boolean; data?: Array<{ id: string; jobNumber: string }> })?.data || [];
+  const services =
+    (serviceRes as { success: boolean; data?: Array<{ category?: { id: string; name: string } }> })
+      ?.data || [];
+
+  const catMap = new Map<string, { id: string; name: string }>();
+  for (const svc of services) {
+    if (svc.category) {
+      catMap.set(svc.category.id, { id: svc.category.id, name: svc.category.name });
+    }
+  }
+  const categories = Array.from(catMap.values());
+  const taxes = taxRes?.items || [];
+
+  return { vendors, jobs, categories, taxes };
+});
+
+const vendors = computed(() => dropdownData.value?.vendors || []);
+const jobs = computed(() => dropdownData.value?.jobs || []);
+const categories = computed(() => dropdownData.value?.categories || []);
+const taxes = computed(() => dropdownData.value?.taxes || []);
+
+// Computed options for template
+const categoryOptions = computed(() =>
+  categories.value.map((cat) => ({ id: cat.id, name: cat.name })),
+);
+const jobOptions = computed(() => jobs.value.map((job) => ({ id: job.id, name: job.jobNumber })));
+const taxOptions = computed(() =>
+  taxes.value.map((tax) => ({ id: tax.id, name: `${tax.name} (${tax.rate}%)` })),
+);
+
+async function fetchVendorOptions({ query }: { query: string }) {
+  try {
+    const result = await $fetch("/api/master/companies", {
+      params: { type: "VENDOR", search: query, limit: 50 },
+    });
+    const vendorsList =
+      (result as { success: boolean; data?: Array<{ id: string; name: string }> })?.data || [];
+    return { success: true, data: vendorsList };
+  } catch {
+    return { success: false, error: "Failed to fetch vendors" };
+  }
+}
 
 const form = ref({
   number: "",
@@ -29,59 +84,6 @@ const form = ref({
   taxId: "",
   notes: "",
 });
-
-const vendors = ref<unknown[]>([]);
-const jobs = ref<unknown[]>([]);
-const categories = ref<{ id: string; name: string }[]>([]);
-const taxes = ref<{ id: string; name: string; rate: number }[]>([]);
-
-// Typed helpers for template
-const vendorsList = computed(() => vendors.value as { id: string; name: string }[]);
-const jobsList = computed(() => jobs.value as { id: string; jobNumber: string }[]);
-const categoryOptions = computed(() =>
-  categories.value.map((cat) => ({ id: cat.id, name: cat.name })),
-);
-const jobOptions = computed(() =>
-  jobsList.value.map((job) => ({ id: job.id, name: job.jobNumber })),
-);
-const taxOptions = computed(() =>
-  taxes.value.map((tax) => ({ id: tax.id, name: `${tax.name} (${tax.rate}%)` })),
-);
-
-async function fetchVendorOptions({ query }: { query: string }) {
-  const result = await fetchCompanies({ type: "VENDOR", search: query, limit: 50 });
-  if (result.success && result.data) {
-    return { success: true, data: result.data.map((v) => ({ id: v.id, name: v.name })) };
-  }
-  return { success: false, error: result.error || "Failed to fetch vendors" };
-}
-
-async function loadInitialData() {
-  const [vendorRes, jobRes, serviceRes, taxRes] = await Promise.all([
-    fetchCompanies({ type: "VENDOR", limit: 50 }),
-    fetchJobs(),
-    fetchServices(),
-    fetchTaxes({ isActive: true, limit: 100 }),
-  ]);
-
-  if (vendorRes.success && vendorRes.data) vendors.value = vendorRes.data;
-  if (jobRes.success && jobRes.data) jobs.value = jobRes.data;
-  // Use services as categories — each service has a category embedded
-  if (serviceRes.success && serviceRes.data) {
-    // Extract unique categories from services
-    const catMap = new Map<string, { id: string; name: string }>();
-    for (const svc of serviceRes.data) {
-      if (svc.category) {
-        catMap.set(svc.category.id, { id: svc.category.id, name: svc.category.name });
-      }
-    }
-    categories.value = Array.from(catMap.values());
-  }
-
-  if (taxRes?.items) {
-    taxes.value = taxRes.items.map((t) => ({ id: t.id, name: t.name, rate: t.rate }));
-  }
-}
 
 async function handleSubmit() {
   try {
@@ -97,23 +99,23 @@ async function handleSubmit() {
     if (form.value.taxId) payload.taxId = form.value.taxId;
 
     await createExpense(payload);
-    navigateTo("/finance/expenses");
+    navigateTo("/finance/expense");
   } catch (error) {
     toast.error("Gagal mencatat biaya: " + (error as Error).message);
   }
 }
 
-onMounted(() => {
-  loadInitialData();
+// Generate expense number on client-side
+if (import.meta.client) {
   form.value.number = `EXP-${Date.now().toString().slice(-6)}`;
-});
+}
 </script>
 
 <template>
   <div class="space-y-6 animate-fade-in p-6">
     <div class="page-header">
       <div class="flex items-center gap-4">
-        <NuxtLink to="/finance/expenses" class="p-2 rounded-lg hover:bg-muted transition-colors">
+        <NuxtLink to="/finance/expense" class="p-2 rounded-lg hover:bg-muted transition-colors">
           <ArrowLeft class="w-5 h-5" />
         </NuxtLink>
         <div>
@@ -214,7 +216,7 @@ onMounted(() => {
         <div class="flex justify-end gap-3 pt-4 border-t">
           <button
             type="button"
-            @click="navigateTo('/finance/expenses')"
+            @click="navigateTo('/finance/expense')"
             class="px-6 py-2 border rounded-lg hover:bg-muted transition-colors font-medium"
           >
             Batal

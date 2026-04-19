@@ -10,10 +10,7 @@ definePageMeta({
 
 const { services: servicesList, isLoading, fetchServices, createService } = useServices();
 
-// Fetch services on mount
-onMounted(async () => {
-  await fetchServices();
-});
+const { pending } = await useAsyncData("services-list", () => fetchServices());
 
 // Search and filter state
 const searchQuery = ref("");

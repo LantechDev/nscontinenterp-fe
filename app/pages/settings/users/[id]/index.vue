@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ArrowLeft, Edit, User, Shield } from "lucide-vue-next";
 import type { User as AuthUser } from "~/types/auth";
-import { toast } from "vue-sonner";
 
 interface DisplayUser {
   id: string;
@@ -13,58 +12,58 @@ interface DisplayUser {
   createdAt: string;
 }
 
+interface UserResponse {
+  success: boolean;
+  data: {
+    user: AuthUser;
+  };
+  error?: string;
+}
+
 definePageMeta({
   layout: "dashboard",
 });
 
 const route = useRoute();
 const userId = route.params.id as string;
-const { fetchUserById } = useAuth();
 
-const user = ref<DisplayUser | null>(null);
-const isLoading = ref(true);
-const errorMessage = ref("");
-
-onMounted(async () => {
-  try {
-    const result = await fetchUserById(userId);
-    if (result.success && result.data) {
-      const u = result.data.user || result.data; // adjust based on actual response structure
-      user.value = {
-        id: u.id,
-        name: u.name,
-        email: u.email,
-        role: u.role,
-        status: u.banned ? "inactive" : "active",
-        lastLogin: u.lastLogin
-          ? new Date(u.lastLogin).toLocaleString("id-ID", {
-              day: "numeric",
-              month: "short",
-              year: "numeric",
-              hour: "2-digit",
-              minute: "2-digit",
-            })
-          : "-",
-        createdAt: u.createdAt
-          ? new Date(u.createdAt).toLocaleDateString("id-ID", {
-              day: "numeric",
-              month: "short",
-              year: "numeric",
-            })
-          : "-",
-      } as DisplayUser;
-    } else {
-      errorMessage.value = result.error || "Gagal mengambil data user.";
-      toast.error(errorMessage.value);
+const { data: rawUser, error: fetchError } = await useAsyncData<DisplayUser>(
+  `user-${userId}`,
+  async () => {
+    const response = await $fetch<UserResponse>(`/api/auth/users/${userId}`);
+    if (!response.success || !response.data?.user) {
+      throw new Error(response.error || "Failed to fetch user");
     }
-  } catch (e) {
-    const error = e as Error;
-    errorMessage.value = error.message || "Terjadi kesalahan.";
-    toast.error(errorMessage.value);
-  } finally {
-    isLoading.value = false;
-  }
-});
+    const u = response.data.user;
+    return {
+      id: u.id,
+      name: u.name,
+      email: u.email,
+      role: u.role,
+      status: u.banned ? "inactive" : "active",
+      lastLogin: u.lastLogin
+        ? new Date(u.lastLogin).toLocaleString("id-ID", {
+            day: "numeric",
+            month: "short",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+          })
+        : "-",
+      createdAt: u.createdAt
+        ? new Date(u.createdAt).toLocaleDateString("id-ID", {
+            day: "numeric",
+            month: "short",
+            year: "numeric",
+          })
+        : "-",
+    } as DisplayUser;
+  },
+);
+
+const user = computed(() => rawUser.value as DisplayUser | null);
+const isLoading = computed(() => !rawUser.value && !fetchError.value);
+const errorMessage = computed(() => fetchError.value?.message || "");
 </script>
 
 <template>

@@ -264,7 +264,7 @@ const formatCurrency = (amount: number) => {
             >
             <Combobox
               v-model="form.customerId"
-              :options="companies as any"
+              :options="companies"
               label-key="name"
               value-key="id"
               placeholder="Search or select customer..."
@@ -336,7 +336,7 @@ const formatCurrency = (amount: number) => {
               <div class="col-span-4 space-y-2">
                 <Combobox
                   v-model="item.serviceId"
-                  :options="services as any"
+                  :options="services"
                   label-key="name"
                   value-key="id"
                   placeholder="Choose service..."

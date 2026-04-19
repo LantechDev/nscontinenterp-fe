@@ -1,24 +1,28 @@
 <script setup lang="ts">
 import { ArrowLeft, Save } from "lucide-vue-next";
 import SearchSelect from "~/components/ui/SearchSelect.vue";
-import { useFinanceTax } from "~/composables/useFinanceTax";
 import { useMasterData } from "~/composables/useMasterData";
+import { type Tax } from "~/composables/useFinanceTax";
 
 definePageMeta({
   layout: "dashboard",
 });
 
-const { fetchTaxes } = useFinanceTax();
 const { fetchCompaniesWithParams } = useMasterData();
 
-const taxOptions = ref<Array<{ id: string; name: string; rate: number }>>([]);
-const customerId = ref("");
-const jobId = ref("");
-const taxId = ref("");
+// SSR-first: fetch initial dropdown data
+const { data: taxData } = await useAsyncData<{ items: Tax[] }>("invoice-create-taxes", async () => {
+  return await $fetch<{ items: Tax[] }>("/api/finance/taxes?isActive=true&limit=100");
+});
 
+const taxOptions = computed(() => taxData.value?.items || []);
 const formattedTaxOptions = computed(() =>
   taxOptions.value.map((tax) => ({ id: tax.id, name: `${tax.name} (${tax.rate}%)` })),
 );
+
+const customerId = ref("");
+const jobId = ref("");
+const taxId = ref("");
 
 const handleCustomerSearch = async (options: { query: string; page?: number; limit?: number }) => {
   try {
@@ -39,17 +43,9 @@ const handleCustomerSearch = async (options: { query: string; page?: number; lim
 
 const handleJobSearch = async (options: { query: string; page?: number; limit?: number }) => {
   try {
-    const config = useRuntimeConfig();
-    const jobs = await $fetch<Array<{ id: string; jobNumber: string }>>(
-      `${config.public.apiBase}/operational/jobs`,
-      {
-        params: { search: options.query, limit: options.limit || 50 },
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      },
-    );
+    const jobs = await $fetch<Array<{ id: string; jobNumber: string }>>(`/api/operational/jobs`, {
+      params: { search: options.query, limit: options.limit || 50 },
+    });
     return {
       success: true,
       data: jobs.map((j) => ({ id: j.id, name: j.jobNumber })),
@@ -58,15 +54,6 @@ const handleJobSearch = async (options: { query: string; page?: number; limit?: 
     return { success: false, error: "Failed to fetch jobs" };
   }
 };
-
-onMounted(async () => {
-  try {
-    const taxes = await fetchTaxes({ isActive: true, limit: 100 });
-    taxOptions.value = taxes.items || [];
-  } catch {
-    taxOptions.value = [];
-  }
-});
 </script>
 
 <template>

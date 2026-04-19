@@ -91,20 +91,11 @@ function handleApiError<T = unknown>(error: unknown): AuthResponse<T> {
 }
 
 export function useMasterData() {
-  const config = useRuntimeConfig();
   const isLoading = ref(false);
 
   async function fetchCompanies() {
     try {
-      const response = await $fetch<Company[] | { data?: Company[] }>(
-        `${config.public.apiBase}/master/companies`,
-        {
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        },
-      );
+      const response = await $fetch<Company[] | { data?: Company[] }>("/api/master/companies");
       return Array.isArray(response) ? response : response.data || [];
     } catch {
       return [];
@@ -119,16 +110,9 @@ export function useMasterData() {
     limit?: number;
   }) {
     try {
-      const response = await $fetch<Company[] | { data?: Company[] }>(
-        `${config.public.apiBase}/master/companies`,
-        {
-          params,
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        },
-      );
+      const response = await $fetch<Company[] | { data?: Company[] }>("/api/master/companies", {
+        params,
+      });
       return Array.isArray(response) ? response : response.data || [];
     } catch {
       return [];
@@ -137,15 +121,7 @@ export function useMasterData() {
 
   async function fetchContainerTypes() {
     try {
-      const data = await $fetch<ContainerType[]>(
-        `${config.public.apiBase}/master/container-types`,
-        {
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        },
-      );
+      const data = await $fetch<ContainerType[]>("/api/master/container-types");
       return data;
     } catch {
       return [];
@@ -154,12 +130,7 @@ export function useMasterData() {
 
   async function fetchPackageTypes() {
     try {
-      const data = await $fetch<PackageType[]>(`${config.public.apiBase}/master/package-types`, {
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
+      const data = await $fetch<PackageType[]>("/api/master/package-types");
       return data;
     } catch {
       return [];
@@ -168,15 +139,7 @@ export function useMasterData() {
 
   async function fetchCompanyCategories() {
     try {
-      const data = await $fetch<CompanyCategory[]>(
-        `${config.public.apiBase}/master/company-categories`,
-        {
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        },
-      );
+      const data = await $fetch<CompanyCategory[]>("/api/master/company-categories");
       return data;
     } catch {
       return [];
@@ -185,12 +148,8 @@ export function useMasterData() {
 
   async function fetchVessels(query?: string) {
     try {
-      const data = await $fetch<Vessel[]>(`${config.public.apiBase}/master/vessels`, {
+      const data = await $fetch<Vessel[]>("/api/master/vessels", {
         params: { search: query },
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
       });
       return data;
     } catch {
@@ -200,12 +159,8 @@ export function useMasterData() {
 
   async function fetchPorts(query?: string) {
     try {
-      const data = await $fetch<Port[]>(`${config.public.apiBase}/master/ports`, {
+      const data = await $fetch<Port[]>("/api/master/ports", {
         params: { search: query },
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
       });
       return data;
     } catch {
@@ -229,17 +184,13 @@ export function useMasterData() {
     try {
       isLoading.value = true;
       // Default to CUSTOMER for now as used in Create Job form
-      const data = await $fetch<Company>(`${config.public.apiBase}/master/companies`, {
+      const data = await $fetch<Company>(`/api/master/companies`, {
         method: "POST",
         body: {
           name,
           isCustomer: true,
           isVendor: false,
           ...address,
-        },
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
         },
       });
       return { success: true, data };
@@ -253,13 +204,9 @@ export function useMasterData() {
   async function createVessel(name: string): Promise<AuthResponse<Vessel>> {
     try {
       isLoading.value = true;
-      const data = await $fetch<Vessel>(`${config.public.apiBase}/master/vessels`, {
+      const data = await $fetch<Vessel>(`/api/master/vessels`, {
         method: "POST",
         body: { name },
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
       });
       return { success: true, data };
     } catch (error) {
@@ -272,17 +219,10 @@ export function useMasterData() {
   async function createCompanyCategory(name: string): Promise<AuthResponse<CompanyCategory>> {
     try {
       isLoading.value = true;
-      const data = await $fetch<CompanyCategory>(
-        `${config.public.apiBase}/master/company-categories`,
-        {
-          method: "POST",
-          body: { name },
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        },
-      );
+      const data = await $fetch<CompanyCategory>(`/api/master/company-categories`, {
+        method: "POST",
+        body: { name },
+      });
       return { success: true, data };
     } catch (error) {
       return handleApiError<CompanyCategory>(error);
@@ -293,15 +233,7 @@ export function useMasterData() {
 
   async function fetchPaymentMethods() {
     try {
-      const data = await $fetch<PaymentMethod[]>(
-        `${config.public.apiBase}/master/payment-methods`,
-        {
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        },
-      );
+      const data = await $fetch<PaymentMethod[]>(`/api/master/payment-methods`);
       return data;
     } catch {
       return [];

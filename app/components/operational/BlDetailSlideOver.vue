@@ -35,7 +35,6 @@ const tabs = [
 
 const bl = ref<BillOfLading | null>(null);
 const loadingBl = ref(false);
-const headers = useRequestHeaders(["cookie"]);
 watch(
   () => props.modelValue,
   async (isOpen) => {
@@ -45,10 +44,6 @@ watch(
       try {
         const response = await $fetch<{ data: BillOfLading }>(
           `/api/operational/bill-of-lading/${props.blId}`,
-          {
-            headers,
-            credentials: "include",
-          },
         );
         bl.value = response.data;
       } catch (error) {

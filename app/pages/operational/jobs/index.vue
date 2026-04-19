@@ -25,11 +25,7 @@ const { jobs, fetchJobs, isLoading } = useJobs();
 const route = useRoute();
 const router = useRouter();
 
-// Fetch jobs on mount
-onMounted(async () => {
-  await fetchJobs();
-  document.addEventListener("click", handleClickOutside);
-});
+const { pending } = await useAsyncData("jobs-list", () => fetchJobs());
 
 onUnmounted(() => {
   document.removeEventListener("click", handleClickOutside);

@@ -240,20 +240,21 @@ export function useInvoicePage() {
   };
 
   // Load data
-  const loadInvoices = async () => {
+  const loadInvoices = async (params?: { status?: string; page?: number }) => {
+    loading.value = true;
+    error.value = null;
     try {
-      loading.value = true;
-      error.value = null;
-      const result = await fetchInvoices(selectedStatus.value || undefined);
-      if (result.success && result.data) {
-        invoices.value = result.data;
-      } else {
-        throw new Error(result.error || "Failed to load invoices");
+      const result = await fetchInvoices(params?.status);
+
+      if (!result.success) {
+        throw new Error(result.error);
       }
+
+      invoices.value = result.data || [];
+      return result.data;
     } catch (e) {
-      console.error("Failed to fetch invoices:", e);
-      error.value = "Failed to load invoices";
-      invoices.value = [];
+      error.value = e instanceof Error ? e.message : "Failed to load invoices";
+      throw e;
     } finally {
       loading.value = false;
     }
@@ -427,6 +428,19 @@ export function useInvoicePage() {
     loadInvoices();
   };
 
+  // SSR Data Injection - set data from SSR
+  const setData = (data: {
+    items?: InvoiceData[];
+    pagination?: { total: number; limit: number; page: number };
+  }) => {
+    if (data?.items) {
+      invoices.value = data.items;
+    }
+    if (data?.pagination) {
+      pagination.value = data.pagination;
+    }
+  };
+
   // Watch for status filter changes
   watch(selectedStatus, () => {
     loadInvoices();
@@ -487,5 +501,6 @@ export function useInvoicePage() {
     removeLineItem,
     updateItemAmount,
     initialize,
+    setData,
   };
 }

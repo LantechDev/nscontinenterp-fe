@@ -2,7 +2,6 @@ import type { PaginationInfo } from "~/types/finance-dashboard";
 import { toast } from "vue-sonner";
 import { getErrorMessage } from "./useFinanceDashboardApi";
 
-// AR/AP types (mirrored from the original file)
 export interface ArApItem {
   id: string;
   invoiceNumber: string;
@@ -28,7 +27,6 @@ export interface ArApResponse {
   pagination: PaginationInfo;
 }
 
-// Shared state singletons to ensure consistency across the dashboard
 const arApItems = ref<ArApItem[]>([]);
 const arApStats = ref<ArApStats | null>(null);
 const pagination = ref<PaginationInfo>({
@@ -38,10 +36,6 @@ const pagination = ref<PaginationInfo>({
   totalPages: 0,
 });
 
-/**
- * Finance Dashboard AR/AP Composable
- * Provides AR/AP items and stats fetching
- */
 export function useFinanceDashboardArAp() {
   const {
     baseUrl,
@@ -54,9 +48,6 @@ export function useFinanceDashboardArAp() {
     clearError,
   } = useFinanceDashboardApi();
 
-  /**
-   * Fetch AR/AP items
-   */
   async function fetchArApItems(
     period: "day" | "week" | "month" | "year" = "month",
     page: number = 1,
@@ -76,12 +67,7 @@ export function useFinanceDashboardArAp() {
         ...filters,
       };
       const data = await $fetch<ArApResponse>(`${baseUrl}/finance/dashboard/ar-ap`, {
-        method: "GET",
         query: queryParams,
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
       });
 
       if (isLatestRequest("arAp", requestId)) {
@@ -107,9 +93,6 @@ export function useFinanceDashboardArAp() {
     }
   }
 
-  /**
-   * Fetch AR/AP stats
-   */
   async function fetchArApStats(
     period: "day" | "week" | "month" | "year" = "month",
   ): Promise<ArApStats | null> {
@@ -120,12 +103,7 @@ export function useFinanceDashboardArAp() {
 
     try {
       const data = await $fetch<ArApStats>(`${baseUrl}/finance/dashboard/ar-ap/stats`, {
-        method: "GET",
         query: { period },
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
       });
 
       if (isLatestRequest("arApStats", requestId)) arApStats.value = data;

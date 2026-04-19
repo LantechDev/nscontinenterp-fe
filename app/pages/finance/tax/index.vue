@@ -11,6 +11,8 @@ import {
 } from "lucide-vue-next";
 import { cn } from "~/lib/utils";
 import { useTaxPage } from "~/composables/useTaxPage";
+import { type Tax } from "~/composables/useFinanceTax";
+import type { Pagination } from "~/composables/useFinanceExpense";
 import { TaxEditModal } from "./components";
 
 definePageMeta({
@@ -37,12 +39,19 @@ const {
   closeEditModal,
   handleUpdate,
   handleDelete,
-  initialize,
+  setData,
 } = useTaxPage();
 
-onMounted(() => {
-  initialize();
+// SSR-first: fetch initial data and inject into composable
+const { data: taxesData } = await useAsyncData("tax-list", async () => {
+  const response = await $fetch("/api/finance/tax");
+  return response;
 });
+
+// Inject SSR data into composable
+if (taxesData.value) {
+  setData(taxesData.value as { items: Tax[]; pagination: Pagination });
+}
 </script>
 
 <template>

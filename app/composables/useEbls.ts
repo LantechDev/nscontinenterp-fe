@@ -42,7 +42,6 @@ function getErrorMessage(error: unknown): string {
 }
 
 export function useEbls() {
-  const config = useRuntimeConfig();
   const ebls = ref<EblData[]>([]);
   const isLoading = ref(false);
   const error = ref<string | null>(null);
@@ -52,12 +51,7 @@ export function useEbls() {
     error.value = null;
 
     try {
-      const data = await $fetch<EblData[]>(`${config.public.apiBase}/operational/jobs/bls`, {
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
+      const data = await $fetch<EblData[]>("/api/operational/jobs/bls");
       ebls.value = data || [];
       return ebls.value;
     } catch (err) {
@@ -74,12 +68,7 @@ export function useEbls() {
     error.value = null;
 
     try {
-      const data = await $fetch<EblData>(`${config.public.apiBase}/operational/jobs/bl/${id}`, {
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
+      const data = await $fetch<EblData>(`/api/operational/jobs/bl/${id}`);
       return data;
     } catch (err) {
       error.value = getErrorMessage(err);

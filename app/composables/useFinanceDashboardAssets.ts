@@ -86,10 +86,6 @@ export function useFinanceDashboardAssets() {
       const data = await $fetch<AssetsResponse>(`${baseUrl}/finance/dashboard/assets`, {
         method: "GET",
         query: queryParams,
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
       });
 
       if (isLatestRequest("assets", requestId)) {
@@ -130,10 +126,6 @@ export function useFinanceDashboardAssets() {
       const data = await $fetch<AssetStats>(`${baseUrl}/finance/dashboard/assets/stats`, {
         method: "GET",
         query: queryParams,
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
       });
 
       if (isLatestRequest("assetsStats", requestId)) assetStats.value = data;
@@ -164,10 +156,6 @@ export function useFinanceDashboardAssets() {
       const result = await $fetch<AssetItem>(`${baseUrl}/finance/dashboard/assets`, {
         method: "POST",
         body: data,
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
       });
       return result;
     } catch (err) {

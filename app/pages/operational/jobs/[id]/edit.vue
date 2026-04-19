@@ -25,7 +25,29 @@ definePageMeta({
   title: "Edit Job",
 });
 
-const { updateJob, getJob, isLoading: isJobLoading } = useJobs();
+const router = useRouter();
+const route = useRoute();
+const jobId = route.params.id as string;
+
+const { updateJob, getJob } = useJobs();
+const jobDetails = ref<JobWithBls | null>(null);
+
+// SSR-first: fetch job data
+const {
+  data: jobData,
+  pending: loading,
+  error,
+} = await useAsyncData<JobWithBls>(`job-${jobId}`, async () => {
+  const res = await getJob(jobId);
+  if (res.success && res.data) {
+    jobDetails.value = res.data;
+    return res.data;
+  }
+  throw new Error(res.error || "Failed to load job");
+});
+
+const isJobLoading = computed(() => loading.value);
+
 const { confirm } = useConfirm();
 const {
   fetchCompanies,
@@ -36,9 +58,6 @@ const {
   createVessel,
   fetchPackageTypes,
 } = useMasterData();
-const router = useRouter();
-const route = useRoute();
-const jobId = route.params.id as string;
 import { toast } from "vue-sonner";
 
 const { user } = useAuth();
@@ -173,10 +192,10 @@ const formData = reactive({
   customerId: "",
 });
 
-const jobDetails = ref<JobWithBls | null>(null);
-
 onMounted(async () => {
-  await fetchJobData();
+  if (!jobDetails.value) {
+    await fetchJobData();
+  }
   await refreshMasterData(formData.pol, formData.pod);
 });
 
@@ -1036,7 +1055,7 @@ onMounted(() => {
                 </div>
                 <Combobox
                   v-model="formData.customerId"
-                  :options="companies as any"
+                  :options="companies"
                   label-key="name"
                   value-key="id"
                   placeholder="Select Main Customer..."

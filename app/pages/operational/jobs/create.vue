@@ -33,27 +33,46 @@ definePageMeta({
 
 const { createJob, isLoading } = useJobs();
 const { confirm } = useConfirm();
-const {
-  fetchCompanies,
-  fetchContainerTypes,
-  fetchPackageTypes,
-  fetchVessels,
-  fetchPorts,
-  createCompany,
-  createVessel,
-} = useMasterData();
+const { createCompany, createVessel } = useMasterData();
 const router = useRouter();
 import { toast } from "vue-sonner";
 
 const { user } = useAuth();
 
-const companies = ref<Company[]>([]);
-const containerTypes = ref<ContainerType[]>([]);
-const vessels = ref<Vessel[]>([]);
+// Fetch master data with SSR
+const {
+  data: masterData,
+  pending: isLoadingMasterData,
+  refresh,
+} = await useAsyncData<{
+  companies: Company[];
+  containerTypes: ContainerType[];
+  vessels: Vessel[];
+  ports: Port[];
+  packageTypes: PackageType[];
+}>("job-create-master-data", async () => {
+  const [comps, types, packs, vess, initialPorts] = await Promise.all([
+    $fetch<Company[]>("/api/master/companies"),
+    $fetch<ContainerType[]>("/api/master/container-types"),
+    $fetch<PackageType[]>("/api/master/package-types"),
+    $fetch<Vessel[]>("/api/master/vessels"),
+    $fetch<Port[]>("/api/master/ports"),
+  ]);
+  return {
+    companies: comps,
+    containerTypes: types,
+    vessels: vess,
+    ports: initialPorts,
+    packageTypes: packs,
+  };
+});
 
-const portsPol = ref<Port[]>([]);
-const portsPod = ref<Port[]>([]);
-const packageTypes = ref<PackageType[]>([]);
+const companies = computed(() => masterData.value?.companies || []);
+const containerTypes = computed(() => masterData.value?.containerTypes || []);
+const vessels = computed(() => masterData.value?.vessels || []);
+const portsPol = computed(() => masterData.value?.ports || []);
+const portsPod = computed(() => masterData.value?.ports || []);
+const packageTypes = computed(() => masterData.value?.packageTypes || []);
 
 // Company Modal State
 const isCompanyModalOpen = ref(false);
@@ -73,33 +92,20 @@ const companyForm = reactive({
   taxId: "",
 });
 
-onMounted(async () => {
-  await refreshMasterData();
-});
-
-async function refreshMasterData() {
-  const [comps, types, packs, vess, initialPorts] = await Promise.all([
-    fetchCompanies(),
-    fetchContainerTypes(),
-    fetchPackageTypes(),
-    fetchVessels(),
-    fetchPorts(),
-  ]);
-  companies.value = comps;
-  containerTypes.value = types;
-  packageTypes.value = packs;
-  vessels.value = vess;
-  portsPol.value = initialPorts;
-  portsPod.value = initialPorts;
-}
-
+// Search handlers for ports (client-side only)
 async function handleSearchPol(query: string) {
-  portsPol.value = await fetchPorts(query);
+  if (!query) {
+    return masterData.value?.ports || [];
+  }
+  return await $fetch<Port[]>(`/api/master/ports?q=${encodeURIComponent(query)}`);
 }
 
-async function handleSearchPod(query: string) {
-  portsPod.value = await fetchPorts(query);
-}
+const handleSearchPod = handleSearchPol;
+
+// Refresh master data (for after creating new entities)
+const refreshMasterData = async () => {
+  await refresh();
+};
 
 const formData = reactive({
   // Job Info
@@ -906,7 +912,7 @@ function scrollTo(id: string) {
                 </div>
                 <Combobox
                   v-model="formData.customerId"
-                  :options="companies as any"
+                  :options="companies"
                   label-key="name"
                   value-key="id"
                   placeholder="Select Main Customer..."

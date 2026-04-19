@@ -17,10 +17,7 @@ const {
   deleteVessel,
 } = useVessels();
 
-// Fetch vessels on mount
-onMounted(() => {
-  fetchVessels();
-});
+const { pending } = await useAsyncData("vessels-list", () => fetchVessels());
 
 // Search state
 const searchQuery = ref("");
@@ -178,14 +175,12 @@ const toggleMenu = (id: string) => {
 
 // Close menu when clicking outside
 onMounted(() => {
-  if (import.meta.client) {
-    document.addEventListener("click", (e) => {
-      const target = e.target as HTMLElement;
-      if (!target.closest(".dropdown-menu")) {
-        openMenuId.value = null;
-      }
-    });
-  }
+  document.addEventListener("click", (e) => {
+    const target = e.target as HTMLElement;
+    if (!target.closest(".dropdown-menu")) {
+      openMenuId.value = null;
+    }
+  });
 });
 </script>
 

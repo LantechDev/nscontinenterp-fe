@@ -64,7 +64,6 @@ export interface CreatePaymentPayload {
 }
 
 export const usePayments = () => {
-  const config = useRuntimeConfig();
   const isLoading = ref(false);
   const isSaving = ref(false);
 
@@ -75,12 +74,7 @@ export const usePayments = () => {
   }> {
     isLoading.value = true;
     try {
-      const data = await $fetch<PaymentItem[]>(`${config.public.apiBase}/finance/payment`, {
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
+      const data = await $fetch<PaymentItem[]>("/api/finance/payment");
       return { success: true, data };
     } catch (error: unknown) {
       return {
@@ -97,12 +91,7 @@ export const usePayments = () => {
   ): Promise<{ success: boolean; data?: PaymentItem; error?: string }> {
     isLoading.value = true;
     try {
-      const data = await $fetch<PaymentItem>(`${config.public.apiBase}/finance/payment/${id}`, {
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
+      const data = await $fetch<PaymentItem>(`/api/finance/payment/${id}`);
       return { success: true, data };
     } catch (error: unknown) {
       return {
@@ -119,13 +108,9 @@ export const usePayments = () => {
   ): Promise<{ success: boolean; data?: unknown; error?: string }> {
     isSaving.value = true;
     try {
-      const responseData = await $fetch(`${config.public.apiBase}/finance/payment`, {
+      const responseData = await $fetch("/api/finance/payment", {
         method: "POST",
         body: data,
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
       });
       toast.success("Payment recorded successfully");
       return { success: true, data: responseData };
@@ -156,16 +141,9 @@ export const usePayments = () => {
       if (filters.page) query.page = filters.page;
       if (filters.limit) query.limit = filters.limit;
 
-      const data = await $fetch<OutstandingReport>(
-        `${config.public.apiBase}/finance/report/outstanding`,
-        {
-          query,
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        },
-      );
+      const data = await $fetch<OutstandingReport>("/api/finance/report/outstanding", {
+        query,
+      });
       return { success: true, data };
     } catch (error: unknown) {
       return {
@@ -180,12 +158,8 @@ export const usePayments = () => {
   async function deletePayment(id: string): Promise<{ success: boolean; error?: string }> {
     isLoading.value = true;
     try {
-      await $fetch(`${config.public.apiBase}/finance/payment/${id}`, {
+      await $fetch(`/api/finance/payment/${id}`, {
         method: "DELETE",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
       });
       toast.success("Payment deleted successfully");
       return { success: true };
@@ -201,12 +175,8 @@ export const usePayments = () => {
   async function voidPayment(id: string): Promise<{ success: boolean; error?: string }> {
     isLoading.value = true;
     try {
-      await $fetch(`${config.public.apiBase}/finance/payment/${id}/void`, {
+      await $fetch(`/api/finance/payment/${id}/void`, {
         method: "POST",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
       });
 
       toast.success("Payment voided successfully");

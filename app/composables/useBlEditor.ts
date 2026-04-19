@@ -110,7 +110,6 @@ export function useBlEditor(blId: string) {
     try {
       await $fetch(`/api/operational/bill-of-lading/${blId}/copy-from-job`, {
         method: "POST",
-        credentials: "include",
       });
       await loadBlData();
       await confirm({
@@ -145,7 +144,6 @@ export function useBlEditor(blId: string) {
       await $fetch(`/api/operational/bill-of-lading/${blId}`, {
         method: "PATCH",
         body: payload,
-        credentials: "include",
       });
 
       return true;

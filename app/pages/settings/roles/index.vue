@@ -24,10 +24,7 @@ const searchQuery = ref("");
 const isDeleting = ref(false);
 const errorRoot = ref("");
 
-// Fetch roles on mount
-onMounted(() => {
-  fetchRoles();
-});
+const { pending } = await useAsyncData("roles-list", () => fetchRoles());
 
 // Pagination
 const currentPage = ref(1);

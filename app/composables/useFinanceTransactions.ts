@@ -15,8 +15,7 @@ const getErrorMessage = (err: unknown): string => {
  * Handles fetching transactions data
  */
 export function useFinanceTransactions() {
-  const config = useRuntimeConfig();
-  const baseUrl = config.public.apiBase || "";
+  const baseUrl = "/api";
 
   let currentRequestId = 0;
 
@@ -55,10 +54,6 @@ export function useFinanceTransactions() {
       const data = await $fetch<TransactionsResponse>(`${baseUrl}/finance/dashboard/transactions`, {
         method: "GET",
         query: queryParams,
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
       });
 
       if (requestId === currentRequestId) {
@@ -103,10 +98,6 @@ export function useFinanceTransactions() {
         {
           method: "GET",
           query: { period },
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
         },
       );
 

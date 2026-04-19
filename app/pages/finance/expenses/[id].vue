@@ -12,7 +12,19 @@ definePageMeta({
 
 const route = useRoute();
 const expenseId = route.params.id as string;
-const { fetchExpenseById, deleteExpense, isLoading } = useFinanceExpense();
+const { fetchExpenseById, deleteExpense } = useFinanceExpense();
+
+// SSR-first: fetch expense detail
+const {
+  data: expenseData,
+  pending: loading,
+  error,
+} = await useAsyncData<Expense>(`expense-${expenseId}`, async () => {
+  return await fetchExpenseById(expenseId);
+});
+
+const expense = computed(() => expenseData.value);
+const isLoading = computed(() => loading.value);
 
 // Use expense page composable for modal
 const {
@@ -31,22 +43,11 @@ const {
   initialize,
 } = useExpensePage();
 
-const expense = ref<Expense | null>(null);
-
-async function loadExpense() {
-  try {
-    expense.value = await fetchExpenseById(expenseId);
-  } catch (error) {
-    console.error("Failed to load expense:", error);
-    navigateTo("/finance/expenses");
-  }
-}
-
 async function handleDelete() {
   if (confirm("Apakah Anda yakin ingin menghapus biaya ini?")) {
     try {
       await deleteExpense(expenseId);
-      navigateTo("/finance/expenses");
+      navigateTo("/finance/expense");
     } catch (error) {
       toast.error("Gagal menghapus biaya: " + (error as Error).message);
     }
@@ -178,7 +179,6 @@ function handleDownloadPdf() {
 }
 
 onMounted(() => {
-  loadExpense();
   initialize();
 });
 </script>
@@ -193,10 +193,7 @@ onMounted(() => {
       <div class="page-header">
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-4">
-            <NuxtLink
-              to="/finance/expenses"
-              class="p-2 rounded-lg hover:bg-muted transition-colors"
-            >
+            <NuxtLink to="/finance/expense" class="p-2 rounded-lg hover:bg-muted transition-colors">
               <ArrowLeft class="w-5 h-5" />
             </NuxtLink>
             <div>
