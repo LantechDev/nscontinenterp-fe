@@ -1,7 +1,0 @@
-const outstanding_vue_vue_type_style_index_0_scoped_74907b38_lang =
-  ".custom-scrollbar[data-v-74907b38]::-webkit-scrollbar{height:6px;width:6px}.custom-scrollbar[data-v-74907b38]::-webkit-scrollbar-track{background:transparent}.custom-scrollbar[data-v-74907b38]::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:10px}.custom-scrollbar[data-v-74907b38]::-webkit-scrollbar-thumb:hover{background:#94a3b8}@media print{.overflow-y-auto[data-v-74907b38]{overflow:visible!important}.h-screen[data-v-74907b38],.overflow-y-auto[data-v-74907b38]{height:auto!important}.Secondary-Filter-Row[data-v-74907b38],.Summary-Cards[data-v-74907b38],.bg-gray-50\\/30[data-v-74907b38],.shadow-sm[data-v-74907b38],.shrink-0[data-v-74907b38],button[data-v-74907b38]{display:none!important}.p-5[data-v-74907b38],.p-6[data-v-74907b38],.pb-20[data-v-74907b38],.pt-6[data-v-74907b38],.px-6[data-v-74907b38]{padding:0!important}.border[data-v-74907b38]{border:none!important}.rounded-xl[data-v-74907b38]{border-radius:0!important}table[data-v-74907b38]{border-collapse:collapse!important;width:100%!important}td[data-v-74907b38],th[data-v-74907b38]{border-bottom:1px solid #e5e7eb!important}}";
-
-const outstandingStyles_7gSUP5Tx = [outstanding_vue_vue_type_style_index_0_scoped_74907b38_lang];
-
-export { outstandingStyles_7gSUP5Tx as default };
-//# sourceMappingURL=outstanding-styles.7gSUP5Tx.mjs.map
