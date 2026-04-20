@@ -867,12 +867,12 @@ async function handleSubmit() {
         if (typeof updateError === "string" && updateError.startsWith("[")) {
           jsonStr = updateError;
         } else if (
-          error &&
-          typeof error === "object" &&
-          typeof (error as unknown as Record<string, unknown>).message === "string" &&
-          ((error as unknown as Record<string, unknown>).message as string).startsWith("[")
+          updateError &&
+          typeof updateError === "object" &&
+          typeof (updateError as unknown as Record<string, unknown>).message === "string" &&
+          ((updateError as unknown as Record<string, unknown>).message as string).startsWith("[")
         ) {
-          jsonStr = (error as unknown as Record<string, unknown>).message as string;
+          jsonStr = (updateError as unknown as Record<string, unknown>).message as string;
         }
 
         if (jsonStr) {
