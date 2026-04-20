@@ -15,10 +15,10 @@ export default defineNuxtConfig({
     "/_nuxt/**": { headers: { "Cache-Control": "public, max-age=31536000, immutable" } },
     "/images/**": { isr: 3600 },
     "/fonts/**": { headers: { "Cache-Control": "public, max-age=31536000, immutable" } },
-    "/dashboard": { isr: 60 },
-    "/master/**": { isr: 300 },
-    "/": { isr: 60 },
-    "/operational/**": { isr: 30 },
+    "/dashboard": { isr: false },
+    "/master/**": { isr: false },
+    "/": { isr: false },
+    "/operational/**": { isr: false },
   },
   vite: {
     optimizeDeps: {
@@ -81,6 +81,6 @@ export default defineNuxtConfig({
         },
       },
     },
-    payloadExtraction: true,
+    payloadExtraction: false,
   },
 });
