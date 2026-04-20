@@ -16,6 +16,7 @@ export default defineNuxtConfig({
         "jspdf",
         "clsx",
         "tailwind-merge",
+        "html2canvas",
       ],
     },
   },
