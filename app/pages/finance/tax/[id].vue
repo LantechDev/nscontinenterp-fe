@@ -30,8 +30,8 @@ async function handleDelete() {
     try {
       await deleteTax(taxId);
       navigateTo("/finance/tax");
-    } catch (error) {
-      toast.error("Gagal menghapus pajak: " + (error as Error).message);
+    } catch (err) {
+      toast.error("Gagal menghapus pajak: " + (err as Error).message);
     }
   }
 }
@@ -146,8 +146,8 @@ function handleDownloadPdf() {
 
     // Download the PDF directly
     doc.save(filename);
-  } catch (error) {
-    console.error("Failed to download tax PDF:", error);
+  } catch (err) {
+    console.error("Failed to download tax PDF:", err);
     toast.error("Failed to download PDF. Please try again.");
   }
 }

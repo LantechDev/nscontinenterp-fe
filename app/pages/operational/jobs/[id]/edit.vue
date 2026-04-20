@@ -848,20 +848,24 @@ async function handleSubmit() {
       })),
     };
 
-    const { success, error } = await updateJob(jobId, payload as Parameters<typeof updateJob>[1]);
+    const { success, error: updateError } = await updateJob(
+      jobId,
+      payload as Parameters<typeof updateJob>[1],
+    );
 
     if (success) {
       toast.success("Job updated successfully.");
       router.push({ path: "/operational/jobs" });
     } else {
       let errorMsg =
-        typeof error === "string"
-          ? error
-          : ((error as unknown as Record<string, unknown>)?.message as string) || "Unknown error";
+        typeof updateError === "string"
+          ? updateError
+          : ((updateError as unknown as Record<string, unknown>)?.message as string) ||
+            "Unknown error";
       try {
         let jsonStr = "";
-        if (typeof error === "string" && error.startsWith("[")) {
-          jsonStr = error;
+        if (typeof updateError === "string" && updateError.startsWith("[")) {
+          jsonStr = updateError;
         } else if (
           error &&
           typeof error === "object" &&

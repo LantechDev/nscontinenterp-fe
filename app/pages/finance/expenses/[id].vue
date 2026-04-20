@@ -172,8 +172,8 @@ function handleDownloadPdf() {
 
     // Download the PDF directly
     doc.save(filename);
-  } catch (error) {
-    console.error("Failed to download expense PDF:", error);
+  } catch (err) {
+    console.error("Failed to download expense PDF:", err);
     toast.error("Failed to download PDF. Please try again.");
   }
 }
