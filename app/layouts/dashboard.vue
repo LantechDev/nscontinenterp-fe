@@ -24,6 +24,13 @@ const showHeader = computed(() => route.meta.hideHeader !== true);
 const currentDate = ref("");
 const currentTime = ref("");
 
+interface SearchResult {
+  type: "job" | "company" | "invoice" | "payment" | "service" | "vessel";
+  id: string;
+  title: string;
+  subtitle: string;
+}
+
 // Global search state
 const searchQuery = ref("");
 const searchResults = ref<
@@ -91,223 +98,66 @@ const updateDateTime = () => {
 
 // Debounced search function
 const performSearch = async (query: string) => {
-  if (!query.trim()) {
+  if (!query || query.length < 3) {
     searchResults.value = [];
     showDropdown.value = false;
     return;
   }
 
   isSearching.value = true;
+  const results: SearchResult[] = [];
+
   try {
-    const results: {
-      type: "job" | "company" | "invoice" | "payment" | "service" | "vessel";
-      id: string;
-      title: string;
-      subtitle: string;
-    }[] = [];
+    // Parallelize search requests to reduced latency
+    const [companiesRes, jobsRes, invoicesRes] = await Promise.allSettled([
+      $fetch<unknown>(`/api/master/companies`, { query: { search: query, limit: 5, type: "ALL" } }),
+      $fetch<unknown>(`/api/operational/jobs`, { query: { search: query, limit: 5 } }),
+      $fetch<unknown>(`/api/finance/invoice`, { query: { search: query, limit: 5 } }),
+    ]);
 
-    try {
-      const companiesResponse = await $fetch<unknown>(`/api/master/companies`, {
-        query: { search: query, limit: 5 },
+    // 1. Process Companies
+    if (companiesRes.status === "fulfilled" && Array.isArray(companiesRes.value)) {
+      companiesRes.value.forEach((company: unknown) => {
+        const c = company as { id: string; name: string; isVendor?: boolean; isCustomer?: boolean };
+        results.push({
+          type: "company",
+          id: c.id,
+          title: c.name,
+          subtitle: c.isVendor ? "Vendor" : c.isCustomer ? "Customer" : "Company",
+        });
       });
-
-      const companiesArray: {
-        id: string;
-        name: string;
-        isVendor?: boolean;
-        isCustomer?: boolean;
-      }[] = Array.isArray(companiesResponse)
-        ? companiesResponse
-        : (companiesResponse as { data?: unknown[] })?.data || [];
-
-      if (companiesArray && companiesArray.length > 0) {
-        companiesArray.forEach((company) => {
-          results.push({
-            type: "company",
-            id: company.id,
-            title: company.name,
-            subtitle: company.isVendor ? "Vendor" : company.isCustomer ? "Customer" : "Company",
-          });
-        });
-      }
-    } catch {
-      // Ignore company search errors
     }
 
-    // Search jobs - filter client-side since API doesn't support search parameter
-    try {
-      console.log("[SEARCH] Calling jobs API (fetching all jobs for client-side filtering)");
-      const jobsResponse = await $fetch<
-        {
-          id: string;
-          jobNumber: string;
-          pol: string;
-          pod: string;
-          customer?: { name: string };
-        }[]
-      >(`/api/operational/jobs`);
-      console.log("[SEARCH] Jobs API response count:", jobsResponse?.length || 0);
-
-      // Filter jobs client-side since API doesn't support search
-      if (jobsResponse && Array.isArray(jobsResponse)) {
-        const queryLower = query.toLowerCase();
-        const filteredJobs = jobsResponse
-          .filter((job) => {
-            return (
-              job.jobNumber?.toLowerCase().includes(queryLower) ||
-              job.pol?.toLowerCase().includes(queryLower) ||
-              job.pod?.toLowerCase().includes(queryLower) ||
-              job.customer?.name?.toLowerCase().includes(queryLower)
-            );
-          })
-          .slice(0, 5);
-
-        console.log("[SEARCH] Filtered jobs count:", filteredJobs.length);
-        filteredJobs.forEach((job) => {
-          results.push({
-            type: "job",
-            id: job.id,
-            title: job.jobNumber,
-            subtitle: `${job.pol} → ${job.pod}`,
-          });
+    // 2. Process Jobs
+    if (jobsRes.status === "fulfilled" && Array.isArray(jobsRes.value)) {
+      jobsRes.value.forEach((job: unknown) => {
+        const j = job as { id: string; jobNumber: string; pol?: string; pod?: string };
+        results.push({
+          type: "job",
+          id: j.id,
+          title: j.jobNumber,
+          subtitle: `${j.pol || "-"} → ${j.pod || "-"}`,
         });
-      }
-    } catch (error) {
-      console.error("[SEARCH] Jobs API error:", error);
-      // Ignore job search errors
+      });
     }
 
-    // Search invoices (filter client-side since API may not support search)
-    try {
-      const invoicesResponse = await $fetch<
-        {
-          id: string;
-          invoiceNumber: string;
-          customer?: { name: string } | string;
-          total?: number;
-        }[]
-      >(`/api/finance/invoice`);
-      if (invoicesResponse && Array.isArray(invoicesResponse)) {
-        const queryLower = query.toLowerCase();
-        const filteredInvoices = invoicesResponse
-          .filter((invoice) => {
-            const customerName =
-              typeof invoice.customer === "object" ? invoice.customer?.name : invoice.customer;
-            return (
-              invoice.invoiceNumber?.toLowerCase().includes(queryLower) ||
-              customerName?.toLowerCase().includes(queryLower)
-            );
-          })
-          .slice(0, 5);
-
-        filteredInvoices.forEach((invoice) => {
-          const customerName =
-            typeof invoice.customer === "object" ? invoice.customer?.name : invoice.customer;
-          results.push({
-            type: "invoice",
-            id: invoice.id,
-            title: invoice.invoiceNumber,
-            subtitle: customerName || "Invoice",
-          });
+    // 3. Process Invoices
+    if (invoicesRes.status === "fulfilled" && Array.isArray(invoicesRes.value)) {
+      invoicesRes.value.forEach((invoice: unknown) => {
+        const inv = invoice as { id: string; invoiceNumber: string; company?: { name: string } };
+        results.push({
+          type: "invoice",
+          id: inv.id,
+          title: inv.invoiceNumber,
+          subtitle: inv.company?.name || "Invoice",
         });
-      }
-    } catch {
-      // Ignore invoice search errors
-    }
-
-    // Search payments (filter client-side since API may not support search)
-    try {
-      const paymentsResponse =
-        await $fetch<{ id: string; paymentNumber: string; customer?: { name: string } | string }[]>(
-          `/api/finance/payment`,
-        );
-      if (paymentsResponse && Array.isArray(paymentsResponse)) {
-        const queryLower = query.toLowerCase();
-        const filteredPayments = paymentsResponse
-          .filter((payment) => {
-            const customerName =
-              typeof payment.customer === "object" ? payment.customer?.name : payment.customer;
-            return (
-              payment.paymentNumber?.toLowerCase().includes(queryLower) ||
-              customerName?.toLowerCase().includes(queryLower)
-            );
-          })
-          .slice(0, 5);
-
-        filteredPayments.forEach((payment) => {
-          const customerName =
-            typeof payment.customer === "object" ? payment.customer?.name : payment.customer;
-          results.push({
-            type: "payment",
-            id: payment.id,
-            title: payment.paymentNumber,
-            subtitle: customerName || "Payment",
-          });
-        });
-      }
-    } catch {
-      // Ignore payment search errors
-    }
-
-    // Search services
-    try {
-      const servicesResponse =
-        await $fetch<{ id: string; name: string; code?: string }[]>(`/api/master/services`);
-      if (servicesResponse && Array.isArray(servicesResponse)) {
-        const queryLower = query.toLowerCase();
-        const filteredServices = servicesResponse
-          .filter((service) => {
-            return (
-              service.name?.toLowerCase().includes(queryLower) ||
-              service.code?.toLowerCase().includes(queryLower)
-            );
-          })
-          .slice(0, 5);
-
-        filteredServices.forEach((service) => {
-          results.push({
-            type: "service",
-            id: service.id,
-            title: service.name,
-            subtitle: service.code || "Service",
-          });
-        });
-      }
-    } catch {
-      // Ignore service search errors
-    }
-
-    // Search vessels
-    try {
-      const vesselsResponse =
-        await $fetch<{ id: string; name: string; imoNumber?: string }[]>(`/api/master/vessels`);
-      if (vesselsResponse && Array.isArray(vesselsResponse)) {
-        const queryLower = query.toLowerCase();
-        const filteredVessels = vesselsResponse
-          .filter((vessel) => {
-            return (
-              vessel.name?.toLowerCase().includes(queryLower) ||
-              vessel.imoNumber?.toLowerCase().includes(queryLower)
-            );
-          })
-          .slice(0, 5);
-
-        filteredVessels.forEach((vessel) => {
-          results.push({
-            type: "vessel",
-            id: vessel.id,
-            title: vessel.name,
-            subtitle: vessel.imoNumber || "Vessel",
-          });
-        });
-      }
-    } catch {
-      // Ignore vessel search errors
+      });
     }
 
     searchResults.value = results;
     showDropdown.value = results.length > 0;
-  } catch {
+  } catch (error) {
+    console.error("[SEARCH] Search error:", error);
     searchResults.value = [];
   } finally {
     isSearching.value = false;
@@ -611,7 +461,7 @@ onUnmounted(() => {
 
       <!-- Page content -->
       <main>
-        <NuxtPage :key="$route.fullPath" />
+        <NuxtPage />
       </main>
     </div>
 

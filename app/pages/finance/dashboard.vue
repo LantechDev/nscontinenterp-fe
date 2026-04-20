@@ -218,26 +218,46 @@ watch(
 );
 
 // Watch for tab change to load data for the selected tab
-watch(
-  activeTab,
-  async (newTab) => {
-    if (newTab === "Overview") {
-      const year = selectedYear.value ? parseInt(selectedYear.value) : undefined;
-      await fetchOverview(selectedPeriod.value, year);
-    } else if (newTab === "Assets") {
-      loadAssets();
-    }
-  },
-  { immediate: true },
-);
-
-// Watch for period change to reload data based on active tab
-watch(selectedPeriod, async () => {
+// Consolidated data fetching
+async function fetchData() {
   if (activeTab.value === "Overview") {
     const year = selectedYear.value ? parseInt(selectedYear.value) : undefined;
     await fetchOverview(selectedPeriod.value, year);
   } else if (activeTab.value === "Assets") {
-    loadAssets();
+    await loadAssets();
+  }
+}
+
+// Watch for tab change
+watch(activeTab, async (newTab, oldTab) => {
+  if (newTab !== oldTab) {
+    await fetchData();
+  }
+});
+
+// Watch for period change
+watch(selectedPeriod, async (newPeriod, oldPeriod) => {
+  if (newPeriod !== oldPeriod) {
+    await fetchData();
+  }
+});
+
+// Watch for year change (Overview only)
+watch(selectedYear, async (newYear, oldYear) => {
+  if (activeTab.value === "Overview" && newYear !== oldYear) {
+    await fetchData();
+  }
+});
+
+// Hydration and initial load logic
+const isHydrated = ref(false);
+
+onMounted(async () => {
+  isHydrated.value = true;
+  // Ensure we fetch data safely after hydration
+  await nextTick();
+  if (activeTab.value === "Overview" || activeTab.value === "Assets") {
+    await fetchData();
   }
 });
 

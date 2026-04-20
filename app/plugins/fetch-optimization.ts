@@ -8,6 +8,8 @@ export default defineNuxtPlugin(() => {
   const normalizedApiBase = String(config.public.apiBase || "/api").replace(/\/$/, "");
 
   const optimizedFetch = $fetch.create({
+    retry: 2,
+    retryDelay: 1000,
     onRequest(context) {
       const { options } = context;
       const method = String(options.method || "GET").toUpperCase();

@@ -1,20 +1,24 @@
 import { formatRupiah } from "~/lib/utils";
+import { useFinanceDashboardApi } from "./useFinanceDashboardApi";
+import { useFinanceDashboardOverview } from "./useFinanceDashboardOverview";
 
 export function useFinanceCharts() {
-  const baseUrl = "/api";
+  const {
+    baseUrl,
+    getNextRequestId,
+    isLatestRequest,
+    getSignal,
+    setLoading,
+    setError,
+    clearError,
+    buildQueryParams,
+    getErrorMessage,
+  } = useFinanceDashboardApi();
 
-  // Request tracking
-  const requestIdRef = ref(0);
+  const { chartData } = useFinanceDashboardOverview();
 
   // Reactive state
   const isLoading = ref(false);
-  const chartData = ref<{
-    incomeData: number[];
-    expenseData: number[];
-    marginData: number[];
-    months: string[];
-    top5: { name: string; value: number }[];
-  } | null>(null);
 
   // Month categories
   const monthCategories = [
@@ -32,22 +36,19 @@ export function useFinanceCharts() {
     "Dec",
   ];
 
-  /**
-   * Fetch chart data from API
-   */
   async function fetchChartData(
     period: "day" | "week" | "month" | "year" = "month",
     year?: number,
   ) {
-    const requestId = ++requestIdRef.value;
+    const requestId = getNextRequestId("charts");
 
     isLoading.value = true;
+    setLoading(true);
+    clearError("charts", requestId);
 
     try {
-      const queryParams: Record<string, string | number> = { period };
-      if (year) {
-        queryParams.year = year;
-      }
+      const queryParams = buildQueryParams(period, year);
+      const signal = getSignal("charts");
 
       const data = await $fetch<{
         incomeData: number[];
@@ -58,18 +59,23 @@ export function useFinanceCharts() {
       }>(`${baseUrl}/finance/dashboard/charts`, {
         method: "GET",
         query: queryParams,
+        signal,
       });
 
-      if (requestId === requestIdRef.value) {
+      if (isLatestRequest("charts", requestId)) {
         chartData.value = data;
       }
       return data;
     } catch (error) {
-      console.error("Failed to fetch chart data:", error);
+      if (error instanceof Error && error.name === "AbortError") return null;
+      const message = getErrorMessage(error);
+      console.error("Failed to fetch chart data:", message);
+      setError("charts", requestId, message);
       return null;
     } finally {
-      if (requestId === requestIdRef.value) {
+      if (isLatestRequest("charts", requestId)) {
         isLoading.value = false;
+        setLoading(false);
       }
     }
   }

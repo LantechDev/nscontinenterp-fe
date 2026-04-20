@@ -35,6 +35,21 @@ const requestIds = {
   assetsStats: ref(0),
 };
 
+const controllers: Record<string, AbortController | null> = {
+  stats: null,
+  overview: null,
+  charts: null,
+  jobCosts: null,
+  transactions: null,
+  transactionStats: null,
+  financeClose: null,
+  closedPeriods: null,
+  arAp: null,
+  arApStats: null,
+  assets: null,
+  assetsStats: null,
+};
+
 const isLoading = ref(false);
 const error = ref<string | null>(null);
 
@@ -84,6 +99,17 @@ export function useFinanceDashboardApi() {
     }
   }
 
+  /**
+   * Get an AbortSignal for a specific data type and cancel previous one
+   */
+  function getSignal(key: keyof typeof requestIds): AbortSignal {
+    if (controllers[key]) {
+      controllers[key]?.abort("New request started");
+    }
+    controllers[key] = new AbortController();
+    return controllers[key]!.signal;
+  }
+
   return {
     baseUrl,
     requestIds,
@@ -91,6 +117,7 @@ export function useFinanceDashboardApi() {
     error,
     getNextRequestId,
     isLatestRequest,
+    getSignal,
     setLoading,
     setError,
     clearError,

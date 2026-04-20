@@ -1,35 +1,31 @@
-import type { FinanceDashboardStats, OverviewStats, ChartData } from "~/types/finance-dashboard";
-import { getErrorMessage } from "./useFinanceDashboardApi";
+import type { OverviewStats, ChartData, StatsResult } from "~/types/finance";
+import { useFinanceDashboardApi } from "./useFinanceDashboardApi";
 
-// Shared state singletons to ensure consistency across the dashboard
-const stats = ref<FinanceDashboardStats | null>(null);
+// Singleton state for overview tab data
 const overviewStats = ref<OverviewStats | null>(null);
 const chartData = ref<ChartData | null>(null);
+const stats = ref<StatsResult | null>(null);
 
-/**
- * Finance Dashboard Overview Composable
- * Provides stats, overview, and charts fetching functionality
- */
-export function useFinanceDashboardOverview() {
+export const useFinanceDashboardOverview = () => {
   const {
     baseUrl,
-    isLoading: _isLoading,
-    error: _error,
-    getNextRequestId,
-    isLatestRequest,
     setLoading,
     setError,
     clearError,
+    getNextRequestId,
+    isLatestRequest,
+    getSignal,
+    getErrorMessage,
     buildQueryParams,
   } = useFinanceDashboardApi();
 
   /**
-   * Fetch summary stats (for card display)
+   * Fetch main stats (cards)
    */
   async function fetchStats(
     period: "day" | "week" | "month" | "year" = "month",
     year?: number,
-  ): Promise<FinanceDashboardStats | null> {
+  ): Promise<StatsResult | null> {
     const requestId = getNextRequestId("stats");
 
     setLoading(true);
@@ -37,16 +33,19 @@ export function useFinanceDashboardOverview() {
 
     try {
       const queryParams = buildQueryParams(period, year);
+      const signal = getSignal("stats");
 
-      const data = await $fetch<FinanceDashboardStats>(`${baseUrl}/finance/dashboard`, {
+      const data = await $fetch<StatsResult>(`${baseUrl}/finance/dashboard/stats`, {
         method: "GET",
         query: queryParams,
+        signal,
       });
       console.log("[FE_TRACE] Stats response:", data);
 
       if (isLatestRequest("stats", requestId)) stats.value = data;
       return data;
     } catch (err) {
+      if (err instanceof Error && err.name === "AbortError") return null;
       const message = getErrorMessage(err);
       console.error("Failed to fetch stats:", message);
       setError("stats", requestId, message);
@@ -70,15 +69,18 @@ export function useFinanceDashboardOverview() {
 
     try {
       const queryParams = buildQueryParams(period, year);
+      const signal = getSignal("overview");
 
       const data = await $fetch<OverviewStats>(`${baseUrl}/finance/dashboard/overview`, {
         method: "GET",
         query: queryParams,
+        signal,
       });
 
       if (isLatestRequest("overview", requestId)) overviewStats.value = data;
       return data;
     } catch (err) {
+      if (err instanceof Error && err.name === "AbortError") return null;
       const message = getErrorMessage(err);
       console.error("Failed to fetch overview stats:", message);
       setError("overview", requestId, message);
@@ -102,15 +104,18 @@ export function useFinanceDashboardOverview() {
 
     try {
       const queryParams = buildQueryParams(period, year);
+      const signal = getSignal("charts");
 
       const data = await $fetch<ChartData>(`${baseUrl}/finance/dashboard/charts`, {
         method: "GET",
         query: queryParams,
+        signal,
       });
 
       if (isLatestRequest("charts", requestId)) chartData.value = data;
       return data;
     } catch (err) {
+      if (err instanceof Error && err.name === "AbortError") return null;
       const message = getErrorMessage(err);
       console.error("Failed to fetch chart data:", message);
       setError("charts", requestId, message);
@@ -121,11 +126,14 @@ export function useFinanceDashboardOverview() {
   }
 
   return {
-    stats,
+    // State (Singletons)
     overviewStats,
     chartData,
+    stats,
+
+    // Methods
     fetchStats,
     fetchOverviewStats,
     fetchChartData,
   };
-}
+};

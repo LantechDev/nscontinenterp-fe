@@ -124,7 +124,6 @@ export function useFinanceDashboardPage() {
   async function handlePeriodChange(period: PeriodType) {
     selectedPeriod.value = period;
     resetPage();
-    await fetchDataForTab(activeTab.value, period);
   }
 
   async function handleTabChange(tab: TabName) {
@@ -169,7 +168,7 @@ export function useFinanceDashboardPage() {
   onMounted(async () => {
     document.addEventListener("click", handleClickOutside);
     await loadCustomers();
-    await fetchDataForTab(activeTab.value, selectedPeriod.value);
+    // Fetching is now handled by dashboard.vue to avoid loops
   });
 
   onUnmounted(() => document.removeEventListener("click", handleClickOutside));
