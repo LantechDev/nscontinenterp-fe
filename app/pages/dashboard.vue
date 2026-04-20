@@ -50,10 +50,14 @@ const {
   data: dashboardData,
   pending: loading,
   refresh: refreshDashboard,
-} = await useAsyncData<DashboardData>("dashboard-data", async () => {
-  const query = `?${new URLSearchParams(periodParams.value).toString()}`;
-  return await $fetch<DashboardData>(`/api/admin/dashboard${query}`);
-});
+} = await useAsyncData<DashboardData>(
+  "dashboard-data",
+  async () => {
+    const query = `?${new URLSearchParams(periodParams.value).toString()}`;
+    return await $fetch<DashboardData>(`/api/admin/dashboard${query}`);
+  },
+  { server: false },
+);
 
 // Fetch pending approvals (lazy - doesn't block navigation)
 const { refresh: refreshPendingApprovals } = await useAsyncData<PendingApprovalBl[]>(
@@ -62,7 +66,7 @@ const { refresh: refreshPendingApprovals } = await useAsyncData<PendingApprovalB
     if (!canApproveJobs.value) return [];
     return await $fetch<PendingApprovalBl[]>("/api/dashboard/pending-approvals");
   },
-  { lazy: true },
+  { lazy: true, server: false },
 );
 
 const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];

@@ -36,27 +36,38 @@ const filteredUsers = computed(() => {
   });
 });
 
-await Promise.all([
-  useAsyncData("users-list", async () => {
-    const result = await fetchUsers();
-    if (result.success && result.data && Array.isArray(result.data.users)) {
-      users.value = result.data.users.map(
-        (u: AuthUser): DisplayUser => ({
-          id: u.id,
-          name: u.name,
-          email: u.email,
-          role: u.role,
-          status: u.banned ? "inactive" : "active",
-          lastLogin: u.lastLogin ? new Date(u.lastLogin).toLocaleString() : "-",
-        }),
-      );
-    }
-    return result;
-  }),
-  useAsyncData("roles-list", () => fetchRoles()),
+const [
+  { pending: usersPending, error: usersError, refresh: refreshUsers },
+  { pending: rolesPending, error: rolesError, refresh: refreshRoles },
+] = await Promise.all([
+  useAsyncData(
+    "users-list",
+    async () => {
+      const result = await fetchUsers();
+      if (result.success && result.data && Array.isArray(result.data.users)) {
+        users.value = result.data.users.map(
+          (u: AuthUser): DisplayUser => ({
+            id: u.id,
+            name: u.name,
+            email: u.email,
+            role: u.role,
+            status: u.banned ? "inactive" : "active",
+            lastLogin: u.lastLogin ? new Date(u.lastLogin).toLocaleString() : "-",
+          }),
+        );
+      }
+      return result;
+    },
+    { server: false },
+  ),
+  useAsyncData("roles-list", () => fetchRoles(), { server: false }),
 ]);
 
-const pending = computed(() => false);
+const pending = computed(() => usersPending.value || rolesPending.value);
+const bootstrapError = computed(() => usersError.value || rolesError.value);
+const refreshAll = async () => {
+  await Promise.all([refreshUsers(), refreshRoles()]);
+};
 
 const currentPage = ref(1);
 const pagination = ref({
@@ -138,6 +149,20 @@ const openMenuId = ref<string | null>(null);
           <span>New User</span>
         </button>
       </div>
+    </div>
+
+    <div
+      v-if="bootstrapError"
+      class="bg-destructive/10 border border-destructive/20 text-destructive px-4 py-3 rounded-lg text-sm animate-fade-in"
+    >
+      <div class="flex items-center justify-between gap-4">
+        <span>Gagal memuat data user/role. Silakan coba lagi.</span>
+        <button class="btn-secondary" type="button" @click="refreshAll()">Coba lagi</button>
+      </div>
+    </div>
+
+    <div v-else-if="pending" class="flex justify-center py-6">
+      <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
     </div>
 
     <div class="bg-white rounded-lg border border-border overflow-hidden">

@@ -17,11 +17,15 @@ const {
   data: serviceData,
   pending,
   refresh,
-} = await useAsyncData<Service>(`service-${id}`, async () => {
-  const result = await $fetch<Service>(`/api/master/services/${id}`);
-  if (!result) throw new Error("Service not found");
-  return result;
-});
+} = await useAsyncData<Service>(
+  `service-${id}`,
+  async () => {
+    const result = await $fetch<Service>(`/api/master/services/${id}`);
+    if (!result) throw new Error("Service not found");
+    return result;
+  },
+  { server: false },
+);
 
 const service = computed(() => serviceData.value);
 const isLoading = computed(() => pending.value);

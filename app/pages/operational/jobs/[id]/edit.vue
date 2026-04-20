@@ -37,14 +37,18 @@ const {
   data: jobData,
   pending: loading,
   error,
-} = await useAsyncData<JobWithBls>(`job-${jobId}`, async () => {
-  const res = await getJob(jobId);
-  if (res.success && res.data) {
-    jobDetails.value = res.data;
-    return res.data;
-  }
-  throw new Error(res.error || "Failed to load job");
-});
+} = await useAsyncData<JobWithBls>(
+  `job-${jobId}`,
+  async () => {
+    const res = await getJob(jobId);
+    if (res.success && res.data) {
+      jobDetails.value = res.data;
+      return res.data;
+    }
+    throw new Error(res.error || "Failed to load job");
+  },
+  { server: false },
+);
 
 const isJobLoading = computed(() => loading.value);
 

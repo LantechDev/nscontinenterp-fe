@@ -18,15 +18,18 @@ const { companies: companiesList, pagination, loadCompanies, deleteCompany } = u
 const { fetchCompanyCategories } = useMasterData();
 
 const [companiesData, categoriesData] = await Promise.all([
-  useAsyncData("companies-list", () =>
-    loadCompanies({
-      page: 1,
-      limit: 50,
-      type: "ALL",
-      status: "ALL",
-    }),
+  useAsyncData(
+    "companies-list",
+    () =>
+      loadCompanies({
+        page: 1,
+        limit: 50,
+        type: "ALL",
+        status: "ALL",
+      }),
+    { server: false },
   ),
-  useAsyncData("company-categories", () => fetchCompanyCategories()),
+  useAsyncData("company-categories", () => fetchCompanyCategories(), { server: false }),
 ]);
 
 const pending = computed(() => companiesData.pending.value);

@@ -17,7 +17,7 @@ const {
   deleteVessel,
 } = useVessels();
 
-const { pending } = await useAsyncData("vessels-list", () => fetchVessels());
+const { pending } = await useAsyncData("vessels-list", () => fetchVessels(), { server: false });
 
 // Search state
 const searchQuery = ref("");

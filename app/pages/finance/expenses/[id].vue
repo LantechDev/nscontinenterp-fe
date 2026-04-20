@@ -19,9 +19,11 @@ const {
   data: expenseData,
   pending: loading,
   error,
-} = await useAsyncData<Expense>(`expense-${expenseId}`, async () => {
-  return await fetchExpenseById(expenseId);
-});
+} = await useAsyncData<Expense>(
+  `expense-${expenseId}`,
+  async () => await fetchExpenseById(expenseId),
+  { server: false },
+);
 
 const expense = computed(() => expenseData.value);
 const isLoading = computed(() => loading.value);

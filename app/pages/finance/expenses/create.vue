@@ -2,7 +2,6 @@
 import { ArrowLeft, Save } from "lucide-vue-next";
 import SearchSelect from "~/components/ui/SearchSelect.vue";
 import { useFinanceExpense } from "~/composables/useFinanceExpense";
-import { useFinanceTax, type Tax } from "~/composables/useFinanceTax";
 import { type Tax as TaxType } from "~/composables/useFinanceTax";
 import { toast } from "vue-sonner";
 
@@ -12,39 +11,52 @@ definePageMeta({
 
 const { createExpense, isLoading } = useFinanceExpense();
 
-// SSR-first: fetch initial dropdown data
-const { data: dropdownData } = await useAsyncData<{
+// Client-side: fetch initial dropdown data (avoid slow cross-region SSR)
+const {
+  data: dropdownData,
+  pending: isBootstrapping,
+  error: bootstrapError,
+  refresh: refreshBootstrap,
+} = await useAsyncData<{
   vendors: Array<{ id: string; name: string }>;
   jobs: Array<{ id: string; jobNumber: string }>;
   categories: Array<{ id: string; name: string }>;
   taxes: TaxType[];
-}>("expense-create-data", async () => {
-  const [vendorRes, jobRes, serviceRes, taxRes] = await Promise.all([
-    $fetch("/api/master/companies?type=VENDOR&limit=50"),
-    $fetch("/api/operational/jobs"),
-    $fetch("/api/master/services"),
-    $fetch<{ items: TaxType[] }>("/api/finance/taxes?isActive=true&limit=100"),
-  ]);
+}>(
+  "expense-create-data",
+  async () => {
+    const [vendorRes, jobRes, serviceRes, taxRes] = await Promise.all([
+      $fetch("/api/master/companies?type=VENDOR&limit=50"),
+      $fetch("/api/operational/jobs"),
+      $fetch("/api/master/services"),
+      $fetch<{ items: TaxType[] }>("/api/finance/taxes?isActive=true&limit=100"),
+    ]);
 
-  const vendors =
-    (vendorRes as { success: boolean; data?: Array<{ id: string; name: string }> })?.data || [];
-  const jobs =
-    (jobRes as { success: boolean; data?: Array<{ id: string; jobNumber: string }> })?.data || [];
-  const services =
-    (serviceRes as { success: boolean; data?: Array<{ category?: { id: string; name: string } }> })
-      ?.data || [];
+    const vendors =
+      (vendorRes as { success: boolean; data?: Array<{ id: string; name: string }> })?.data || [];
+    const jobs =
+      (jobRes as { success: boolean; data?: Array<{ id: string; jobNumber: string }> })?.data || [];
+    const services =
+      (
+        serviceRes as {
+          success: boolean;
+          data?: Array<{ category?: { id: string; name: string } }>;
+        }
+      )?.data || [];
 
-  const catMap = new Map<string, { id: string; name: string }>();
-  for (const svc of services) {
-    if (svc.category) {
-      catMap.set(svc.category.id, { id: svc.category.id, name: svc.category.name });
+    const catMap = new Map<string, { id: string; name: string }>();
+    for (const svc of services) {
+      if (svc.category) {
+        catMap.set(svc.category.id, { id: svc.category.id, name: svc.category.name });
+      }
     }
-  }
-  const categories = Array.from(catMap.values());
-  const taxes = taxRes?.items || [];
+    const categories = Array.from(catMap.values());
+    const taxes = taxRes?.items || [];
 
-  return { vendors, jobs, categories, taxes };
-});
+    return { vendors, jobs, categories, taxes };
+  },
+  { server: false },
+);
 
 const vendors = computed(() => dropdownData.value?.vendors || []);
 const jobs = computed(() => dropdownData.value?.jobs || []);
@@ -123,6 +135,20 @@ if (import.meta.client) {
           <p class="text-muted-foreground mt-1">Masukkan detail pengeluaran operasional</p>
         </div>
       </div>
+    </div>
+
+    <div
+      v-if="bootstrapError"
+      class="bg-destructive/10 border border-destructive/20 text-destructive px-4 py-3 rounded-lg text-sm animate-fade-in"
+    >
+      <div class="flex items-center justify-between gap-4">
+        <span>Gagal memuat data dropdown. Silakan coba lagi.</span>
+        <button class="btn-secondary" type="button" @click="refreshBootstrap()">Coba lagi</button>
+      </div>
+    </div>
+
+    <div v-if="isBootstrapping" class="flex justify-center py-6">
+      <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
     </div>
 
     <div class="max-w-8xl">

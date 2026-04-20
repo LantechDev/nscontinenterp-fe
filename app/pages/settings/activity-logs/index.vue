@@ -91,13 +91,17 @@ const filters = ref({
 // Initial fetch with useAsyncData
 const { data: initialData, pending: isLoading } = await useAsyncData<
   PaginatedResponse<ActivityLog>
->("activity-logs-initial", async () => {
-  return await getActivityLogs({
-    page: pagination.value.page,
-    limit: pagination.value.limit,
-    organizationId: session.value?.activeOrganizationId,
-  });
-});
+>(
+  "activity-logs-initial",
+  async () => {
+    return await getActivityLogs({
+      page: pagination.value.page,
+      limit: pagination.value.limit,
+      organizationId: session.value?.activeOrganizationId,
+    });
+  },
+  { server: false },
+);
 
 // Computed loading state that combines pending + client loading
 const isLoadingAny = computed(() => isLoading.value);

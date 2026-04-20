@@ -39,7 +39,7 @@ interface EblItem {
 
 const { ebls, fetchEbls, isLoading } = useEbls();
 
-const { pending } = await useAsyncData("ebls-list", () => fetchEbls());
+const { pending } = await useAsyncData("ebls-list", () => fetchEbls(), { server: false });
 
 // Map status code to display format
 const getStatusInfo = (ebl: EblItem): { label: string; class: string } => {
