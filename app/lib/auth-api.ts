@@ -9,6 +9,10 @@ import type {
   AuthSession,
 } from "~/types/auth";
 
+function getApiFetch() {
+  return import.meta.server ? useRequestFetch() : $fetch;
+}
+
 function normalizeOrganizationListResponse(
   response:
     | Organization[]
@@ -39,7 +43,7 @@ function normalizeOrganizationListResponse(
 export const authApi = {
   async getSession(): Promise<AuthSession | null> {
     try {
-      return await $fetch<AuthSession>("/api/auth/get-session");
+      return await getApiFetch()<AuthSession>("/api/auth/get-session");
     } catch (error) {
       console.warn("[Auth] Session fetch failed:", error);
       return null;
@@ -48,7 +52,7 @@ export const authApi = {
 
   async signIn(email: string, password: string): Promise<AuthResponse<LoginResponse>> {
     try {
-      const data = await $fetch<LoginResponse>("/api/auth/login", {
+      const data = await getApiFetch()<LoginResponse>("/api/auth/login", {
         method: "POST",
         body: { email, password },
       });
@@ -60,7 +64,7 @@ export const authApi = {
 
   async signOut(): Promise<AuthResponse> {
     try {
-      await $fetch("/api/auth/logout", {
+      await getApiFetch()("/api/auth/logout", {
         method: "POST",
       });
       return { success: true };
@@ -76,7 +80,7 @@ export const authApi = {
     role: string,
   ): Promise<AuthResponse<SignUpResponse>> {
     try {
-      const data = await $fetch<SignUpResponse>("/api/auth/admin/create-user", {
+      const data = await getApiFetch()<SignUpResponse>("/api/auth/admin/create-user", {
         method: "POST",
         body: { name, email, password, role },
       });
@@ -88,7 +92,7 @@ export const authApi = {
 
   async requestPasswordReset(email: string, redirectTo?: string): Promise<AuthResponse> {
     try {
-      await $fetch("/api/auth/request-password-reset", {
+      await getApiFetch()("/api/auth/request-password-reset", {
         method: "POST",
         body: { email, redirectTo },
       });
@@ -100,7 +104,7 @@ export const authApi = {
 
   async resetPassword(newPassword: string, token: string): Promise<AuthResponse> {
     try {
-      await $fetch("/api/auth/reset-password", {
+      await getApiFetch()("/api/auth/reset-password", {
         method: "POST",
         body: { newPassword, token },
       });
@@ -112,7 +116,7 @@ export const authApi = {
 
   async changePassword(currentPassword: string, newPassword: string): Promise<AuthResponse> {
     try {
-      await $fetch("/api/auth/change-password", {
+      await getApiFetch()("/api/auth/change-password", {
         method: "POST",
         body: { currentPassword, newPassword },
       });
@@ -124,7 +128,9 @@ export const authApi = {
 
   async updateUser(data: { name?: string; image?: string }): Promise<AuthResponse<{ user: User }>> {
     try {
-      const responseData = await $fetch<{ user: User }>("/api/auth/update-user", {
+      const responseData = await getApiFetch()<{
+        user: User;
+      }>("/api/auth/update-user", {
         method: "POST",
         body: data,
       });
@@ -136,7 +142,7 @@ export const authApi = {
 
   async fetchUsers(): Promise<AuthResponse<UserListResponse>> {
     try {
-      const data = await $fetch<UserListResponse>("/api/admin/users");
+      const data = await getApiFetch()<UserListResponse>("/api/admin/users");
       return { success: true, data };
     } catch (error) {
       return handleApiError<UserListResponse>(error);
@@ -145,7 +151,7 @@ export const authApi = {
 
   async fetchUserById(id: string): Promise<AuthResponse<{ user: User }>> {
     try {
-      const data = await $fetch<User>(`/api/admin/users/${id}`);
+      const data = await getApiFetch()<User>(`/api/admin/users/${id}`);
       return { success: true, data: { user: data } };
     } catch (error) {
       return handleApiError<{ user: User }>(error);
@@ -163,7 +169,9 @@ export const authApi = {
     },
   ): Promise<AuthResponse<{ user: User }>> {
     try {
-      const responseData = await $fetch<{ user: User }>("/api/auth/admin/update-user", {
+      const responseData = await getApiFetch()<{
+        user: User;
+      }>("/api/auth/admin/update-user", {
         method: "POST",
         body: { userId, data },
       });
@@ -175,7 +183,7 @@ export const authApi = {
 
   async deleteUser(userId: string): Promise<AuthResponse> {
     try {
-      await $fetch("/api/auth/admin/delete-user", {
+      await getApiFetch()("/api/auth/admin/delete-user", {
         method: "POST",
         body: { userId },
       });
@@ -187,7 +195,7 @@ export const authApi = {
 
   async listOrganizations(): Promise<AuthResponse<Organization[]>> {
     try {
-      const response = await $fetch<
+      const response = await getApiFetch()<
         Organization[] | { data?: Organization[] } | { organizations?: Organization[] }
       >("/api/organization/list");
       return { success: true, data: normalizeOrganizationListResponse(response) };
@@ -198,7 +206,7 @@ export const authApi = {
 
   async setActiveOrganization(organizationId: string): Promise<AuthResponse> {
     try {
-      await $fetch("/api/organization/set-active", {
+      await getApiFetch()("/api/organization/set-active", {
         method: "POST",
         body: { organizationId },
       });
@@ -215,7 +223,7 @@ export const authApi = {
     metadata?: Record<string, unknown>;
   }): Promise<AuthResponse<Organization>> {
     try {
-      const responseData = await $fetch<Organization>("/api/auth/organization/create", {
+      const responseData = await getApiFetch()<Organization>("/api/auth/organization/create", {
         method: "POST",
         body: data,
       });
@@ -235,7 +243,7 @@ export const authApi = {
     },
   ): Promise<AuthResponse<Organization>> {
     try {
-      const responseData = await $fetch<Organization>("/api/auth/organization/update", {
+      const responseData = await getApiFetch()<Organization>("/api/auth/organization/update", {
         method: "POST",
         body: { organizationId, data },
       });

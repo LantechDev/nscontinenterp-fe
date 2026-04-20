@@ -47,9 +47,9 @@ async function handleDelete() {
   if (confirm("Apakah Anda yakin ingin menghapus biaya ini?")) {
     try {
       await deleteExpense(expenseId);
-      navigateTo("/finance/expense");
-    } catch (error) {
-      toast.error("Gagal menghapus biaya: " + (error as Error).message);
+      navigateTo("/finance/expenses");
+    } catch (err) {
+      toast.error("Gagal menghapus biaya: " + (err as Error).message);
     }
   }
 }
@@ -193,7 +193,10 @@ onMounted(() => {
       <div class="page-header">
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-4">
-            <NuxtLink to="/finance/expense" class="p-2 rounded-lg hover:bg-muted transition-colors">
+            <NuxtLink
+              to="/finance/expenses"
+              class="p-2 rounded-lg hover:bg-muted transition-colors"
+            >
               <ArrowLeft class="w-5 h-5" />
             </NuxtLink>
             <div>

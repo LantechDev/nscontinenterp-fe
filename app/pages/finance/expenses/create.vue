@@ -99,7 +99,7 @@ async function handleSubmit() {
     if (form.value.taxId) payload.taxId = form.value.taxId;
 
     await createExpense(payload);
-    navigateTo("/finance/expense");
+    navigateTo("/finance/expenses");
   } catch (error) {
     toast.error("Gagal mencatat biaya: " + (error as Error).message);
   }
@@ -115,7 +115,7 @@ if (import.meta.client) {
   <div class="space-y-6 animate-fade-in p-6">
     <div class="page-header">
       <div class="flex items-center gap-4">
-        <NuxtLink to="/finance/expense" class="p-2 rounded-lg hover:bg-muted transition-colors">
+        <NuxtLink to="/finance/expenses" class="p-2 rounded-lg hover:bg-muted transition-colors">
           <ArrowLeft class="w-5 h-5" />
         </NuxtLink>
         <div>

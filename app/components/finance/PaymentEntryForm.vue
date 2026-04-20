@@ -59,11 +59,9 @@ const isFetchingInvoices = ref(false);
 const loadOutstandingInvoices = async (companyId: string) => {
   if (!companyId) return;
   isFetchingInvoices.value = true;
-  const result = await fetchInvoices();
+  const result = await fetchInvoices(undefined, { companyId });
   if (result.success && result.data) {
-    outstandingInvoices.value = result.data.filter(
-      (inv) => inv.companyId === companyId && Number(inv.balanceDue) > 0,
-    );
+    outstandingInvoices.value = result.data.filter((inv) => Number(inv.balanceDue) > 0);
 
     if (props.invoiceId) {
       const target = outstandingInvoices.value.find((inv) => inv.id === props.invoiceId);

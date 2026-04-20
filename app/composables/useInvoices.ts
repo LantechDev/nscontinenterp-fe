@@ -117,7 +117,10 @@ export function useInvoices() {
     }
   }
 
-  async function fetchInvoices(jobId?: string): Promise<{
+  async function fetchInvoices(
+    jobId?: string,
+    filters?: { companyId?: string; status?: string },
+  ): Promise<{
     success: boolean;
     data?: Invoice[];
     error?: string;
@@ -125,7 +128,11 @@ export function useInvoices() {
     isLoading.value = true;
     try {
       const data = await $fetch<Invoice[]>(`/api/finance/invoice`, {
-        query: jobId ? { jobId } : undefined,
+        query: {
+          ...(jobId ? { jobId } : {}),
+          ...(filters?.companyId ? { companyId: filters.companyId } : {}),
+          ...(filters?.status ? { status: filters.status } : {}),
+        },
       });
       return { success: true, data };
     } catch (error) {

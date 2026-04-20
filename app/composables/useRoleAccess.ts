@@ -130,7 +130,7 @@ export function useRoleAccess() {
     }
 
     if (
-      path.startsWith("/finance/expense") ||
+      path.startsWith("/finance/expenses") ||
       path.startsWith("/finance/transactions") ||
       path.startsWith("/finance/journal")
     ) {

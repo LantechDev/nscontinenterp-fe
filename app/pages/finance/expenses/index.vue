@@ -152,7 +152,7 @@ if (expensesData.value) {
           </option>
         </select>
         <NuxtLink
-          to="/finance/expense/create"
+          to="/finance/expenses/create"
           class="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-[#012D5A] text-white hover:bg-[#012D5A]/90 rounded-lg transition-colors min-w-fit whitespace-nowrap"
         >
           <Plus class="w-4 h-4" />
