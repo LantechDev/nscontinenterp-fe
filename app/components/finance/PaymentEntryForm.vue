@@ -187,7 +187,6 @@ const handleSave = async () => {
     emit("success");
   }
 };
-
 onMounted(async () => {
   await Promise.all([
     fetchCompanies({ type: "CUSTOMER" }),
