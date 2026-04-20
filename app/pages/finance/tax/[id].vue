@@ -18,8 +18,8 @@ const {
   data: taxData,
   pending: loading,
   error,
-} = await useAsyncData<Tax>(`tax-${taxId}`, async () => {
-  return await fetchTaxById(taxId);
+} = await useAsyncData<Tax>(`tax-${taxId}`, async () => await fetchTaxById(taxId), {
+  server: false,
 });
 
 const tax = computed(() => taxData.value);

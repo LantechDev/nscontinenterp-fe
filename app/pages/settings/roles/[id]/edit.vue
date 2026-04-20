@@ -2,6 +2,7 @@
 import { ArrowLeft, Save, Loader2 } from "lucide-vue-next";
 import { z } from "zod";
 import { PermissionsTable } from "../components";
+import type { Role } from "~/composables/useRoles";
 
 definePageMeta({
   layout: "dashboard",
@@ -21,6 +22,7 @@ const { data: roleData, error: fetchError } = await useAsyncData<Role>(
     if (!data) throw new Error("Role not found");
     return data;
   },
+  { server: false },
 );
 
 const isFetching = computed(() => !roleData.value && !fetchError.value);

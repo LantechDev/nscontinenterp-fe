@@ -10,10 +10,17 @@ definePageMeta({
 
 const { fetchCompaniesWithParams } = useMasterData();
 
-// SSR-first: fetch initial dropdown data
-const { data: taxData } = await useAsyncData<{ items: Tax[] }>("invoice-create-taxes", async () => {
-  return await $fetch<{ items: Tax[] }>("/api/finance/taxes?isActive=true&limit=100");
-});
+// Client-side: fetch initial dropdown data (avoid slow cross-region SSR)
+const {
+  data: taxData,
+  pending: isTaxesLoading,
+  error: taxesError,
+  refresh: refreshTaxes,
+} = await useAsyncData<{ items: Tax[] }>(
+  "invoice-create-taxes",
+  async () => await $fetch<{ items: Tax[] }>("/api/finance/taxes?isActive=true&limit=100"),
+  { server: false },
+);
 
 const taxOptions = computed(() => taxData.value?.items || []);
 const formattedTaxOptions = computed(() =>
@@ -68,6 +75,20 @@ const handleJobSearch = async (options: { query: string; page?: number; limit?: 
           <p class="text-muted-foreground mt-1">Buat tagihan ke customer</p>
         </div>
       </div>
+    </div>
+
+    <div
+      v-if="taxesError"
+      class="bg-destructive/10 border border-destructive/20 text-destructive px-4 py-3 rounded-lg text-sm animate-fade-in"
+    >
+      <div class="flex items-center justify-between gap-4">
+        <span>Gagal memuat data pajak. Silakan coba lagi.</span>
+        <button class="btn-secondary" type="button" @click="refreshTaxes()">Coba lagi</button>
+      </div>
+    </div>
+
+    <div v-if="isTaxesLoading" class="flex justify-center py-6">
+      <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
     </div>
 
     <form class="card-elevated p-6 space-y-6">

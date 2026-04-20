@@ -24,7 +24,7 @@ const searchQuery = ref("");
 const isDeleting = ref(false);
 const errorRoot = ref("");
 
-const { pending } = await useAsyncData("roles-list", () => fetchRoles());
+const { pending } = await useAsyncData("roles-list", () => fetchRoles(), { server: false });
 
 // Pagination
 const currentPage = ref(1);

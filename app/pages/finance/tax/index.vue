@@ -19,6 +19,11 @@ definePageMeta({
   layout: "dashboard",
 });
 
+interface TaxListResponse {
+  items: Tax[];
+  pagination: Pagination;
+}
+
 const {
   taxes,
   filters,
@@ -42,16 +47,31 @@ const {
   setData,
 } = useTaxPage();
 
-// SSR-first: fetch initial data and inject into composable
-const { data: taxesData } = await useAsyncData("tax-list", async () => {
-  const response = await $fetch("/api/finance/tax");
-  return response;
-});
+// Client-side: fetch initial data (avoid slow cross-region SSR)
+const {
+  data: taxesData,
+  pending: isBootstrapping,
+  error: bootstrapError,
+  refresh: refreshBootstrap,
+} = await useAsyncData<TaxListResponse>(
+  "tax-list",
+  async () => {
+    return await $fetch<TaxListResponse>("/api/finance/tax");
+  },
+  { server: false },
+);
 
-// Inject SSR data into composable
-if (taxesData.value) {
-  setData(taxesData.value as { items: Tax[]; pagination: Pagination });
-}
+watch(
+  taxesData,
+  (value) => {
+    if (value) {
+      setData(value);
+    }
+  },
+  { immediate: true },
+);
+
+const isPageLoading = computed(() => isLoading.value || isBootstrapping.value);
 </script>
 
 <template>
@@ -126,7 +146,17 @@ if (taxesData.value) {
       </div>
     </div>
 
-    <div v-if="isLoading" class="flex justify-center py-12">
+    <div
+      v-if="bootstrapError"
+      class="bg-destructive/10 border border-destructive/20 text-destructive px-4 py-3 rounded-lg text-sm animate-fade-in"
+    >
+      <div class="flex items-center justify-between gap-4">
+        <span>Gagal memuat data pajak. Silakan coba lagi.</span>
+        <button class="btn-secondary" type="button" @click="refreshBootstrap()">Coba lagi</button>
+      </div>
+    </div>
+
+    <div v-if="isPageLoading" class="flex justify-center py-12">
       <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
     </div>
 

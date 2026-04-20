@@ -31,7 +31,6 @@ const {
   removeAttachment,
   saveTransaction,
   initialize,
-  setData,
 } = useTransaction();
 
 const fileInput = ref<HTMLInputElement | null>(null);
@@ -41,15 +40,10 @@ const formattedTaxOptions = computed(() =>
   taxOptions.value.map((tax) => ({ id: tax.id, name: `${tax.name} (${tax.rate}%)` })),
 );
 
-// SSR-first: fetch initial data and inject into composable
-const { data: accountsData } = await useAsyncData("transaction-create-accounts", async () => {
-  return await $fetch("/api/finance/accounts");
+// Client-side: initialize (avoids slow cross-region SSR)
+onMounted(() => {
+  void initialize();
 });
-
-// Inject SSR data into composable
-if (accountsData.value) {
-  setData({ accounts: accountsData.value as ChartOfAccount[] });
-}
 </script>
 
 <template>

@@ -2,6 +2,7 @@
 import { ArrowLeft, Save, Loader2, Trash2, AlertTriangle } from "lucide-vue-next";
 import { z } from "zod";
 import { toast } from "vue-sonner";
+import type { Role } from "~/composables/useRoles";
 
 definePageMeta({
   layout: "dashboard",
@@ -31,7 +32,14 @@ interface UserResponseData {
 }
 
 // Fetch roles and user data in parallel
-const { data: rolesData } = await useAsyncData<{ roles: Role[]; user: UserResponseData }>(
+const {
+  data: rolesData,
+  pending: isBootstrapping,
+  error: bootstrapError,
+} = await useAsyncData<{
+  roles: Role[];
+  user: UserResponseData;
+}>(
   `user-edit-${userId}`,
   async () => {
     const [rolesResponse, userResponse] = await Promise.all([
@@ -40,11 +48,16 @@ const { data: rolesData } = await useAsyncData<{ roles: Role[]; user: UserRespon
     ]);
     return { roles: rolesResponse, user: userResponse };
   },
+  { server: false },
 );
 
 const userData = computed(() => rolesData.value?.user?.data?.user);
-const isFetching = computed(() => !rolesData.value);
-const fetchError = computed(() => "");
+const isFetching = computed(() => isBootstrapping.value);
+const fetchError = computed(() => {
+  const err = bootstrapError.value;
+  if (!err) return "";
+  return err instanceof Error ? err.message : String(err);
+});
 
 // Schema differs slightly from create: password is optional
 const formSchema = z

@@ -2,7 +2,7 @@
 import { Plus, Search, Receipt, LayoutList, LayoutGrid } from "lucide-vue-next";
 import { cn } from "~/lib/utils";
 import { useInvoices, type InvoiceDetail } from "~/composables/useInvoices";
-import { useInvoicePage } from "~/composables/useInvoicePage";
+import { useInvoicePage, type InvoiceData } from "~/composables/useInvoicePage";
 import { InvoiceListView, InvoiceGridView, InvoiceEditModal } from "./components";
 import JobInvoicePreview from "~/components/operational/JobInvoicePreview.vue";
 import { toast } from "vue-sonner";
@@ -10,6 +10,10 @@ import { toast } from "vue-sonner";
 definePageMeta({
   layout: "dashboard",
 });
+
+type InvoiceListApiResponse =
+  | InvoiceData[]
+  | { items?: InvoiceData[]; pagination?: { total: number; limit: number; page: number } };
 
 const { fetchInvoiceById } = useInvoices();
 const {
@@ -47,27 +51,53 @@ const {
   initialize,
 } = useInvoicePage();
 
-// SSR-first: fetch initial data
-const { data: invoicesData } = await useAsyncData("invoice-list", async () => {
-  return await $fetch("/api/finance/invoice");
-});
+// Client-side: fetch initial data (avoid slow cross-region SSR)
+const {
+  data: invoicesData,
+  pending: isBootstrapping,
+  error: bootstrapError,
+  refresh: refreshBootstrap,
+} = await useAsyncData<InvoiceListApiResponse>(
+  "invoice-list",
+  async () => await $fetch<InvoiceListApiResponse>("/api/finance/invoice"),
+  { server: false },
+);
 
-// Inject SSR data into composable state
-if (invoicesData.value) {
-  const data = invoicesData.value as
-    | InvoiceData[]
-    | { items?: InvoiceData[]; pagination?: { total: number; limit: number; page: number } };
-  if (Array.isArray(data)) {
-    invoices.value = data;
-    pagination.value = { total: data.length, limit: 10, page: 1 };
-  } else if (data?.items) {
-    invoices.value = data.items;
-    if (data?.pagination) {
-      pagination.value = data.pagination;
+watch(
+  isBootstrapping,
+  (pending) => {
+    loading.value = pending;
+  },
+  { immediate: true },
+);
+
+watch(
+  invoicesData,
+  (value) => {
+    if (!value) return;
+    if (Array.isArray(value)) {
+      invoices.value = value;
+      pagination.value = { total: value.length, limit: 10, page: 1 };
+      return;
     }
-  }
-  loading.value = false;
-}
+    if (value.items) {
+      invoices.value = value.items;
+      if (value.pagination) {
+        pagination.value = value.pagination;
+      }
+    }
+  },
+  { immediate: true },
+);
+
+watch(
+  bootstrapError,
+  (err) => {
+    if (!err) return;
+    error.value = "Gagal memuat data invoice. Silakan coba lagi.";
+  },
+  { immediate: true },
+);
 
 const isDownloading = ref(false);
 const downloadInvoice = ref<InvoiceDetail | null>(null);
@@ -199,7 +229,10 @@ const handleTaxIdChange = (value: string) => {
     <!-- Error state -->
     <div v-else-if="error" class="text-center py-12">
       <p class="text-red-500">{{ error }}</p>
-      <button @click="initialize" class="mt-4 px-4 py-2 bg-[#012D5A] text-white rounded-lg">
+      <button
+        @click="bootstrapError ? refreshBootstrap() : initialize()"
+        class="mt-4 px-4 py-2 bg-[#012D5A] text-white rounded-lg"
+      >
         Retry
       </button>
     </div>

@@ -15,12 +15,20 @@ import { type Expense, type Pagination } from "~/composables/useFinanceExpense";
 import { type Company } from "~/composables/useMasterData";
 import { type Tax } from "~/composables/useFinanceTax";
 import { useFinanceExpense } from "~/composables/useFinanceExpense";
+import type { JobWithBls } from "~/composables/useJobs";
 import { ExpenseEditModal } from "./components";
 import { generateExpensePdf } from "./utils/pdf-generator";
 
 definePageMeta({
   layout: "dashboard",
 });
+
+interface ExpenseBootstrapData {
+  expenses: { items: Expense[]; pagination: Pagination };
+  companies: Company[];
+  jobs: JobWithBls[];
+  taxes: { items: Tax[] };
+}
 
 const {
   expenses,
@@ -56,32 +64,47 @@ const handleDownloadPdf = async (id: string) => {
   await generateExpensePdf(id, fetchExpenseById);
 };
 
-// SSR-first: fetch initial data and inject into composable
-const { data: expensesData } = await useAsyncData("expense-list", async () => {
-  const [expensesResp, companiesResp, jobsResp, taxesResp] = await Promise.all([
-    $fetch<{ items: Expense[]; pagination: Pagination }>("/api/finance/expense"),
-    $fetch<Company[]>("/api/master/companies?type=CUSTOMER"),
-    $fetch("/api/operational/jobs"),
-    $fetch<{ items: Tax[] }>("/api/finance/tax?isActive=true"),
-  ]);
-  return { expenses: expensesResp, companies: companiesResp, jobs: jobsResp, taxes: taxesResp };
-});
+// Client-side: fetch initial data (avoid slow cross-region SSR)
+const {
+  data: expensesData,
+  pending: isBootstrapping,
+  error: bootstrapError,
+  refresh: refreshBootstrap,
+} = await useAsyncData<ExpenseBootstrapData>(
+  "expense-list",
+  async () => {
+    const [expensesResp, companiesResp, jobsResp, taxesResp] = await Promise.all([
+      $fetch<{ items: Expense[]; pagination: Pagination }>("/api/finance/expense"),
+      $fetch<Company[]>("/api/master/companies?type=CUSTOMER"),
+      $fetch<JobWithBls[]>("/api/operational/jobs"),
+      $fetch<{ items: Tax[] }>("/api/finance/tax?isActive=true"),
+    ]);
+    return { expenses: expensesResp, companies: companiesResp, jobs: jobsResp, taxes: taxesResp };
+  },
+  { server: false },
+);
 
-// Inject SSR data into composable
-if (expensesData.value) {
-  setData({
-    items: expensesData.value.expenses?.items || [],
-    pagination: expensesData.value.expenses?.pagination || {
-      total: 0,
-      limit: 10,
-      page: 1,
-      totalPages: 0,
-    },
-    companies: expensesData.value.companies,
-    jobs: expensesData.value.jobs as JobWithBls[],
-    taxOptions: expensesData.value.taxes?.items,
-  });
-}
+watch(
+  expensesData,
+  (value) => {
+    if (!value) return;
+    setData({
+      items: value.expenses?.items || [],
+      pagination: value.expenses?.pagination || {
+        total: 0,
+        limit: 10,
+        page: 1,
+        totalPages: 0,
+      },
+      companies: value.companies,
+      jobs: value.jobs,
+      taxOptions: value.taxes?.items,
+    });
+  },
+  { immediate: true },
+);
+
+const isPageLoading = computed(() => isLoading.value || isBootstrapping.value);
 </script>
 
 <template>
@@ -161,7 +184,17 @@ if (expensesData.value) {
       </div>
     </div>
 
-    <div v-if="isLoading" class="flex justify-center py-12">
+    <div
+      v-if="bootstrapError"
+      class="bg-destructive/10 border border-destructive/20 text-destructive px-4 py-3 rounded-lg text-sm animate-fade-in"
+    >
+      <div class="flex items-center justify-between gap-4">
+        <span>Gagal memuat data biaya. Silakan coba lagi.</span>
+        <button class="btn-secondary" type="button" @click="refreshBootstrap()">Coba lagi</button>
+      </div>
+    </div>
+
+    <div v-if="isPageLoading" class="flex justify-center py-12">
       <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
     </div>
 

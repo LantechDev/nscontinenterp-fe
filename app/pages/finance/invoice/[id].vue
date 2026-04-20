@@ -24,13 +24,17 @@ const {
   pending: loading,
   error,
   refresh,
-} = await useAsyncData<InvoiceDetail>(`invoice-${invoiceId}`, async () => {
-  const result = await fetchInvoiceById(invoiceId);
-  if (result.success && result.data) {
-    return result.data;
-  }
-  throw new Error(result.error || "Failed to load invoice");
-});
+} = await useAsyncData<InvoiceDetail>(
+  `invoice-${invoiceId}`,
+  async () => {
+    const result = await fetchInvoiceById(invoiceId);
+    if (result.success && result.data) {
+      return result.data;
+    }
+    throw new Error(result.error || "Failed to load invoice");
+  },
+  { server: false },
+);
 
 const invoice = computed(() => invoiceData.value);
 const isLoading = computed(() => loading.value);

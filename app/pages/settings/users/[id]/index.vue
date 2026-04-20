@@ -59,6 +59,7 @@ const { data: rawUser, error: fetchError } = await useAsyncData<DisplayUser>(
         : "-",
     } as DisplayUser;
   },
+  { server: false },
 );
 
 const user = computed(() => rawUser.value as DisplayUser | null);

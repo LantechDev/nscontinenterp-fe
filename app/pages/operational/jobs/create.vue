@@ -50,22 +50,26 @@ const {
   vessels: Vessel[];
   ports: Port[];
   packageTypes: PackageType[];
-}>("job-create-master-data", async () => {
-  const [comps, types, packs, vess, initialPorts] = await Promise.all([
-    $fetch<Company[]>("/api/master/companies"),
-    $fetch<ContainerType[]>("/api/master/container-types"),
-    $fetch<PackageType[]>("/api/master/package-types"),
-    $fetch<Vessel[]>("/api/master/vessels"),
-    $fetch<Port[]>("/api/master/ports"),
-  ]);
-  return {
-    companies: comps,
-    containerTypes: types,
-    vessels: vess,
-    ports: initialPorts,
-    packageTypes: packs,
-  };
-});
+}>(
+  "job-create-master-data",
+  async () => {
+    const [comps, types, packs, vess, initialPorts] = await Promise.all([
+      $fetch<Company[]>("/api/master/companies"),
+      $fetch<ContainerType[]>("/api/master/container-types"),
+      $fetch<PackageType[]>("/api/master/package-types"),
+      $fetch<Vessel[]>("/api/master/vessels"),
+      $fetch<Port[]>("/api/master/ports"),
+    ]);
+    return {
+      companies: comps,
+      containerTypes: types,
+      vessels: vess,
+      ports: initialPorts,
+      packageTypes: packs,
+    };
+  },
+  { server: false },
+);
 
 const companies = computed(() => masterData.value?.companies || []);
 const containerTypes = computed(() => masterData.value?.containerTypes || []);
