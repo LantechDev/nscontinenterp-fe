@@ -12,10 +12,13 @@ const props = defineProps<{
   modelValue: boolean;
   mode?: "create" | "edit";
   company?: Company | null;
+  presetName?: string;
+  presetRole?: "customer" | "vendor" | "both";
 }>();
 const emit = defineEmits<{
   (e: "update:modelValue", value: boolean): void;
   (e: "refresh"): void;
+  (e: "success", company: Company): void;
 }>();
 
 const isOpen = computed({
@@ -168,12 +171,16 @@ const resetForm = () => {
   isActive.value = true;
   selectedCountryCode.value = "ID";
   formData.value = {
-    name: "",
+    name: props.presetName || "",
     email: "",
     phone: "",
     countryCode: "ID",
-    isCustomer: true,
-    isVendor: false,
+    isCustomer: props.presetRole
+      ? props.presetRole === "customer" || props.presetRole === "both"
+      : true,
+    isVendor: props.presetRole
+      ? props.presetRole === "vendor" || props.presetRole === "both"
+      : false,
     isActive: true,
     categoryId: "",
     country: "",
@@ -284,6 +291,7 @@ const handleSubmitCompany = async () => {
   if (result.success) {
     isOpen.value = false;
     emit("refresh");
+    if (result.data) emit("success", result.data);
   } else {
     formError.value = result.error || "Failed to save company";
   }

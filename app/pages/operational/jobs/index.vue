@@ -204,10 +204,10 @@ watch(
               <td class="py-3 px-4">
                 <div class="flex flex-col text-sm">
                   <span class="flex items-center gap-1 font-medium">
-                    {{ job.pol }}
+                    {{ job.polName }}
                   </span>
                   <span class="flex items-center gap-1 text-muted-foreground text-xs">
-                    <ArrowRight class="w-3 h-3" /> {{ job.pod }}
+                    <ArrowRight class="w-3 h-3" /> {{ job.podName }}
                   </span>
                 </div>
               </td>

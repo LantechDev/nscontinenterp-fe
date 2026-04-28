@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import Checkbox from "~/components/ui/Checkbox.vue";
 defineProps<{
   isOpen: boolean;
   isSubmitting: boolean;
@@ -57,62 +58,69 @@ const emit = defineEmits<{
             {{ editError }}
           </div>
 
-          <div>
-            <label class="block text-sm font-medium mb-1">Nama Pajak</label>
-            <input
-              v-model="formData.name"
-              type="text"
-              required
-              class="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
-            />
+          <div v-if="!formData.name && !editError" class="flex justify-center py-8">
+            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-[#012D5A]"></div>
           </div>
 
-          <div class="grid grid-cols-2 gap-4">
+          <div v-else class="space-y-4">
             <div>
-              <label class="block text-sm font-medium mb-1">Tipe</label>
-              <select
-                v-model="formData.type"
-                required
-                class="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
-              >
-                <option value="" disabled>Pilih Tipe</option>
-                <option v-for="opt in taxTypeOptions" :key="opt.value" :value="opt.value">
-                  {{ opt.label }}
-                </option>
-              </select>
-            </div>
-
-            <div>
-              <label class="block text-sm font-medium mb-1">Rate (%)</label>
+              <label class="block text-sm font-medium mb-1">Nama Pajak</label>
               <input
-                v-model.number="formData.rate"
-                type="number"
-                step="0.01"
-                min="0"
-                max="100"
+                v-model="formData.name"
+                type="text"
                 required
                 class="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
               />
             </div>
-          </div>
 
-          <div>
-            <label class="block text-sm font-medium mb-1">Deskripsi</label>
-            <textarea
-              v-model="formData.description"
-              rows="2"
-              class="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
-            ></textarea>
-          </div>
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm font-medium mb-1">Tipe</label>
+                <select
+                  v-model="formData.type"
+                  required
+                  class="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
+                >
+                  <option value="" disabled>Pilih Tipe</option>
+                  <option v-for="opt in taxTypeOptions" :key="opt.value" :value="opt.value">
+                    {{ opt.label }}
+                  </option>
+                </select>
+              </div>
 
-          <div class="flex items-center gap-2">
-            <input
-              v-model="formData.isActive"
-              type="checkbox"
-              id="isActive"
-              class="w-4 h-4 rounded border-border text-[#012D5A] focus:ring-[#012D5A]"
-            />
-            <label for="isActive" class="text-sm font-medium">Pajak Aktif</label>
+              <div>
+                <label class="block text-sm font-medium mb-1">Rate (%)</label>
+                <input
+                  v-model.number="formData.rate"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max="100"
+                  required
+                  class="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium mb-1">Deskripsi</label>
+              <textarea
+                v-model="formData.description"
+                rows="2"
+                class="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
+              ></textarea>
+            </div>
+
+            <div
+              class="flex items-center gap-2 cursor-pointer w-fit group"
+              @click="formData.isActive = !formData.isActive"
+            >
+              <Checkbox v-model="formData.isActive" class="pointer-events-none" />
+              <span
+                class="text-sm font-medium select-none group-hover:text-blue-900 transition-colors"
+                >Pajak Aktif</span
+              >
+            </div>
           </div>
 
           <!-- Modal Footer -->

@@ -19,6 +19,7 @@ export interface Invoice {
   company: {
     name: string;
   };
+  blNumber?: string | null;
   job?: {
     id: string;
     jobNumber: string;
@@ -48,6 +49,12 @@ export interface InvoiceDetail extends Invoice {
     email: string;
     phone: string;
     address: string;
+    addresses?: Array<{
+      id: string;
+      label: string;
+      fullAddress: string;
+      isDefault: boolean;
+    }>;
   };
   items: Array<{
     id: string;
@@ -73,6 +80,7 @@ export interface InvoiceDetail extends Invoice {
       vesselName: string;
       vessel?: { name: string };
       voyageNumber: string;
+      etd?: string;
     }>;
     pol?: string;
     pod?: string;
@@ -82,8 +90,27 @@ export interface InvoiceDetail extends Invoice {
     podPort?: { name: string };
     customerReference?: string;
     billsOfLading?: Array<{
+      id: string;
+      blNumber: string;
       shipperReferences: string[];
+      containerNumber?: string | null;
+      containerType?: { code: string } | null;
+      blContainers?: Array<{
+        container: {
+          id: string;
+          containerNumber: string | null;
+          containerType?: { code: string } | null;
+        };
+      }>;
     }>;
+    vessel?: { name: string };
+    voyageNumber?: string;
+    jobContainers?: Array<{
+      id: string;
+      containerNumber: string | null;
+      containerType?: { code: string } | null;
+    }>;
+    etd?: string;
   };
   notes?: string;
 }
@@ -176,6 +203,7 @@ export function useInvoices() {
       amount: number;
     }>;
     notes?: string;
+    blNumber?: string;
   }): Promise<{ success: boolean; data?: Invoice; error?: string }> {
     isLoading.value = true;
     try {
@@ -200,6 +228,7 @@ export function useInvoices() {
       companyId: string;
       jobId: string;
       notes: string;
+      blNumber: string;
       subTotal: number;
       taxId: string;
       taxAmount: number;

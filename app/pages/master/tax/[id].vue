@@ -29,7 +29,7 @@ async function handleDelete() {
   if (confirm("Apakah Anda yakin ingin menghapus pajak ini?")) {
     try {
       await deleteTax(taxId);
-      navigateTo("/finance/tax");
+      navigateTo("/master/tax");
     } catch (err) {
       toast.error("Gagal menghapus pajak: " + (err as Error).message);
     }
@@ -163,7 +163,7 @@ function handleDownloadPdf() {
       <div class="page-header">
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-4">
-            <NuxtLink to="/finance/tax" class="p-2 rounded-lg hover:bg-muted transition-colors">
+            <NuxtLink to="/master/tax" class="p-2 rounded-lg hover:bg-muted transition-colors">
               <ArrowLeft class="w-5 h-5" />
             </NuxtLink>
             <div>
@@ -186,7 +186,7 @@ function handleDownloadPdf() {
               <Trash2 class="w-5 h-5" />
             </button>
             <NuxtLink
-              :to="`/finance/tax/edit/${tax.id}`"
+              :to="`/master/tax/edit/${tax.id}`"
               class="flex items-center gap-2 px-4 py-2 bg-white border border-border rounded-lg hover:bg-muted transition-colors font-medium"
             >
               <Edit class="w-4 h-4" />

@@ -21,6 +21,20 @@ export function useFinanceDashboardPageOverview() {
         },
         { title: "Total Outcome", value: "Rp0", change: 0, changeLabel: "vs Last Period" },
         { title: "Net Profit", value: "Rp0", change: 0, changeLabel: "vs Last Period" },
+        {
+          title: "Piutang Tagihan",
+          value: "Rp0",
+          change: 0,
+          changeLabel: "vs Last Period",
+          variant: "warning",
+        },
+        {
+          title: "Hutang Vendor",
+          value: "Rp0",
+          change: 0,
+          changeLabel: "vs Last Period",
+          variant: "success",
+        },
         { title: "Margins", value: "0%", changeLabel: "From income", suffix: "%" },
       ];
     }
@@ -44,6 +58,20 @@ export function useFinanceDashboardPageOverview() {
         value: o.netProfitFormatted || "Rp0",
         change: o.incomeGrowth,
         changeLabel: "vs Last Period",
+      },
+      {
+        title: "Piutang Tagihan",
+        value: o.totalReceivablesFormatted || "Rp0",
+        change: o.receivablesGrowth,
+        changeLabel: "vs Last Period",
+        variant: "warning",
+      },
+      {
+        title: "Hutang Vendor",
+        value: o.totalPayablesFormatted || "Rp0",
+        change: o.payablesGrowth,
+        changeLabel: "vs Last Period",
+        variant: "success",
       },
       {
         title: "Margins",

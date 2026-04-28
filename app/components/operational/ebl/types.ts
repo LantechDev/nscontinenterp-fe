@@ -4,6 +4,7 @@ export interface EblVessel {
   vesselName?: string | null;
   voyageNumber?: string | null;
   etd?: string | null;
+  eta?: string | null;
   sequence?: number;
 }
 export interface EblContainerItem {

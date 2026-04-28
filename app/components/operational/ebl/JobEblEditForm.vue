@@ -7,6 +7,7 @@ import Combobox from "~/components/ui/Combobox.vue";
 import JobPartyRow from "~/pages/operational/jobs/components/JobPartyRow.vue";
 import SectionCard from "~/pages/operational/jobs/components/SectionCard.vue";
 import DatePicker from "~/components/ui/DatePicker.vue";
+import Checkbox from "~/components/ui/Checkbox.vue";
 
 import type {
   ActiveJobData,
@@ -238,6 +239,16 @@ const DELIVERY_MOVEMENTS = [
   { id: "CY_DOOR", name: "CY-DOOR" },
   { id: "DOOR_CY", name: "DOOR-CY" },
   { id: "DOOR_DOOR", name: "DOOR-DOOR" },
+  { id: "CFS_CY", name: "CFS-CY" },
+  { id: "CFS_CFS", name: "CFS-CFS" },
+  { id: "CY_CFS", name: "CY-CFS" },
+];
+
+const BL_TYPES = [
+  { id: "DRAFT", name: "DRAFT" },
+  { id: "ORIGINAL", name: "ORIGINAL" },
+  { id: "SEAWAYBILL", name: "SEAWAYBILL" },
+  { id: "TELEX_RELEASE", name: "TELEX RELEASE/EXPRESS RELEASE" },
 ];
 
 const FREIGHT_PAYMENT_OPTIONS = computed(() => {
@@ -293,13 +304,10 @@ const removeContainer = (idx: number) => editForm.value.containers.splice(idx, 1
               >Shipper References (PO Numbers)</label
             >
             <label
-              class="flex items-center gap-2 text-xs font-medium cursor-pointer hover:text-foreground transition-colors group"
+              class="flex items-center gap-2 text-xs font-medium cursor-pointer hover:text-foreground transition-colors group select-none"
+              @click="editForm.showShipperReferencesOnBl = !editForm.showShipperReferencesOnBl"
             >
-              <input
-                type="checkbox"
-                v-model="editForm.showShipperReferencesOnBl"
-                class="rounded border-input text-primary focus:ring-primary h-4 w-4 bg-background transition-all"
-              />
+              <Checkbox v-model="editForm.showShipperReferencesOnBl" class="pointer-events-none" />
               <span class="group-hover:underline">Show on printed BL</span>
             </label>
           </div>
@@ -363,13 +371,10 @@ const removeContainer = (idx: number) => editForm.value.containers.splice(idx, 1
         >
           <template #extra-controls>
             <label
-              class="flex items-center gap-2 text-[13px] text-muted-foreground cursor-pointer hover:text-foreground transition-colors group w-fit mb-1.5"
+              class="flex items-center gap-2 text-[13px] text-muted-foreground cursor-pointer hover:text-foreground transition-colors group w-fit mb-1.5 select-none"
+              @click="editForm.isNotifySameAsConsignee = !editForm.isNotifySameAsConsignee"
             >
-              <input
-                type="checkbox"
-                v-model="editForm.isNotifySameAsConsignee"
-                class="rounded border-input text-primary focus:ring-primary h-4 w-4 bg-background transition-all"
-              />
+              <Checkbox v-model="editForm.isNotifySameAsConsignee" class="pointer-events-none" />
               <span class="group-hover:underline">Same as Consignee</span>
             </label>
           </template>
@@ -488,32 +493,6 @@ const removeContainer = (idx: number) => editForm.value.containers.splice(idx, 1
 
     <SectionCard id="cargo" title="Cargo Information" :icon="Box">
       <div class="space-y-6">
-        <div class="space-y-2">
-          <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
-            >HS CODE / COMMODITY</label
-          >
-          <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-            <div class="md:col-span-1">
-              <input
-                v-model="editForm.hsCode"
-                type="text"
-                placeholder="e.g. 19023040"
-                class="input-field"
-                required
-              />
-            </div>
-            <div class="md:col-span-3">
-              <textarea
-                v-model="editForm.commodity"
-                rows="6"
-                placeholder="e.g. 3317 CARTONS OF INSTANT NOODLES"
-                class="input-field min-h-[120px] py-3 resize-y transition-all duration-200"
-                required
-              ></textarea>
-            </div>
-          </div>
-        </div>
-
         <div class="space-y-2 md:col-span-4">
           <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
             >MAIN DESCRIPTION (OVERALL COMMODITY)</label
@@ -575,6 +554,7 @@ const removeContainer = (idx: number) => editForm.value.containers.splice(idx, 1
                   vesselName: '',
                   voyageNumber: '',
                   etd: '',
+                  eta: '',
                   sequence: editForm.vessels.length,
                 });
               "
@@ -624,13 +604,22 @@ const removeContainer = (idx: number) => editForm.value.containers.splice(idx, 1
                   />
                 </div>
 
-                <!-- ETD -->
+                <!-- ETD POL -->
                 <div class="md:col-span-3 space-y-2">
                   <label
                     class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1"
-                    >ETD</label
+                    >ETD POL</label
                   >
                   <DatePicker v-model="vessel.etd" placeholder="Select ETD..." class="h-10" />
+                </div>
+
+                <!-- ETA POD -->
+                <div class="md:col-span-3 space-y-2">
+                  <label
+                    class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1"
+                    >ETA POD</label
+                  >
+                  <DatePicker v-model="vessel.eta" placeholder="Select ETA..." class="h-10" />
                 </div>
 
                 <!-- Remove Button -->
@@ -756,11 +745,7 @@ const removeContainer = (idx: number) => editForm.value.containers.splice(idx, 1
                   <label class="text-[10px] font-bold text-muted-foreground uppercase mb-1"
                     >HM</label
                   >
-                  <input
-                    type="checkbox"
-                    v-model="container.isHazardous"
-                    class="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                  />
+                  <Checkbox v-model="container.isHazardous" />
                 </div>
                 <div class="md:col-span-1 flex justify-end pb-1.5">
                   <button
