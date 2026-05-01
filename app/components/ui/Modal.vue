@@ -23,7 +23,14 @@ const close = () => {
 
 // Lock body scroll when modal is open
 const bodyEl = import.meta.client ? ref(document.documentElement) : ref<HTMLElement | null>(null);
-const isLocked = useScrollLock(bodyEl, () => props.modelValue);
+const isLocked = useScrollLock(bodyEl, props.modelValue);
+
+watch(
+  () => props.modelValue,
+  (val) => {
+    isLocked.value = val;
+  },
+);
 </script>
 
 <template>
