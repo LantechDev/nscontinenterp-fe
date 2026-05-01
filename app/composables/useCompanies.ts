@@ -112,9 +112,10 @@ export function useCompanies() {
     total: 0,
     totalPages: 0,
   }));
+
   const isLoading = ref(false);
 
-  async function fetchCompanies(params?: CompanyQueryParams) {
+  const loadCompanies = async (params?: CompanyQueryParams) => {
     isLoading.value = true;
     try {
       const result = await companyApi.fetchCompanies(params);
@@ -131,27 +132,29 @@ export function useCompanies() {
     } finally {
       isLoading.value = false;
     }
-  }
+  };
 
-  async function getCompanyById(id: string) {
+  const fetchCompanies = loadCompanies;
+
+  const getCompanyById = async (id: string) => {
     isLoading.value = true;
     try {
       return await companyApi.getCompanyById(id);
     } finally {
       isLoading.value = false;
     }
-  }
+  };
 
-  async function getCompanyDetails(id: string) {
+  const getCompanyDetails = async (id: string) => {
     isLoading.value = true;
     try {
       return await companyApi.getCompanyDetails(id);
     } finally {
       isLoading.value = false;
     }
-  }
+  };
 
-  async function createCompany(companyData: CreateCompanyInput) {
+  const createCompany = async (companyData: CreateCompanyInput) => {
     isLoading.value = true;
     try {
       const result = await companyApi.createCompany(companyData);
@@ -162,9 +165,9 @@ export function useCompanies() {
     } finally {
       isLoading.value = false;
     }
-  }
+  };
 
-  async function updateCompany(id: string, companyData: Partial<CreateCompanyInput>) {
+  const updateCompany = async (id: string, companyData: Partial<CreateCompanyInput>) => {
     isLoading.value = true;
     try {
       const result = await companyApi.updateCompany(id, companyData);
@@ -175,9 +178,9 @@ export function useCompanies() {
     } finally {
       isLoading.value = false;
     }
-  }
+  };
 
-  async function deleteCompany(id: string) {
+  const deleteCompany = async (id: string) => {
     isLoading.value = true;
     try {
       const result = await companyApi.deleteCompany(id);
@@ -188,43 +191,44 @@ export function useCompanies() {
     } finally {
       isLoading.value = false;
     }
-  }
+  };
 
-  async function createAddress(companyId: string, addressData: CreateAddressInput) {
+  const createAddress = async (companyId: string, addressData: CreateAddressInput) => {
     isLoading.value = true;
     try {
       return await companyApi.createAddress(companyId, addressData);
     } finally {
       isLoading.value = false;
     }
-  }
+  };
 
-  async function updateAddress(
+  const updateAddress = async (
     companyId: string,
     addressId: string,
     addressData: UpdateAddressInput,
-  ) {
+  ) => {
     isLoading.value = true;
     try {
       return await companyApi.updateAddress(companyId, addressId, addressData);
     } finally {
       isLoading.value = false;
     }
-  }
+  };
 
-  async function deleteAddress(companyId: string, addressId: string) {
+  const deleteAddress = async (companyId: string, addressId: string) => {
     isLoading.value = true;
     try {
       return await companyApi.deleteAddress(companyId, addressId);
     } finally {
       isLoading.value = false;
     }
-  }
+  };
 
   return {
     companies,
     pagination,
     isLoading,
+    loadCompanies,
     fetchCompanies,
     getCompanyById,
     getCompanyDetails,

@@ -21,13 +21,11 @@ definePageMeta({
   layout: "dashboard",
 });
 
-const { fetchDashboard, pendingApprovals, fetchPendingApprovals } = useDashboard();
+const { pendingApprovals } = useDashboard();
 const { canApproveJobs, user } = useAuth();
 
 // State
-const loading = ref(true);
 const isExporting = ref(false);
-const dashboardData = ref<DashboardData | null>(null);
 const showPeriodDropdown = ref(false);
 const periodDropdownRef = ref<HTMLElement | null>(null);
 
@@ -37,6 +35,40 @@ const selectedStartMonth = ref(0); // Jan
 const selectedEndMonth = ref(11); // Dec
 const selectedYear = ref(currentYear);
 
+// Calculate start and end dates from selected period
+const periodParams = computed(() => {
+  const startDate = new Date(selectedYear.value, selectedStartMonth.value, 1);
+  const endDate = new Date(selectedYear.value, selectedEndMonth.value + 1, 0, 23, 59, 59);
+  return {
+    startDate: startDate.toISOString(),
+    endDate: endDate.toISOString(),
+  };
+});
+
+// Fetch dashboard data with SSR
+const {
+  data: dashboardData,
+  pending: loading,
+  refresh: refreshDashboard,
+} = await useAsyncData<DashboardData>(
+  "dashboard-data",
+  async () => {
+    const query = `?${new URLSearchParams(periodParams.value).toString()}`;
+    return await $fetch<DashboardData>(`/api/admin/dashboard${query}`);
+  },
+  { server: false },
+);
+
+// Fetch pending approvals (lazy - doesn't block navigation)
+const { refresh: refreshPendingApprovals } = await useAsyncData<PendingApprovalBl[]>(
+  "pending-approvals",
+  async () => {
+    if (!canApproveJobs.value) return [];
+    return await $fetch<PendingApprovalBl[]>("/api/dashboard/pending-approvals");
+  },
+  { lazy: true, server: false },
+);
+
 const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 const periodDisplay = computed(() => {
@@ -45,28 +77,14 @@ const periodDisplay = computed(() => {
   return `${start} - ${end}, ${selectedYear.value}`;
 });
 
-const applyPeriod = async () => {
+const applyPeriod = () => {
   if (selectedStartMonth.value > selectedEndMonth.value) {
     toast.error("Start month must be before or equal to end month");
     return;
   }
 
   showPeriodDropdown.value = false;
-  loading.value = true;
-
-  // Calculate start and end dates from selected period
-  const startDate = new Date(selectedYear.value, selectedStartMonth.value, 1);
-  const endDate = new Date(selectedYear.value, selectedEndMonth.value + 1, 0, 23, 59, 59);
-
-  // Format dates as ISO strings for API
-  const params = {
-    startDate: startDate.toISOString(),
-    endDate: endDate.toISOString(),
-  };
-
-  // Fetch dashboard data with new period
-  dashboardData.value = await fetchDashboard(params);
-  loading.value = false;
+  refreshDashboard();
 };
 
 const handleExport = async () => {
@@ -183,22 +201,6 @@ onClickOutside(periodDropdownRef as Ref<HTMLElement>, () => {
 });
 
 // Fetch dashboard data
-onMounted(async () => {
-  loading.value = true;
-
-  const promises: Promise<void>[] = [
-    fetchDashboard().then((data) => {
-      dashboardData.value = data;
-    }),
-  ];
-
-  if (canApproveJobs.value) {
-    promises.push(fetchPendingApprovals());
-  }
-
-  await Promise.all(promises);
-  loading.value = false;
-});
 </script>
 
 <template>

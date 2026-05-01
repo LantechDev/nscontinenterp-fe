@@ -28,6 +28,12 @@ export interface OverviewStats {
   incomeGrowth?: number;
   outcomeGrowth?: number;
   margins?: number;
+  totalReceivables?: number;
+  totalReceivablesFormatted?: string;
+  receivablesGrowth?: number;
+  totalPayables?: number;
+  totalPayablesFormatted?: string;
+  payablesGrowth?: number;
 }
 
 export interface ChartData {

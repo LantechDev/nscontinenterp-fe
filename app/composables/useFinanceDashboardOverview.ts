@@ -41,10 +41,6 @@ export function useFinanceDashboardOverview() {
       const data = await $fetch<FinanceDashboardStats>(`${baseUrl}/finance/dashboard`, {
         method: "GET",
         query: queryParams,
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
       });
       console.log("[FE_TRACE] Stats response:", data);
 
@@ -78,10 +74,6 @@ export function useFinanceDashboardOverview() {
       const data = await $fetch<OverviewStats>(`${baseUrl}/finance/dashboard/overview`, {
         method: "GET",
         query: queryParams,
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
       });
 
       if (isLatestRequest("overview", requestId)) overviewStats.value = data;
@@ -114,10 +106,6 @@ export function useFinanceDashboardOverview() {
       const data = await $fetch<ChartData>(`${baseUrl}/finance/dashboard/charts`, {
         method: "GET",
         query: queryParams,
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
       });
 
       if (isLatestRequest("charts", requestId)) chartData.value = data;

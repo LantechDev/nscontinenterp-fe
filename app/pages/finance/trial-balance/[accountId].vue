@@ -36,8 +36,7 @@ const availableYears = computed(() => {
 const formatCurrency = formatRupiah;
 
 // Get API base URL
-const config = useRuntimeConfig();
-const baseUrl = config.public.apiBase || "";
+const baseUrl = "/api";
 
 // Fetch account detail
 async function fetchAccountDetail() {
@@ -60,10 +59,6 @@ async function fetchAccountDetail() {
       `${baseUrl}/finance/dashboard/trial-balance/${accountId.value}?${queryParams.toString()}`,
       {
         method: "GET",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
       },
     );
 

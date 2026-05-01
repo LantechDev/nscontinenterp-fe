@@ -2,6 +2,7 @@
 import { ArrowLeft, Save, Loader2, Trash2, AlertTriangle } from "lucide-vue-next";
 import { z } from "zod";
 import { toast } from "vue-sonner";
+import type { Role } from "~/composables/useRoles";
 
 definePageMeta({
   layout: "dashboard",
@@ -10,11 +11,53 @@ definePageMeta({
 const route = useRoute();
 const router = useRouter();
 const userId = route.params.id as string;
-const { fetchUserById, adminUpdateUser, deleteUser } = useAuth();
-const { roles, fetchRoles } = useRoles();
+const { adminUpdateUser, deleteUser } = useAuth();
+const { roles } = useRoles();
 const isLoading = ref(false);
-const isFetching = ref(true);
-const fetchError = ref("");
+
+interface UserResponseData {
+  success: boolean;
+  data: {
+    user: {
+      id: string;
+      name: string;
+      email: string;
+      role: string;
+      banned: boolean;
+      createdAt?: string;
+      lastLogin?: string;
+    };
+  };
+  error?: string;
+}
+
+// Fetch roles and user data in parallel
+const {
+  data: rolesData,
+  pending: isBootstrapping,
+  error: bootstrapError,
+} = await useAsyncData<{
+  roles: Role[];
+  user: UserResponseData;
+}>(
+  `user-edit-${userId}`,
+  async () => {
+    const [rolesResponse, userResponse] = await Promise.all([
+      $fetch<Role[]>("/api/admin/roles"),
+      $fetch<UserResponseData>(`/api/auth/users/${userId}`),
+    ]);
+    return { roles: rolesResponse, user: userResponse };
+  },
+  { server: false },
+);
+
+const userData = computed(() => rolesData.value?.user?.data?.user);
+const isFetching = computed(() => isBootstrapping.value);
+const fetchError = computed(() => {
+  const err = bootstrapError.value;
+  if (!err) return "";
+  return err instanceof Error ? err.message : String(err);
+});
 
 // Schema differs slightly from create: password is optional
 const formSchema = z
@@ -50,36 +93,22 @@ const form = ref({
 
 const errors = ref<Record<string, string>>({});
 
-onMounted(async () => {
-  try {
-    await fetchRoles();
-    const result = await fetchUserById(userId);
-    if (result.success && result.data) {
-      const u = result.data.user || result.data;
-      if (u) {
-        form.value = {
-          name: u.name || "",
-          email: u.email || "",
-          password: "",
-          confirmPassword: "",
-          role: u.role || "",
-          status: u.banned === true ? "inactive" : "active",
-        };
-      } else {
-        fetchError.value = "Data user kosong atau tidak ditemukan.";
-      }
-    } else {
-      fetchError.value = result.error || "Gagal mengambil data user (API Error).";
-      console.error("Fetch user error:", result);
+watch(
+  () => userData.value,
+  (user) => {
+    if (user) {
+      form.value = {
+        name: user.name || "",
+        email: user.email || "",
+        password: "",
+        confirmPassword: "",
+        role: user.role || "",
+        status: user.banned === true ? "inactive" : "active",
+      };
     }
-  } catch (e) {
-    const error = e as Error;
-    fetchError.value = error.message || "Terjadi kesalahan saat memuat data.";
-    console.error("Mount error:", e);
-  } finally {
-    isFetching.value = false;
-  }
-});
+  },
+  { immediate: true },
+);
 
 const handleSubmit = async () => {
   errors.value = {};

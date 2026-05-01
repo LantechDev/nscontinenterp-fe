@@ -1,24 +1,35 @@
 <script setup lang="ts">
 import { ArrowLeft, Save } from "lucide-vue-next";
 import SearchSelect from "~/components/ui/SearchSelect.vue";
-import { useFinanceTax } from "~/composables/useFinanceTax";
 import { useMasterData } from "~/composables/useMasterData";
+import { type Tax } from "~/composables/useFinanceTax";
 
 definePageMeta({
   layout: "dashboard",
 });
 
-const { fetchTaxes } = useFinanceTax();
 const { fetchCompaniesWithParams } = useMasterData();
 
-const taxOptions = ref<Array<{ id: string; name: string; rate: number }>>([]);
-const customerId = ref("");
-const jobId = ref("");
-const taxId = ref("");
+// Client-side: fetch initial dropdown data (avoid slow cross-region SSR)
+const {
+  data: taxData,
+  pending: isTaxesLoading,
+  error: taxesError,
+  refresh: refreshTaxes,
+} = await useAsyncData<{ items: Tax[] }>(
+  "invoice-create-taxes",
+  async () => await $fetch<{ items: Tax[] }>("/api/finance/taxes?isActive=true&limit=100"),
+  { server: false },
+);
 
+const taxOptions = computed(() => taxData.value?.items || []);
 const formattedTaxOptions = computed(() =>
   taxOptions.value.map((tax) => ({ id: tax.id, name: `${tax.name} (${tax.rate}%)` })),
 );
+
+const customerId = ref("");
+const jobId = ref("");
+const taxId = ref("");
 
 const handleCustomerSearch = async (options: { query: string; page?: number; limit?: number }) => {
   try {
@@ -39,17 +50,9 @@ const handleCustomerSearch = async (options: { query: string; page?: number; lim
 
 const handleJobSearch = async (options: { query: string; page?: number; limit?: number }) => {
   try {
-    const config = useRuntimeConfig();
-    const jobs = await $fetch<Array<{ id: string; jobNumber: string }>>(
-      `${config.public.apiBase}/operational/jobs`,
-      {
-        params: { search: options.query, limit: options.limit || 50 },
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      },
-    );
+    const jobs = await $fetch<Array<{ id: string; jobNumber: string }>>(`/api/operational/jobs`, {
+      params: { search: options.query, limit: options.limit || 50 },
+    });
     return {
       success: true,
       data: jobs.map((j) => ({ id: j.id, name: j.jobNumber })),
@@ -58,15 +61,6 @@ const handleJobSearch = async (options: { query: string; page?: number; limit?: 
     return { success: false, error: "Failed to fetch jobs" };
   }
 };
-
-onMounted(async () => {
-  try {
-    const taxes = await fetchTaxes({ isActive: true, limit: 100 });
-    taxOptions.value = taxes.items || [];
-  } catch {
-    taxOptions.value = [];
-  }
-});
 </script>
 
 <template>
@@ -81,6 +75,20 @@ onMounted(async () => {
           <p class="text-muted-foreground mt-1">Buat tagihan ke customer</p>
         </div>
       </div>
+    </div>
+
+    <div
+      v-if="taxesError"
+      class="bg-destructive/10 border border-destructive/20 text-destructive px-4 py-3 rounded-lg text-sm animate-fade-in"
+    >
+      <div class="flex items-center justify-between gap-4">
+        <span>Gagal memuat data pajak. Silakan coba lagi.</span>
+        <button class="btn-secondary" type="button" @click="refreshTaxes()">Coba lagi</button>
+      </div>
+    </div>
+
+    <div v-if="isTaxesLoading" class="flex justify-center py-6">
+      <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
     </div>
 
     <form class="card-elevated p-6 space-y-6">

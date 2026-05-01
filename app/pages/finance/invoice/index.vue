@@ -2,7 +2,7 @@
 import { Plus, Search, Receipt, LayoutList, LayoutGrid } from "lucide-vue-next";
 import { cn } from "~/lib/utils";
 import { useInvoices, type InvoiceDetail } from "~/composables/useInvoices";
-import { useInvoicePage } from "~/composables/useInvoicePage";
+import { useInvoicePage, type InvoiceData } from "~/composables/useInvoicePage";
 import { InvoiceListView, InvoiceGridView, InvoiceEditModal } from "./components";
 import JobInvoicePreview from "~/components/operational/JobInvoicePreview.vue";
 import { toast } from "vue-sonner";
@@ -11,9 +11,14 @@ definePageMeta({
   layout: "dashboard",
 });
 
-const { fetchInvoiceById, isLoading: isInvoiceLoading } = useInvoices();
+type InvoiceListApiResponse =
+  | InvoiceData[]
+  | { items?: InvoiceData[]; pagination?: { total: number; limit: number; page: number } };
+
+const { fetchInvoiceById } = useInvoices();
 const {
   loading,
+  invoices,
   error,
   searchQuery,
   selectedStatus,
@@ -39,13 +44,60 @@ const {
   closeEditModal,
   handleFullUpdate,
   handleRowClick,
-  handleDelete,
   handlePageChange,
   addLineItem,
   removeLineItem,
   updateItemAmount,
   initialize,
 } = useInvoicePage();
+
+// Client-side: fetch initial data (avoid slow cross-region SSR)
+const {
+  data: invoicesData,
+  pending: isBootstrapping,
+  error: bootstrapError,
+  refresh: refreshBootstrap,
+} = await useAsyncData<InvoiceListApiResponse>(
+  "invoice-list",
+  async () => await $fetch<InvoiceListApiResponse>("/api/finance/invoice"),
+  { server: false },
+);
+
+watch(
+  isBootstrapping,
+  (pending) => {
+    loading.value = pending;
+  },
+  { immediate: true },
+);
+
+watch(
+  invoicesData,
+  (value) => {
+    if (!value) return;
+    if (Array.isArray(value)) {
+      invoices.value = value;
+      pagination.value = { total: value.length, limit: 10, page: 1 };
+      return;
+    }
+    if (value.items) {
+      invoices.value = value.items;
+      if (value.pagination) {
+        pagination.value = value.pagination;
+      }
+    }
+  },
+  { immediate: true },
+);
+
+watch(
+  bootstrapError,
+  (err) => {
+    if (!err) return;
+    error.value = "Gagal memuat data invoice. Silakan coba lagi.";
+  },
+  { immediate: true },
+);
 
 const isDownloading = ref(false);
 const downloadInvoice = ref<InvoiceDetail | null>(null);
@@ -64,7 +116,6 @@ const handleDownloadPdf = async (id: string) => {
     await nextTick(); // double tick to ensure JobInvoicePreview renders
     await previewRef.value?.generatePDF();
   } catch (err) {
-    console.error("Failed to download invoice PDF:", err);
     toast.error("Failed to download invoice. Please try again.");
   } finally {
     isDownloading.value = false;
@@ -94,10 +145,6 @@ const handleEdit = (id: string) => {
 const handleTaxIdChange = (value: string) => {
   selectedTaxId.value = value;
 };
-
-onMounted(() => {
-  initialize();
-});
 </script>
 
 <template>
@@ -182,7 +229,10 @@ onMounted(() => {
     <!-- Error state -->
     <div v-else-if="error" class="text-center py-12">
       <p class="text-red-500">{{ error }}</p>
-      <button @click="initialize" class="mt-4 px-4 py-2 bg-[#012D5A] text-white rounded-lg">
+      <button
+        @click="bootstrapError ? refreshBootstrap() : initialize()"
+        class="mt-4 px-4 py-2 bg-[#012D5A] text-white rounded-lg"
+      >
         Retry
       </button>
     </div>
@@ -268,15 +318,7 @@ onMounted(() => {
     <div
       v-if="downloadInvoice"
       aria-hidden="true"
-      style="
-        position: fixed;
-        left: -9999px;
-        top: 0;
-        opacity: 0;
-        pointer-events: none;
-        z-index: -1;
-        width: 210mm;
-      "
+      class="fixed left-[-9999px] top-0 opacity-0 pointer-events-none z-[-1] w-[210mm]"
     >
       <JobInvoicePreview ref="previewRef" :invoice="downloadInvoice" />
     </div>

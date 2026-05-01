@@ -19,6 +19,7 @@ export interface Invoice {
   company: {
     name: string;
   };
+  blNumber?: string | null;
   job?: {
     id: string;
     jobNumber: string;
@@ -48,6 +49,12 @@ export interface InvoiceDetail extends Invoice {
     email: string;
     phone: string;
     address: string;
+    addresses?: Array<{
+      id: string;
+      label: string;
+      fullAddress: string;
+      isDefault: boolean;
+    }>;
   };
   items: Array<{
     id: string;
@@ -73,6 +80,7 @@ export interface InvoiceDetail extends Invoice {
       vesselName: string;
       vessel?: { name: string };
       voyageNumber: string;
+      etd?: string;
     }>;
     pol?: string;
     pod?: string;
@@ -82,8 +90,27 @@ export interface InvoiceDetail extends Invoice {
     podPort?: { name: string };
     customerReference?: string;
     billsOfLading?: Array<{
+      id: string;
+      blNumber: string;
       shipperReferences: string[];
+      containerNumber?: string | null;
+      containerType?: { code: string } | null;
+      blContainers?: Array<{
+        container: {
+          id: string;
+          containerNumber: string | null;
+          containerType?: { code: string } | null;
+        };
+      }>;
     }>;
+    vessel?: { name: string };
+    voyageNumber?: string;
+    jobContainers?: Array<{
+      id: string;
+      containerNumber: string | null;
+      containerType?: { code: string } | null;
+    }>;
+    etd?: string;
   };
   notes?: string;
 }
@@ -104,17 +131,12 @@ function getErrorMessage(error: unknown): string {
 }
 
 export function useInvoices() {
-  const config = useRuntimeConfig();
   const isLoading = ref(false);
 
   async function deleteInvoice(id: string): Promise<{ success: boolean; error?: string }> {
     try {
-      await $fetch(`${config.public.apiBase}/finance/invoice/${id}`, {
+      await $fetch(`/api/finance/invoice/${id}`, {
         method: "DELETE",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
       });
       return { success: true };
     } catch (error) {
@@ -122,18 +144,21 @@ export function useInvoices() {
     }
   }
 
-  async function fetchInvoices(jobId?: string): Promise<{
+  async function fetchInvoices(
+    jobId?: string,
+    filters?: { companyId?: string; status?: string },
+  ): Promise<{
     success: boolean;
     data?: Invoice[];
     error?: string;
   }> {
     isLoading.value = true;
     try {
-      const data = await $fetch<Invoice[]>(`${config.public.apiBase}/finance/invoice`, {
-        query: jobId ? { jobId } : undefined,
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
+      const data = await $fetch<Invoice[]>(`/api/finance/invoice`, {
+        query: {
+          ...(jobId ? { jobId } : {}),
+          ...(filters?.companyId ? { companyId: filters.companyId } : {}),
+          ...(filters?.status ? { status: filters.status } : {}),
         },
       });
       return { success: true, data };
@@ -150,12 +175,7 @@ export function useInvoices() {
   ): Promise<{ success: boolean; data?: InvoiceDetail; error?: string }> {
     isLoading.value = true;
     try {
-      const data = await $fetch<InvoiceDetail>(`${config.public.apiBase}/finance/invoice/${id}`, {
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
+      const data = await $fetch<InvoiceDetail>(`/api/finance/invoice/${id}`);
       return { success: true, data };
     } catch (error) {
       return { success: false, error: getErrorMessage(error) };
@@ -183,16 +203,13 @@ export function useInvoices() {
       amount: number;
     }>;
     notes?: string;
+    blNumber?: string;
   }): Promise<{ success: boolean; data?: Invoice; error?: string }> {
     isLoading.value = true;
     try {
-      const responseData = await $fetch<Invoice>(`${config.public.apiBase}/finance/invoice`, {
+      const responseData = await $fetch<Invoice>(`/api/finance/invoice`, {
         method: "POST",
         body: data,
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
       });
       return { success: true, data: responseData };
     } catch (error) {
@@ -211,6 +228,7 @@ export function useInvoices() {
       companyId: string;
       jobId: string;
       notes: string;
+      blNumber: string;
       subTotal: number;
       taxId: string;
       taxAmount: number;
@@ -229,13 +247,9 @@ export function useInvoices() {
   ): Promise<{ success: boolean; data?: Invoice; error?: string }> {
     isLoading.value = true;
     try {
-      const responseData = await $fetch<Invoice>(`${config.public.apiBase}/finance/invoice/${id}`, {
+      const responseData = await $fetch<Invoice>(`/api/finance/invoice/${id}`, {
         method: "PATCH",
         body: data,
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
       });
       return { success: true, data: responseData };
     } catch (error) {
@@ -250,16 +264,9 @@ export function useInvoices() {
   ): Promise<{ success: boolean; data?: Invoice; error?: string }> {
     isLoading.value = true;
     try {
-      const responseData = await $fetch<Invoice>(
-        `${config.public.apiBase}/finance/invoice/${id}/void`,
-        {
-          method: "POST",
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        },
-      );
+      const responseData = await $fetch<Invoice>(`/api/finance/invoice/${id}/void`, {
+        method: "POST",
+      });
       return { success: true, data: responseData };
     } catch (error) {
       return { success: false, error: getErrorMessage(error) };

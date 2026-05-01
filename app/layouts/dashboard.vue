@@ -99,7 +99,6 @@ const performSearch = async (query: string) => {
 
   isSearching.value = true;
   try {
-    const config = useRuntimeConfig();
     const results: {
       type: "job" | "company" | "invoice" | "payment" | "service" | "vessel";
       id: string;
@@ -108,11 +107,7 @@ const performSearch = async (query: string) => {
     }[] = [];
 
     try {
-      const companiesResponse = await $fetch<unknown>(`${config.public.apiBase}/master/companies`, {
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
+      const companiesResponse = await $fetch<unknown>(`/api/master/companies`, {
         query: { search: query, limit: 5 },
       });
 
@@ -150,12 +145,7 @@ const performSearch = async (query: string) => {
           pod: string;
           customer?: { name: string };
         }[]
-      >(`${config.public.apiBase}/operational/jobs`, {
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
+      >(`/api/operational/jobs`);
       console.log("[SEARCH] Jobs API response count:", jobsResponse?.length || 0);
 
       // Filter jobs client-side since API doesn't support search
@@ -196,12 +186,7 @@ const performSearch = async (query: string) => {
           customer?: { name: string } | string;
           total?: number;
         }[]
-      >(`${config.public.apiBase}/finance/invoice`, {
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
+      >(`/api/finance/invoice`);
       if (invoicesResponse && Array.isArray(invoicesResponse)) {
         const queryLower = query.toLowerCase();
         const filteredInvoices = invoicesResponse
@@ -232,14 +217,10 @@ const performSearch = async (query: string) => {
 
     // Search payments (filter client-side since API may not support search)
     try {
-      const paymentsResponse = await $fetch<
-        { id: string; paymentNumber: string; customer?: { name: string } | string }[]
-      >(`${config.public.apiBase}/finance/payment`, {
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
+      const paymentsResponse =
+        await $fetch<{ id: string; paymentNumber: string; customer?: { name: string } | string }[]>(
+          `/api/finance/payment`,
+        );
       if (paymentsResponse && Array.isArray(paymentsResponse)) {
         const queryLower = query.toLowerCase();
         const filteredPayments = paymentsResponse
@@ -270,15 +251,8 @@ const performSearch = async (query: string) => {
 
     // Search services
     try {
-      const servicesResponse = await $fetch<{ id: string; name: string; code?: string }[]>(
-        `${config.public.apiBase}/master/services`,
-        {
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        },
-      );
+      const servicesResponse =
+        await $fetch<{ id: string; name: string; code?: string }[]>(`/api/master/services`);
       if (servicesResponse && Array.isArray(servicesResponse)) {
         const queryLower = query.toLowerCase();
         const filteredServices = servicesResponse
@@ -305,15 +279,8 @@ const performSearch = async (query: string) => {
 
     // Search vessels
     try {
-      const vesselsResponse = await $fetch<{ id: string; name: string; imoNumber?: string }[]>(
-        `${config.public.apiBase}/master/vessels`,
-        {
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        },
-      );
+      const vesselsResponse =
+        await $fetch<{ id: string; name: string; imoNumber?: string }[]>(`/api/master/vessels`);
       if (vesselsResponse && Array.isArray(vesselsResponse)) {
         const queryLower = query.toLowerCase();
         const filteredVessels = vesselsResponse

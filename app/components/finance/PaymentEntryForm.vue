@@ -59,11 +59,9 @@ const isFetchingInvoices = ref(false);
 const loadOutstandingInvoices = async (companyId: string) => {
   if (!companyId) return;
   isFetchingInvoices.value = true;
-  const result = await fetchInvoices();
+  const result = await fetchInvoices(undefined, { companyId });
   if (result.success && result.data) {
-    outstandingInvoices.value = result.data.filter(
-      (inv) => inv.companyId === companyId && Number(inv.balanceDue) > 0,
-    );
+    outstandingInvoices.value = result.data.filter((inv) => Number(inv.balanceDue) > 0);
 
     if (props.invoiceId) {
       const target = outstandingInvoices.value.find((inv) => inv.id === props.invoiceId);
@@ -187,7 +185,6 @@ const handleSave = async () => {
     emit("success");
   }
 };
-
 onMounted(async () => {
   await Promise.all([
     fetchCompanies({ type: "CUSTOMER" }),
@@ -219,7 +216,7 @@ const formatCurrency = (amount: number) => {
         </label>
         <Combobox
           v-model="form.companyId"
-          :options="companies as any"
+          :options="companies"
           label-key="name"
           value-key="id"
           placeholder="Search customer..."

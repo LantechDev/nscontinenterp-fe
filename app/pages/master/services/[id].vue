@@ -10,24 +10,25 @@ definePageMeta({
 
 const route = useRoute();
 const id = route.params.id as string;
-const { getService, isLoading, updateService } = useServices();
+const { updateService } = useServices();
 
-const service = ref<Service | null>(null);
+// SSR-first: fetch service detail
+const {
+  data: serviceData,
+  pending,
+  refresh,
+} = await useAsyncData<Service>(
+  `service-${id}`,
+  async () => {
+    const result = await $fetch<Service>(`/api/master/services/${id}`);
+    if (!result) throw new Error("Service not found");
+    return result;
+  },
+  { server: false },
+);
 
-onMounted(async () => {
-  const result = await getService(id);
-  if (result.success) {
-    service.value = result.data || null;
-  }
-});
-
-const formatDate = (date: string) => {
-  return new Date(date).toLocaleDateString("id-ID", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
-};
+const service = computed(() => serviceData.value);
+const isLoading = computed(() => pending.value);
 
 const isEditOpen = ref(false);
 const isSubmitting = ref(false);
@@ -41,6 +42,15 @@ interface ServiceFormData {
   categoryId: string;
 }
 
+const formatDate = (date: string) => {
+  return new Date(date).toLocaleDateString("id-ID", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+};
+
+// Handle update - refresh data after success
 const handleUpdateService = async (formData: ServiceFormData) => {
   isSubmitting.value = true;
   formError.value = null;
@@ -55,7 +65,7 @@ const handleUpdateService = async (formData: ServiceFormData) => {
 
   const result = await updateService(id, payload);
   if (result.success) {
-    service.value = result.data || null;
+    await refresh();
     isEditOpen.value = false;
   } else {
     formError.value = result.error || "Failed to update service";
@@ -100,7 +110,6 @@ const handleUpdateService = async (formData: ServiceFormData) => {
       </div>
 
       <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        <!-- Main Info -->
         <div class="lg:col-span-3 space-y-6">
           <div class="border border-border rounded-xl bg-white overflow-hidden">
             <div class="p-4 border-b border-border bg-slate-50 flex items-center gap-4">
@@ -136,7 +145,6 @@ const handleUpdateService = async (formData: ServiceFormData) => {
           </div>
         </div>
 
-        <!-- Sidebar Info -->
         <div class="space-y-6">
           <div class="border border-border rounded-xl bg-white overflow-hidden">
             <div class="p-4 bg-slate-50 border-b border-border">
@@ -182,7 +190,6 @@ const handleUpdateService = async (formData: ServiceFormData) => {
       </NuxtLink>
     </div>
 
-    <!-- Edit Modal -->
     <ServiceCreateModal
       :is-open="isEditOpen"
       :is-submitting="isSubmitting"

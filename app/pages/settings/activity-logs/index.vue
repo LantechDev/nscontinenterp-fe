@@ -5,6 +5,7 @@ import {
   getActionColor,
   type ActivityLog,
   type ActivityAction,
+  type PaginatedResponse,
 } from "~/lib/activity-log-api";
 import { useAuth } from "~/composables/useAuth";
 import { formatDateTime } from "~/lib/utils";
@@ -72,7 +73,6 @@ watch(
 );
 
 const logs = ref<ActivityLog[]>([]);
-const isLoading = ref(true);
 const pagination = ref({
   page: 1,
   limit: 20,
@@ -87,6 +87,84 @@ const filters = ref({
   endDate: "",
   search: "",
 });
+
+// Initial fetch with useAsyncData
+const { data: initialData, pending: isLoading } = await useAsyncData<
+  PaginatedResponse<ActivityLog>
+>(
+  "activity-logs-initial",
+  async () => {
+    return await getActivityLogs({
+      page: pagination.value.page,
+      limit: pagination.value.limit,
+      organizationId: session.value?.activeOrganizationId,
+    });
+  },
+  { server: false },
+);
+
+// Computed loading state that combines pending + client loading
+const isLoadingAny = computed(() => isLoading.value);
+
+watch(
+  initialData,
+  (response) => {
+    if (response) {
+      logs.value = response.logs;
+      pagination.value = response.pagination;
+    }
+  },
+  { immediate: true },
+);
+
+// Helper to get filtered logs
+async function fetchLogsInternal() {
+  const category = filters.value.actionCategory;
+  let actionValue: ActivityAction | undefined = undefined;
+  if (category && category !== "CRUD" && category !== "DATA") {
+    actionValue = category as ActivityAction;
+  }
+
+  const response = await getActivityLogs({
+    action: actionValue,
+    targetModel: filters.value.targetModel || undefined,
+    startDate: filters.value.startDate || undefined,
+    endDate: filters.value.endDate || undefined,
+    search: filters.value.search || undefined,
+    page: pagination.value.page,
+    limit: pagination.value.limit,
+    organizationId: session.value?.activeOrganizationId,
+  });
+
+  let filteredLogs = response.logs;
+  if (category === "CRUD" || category === "DATA") {
+    const allowedActions = getActionsForCategory(category);
+    filteredLogs = response.logs.filter((log) => allowedActions.includes(log.action));
+  }
+
+  return { logs: filteredLogs, pagination: response.pagination };
+}
+
+// Debounced fetch for filter changes
+const debouncedFetchLogs = useDebounceFn(async () => {
+  try {
+    const result = await fetchLogsInternal();
+    logs.value = result.logs;
+    pagination.value = result.pagination;
+  } catch (error) {
+    console.error("Failed to fetch activity logs:", error);
+  }
+}, 300);
+
+async function fetchLogs() {
+  try {
+    const result = await fetchLogsInternal();
+    logs.value = result.logs;
+    pagination.value = result.pagination;
+  } catch (error) {
+    console.error("Failed to fetch activity logs:", error);
+  }
+}
 
 // User Agent parser for friendly device names
 function parseUA(ua: string | null): string {
@@ -115,49 +193,6 @@ const getActionsForCategory = (category: string): ActivityAction[] => {
   return actionCategoryMap[category] || [];
 };
 
-async function fetchLogs() {
-  isLoading.value = true;
-  try {
-    // Handle category-based filtering
-    let actionValue: ActivityAction | undefined = undefined;
-    const category = filters.value.actionCategory;
-
-    if (category && category !== "CRUD" && category !== "DATA") {
-      // Direct action (LOGIN, LOGOUT, LOGIN_FAILED)
-      actionValue = category as ActivityAction;
-    }
-    // For CRUD and DATA categories, we filter client-side after getting results
-
-    const response = await getActivityLogs({
-      action: actionValue,
-      targetModel: filters.value.targetModel || undefined,
-      startDate: filters.value.startDate || undefined,
-      endDate: filters.value.endDate || undefined,
-      search: filters.value.search || undefined,
-      page: pagination.value.page,
-      limit: pagination.value.limit,
-      organizationId: session.value?.activeOrganizationId,
-    });
-
-    // Apply client-side filtering for CRUD and DATA categories
-    let filteredLogs = response.logs;
-    if (category === "CRUD" || category === "DATA") {
-      const allowedActions = getActionsForCategory(category);
-      filteredLogs = response.logs.filter((log) => allowedActions.includes(log.action));
-    }
-
-    logs.value = filteredLogs;
-    pagination.value = response.pagination;
-  } catch (error) {
-    console.error("Failed to fetch activity logs:", error);
-  } finally {
-    isLoading.value = false;
-  }
-}
-
-// Debounced version of fetchLogs to avoid excessive API calls
-const debouncedFetchLogs = useDebounceFn(fetchLogs, 300);
-
 function clearFilters() {
   filters.value = {
     actionCategory: "",
@@ -176,10 +211,6 @@ function goToPage(page: number) {
     fetchLogs();
   }
 }
-
-onMounted(() => {
-  fetchLogs();
-});
 
 watch(
   [filters],

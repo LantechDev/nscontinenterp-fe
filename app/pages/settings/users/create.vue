@@ -2,6 +2,7 @@
 import { ArrowLeft, Save, Loader2 } from "lucide-vue-next";
 import { z } from "zod";
 import { toast } from "vue-sonner";
+import type { Role } from "~/composables/useRoles";
 
 definePageMeta({
   layout: "dashboard",
@@ -9,12 +10,21 @@ definePageMeta({
 
 const router = useRouter();
 const { createUser } = useAuth();
-const { roles, fetchRoles } = useRoles();
 const isLoading = ref(false);
 
-onMounted(() => {
-  fetchRoles();
-});
+// Fetch roles eagerly on page load
+const {
+  data: roles,
+  pending: isRolesLoading,
+  error: rolesError,
+  refresh: refreshRoles,
+} = await useAsyncData<Role[]>(
+  "roles-create",
+  async () => await $fetch<Role[]>("/api/admin/roles"),
+  {
+    server: false,
+  },
+);
 
 const formSchema = z
   .object({
@@ -91,6 +101,20 @@ const handleSubmit = async () => {
           <p class="text-muted-foreground mt-1">Buat akun user baru</p>
         </div>
       </div>
+    </div>
+
+    <div
+      v-if="rolesError"
+      class="bg-destructive/10 border border-destructive/20 text-destructive px-4 py-3 rounded-lg text-sm animate-fade-in"
+    >
+      <div class="flex items-center justify-between gap-4">
+        <span>Gagal memuat daftar role. Silakan coba lagi.</span>
+        <button class="btn-secondary" type="button" @click="refreshRoles()">Coba lagi</button>
+      </div>
+    </div>
+
+    <div v-if="isRolesLoading" class="flex justify-center py-6">
+      <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
     </div>
 
     <form @submit.prevent="handleSubmit" class="card-elevated p-6 space-y-6">

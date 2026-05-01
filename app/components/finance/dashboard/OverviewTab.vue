@@ -23,7 +23,7 @@ const props = defineProps<{
 <template>
   <div class="space-y-4 px-6">
     <!-- Stat Cards -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
       <FinanceStatCard
         v-for="(card, index) in statsCards"
         :key="index"

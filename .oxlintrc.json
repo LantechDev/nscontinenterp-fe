@@ -126,5 +126,14 @@
       }
     }
   ],
-  "ignorePatterns": [".nuxt", "node_modules", "dist", ".output", "components/ui/**"]
+  "ignorePatterns": [
+    ".nuxt",
+    "node_modules",
+    "dist",
+    ".output",
+    "output",
+    "output/**",
+    "output.zip",
+    "components/ui/**"
+  ]
 }

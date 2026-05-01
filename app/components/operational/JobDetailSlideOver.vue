@@ -28,7 +28,7 @@ const { canApproveJobs } = useAuth();
 import Combobox from "~/components/ui/Combobox.vue";
 import DatePicker from "~/components/ui/DatePicker.vue";
 import { toast } from "vue-sonner";
-import type { EblVessel } from "./ebl/types";
+import type { EblVessel, ActiveJobData } from "./ebl/types";
 import type { Vessel } from "~/composables/useMasterData";
 
 interface Props {
@@ -611,7 +611,7 @@ const handleCancelCompleteJob = async () => {
                         </p>
                         <p
                           v-if="
-                            (party as any).addressBook?.fullAddress ||
+                            party.addressBook?.fullAddress ||
                             party.partyRole?.code === 'SHIPPER' ||
                             party.partyRole?.code === 'CONSIGNEE'
                           "
@@ -916,7 +916,7 @@ const handleCancelCompleteJob = async () => {
                 <!-- eBL Tab -->
                 <div v-else-if="activeTab === 'ebl'" class="space-y-8 animate-fade-in pb-12 pt-4">
                   <JobEblTab
-                    :job="job as any"
+                    :job="job as ActiveJobData"
                     :initial-bl-id="initialBlId"
                     @refresh="getJob(props.jobId)"
                   />

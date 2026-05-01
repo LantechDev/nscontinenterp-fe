@@ -2,6 +2,7 @@
 import { ArrowLeft, Save, Upload, X } from "lucide-vue-next";
 import SearchSelect from "~/components/ui/SearchSelect.vue";
 import { useTransaction } from "~/composables/useTransaction";
+import type { ChartOfAccount } from "~/composables/useChartOfAccounts";
 
 definePageMeta({
   layout: "dashboard",
@@ -39,8 +40,9 @@ const formattedTaxOptions = computed(() =>
   taxOptions.value.map((tax) => ({ id: tax.id, name: `${tax.name} (${tax.rate}%)` })),
 );
 
+// Client-side: initialize (avoids slow cross-region SSR)
 onMounted(() => {
-  initialize();
+  void initialize();
 });
 </script>
 

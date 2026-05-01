@@ -49,7 +49,6 @@ function handleCreditChange(entry: JournalEntryLine) {
 }
 
 export function useJournalEntry() {
-  const config = useRuntimeConfig();
   const router = useRouter();
 
   const {
@@ -149,13 +148,9 @@ export function useJournalEntry() {
           })),
       };
 
-      await $fetch(`${config.public.apiBase}/finance/journal`, {
+      await $fetch(`/api/finance/journal`, {
         method: "POST",
         body: payload,
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
       });
 
       successMessage.value = "Journal entry saved successfully!";

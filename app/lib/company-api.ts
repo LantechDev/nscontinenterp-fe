@@ -8,11 +8,6 @@ import type {
   CompanyQueryParams,
 } from "~/composables/useCompanies";
 
-function getApiBase() {
-  const config = useRuntimeConfig();
-  return config.public.apiBase as string;
-}
-
 function getErrorMessage(error: unknown): string {
   if (error && typeof error === "object" && "data" in error) {
     const errorData = (error as { data?: { message?: string; error?: string } }).data;
@@ -26,14 +21,9 @@ function getErrorMessage(error: unknown): string {
 export const companyApi = {
   async fetchCompanies(params?: CompanyQueryParams) {
     try {
-      const headers = useRequestHeaders(["cookie"]);
       const response = await $fetch<Company[] | { data: Company[]; pagination: CompanyPagination }>(
-        `${getApiBase()}/master/companies`,
-        {
-          params,
-          credentials: "include",
-          headers,
-        },
+        "/api/master/companies",
+        { params },
       );
 
       if (Array.isArray(response)) {
@@ -46,18 +36,17 @@ export const companyApi = {
         pagination: response.pagination,
       };
     } catch (error) {
-      return { success: false, error: getErrorMessage(error), data: [] };
+      return {
+        success: false,
+        error: getErrorMessage(error),
+        data: [],
+      };
     }
   },
 
   async getCompanyById(id: string) {
     try {
-      const data = await $fetch<Company>(`${getApiBase()}/master/companies/${id}`, {
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
+      const data = await $fetch<Company>(`/api/master/companies/${id}`);
       return { success: true, data };
     } catch (error) {
       return { success: false, error: getErrorMessage(error) };
@@ -66,12 +55,7 @@ export const companyApi = {
 
   async getCompanyDetails(id: string) {
     try {
-      const data = await $fetch<CompanyDetails>(`${getApiBase()}/master/companies/${id}/details`, {
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
+      const data = await $fetch<CompanyDetails>(`/api/master/companies/${id}/details`);
       return { success: true, data };
     } catch (error) {
       return { success: false, error: getErrorMessage(error) };
@@ -80,13 +64,9 @@ export const companyApi = {
 
   async createCompany(companyData: CreateCompanyInput) {
     try {
-      const data = await $fetch<Company>(`${getApiBase()}/master/companies`, {
+      const data = await $fetch<Company>("/api/master/companies", {
         method: "POST",
         body: companyData,
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
       });
       return { success: true, data };
     } catch (error) {
@@ -96,13 +76,9 @@ export const companyApi = {
 
   async updateCompany(id: string, companyData: Partial<CreateCompanyInput>) {
     try {
-      const data = await $fetch<Company>(`${getApiBase()}/master/companies/${id}`, {
+      const data = await $fetch<Company>(`/api/master/companies/${id}`, {
         method: "PUT",
         body: companyData,
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
       });
       return { success: true, data };
     } catch (error) {
@@ -112,12 +88,8 @@ export const companyApi = {
 
   async deleteCompany(id: string) {
     try {
-      await $fetch(`${getApiBase()}/master/companies/${id}`, {
+      await $fetch(`/api/master/companies/${id}`, {
         method: "DELETE",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
       });
       return { success: true };
     } catch (error) {
@@ -127,17 +99,10 @@ export const companyApi = {
 
   async createAddress(companyId: string, addressData: CreateAddressInput) {
     try {
-      const data = await $fetch<Address>(
-        `${getApiBase()}/master/companies/${companyId}/addresses`,
-        {
-          method: "POST",
-          body: addressData,
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        },
-      );
+      const data = await $fetch<Address>(`/api/master/companies/${companyId}/addresses`, {
+        method: "POST",
+        body: addressData,
+      });
       return { success: true, data };
     } catch (error) {
       return { success: false, error: getErrorMessage(error) };
@@ -147,14 +112,10 @@ export const companyApi = {
   async updateAddress(companyId: string, addressId: string, addressData: UpdateAddressInput) {
     try {
       const data = await $fetch<Address>(
-        `${getApiBase()}/master/companies/${companyId}/addresses/${addressId}`,
+        `/api/master/companies/${companyId}/addresses/${addressId}`,
         {
           method: "PUT",
           body: addressData,
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
         },
       );
       return { success: true, data };
@@ -165,12 +126,8 @@ export const companyApi = {
 
   async deleteAddress(companyId: string, addressId: string) {
     try {
-      await $fetch(`${getApiBase()}/master/companies/${companyId}/addresses/${addressId}`, {
+      await $fetch(`/api/master/companies/${companyId}/addresses/${addressId}`, {
         method: "DELETE",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
       });
       return { success: true };
     } catch (error) {

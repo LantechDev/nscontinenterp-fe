@@ -53,7 +53,7 @@ const addressDetails = computed(() => {
       <slot name="extra-controls" />
       <Combobox
         v-model="companyId"
-        :options="companies as any"
+        :options="companies"
         label-key="name"
         value-key="id"
         placeholder="Select Company..."

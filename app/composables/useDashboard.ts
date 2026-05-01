@@ -1,5 +1,4 @@
 import { ref } from "vue";
-import { useRuntimeConfig } from "#app";
 
 export interface DashboardStats {
   jobs: {
@@ -69,6 +68,12 @@ export interface DashboardData {
     pendingInvoicesChange: number;
     activeOffers: number;
     activeOffersChange: number;
+    totalReceivables: string;
+    totalReceivablesRaw: number;
+    totalReceivablesChange: number;
+    totalPayables: string;
+    totalPayablesRaw: number;
+    totalPayablesChange: number;
   };
   recentJobs: DashboardJob[];
   upcomingEvents: DashboardActivity[];
@@ -80,9 +85,6 @@ export interface DashboardData {
 }
 
 export const useDashboard = () => {
-  const config = useRuntimeConfig();
-  const headers = useRequestHeaders(["cookie"]);
-  // Owner Dashboard State
   const stats = ref<DashboardStats | null>(null);
   const pendingApprovals = ref<PendingApprovalBl[]>([]);
   const notifications = ref<DashboardNotification[]>([]);
@@ -98,10 +100,7 @@ export const useDashboard = () => {
     isLoading.value = true;
     try {
       const query = params ? `?${new URLSearchParams(params).toString()}` : "";
-      const data = await $fetch<DashboardData>(`${config.public.apiBase}/admin/dashboard${query}`, {
-        credentials: "include",
-        headers,
-      });
+      const data = await $fetch<DashboardData>(`/api/admin/dashboard${query}`);
       return data;
     } catch (error) {
       console.error("Failed to fetch dashboard data:", error);
@@ -117,10 +116,7 @@ export const useDashboard = () => {
   const fetchStats = async () => {
     isLoading.value = true;
     try {
-      const data = await $fetch<DashboardStats>(`${config.public.apiBase}/dashboard/stats`, {
-        credentials: "include",
-        headers,
-      });
+      const data = await $fetch<DashboardStats>(`/api/dashboard/stats`);
       stats.value = data;
     } catch (error) {
       console.error("Failed to fetch owner stats:", error);
@@ -135,13 +131,7 @@ export const useDashboard = () => {
   const fetchPendingApprovals = async () => {
     isLoading.value = true;
     try {
-      const data = await $fetch<PendingApprovalBl[]>(
-        `${config.public.apiBase}/dashboard/pending-approvals`,
-        {
-          credentials: "include",
-          headers,
-        },
-      );
+      const data = await $fetch<PendingApprovalBl[]>(`/api/dashboard/pending-approvals`);
       pendingApprovals.value = data;
     } catch (error) {
       console.error("Failed to fetch pending approvals:", error);
@@ -152,14 +142,9 @@ export const useDashboard = () => {
 
   const fetchNotifications = async (limit = 8) => {
     try {
-      const data = await $fetch<DashboardNotification[]>(
-        `${config.public.apiBase}/dashboard/notifications`,
-        {
-          credentials: "include",
-          headers,
-          query: { limit },
-        },
-      );
+      const data = await $fetch<DashboardNotification[]>(`/api/dashboard/notifications`, {
+        query: { limit },
+      });
       notifications.value = data;
       return data;
     } catch (error) {
@@ -172,11 +157,9 @@ export const useDashboard = () => {
   const approveBl = async (id: string) => {
     try {
       const resp = await $fetch<{ success: boolean; error?: string }>(
-        `${config.public.apiBase}/operational/jobs/bl/${id}/finalize`,
+        `/api/operational/jobs/bl/${id}/finalize`,
         {
           method: "POST",
-          credentials: "include",
-          headers,
         },
       );
       if (resp.success) {

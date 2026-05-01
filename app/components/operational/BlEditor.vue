@@ -91,17 +91,12 @@ function findParty(parties: BlParty[] | undefined, roleCode: string): BlParty | 
   if (!parties) return undefined;
   return parties.find((p) => p.partyRole?.code === roleCode || p.partyRoleCode === roleCode);
 }
-const headers = useRequestHeaders(["cookie"]);
 async function loadBlData() {
   if (!props.blId) return;
   isLoading.value = true;
   try {
     const response = await $fetch<{ data: BlData }>(
       `/api/operational/bill-of-lading/${props.blId}`,
-      {
-        headers,
-        credentials: "include",
-      },
     );
     const data = response.data;
 
@@ -157,9 +152,7 @@ async function handleCopyFromJob() {
   isLoading.value = true;
   try {
     await $fetch(`/api/operational/bill-of-lading/${props.blId}/copy-from-job`, {
-      headers,
       method: "POST",
-      credentials: "include",
     });
     await loadBlData();
     toast.success("Data copied from Job. You can now edit it for this BL.");
@@ -186,7 +179,6 @@ async function handleSave() {
     await $fetch(`/api/operational/bill-of-lading/${props.blId}`, {
       method: "PATCH",
       body: payload,
-      credentials: "include",
     });
 
     emit("saved");

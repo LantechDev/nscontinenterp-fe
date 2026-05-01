@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { ArrowLeft, Edit, Download, Receipt, Loader2, Save, Plus, Trash2 } from "lucide-vue-next";
 import { useInvoices, type InvoiceDetail } from "~/composables/useInvoices";
-import { useCompanies } from "~/composables/useCompanies";
-import { useJobs } from "~/composables/useJobs";
-import { useServices } from "~/composables/useServices";
-import { useFinanceTax } from "~/composables/useFinanceTax";
 import { toNumber, formatRupiah } from "~/lib/utils";
 import { generateInvoicePdf } from "./utils/pdf-generator";
+import type { Company } from "~/composables/useMasterData";
+import type { JobWithBls } from "~/composables/useJobs";
+import type { Service } from "~/composables/useServices";
+import type { Tax } from "~/composables/useFinanceTax";
 
 definePageMeta({
   layout: "dashboard",
@@ -16,16 +16,30 @@ const route = useRoute();
 const router = useRouter();
 const invoiceId = route.params.id as string;
 
-const { fetchInvoiceById, updateInvoice, isLoading } = useInvoices();
-const { companies, fetchCompanies } = useCompanies();
-const { jobs, fetchJobs } = useJobs();
-const { services, fetchServices } = useServices();
-const { fetchTaxes } = useFinanceTax();
+const { fetchInvoiceById, updateInvoice } = useInvoices();
 
-// Invoice data state
-const invoice = ref<InvoiceDetail | null>(null);
-const loading = ref(true);
-const error = ref<string | null>(null);
+// SSR-first: fetch invoice detail
+const {
+  data: invoiceData,
+  pending: loading,
+  error,
+  refresh,
+} = await useAsyncData<InvoiceDetail>(
+  `invoice-${invoiceId}`,
+  async () => {
+    const result = await fetchInvoiceById(invoiceId);
+    if (result.success && result.data) {
+      return result.data;
+    }
+    throw new Error(result.error || "Failed to load invoice");
+  },
+  { server: false },
+);
+
+const invoice = computed(() => invoiceData.value);
+const isLoading = computed(() => loading.value);
+
+// Edit modal state
 
 // Edit modal state
 const isEditModalOpen = ref(false);
@@ -63,6 +77,9 @@ const statusOptions = [
   { id: "OVERDUE", name: "Jatuh Tempo (Overdue)" },
 ];
 
+const companies = ref<Company[]>([]);
+const jobs = ref<JobWithBls[]>([]);
+const services = ref<Service[]>([]);
 const taxOptions = ref<Array<{ id: string; name: string; rate: number }>>([]);
 const selectedTaxId = ref("");
 const selectedTaxRate = ref(0);
@@ -155,34 +172,28 @@ const updateItemAmount = (index: number) => {
   }
 };
 
-// Load invoice data
+// Load invoice data (for client-side reload)
 const loadInvoice = async () => {
-  try {
-    loading.value = true;
-    error.value = null;
-    const result = await fetchInvoiceById(invoiceId);
-    if (result.success && result.data) {
-      invoice.value = result.data;
-    } else {
-      throw new Error(result.error || "Failed to load invoice");
-    }
-  } catch (e) {
-    console.error("Failed to fetch invoice:", e);
-    error.value = "Failed to load invoice";
-  } finally {
-    loading.value = false;
+  const result = await fetchInvoiceById(invoiceId);
+  if (result.success && result.data) {
+    invoiceData.value = result.data;
   }
 };
 
 // Load dropdown data
 const loadDropdownData = async () => {
-  const [_, __, ___, taxes] = await Promise.all([
-    fetchCompanies({ type: "CUSTOMER" }),
-    fetchJobs(),
-    fetchServices(),
-    fetchTaxes({ isActive: true, limit: 100 }),
+  const [companiesResult, jobsResult, servicesResult, taxesResult] = await Promise.all([
+    $fetch<{ data: Company[] }>("/api/companies", { query: { type: "CUSTOMER", limit: 100 } }),
+    $fetch<{ data: JobWithBls[] }>("/api/jobs", { query: { limit: 100 } }),
+    $fetch<{ data: Service[] }>("/api/services", { query: { limit: 100 } }),
+    $fetch<{ data: { id: string; name: string; rate: number }[] }>("/api/taxes", {
+      query: { isActive: true, limit: 100 },
+    }),
   ]);
-  taxOptions.value = taxes?.items || [];
+  companies.value = companiesResult?.data || [];
+  jobs.value = jobsResult?.data || [];
+  services.value = servicesResult?.data || [];
+  taxOptions.value = taxesResult?.data || [];
 };
 
 // Open edit modal with full form
@@ -302,11 +313,6 @@ watch(selectedTaxId, () => {
   const selectedTax = taxOptions.value.find((tax) => tax.id === selectedTaxId.value);
   selectedTaxRate.value = selectedTax ? Number(selectedTax.rate) || 0 : 0;
   recalculateTotals();
-});
-
-// Load on mount
-onMounted(() => {
-  loadInvoice();
 });
 </script>
 

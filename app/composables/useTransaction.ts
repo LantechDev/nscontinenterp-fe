@@ -1,10 +1,9 @@
 import { getErrorMessage } from "~/lib/utils";
-import { useChartOfAccounts } from "./useChartOfAccounts";
+import { useChartOfAccounts, type ChartOfAccount } from "./useChartOfAccounts";
 import type { SearchSelectFetchOptions } from "~/components/ui/SearchSelect.vue";
 import { useFinanceTax } from "./useFinanceTax";
 
 export function useTransaction() {
-  const config = useRuntimeConfig();
   const router = useRouter();
 
   const {
@@ -116,13 +115,9 @@ export function useTransaction() {
         ],
       };
 
-      await $fetch(`${config.public.apiBase}/finance/journal`, {
+      await $fetch("/api/finance/journal", {
         method: "POST",
         body: payload,
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
       });
 
       successMessage.value = "Transaksi berhasil disimpan!";
@@ -157,6 +152,13 @@ export function useTransaction() {
     referenceNumber.value = `TRX/${year}${month}/${random}`;
   };
 
+  // SSR Data Injection
+  const setData = (data: { accounts?: ChartOfAccount[] }) => {
+    if (data?.accounts) {
+      accounts.value = data.accounts;
+    }
+  };
+
   return {
     // State
     isSaving,
@@ -182,5 +184,6 @@ export function useTransaction() {
     removeAttachment,
     saveTransaction,
     initialize,
+    setData,
   };
 }

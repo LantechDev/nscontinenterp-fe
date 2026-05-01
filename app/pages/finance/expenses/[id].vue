@@ -12,7 +12,21 @@ definePageMeta({
 
 const route = useRoute();
 const expenseId = route.params.id as string;
-const { fetchExpenseById, deleteExpense, isLoading } = useFinanceExpense();
+const { fetchExpenseById, deleteExpense } = useFinanceExpense();
+
+// SSR-first: fetch expense detail
+const {
+  data: expenseData,
+  pending: loading,
+  error,
+} = await useAsyncData<Expense>(
+  `expense-${expenseId}`,
+  async () => await fetchExpenseById(expenseId),
+  { server: false },
+);
+
+const expense = computed(() => expenseData.value);
+const isLoading = computed(() => loading.value);
 
 // Use expense page composable for modal
 const {
@@ -31,24 +45,13 @@ const {
   initialize,
 } = useExpensePage();
 
-const expense = ref<Expense | null>(null);
-
-async function loadExpense() {
-  try {
-    expense.value = await fetchExpenseById(expenseId);
-  } catch (error) {
-    console.error("Failed to load expense:", error);
-    navigateTo("/finance/expenses");
-  }
-}
-
 async function handleDelete() {
   if (confirm("Apakah Anda yakin ingin menghapus biaya ini?")) {
     try {
       await deleteExpense(expenseId);
       navigateTo("/finance/expenses");
-    } catch (error) {
-      toast.error("Gagal menghapus biaya: " + (error as Error).message);
+    } catch (err) {
+      toast.error("Gagal menghapus biaya: " + (err as Error).message);
     }
   }
 }
@@ -171,14 +174,13 @@ function handleDownloadPdf() {
 
     // Download the PDF directly
     doc.save(filename);
-  } catch (error) {
-    console.error("Failed to download expense PDF:", error);
+  } catch (err) {
+    console.error("Failed to download expense PDF:", err);
     toast.error("Failed to download PDF. Please try again.");
   }
 }
 
 onMounted(() => {
-  loadExpense();
   initialize();
 });
 </script>

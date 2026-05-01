@@ -57,7 +57,6 @@ function getErrorMessage(error: unknown): string {
 }
 
 export function useServices() {
-  const config = useRuntimeConfig();
   const isLoading = ref(false);
   const services = useState<Service[]>("services-list", () => []);
   const currentService = useState<Service | null>("services-current", () => null);
@@ -70,12 +69,8 @@ export function useServices() {
   ): Promise<ApiResponse<Service[]>> {
     isLoading.value = true;
     try {
-      const data = await $fetch<Service[]>(`${config.public.apiBase}/master/services`, {
+      const data = await $fetch<Service[]>("/api/master/services", {
         params: { search, categoryId },
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
       });
       services.value = data || [];
       return { success: true, data: services.value };
@@ -88,15 +83,7 @@ export function useServices() {
 
   async function fetchCategories(): Promise<ApiResponse<ServiceCategory[]>> {
     try {
-      const data = await $fetch<ServiceCategory[]>(
-        `${config.public.apiBase}/master/service-categories`,
-        {
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        },
-      );
+      const data = await $fetch<ServiceCategory[]>("/api/master/service-categories");
       categories.value = data || [];
       return { success: true, data: categories.value };
     } catch (error) {
@@ -106,12 +93,7 @@ export function useServices() {
 
   async function fetchUnits(): Promise<ApiResponse<ServiceUnit[]>> {
     try {
-      const data = await $fetch<ServiceUnit[]>(`${config.public.apiBase}/master/service-units`, {
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
+      const data = await $fetch<ServiceUnit[]>("/api/master/service-units");
       units.value = data || [];
       return { success: true, data: units.value };
     } catch (error) {
@@ -122,12 +104,7 @@ export function useServices() {
   async function getService(id: string): Promise<ApiResponse<Service>> {
     isLoading.value = true;
     try {
-      const data = await $fetch<Service>(`${config.public.apiBase}/master/services/${id}`, {
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
+      const data = await $fetch<Service>(`/api/master/services/${id}`);
       currentService.value = data;
       return { success: true, data };
     } catch (error) {
@@ -140,13 +117,9 @@ export function useServices() {
   async function createService(payload: CreateService): Promise<ApiResponse<Service>> {
     isLoading.value = true;
     try {
-      const data = await $fetch<Service>(`${config.public.apiBase}/master/services`, {
+      const data = await $fetch<Service>("/api/master/services", {
         method: "POST",
         body: payload,
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
       });
       services.value = [...services.value, data];
       return { success: true, data };
@@ -160,13 +133,9 @@ export function useServices() {
   async function updateService(id: string, payload: UpdateService): Promise<ApiResponse<Service>> {
     isLoading.value = true;
     try {
-      const data = await $fetch<Service>(`${config.public.apiBase}/master/services/${id}`, {
+      const data = await $fetch<Service>(`/api/master/services/${id}`, {
         method: "PUT",
         body: payload,
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
       });
       if (currentService.value?.id === id) {
         currentService.value = data;
@@ -183,12 +152,8 @@ export function useServices() {
   async function deleteService(id: string): Promise<ApiResponse<void>> {
     isLoading.value = true;
     try {
-      await $fetch(`${config.public.apiBase}/master/services/${id}`, {
+      await $fetch(`/api/master/services/${id}`, {
         method: "DELETE",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
       });
       services.value = services.value.filter((s) => s.id !== id);
       if (currentService.value?.id === id) {

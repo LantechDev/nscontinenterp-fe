@@ -11,6 +11,7 @@ export interface JobVessel {
   vesselName: string | null;
   voyageNumber: string | null;
   etd: string | null;
+  eta: string | null;
   sequence: number;
   vessel?: { name: string; imoNumber?: string | null } | null;
 }
@@ -21,6 +22,7 @@ export interface BlVessel {
   vesselName: string | null;
   voyageNumber: string | null;
   etd: string | null;
+  eta: string | null;
   sequence: number;
   vessel?: { name: string; imoNumber?: string | null } | null;
 }
@@ -39,8 +41,9 @@ export interface Job {
   id: string;
   jobNumber: string;
   organizationId: string;
-  pol: string;
-  pod: string;
+  serviceType: string;
+  pol?: string | null;
+  pod?: string | null;
   polName?: string | null;
   podName?: string | null;
   voyageNumber?: string | null;
@@ -48,6 +51,8 @@ export interface Job {
   placeOfReceipt?: string | null;
   placeOfDelivery?: string | null;
   finalDestination?: string | null;
+  pickupAddress?: string | null;
+  deliveryAddress?: string | null;
   tradeTypeId?: string | null;
   commodity: string;
   mainDescription?: string | null;
@@ -61,6 +66,11 @@ export interface Job {
   vesselId?: string | null;
   etd?: string | null;
   eta?: string | null;
+  pickupDate?: string | null;
+  pickupTime?: string | null;
+  deliveryDate?: string | null;
+  deliveryTime?: string | null;
+  truckType?: string | null;
   grossWeight?: string | null;
   netWeight?: string | null;
   measurement?: string | null;
@@ -75,6 +85,7 @@ export interface Job {
   placeOfIssue?: string | null;
   dateOfIssue?: string | null;
   customerReference?: string | null;
+  isDirectMaster: boolean;
   createdAt: string;
   updatedAt: string;
   vessels?: JobVessel[];
@@ -208,8 +219,9 @@ export interface CreateJob {
   commodity: string;
   customerId?: string;
   containerTypeId?: string;
-  pol: string;
-  pod: string;
+  serviceType?: string;
+  pol?: string | null;
+  pod?: string | null;
   vesselId?: string;
   voyageNumber?: string | null;
   preCarriageBy?: string | null;
@@ -223,6 +235,7 @@ export interface CreateJob {
     vesselName?: string | null;
     voyageNumber?: string | null;
     etd?: string | null;
+    eta?: string | null;
     sequence?: number;
   }[];
   totalBlCount: number;
@@ -234,6 +247,7 @@ export interface CreateJob {
   measurement?: number | null;
   shippingMark?: string;
   mainDescription?: string;
+  isDirectMaster?: boolean;
 
   freightTerm?: "PREPAID" | "COLLECT";
   hsCode?: string;
@@ -282,6 +296,7 @@ export interface UpdateBlDraft {
   mainDescription?: string;
   shippingMark?: string;
   commodity?: string;
+  isDirectMaster?: boolean;
   hsCode?: string;
 
   blNumber?: string;
@@ -307,6 +322,7 @@ export interface UpdateBlDraft {
     vesselName?: string | null;
     voyageNumber?: string | null;
     etd?: string | null;
+    eta?: string | null;
     sequence?: number;
   }[];
   tradeTypeId?: string;
@@ -403,7 +419,6 @@ function handleApiError<T = unknown>(error: unknown): AuthResponse<T> {
 }
 
 export function useJobs() {
-  const config = useRuntimeConfig();
   const isLoading = ref(false);
   const jobs = useState<JobWithBls[]>("jobs-list", () => []);
   const currentJob = useState<JobWithBls | null>("jobs-current", () => null);
@@ -411,12 +426,7 @@ export function useJobs() {
   async function fetchJobs(): Promise<AuthResponse<JobWithBls[]>> {
     isLoading.value = true;
     try {
-      const data = await $fetch<JobWithBls[]>(`${config.public.apiBase}/operational/jobs`, {
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
+      const data = await $fetch<JobWithBls[]>("/api/operational/jobs");
       jobs.value = data || [];
       return { success: true, data: jobs.value };
     } catch (error) {
@@ -429,13 +439,9 @@ export function useJobs() {
   async function createJob(payload: CreateJob): Promise<AuthResponse<JobWithBls>> {
     isLoading.value = true;
     try {
-      const data = await $fetch<JobWithBls>(`${config.public.apiBase}/operational/jobs`, {
+      const data = await $fetch<JobWithBls>("/api/operational/jobs", {
         method: "POST",
         body: payload,
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
       });
       jobs.value = [...jobs.value, data];
       return { success: true, data };
@@ -449,12 +455,7 @@ export function useJobs() {
   async function getJob(id: string): Promise<AuthResponse<JobWithBls>> {
     isLoading.value = true;
     try {
-      const data = await $fetch<JobWithBls>(`${config.public.apiBase}/operational/jobs/${id}`, {
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
+      const data = await $fetch<JobWithBls>(`/api/operational/jobs/${id}`);
       currentJob.value = data;
       return { success: true, data };
     } catch (error) {
@@ -467,17 +468,10 @@ export function useJobs() {
   async function updateBl(id: string, payload: UpdateBl): Promise<AuthResponse<BillOfLading>> {
     isLoading.value = true;
     try {
-      const data = await $fetch<BillOfLading>(
-        `${config.public.apiBase}/operational/jobs/bl/${id}`,
-        {
-          method: "PUT",
-          body: payload,
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        },
-      );
+      const data = await $fetch<BillOfLading>(`/api/operational/jobs/bl/${id}`, {
+        method: "PUT",
+        body: payload,
+      });
       if (currentJob.value && currentJob.value.billsOfLading) {
         const blIndex = currentJob.value.billsOfLading.findIndex((bl) => bl.id === id);
         if (blIndex !== -1) {
@@ -498,17 +492,10 @@ export function useJobs() {
   ): Promise<AuthResponse<BillOfLading>> {
     isLoading.value = true;
     try {
-      const data = await $fetch<BillOfLading>(
-        `${config.public.apiBase}/operational/jobs/bl/${id}`,
-        {
-          method: "PATCH",
-          body: payload,
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        },
-      );
+      const data = await $fetch<BillOfLading>(`/api/operational/jobs/bl/${id}`, {
+        method: "PATCH",
+        body: payload,
+      });
       return { success: true, data };
     } catch (error) {
       return handleApiError<BillOfLading>(error);
@@ -520,16 +507,9 @@ export function useJobs() {
   async function finalizeBl(id: string): Promise<AuthResponse<BillOfLading>> {
     isLoading.value = true;
     try {
-      const data = await $fetch<BillOfLading>(
-        `${config.public.apiBase}/operational/jobs/bl/${id}/finalize`,
-        {
-          method: "POST",
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        },
-      );
+      const data = await $fetch<BillOfLading>(`/api/operational/jobs/bl/${id}/finalize`, {
+        method: "POST",
+      });
       if (currentJob.value && currentJob.value.billsOfLading) {
         const blIndex = currentJob.value.billsOfLading.findIndex((bl) => bl.id === id);
         if (blIndex !== -1) {
@@ -547,16 +527,9 @@ export function useJobs() {
   async function requestFinalizeBl(id: string): Promise<AuthResponse<BillOfLading>> {
     isLoading.value = true;
     try {
-      const data = await $fetch<BillOfLading>(
-        `${config.public.apiBase}/operational/jobs/bl/${id}/request-finalize`,
-        {
-          method: "POST",
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        },
-      );
+      const data = await $fetch<BillOfLading>(`/api/operational/jobs/bl/${id}/request-finalize`, {
+        method: "POST",
+      });
       if (currentJob.value && currentJob.value.billsOfLading) {
         const blIndex = currentJob.value.billsOfLading.findIndex((bl) => bl.id === id);
         if (blIndex !== -1) {
@@ -574,16 +547,9 @@ export function useJobs() {
   async function unfinalizeBl(id: string): Promise<AuthResponse<BillOfLading>> {
     isLoading.value = true;
     try {
-      const data = await $fetch<BillOfLading>(
-        `${config.public.apiBase}/operational/jobs/bl/${id}/unfinalize`,
-        {
-          method: "POST",
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        },
-      );
+      const data = await $fetch<BillOfLading>(`/api/operational/jobs/bl/${id}/unfinalize`, {
+        method: "POST",
+      });
       if (currentJob.value && currentJob.value.billsOfLading) {
         const blIndex = currentJob.value.billsOfLading.findIndex((bl) => bl.id === id);
         if (blIndex !== -1) {
@@ -601,12 +567,8 @@ export function useJobs() {
   async function deleteBl(id: string): Promise<AuthResponse> {
     isLoading.value = true;
     try {
-      await $fetch(`${config.public.apiBase}/operational/jobs/bl/${id}`, {
+      await $fetch(`/api/operational/jobs/bl/${id}`, {
         method: "DELETE",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
       });
       if (currentJob.value && currentJob.value.billsOfLading) {
         currentJob.value.billsOfLading = currentJob.value.billsOfLading.filter(
@@ -624,17 +586,10 @@ export function useJobs() {
   async function rejectBl(id: string, reason: string): Promise<AuthResponse<BillOfLading>> {
     isLoading.value = true;
     try {
-      const data = await $fetch<BillOfLading>(
-        `${config.public.apiBase}/operational/jobs/bl/${id}/reject`,
-        {
-          method: "POST",
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: { reason },
-        },
-      );
+      const data = await $fetch<BillOfLading>(`/api/operational/jobs/bl/${id}/reject`, {
+        method: "POST",
+        body: { reason },
+      });
       if (currentJob.value && currentJob.value.billsOfLading) {
         const blIndex = currentJob.value.billsOfLading.findIndex((bl) => bl.id === id);
         if (blIndex !== -1) {
@@ -655,13 +610,9 @@ export function useJobs() {
   ): Promise<AuthResponse<JobWithBls>> {
     isLoading.value = true;
     try {
-      const data = await $fetch<JobWithBls>(`${config.public.apiBase}/operational/jobs/${id}`, {
+      const data = await $fetch<JobWithBls>(`/api/operational/jobs/${id}`, {
         method: "PUT",
         body: payload,
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
       });
       const index = jobs.value.findIndex((j) => j.id === id);
       if (index !== -1) {
@@ -679,16 +630,9 @@ export function useJobs() {
   async function completeJob(id: string): Promise<AuthResponse<JobWithBls>> {
     isLoading.value = true;
     try {
-      const data = await $fetch<JobWithBls>(
-        `${config.public.apiBase}/operational/jobs/${id}/complete`,
-        {
-          method: "POST",
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        },
-      );
+      const data = await $fetch<JobWithBls>(`/api/operational/jobs/${id}/complete`, {
+        method: "POST",
+      });
       const index = jobs.value.findIndex((j) => j.id === id);
       if (index !== -1) {
         jobs.value[index] = data;
@@ -705,16 +649,9 @@ export function useJobs() {
   async function cancelCompleteJob(id: string): Promise<AuthResponse<JobWithBls>> {
     isLoading.value = true;
     try {
-      const data = await $fetch<JobWithBls>(
-        `${config.public.apiBase}/operational/jobs/${id}/cancel-complete`,
-        {
-          method: "POST",
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        },
-      );
+      const data = await $fetch<JobWithBls>(`/api/operational/jobs/${id}/cancel-complete`, {
+        method: "POST",
+      });
       const index = jobs.value.findIndex((j) => j.id === id);
       if (index !== -1) {
         jobs.value[index] = data;
@@ -731,15 +668,7 @@ export function useJobs() {
   async function getBlRender(id: string): Promise<AuthResponse<BlRenderResponse>> {
     isLoading.value = true;
     try {
-      const data = await $fetch<BlRenderResponse>(
-        `${config.public.apiBase}/operational/jobs/bl/${id}/render`,
-        {
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        },
-      );
+      const data = await $fetch<BlRenderResponse>(`/api/operational/jobs/bl/${id}/render`);
       return { success: true, data };
     } catch (error) {
       return handleApiError<BlRenderResponse>(error);
@@ -750,15 +679,7 @@ export function useJobs() {
 
   async function getJobDocuments(jobId: string): Promise<AuthResponse<JobDocumentItem[]>> {
     try {
-      const data = await $fetch<JobDocumentItem[]>(
-        `${config.public.apiBase}/operational/jobs/${jobId}/documents`,
-        {
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        },
-      );
+      const data = await $fetch<JobDocumentItem[]>(`/api/operational/jobs/${jobId}/documents`);
       return { success: true, data };
     } catch (error) {
       return handleApiError<JobDocumentItem[]>(error);
@@ -774,17 +695,10 @@ export function useJobs() {
       const formData = new FormData();
       formData.append("file", file);
 
-      const data = await $fetch<JobDocumentItem>(
-        `${config.public.apiBase}/operational/jobs/${jobId}/documents`,
-        {
-          method: "POST",
-          body: formData,
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        },
-      );
+      const data = await $fetch<JobDocumentItem>(`/api/operational/jobs/${jobId}/documents`, {
+        method: "POST",
+        body: formData,
+      });
       return { success: true, data };
     } catch (error) {
       return handleApiError<JobDocumentItem>(error);
@@ -796,12 +710,8 @@ export function useJobs() {
   async function deleteJobDocument(jobId: string, docId: string): Promise<AuthResponse> {
     isLoading.value = true;
     try {
-      await $fetch(`${config.public.apiBase}/operational/jobs/${jobId}/documents/${docId}`, {
+      await $fetch(`/api/operational/jobs/${jobId}/documents/${docId}`, {
         method: "DELETE",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
       });
       return { success: true };
     } catch (error) {

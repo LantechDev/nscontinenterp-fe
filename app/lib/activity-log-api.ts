@@ -83,11 +83,6 @@ export interface PaginatedResponse<T> {
   };
 }
 
-function getApiBase() {
-  const config = useRuntimeConfig();
-  return config.public.apiBase as string;
-}
-
 export async function getActivityLogs(filters: ActivityLogFilters = {}) {
   const params = new URLSearchParams();
 
@@ -102,13 +97,7 @@ export async function getActivityLogs(filters: ActivityLogFilters = {}) {
   if (filters.limit) params.append("limit", String(filters.limit));
 
   const response = await $fetch<PaginatedResponse<ActivityLog>>(
-    `${getApiBase()}/admin/activity-logs?${params.toString()}`,
-    {
-      credentials: "include",
-      headers: {
-        "Content-Type": "application/json",
-      },
-    },
+    `/api/admin/activity-logs?${params.toString()}`,
   );
 
   return response;
@@ -121,13 +110,7 @@ export async function getRecentActivityLogs(organizationId?: string, limit = 10)
   params.append("limit", String(limit));
 
   const response = await $fetch<{ logs: ActivityLog[] }>(
-    `${getApiBase()}/admin/activity-logs/recent?${params.toString()}`,
-    {
-      credentials: "include",
-      headers: {
-        "Content-Type": "application/json",
-      },
-    },
+    `/api/admin/activity-logs/recent?${params.toString()}`,
   );
 
   return response.logs;

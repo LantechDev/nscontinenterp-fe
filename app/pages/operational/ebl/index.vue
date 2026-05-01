@@ -39,10 +39,7 @@ interface EblItem {
 
 const { ebls, fetchEbls, isLoading } = useEbls();
 
-// Fetch EBLs on mount
-onMounted(async () => {
-  await fetchEbls();
-});
+const { pending } = await useAsyncData("ebls-list", () => fetchEbls(), { server: false });
 
 // Map status code to display format
 const getStatusInfo = (ebl: EblItem): { label: string; class: string } => {
@@ -152,15 +149,7 @@ const groupedEbls = computed(() => {
         />
       </div>
 
-      <div class="flex items-center gap-3">
-        <NuxtLink
-          to="/operational/ebl/create"
-          class="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-[#012D5A] text-white hover:bg-[#012D5A]/90 rounded-lg transition-colors min-w-fit whitespace-nowrap"
-        >
-          <Plus class="w-4 h-4" />
-          <span>Buat eBL</span>
-        </NuxtLink>
-      </div>
+      <div class="flex items-center gap-3"></div>
     </div>
 
     <!-- Loading State -->

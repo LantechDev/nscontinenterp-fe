@@ -1,3 +1,8 @@
+const apiTarget = process.env.NUXT_PUBLIC_API_TARGET || "http://localhost:9999";
+const useApiProxy = process.env.NUXT_PUBLIC_USE_API_PROXY !== "false";
+const configuredApiBase = process.env.NUXT_PUBLIC_API_BASE;
+const apiBase = useApiProxy ? configuredApiBase || "/api" : `${apiTarget.replace(/\/$/, "")}/api`;
+
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
   compatibilityDate: "2025-07-15",
@@ -49,15 +54,9 @@ export default defineNuxtConfig({
   },
   runtimeConfig: {
     public: {
-      apiBase: process.env.NUXT_PUBLIC_API_BASE || "/api",
-      apiTarget: process.env.NUXT_PUBLIC_API_TARGET || "http://localhost:9999",
-    },
-  },
-  routeRules: {
-    "/api/**": {
-      proxy: process.env.NUXT_PUBLIC_API_TARGET
-        ? process.env.NUXT_PUBLIC_API_TARGET + "/api/**"
-        : "http://localhost:9999/api/**",
+      apiBase,
+      apiTarget,
+      useApiProxy,
     },
   },
   experimental: {

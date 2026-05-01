@@ -1,29 +1,42 @@
 <script setup lang="ts">
-import { Plus, Search, LayoutList, LayoutGrid, ChevronDown, Loader2 } from "lucide-vue-next";
+import { LayoutGrid, LayoutList, Loader2, Plus, Search } from "lucide-vue-next";
 import { toast } from "vue-sonner";
-import CompanyList from "./components/CompanyList.vue";
-import CompanyGrid from "./components/CompanyGrid.vue";
-import CompanyCreateModal from "./components/CompanyCreateModal.vue";
-import CompanyDetailModal from "./components/CompanyDetailModal.vue";
 import SearchSelect from "~/components/ui/SearchSelect.vue";
 import { useCompanies, type MappedCompany } from "~/composables/useCompanies";
 import { useMasterData } from "~/composables/useMasterData";
 import { cn } from "~/lib/utils";
+import CompanyCreateModal from "./components/CompanyCreateModal.vue";
+import CompanyDetailModal from "./components/CompanyDetailModal.vue";
+import CompanyGrid from "./components/CompanyGrid.vue";
+import CompanyList from "./components/CompanyList.vue";
 
 definePageMeta({
   layout: "dashboard",
 });
 
-const {
-  companies: companiesList,
-  isLoading,
-  fetchCompanies,
-  pagination,
-  deleteCompany,
-} = useCompanies();
+const { companies: companiesList, pagination, loadCompanies, deleteCompany } = useCompanies();
+const { fetchCompanyCategories } = useMasterData();
+
+const [companiesData, categoriesData] = await Promise.all([
+  useAsyncData(
+    "companies-list",
+    () =>
+      loadCompanies({
+        page: 1,
+        limit: 50,
+        type: "ALL",
+        status: "ALL",
+      }),
+    { server: false },
+  ),
+  useAsyncData("company-categories", () => fetchCompanyCategories(), { server: false }),
+]);
+
+const pending = computed(() => companiesData.pending.value);
+const refresh = companiesData.refresh;
+
 const { confirm } = useConfirm();
 
-// Modal state
 const isDetailOpen = ref(false);
 const selectedCompanyDetail = ref<MappedCompany | null>(null);
 const isFormOpen = ref(false);
@@ -37,15 +50,12 @@ const openDetailModal = (company: MappedCompany) => {
   isDetailOpen.value = true;
 };
 
-// Search and filter state
 const searchQuery = ref("");
 const selectedType = ref<string>("all");
 const selectedStatus = ref<string>("all");
 const selectedCategory = ref<string>("all");
-const pageSize = ref(50); // Increase to fetch more for client-side filtering
-let filterDebounce: ReturnType<typeof setTimeout> | null = null;
+const pageSize = ref(50);
 
-// Sorting state
 const sortField = ref<string>("name");
 const sortDirection = ref<"asc" | "desc">("asc");
 
@@ -134,22 +144,14 @@ const statusOptions = [
   { id: "inactive", name: "Inactive" },
 ];
 
-const { fetchCompanyCategories } = useMasterData();
-const categoryOptions = ref([{ id: "all", name: "All Types" }]);
+const categoryOptions = computed(() => [
+  { id: "all", name: "All Types" },
+  ...(categoriesData.data.value?.map((c) => ({ id: c.id, name: c.name })) ?? []),
+]);
 
-const loadCategories = async () => {
-  const data = await fetchCompanyCategories();
-  categoryOptions.value = [
-    { id: "all", name: "All Types" },
-    ...data.map((c) => ({ id: c.id, name: c.name })),
-  ];
-};
-
-// Apply client-side filtering since API might not filter correctly
 const filteredCompanies = computed(() => {
   let result = companiesList.value;
 
-  // Filter by type
   if (selectedType.value !== "all") {
     result = result.filter((c) => {
       if (selectedType.value === "customer") return c.isCustomer;
@@ -159,18 +161,15 @@ const filteredCompanies = computed(() => {
     });
   }
 
-  // Filter by status
   if (selectedStatus.value !== "all") {
     const isActiveFilter = selectedStatus.value === "active";
     result = result.filter((c) => c.isActive === isActiveFilter);
   }
 
-  // Filter by category
   if (selectedCategory.value !== "all") {
     result = result.filter((c) => c.categoryId === selectedCategory.value);
   }
 
-  // Search filter
   if (searchQuery.value) {
     const query = searchQuery.value.toLowerCase();
     result = result.filter(
@@ -195,13 +194,12 @@ const toQueryStatus = () => {
   }
 };
 
-// Job counts cache
 const jobCounts = ref<Record<string, number>>({});
 
-const fetchJobCounts = async () => {
-  const config = useRuntimeConfig();
-  try {
-    const allJobs = await $fetch<
+const { data: jobsData } = await useAsyncData(
+  "jobs-count",
+  () =>
+    $fetch<
       Array<{
         id: string;
         customerId: string | null;
@@ -209,30 +207,24 @@ const fetchJobCounts = async () => {
         shipperId: string | null;
         consigneeId: string | null;
       }>
-    >(`${config.public.apiBase}/operational/jobs`, { credentials: "include" });
-    const counts: Record<string, number> = {};
-    for (const job of allJobs || []) {
-      if (job.customerId) {
-        counts[job.customerId] = (counts[job.customerId] || 0) + 1;
-      }
-      if (job.vendorId) {
-        counts[job.vendorId] = (counts[job.vendorId] || 0) + 1;
-      }
-      if (job.shipperId) {
-        counts[job.shipperId] = (counts[job.shipperId] || 0) + 1;
-      }
-      if (job.consigneeId) {
-        counts[job.consigneeId] = (counts[job.consigneeId] || 0) + 1;
-      }
-    }
-    jobCounts.value = counts;
-  } catch {
-    jobCounts.value = {};
+    >("/api/operational/jobs", { query: { limit: 1000 } }),
+  { server: false },
+);
+
+watchEffect(() => {
+  const allJobs = jobsData.value ?? [];
+  const counts: Record<string, number> = {};
+  for (const job of allJobs) {
+    if (job.customerId) counts[job.customerId] = (counts[job.customerId] || 0) + 1;
+    if (job.vendorId) counts[job.vendorId] = (counts[job.vendorId] || 0) + 1;
+    if (job.shipperId) counts[job.shipperId] = (counts[job.shipperId] || 0) + 1;
+    if (job.consigneeId) counts[job.consigneeId] = (counts[job.consigneeId] || 0) + 1;
   }
-};
+  jobCounts.value = counts;
+});
 
 const fetchWithFilters = async (page = 1) => {
-  await fetchCompanies({
+  await loadCompanies({
     search: searchQuery.value || undefined,
     type: toQueryType(),
     status: toQueryStatus(),
@@ -319,33 +311,21 @@ const handleClickOutside = (event: MouseEvent) => {
   }
 };
 
-// Watch for search changes to filter locally (no API call needed as we filter client-side)
-watch(searchQuery, () => {
-  // Search is handled by computed filteredCompanies
-});
-
-// Watch for type/status/category changes to reload data and filter
 watch([selectedType, selectedStatus, selectedCategory], () => {
   fetchWithFilters(1);
-  fetchJobCounts();
 });
 
-onMounted(async () => {
-  await fetchWithFilters(1);
-  await fetchJobCounts();
-  await loadCategories();
+onMounted(() => {
   document.addEventListener("click", handleClickOutside);
 });
 
 onUnmounted(() => {
-  if (filterDebounce) clearTimeout(filterDebounce);
   document.removeEventListener("click", handleClickOutside);
 });
 </script>
 
 <template>
   <div class="space-y-6 animate-fade-in p-6">
-    <!-- Page header -->
     <div class="flex items-center justify-between">
       <h1 class="text-2xl font-bold">Company</h1>
 
@@ -381,7 +361,6 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <!-- Filters -->
     <div class="flex items-center justify-between gap-4">
       <div class="relative w-full max-w-sm">
         <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -419,12 +398,10 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <!-- Loading State -->
-    <div v-if="isLoading" class="flex items-center justify-center py-12">
+    <div v-if="pending" class="flex items-center justify-center py-12">
       <Loader2 class="w-8 h-8 animate-spin text-[#012D5A]" />
     </div>
 
-    <!-- List View -->
     <CompanyList
       v-else-if="viewMode === 'list'"
       :companies="sortedCompanies"
@@ -442,7 +419,6 @@ onUnmounted(() => {
       @delete="handleDeleteCompany"
     />
 
-    <!-- Grid View -->
     <CompanyGrid
       v-else
       :companies="sortedCompanies"
@@ -453,7 +429,6 @@ onUnmounted(() => {
       @delete="handleDeleteCompany"
     />
 
-    <!-- Pagination -->
     <div class="flex items-center justify-between text-sm text-muted-foreground">
       <p>{{ pagination.total || sortedCompanies.length }} data found.</p>
       <UiPagination
@@ -465,7 +440,6 @@ onUnmounted(() => {
       />
     </div>
 
-    <!-- Create Modal -->
     <CompanyCreateModal
       v-model="isFormOpen"
       :mode="formMode"

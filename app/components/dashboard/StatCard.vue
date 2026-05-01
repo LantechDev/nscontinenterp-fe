@@ -31,10 +31,10 @@ const variantStyles: Record<string, string> = {
   <div
     :class="
       cn(
-        'card-stat p-4 rounded-xl border border-border flex flex-col gap-4  justify-between transition-all duration-300 hover:shadow-md',
+        'card-stat p-4 rounded-xl border border-border flex flex-col gap-4 justify-between transition-all duration-300 hover:shadow-md',
         props.variant === 'primary'
           ? 'bg-[#012D5A] text-white border-[#012D5A]'
-          : 'bg-card text-card-foreground',
+          : variantStyles[props.variant] || 'bg-card text-card-foreground',
       )
     "
   >
@@ -76,7 +76,16 @@ const variantStyles: Record<string, string> = {
         >
           <TrendingUp v-if="isPositive" class="w-4 h-4" />
           <TrendingDown v-else class="w-3 h-3" />
-          <span>{{ Math.abs(props.change).toString().replace(".", ",") }}%</span>
+          <span>
+            {{
+              Math.abs(props.change) > 999
+                ? "> 999"
+                : new Intl.NumberFormat("id-ID", {
+                    minimumFractionDigits: 0,
+                    maximumFractionDigits: 1,
+                  }).format(Math.abs(props.change))
+            }}%
+          </span>
           <p
             v-if="props.changeLabel"
             :class="

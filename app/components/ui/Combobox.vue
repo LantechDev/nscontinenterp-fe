@@ -3,11 +3,8 @@ import { Check, ChevronsUpDown, Plus } from "lucide-vue-next";
 import { onClickOutside } from "@vueuse/core";
 import { cn } from "~/lib/utils";
 
-interface ComboboxOption {
-  id?: string;
-  name?: string;
-  [key: string]: unknown;
-}
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type ComboboxOption = Record<string, any>;
 
 const props = withDefaults(
   defineProps<{
