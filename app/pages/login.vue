@@ -168,9 +168,9 @@ const handleSubmit = async () => {
               <label for="password" class="block text-sm font-medium text-foreground">
                 Password
               </label>
-              <button type="button" class="text-sm text-accent hover:text-accent/80 font-medium">
+              <!-- <button type="button" class="text-sm text-accent hover:text-accent/80 font-medium">
                 Lupa Password?
-              </button>
+              </button> -->
             </div>
             <div class="relative">
               <input
@@ -205,12 +205,12 @@ const handleSubmit = async () => {
           </button>
         </form>
 
-        <p class="text-center text-sm text-muted-foreground">
+        <!-- <p class="text-center text-sm text-muted-foreground">
           Belum punya akun?
           <button class="text-accent hover:text-accent/80 font-medium">
             Hubungi Administrator
           </button>
-        </p>
+        </p> -->
       </div>
     </div>
   </div>

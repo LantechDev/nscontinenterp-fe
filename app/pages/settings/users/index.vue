@@ -115,12 +115,6 @@ const handleDeleteUser = async (userId: string, userName: string) => {
     toast.error("Failed to delete user");
   }
 };
-
-const toggleMenu = (id: string) => {
-  openMenuId.value = openMenuId.value === id ? null : id;
-};
-
-const openMenuId = ref<string | null>(null);
 </script>
 
 <template>
@@ -216,14 +210,13 @@ const openMenuId = ref<string | null>(null);
             </td>
             <td class="px-4 py-3 text-sm text-muted-foreground">{{ user.lastLogin }}</td>
             <td class="px-4 py-3 text-right">
-              <div class="relative">
-                <button @click="toggleMenu(user.id)" class="p-1 hover:bg-muted rounded">
-                  <ChevronDown class="w-4 h-4" />
-                </button>
-                <div
-                  v-if="openMenuId === user.id"
-                  class="absolute right-0 mt-1 w-32 bg-white border border-border rounded-lg shadow-lg z-10"
-                >
+              <UiActionMenu>
+                <template #trigger>
+                  <button class="p-1 hover:bg-muted rounded">
+                    <ChevronDown class="w-4 h-4" />
+                  </button>
+                </template>
+                <template #content>
                   <button
                     @click="openEditModal(user.id)"
                     class="w-full px-3 py-2 text-left text-sm hover:bg-muted flex items-center gap-2"
@@ -238,8 +231,8 @@ const openMenuId = ref<string | null>(null);
                     <Trash2 class="w-3 h-3" />
                     Delete
                   </button>
-                </div>
-              </div>
+                </template>
+              </UiActionMenu>
             </td>
           </tr>
         </tbody>

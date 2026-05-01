@@ -32,7 +32,10 @@ const formSchema = z.object({
   code: z
     .string()
     .min(1, "Kode Role wajib diisi")
-    .regex(/^[A-Z0-9_]+$/, "Kode harus huruf besar, angka, dan underscore (contoh: ADMIN_USER)"),
+    .regex(
+      /^[a-zA-Z0-9_\-\s]+$/,
+      "Kode hanya boleh berisi huruf, angka, spasi, strip, dan underscore",
+    ),
   description: z.string().optional(),
 });
 
@@ -43,12 +46,21 @@ const form = ref({
   permissions: {} as Record<string, string[]>,
 });
 
-const handleCodeInput = (event: Event) => {
-  const input = event.target as HTMLInputElement;
-  let value = input.value.toUpperCase();
-  value = value.replace(/[\s-]/g, "_").replace(/[^A-Z0-9_]/g, "");
-  form.value.code = value;
-};
+// Auto-format code input
+watch(
+  () => form.value.code,
+  (newVal) => {
+    if (newVal) {
+      let formatted = newVal
+        .toUpperCase()
+        .replace(/[\s-]/g, "_")
+        .replace(/[^A-Z0-9_]/g, "");
+      if (newVal !== formatted) {
+        form.value.code = formatted;
+      }
+    }
+  },
+);
 
 const availableActions = ["create", "read", "update", "delete"];
 
@@ -201,8 +213,7 @@ const handleSubmit = async () => {
           <div class="space-y-2">
             <label class="text-sm font-medium">Kode Role <span class="text-red-500">*</span></label>
             <input
-              :value="form.code"
-              @input="handleCodeInput"
+              v-model="form.code"
               type="text"
               placeholder="Contoh: ADMIN"
               class="input-field uppercase"
