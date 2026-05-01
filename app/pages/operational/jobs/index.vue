@@ -27,9 +27,7 @@ const router = useRouter();
 
 const { pending } = await useAsyncData("jobs-list", () => fetchJobs(), { server: false });
 
-onUnmounted(() => {
-  document.removeEventListener("click", handleClickOutside);
-});
+onUnmounted(() => {});
 
 const searchQuery = ref("");
 type ViewMode = "list" | "grid";
@@ -55,7 +53,6 @@ const selectedJobId = ref("");
 const isDetailOpen = ref(false);
 const initialTab = ref<string | undefined>(undefined);
 const initialBlId = ref<string | undefined>(undefined);
-const activeActionMenu = ref<string | null>(null);
 
 function openJobDetail(id: string, tab?: string, blId?: string) {
   selectedJobId.value = id;
@@ -63,21 +60,6 @@ function openJobDetail(id: string, tab?: string, blId?: string) {
   initialBlId.value = blId;
   isDetailOpen.value = true;
 }
-
-const toggleActionMenu = (id: string) => {
-  activeActionMenu.value = activeActionMenu.value === id ? null : id;
-};
-
-const closeActionMenu = () => {
-  activeActionMenu.value = null;
-};
-
-const handleClickOutside = (event: MouseEvent) => {
-  const target = event.target as HTMLElement;
-  if (!target.closest(".job-action-menu")) {
-    closeActionMenu();
-  }
-};
 
 watch(
   () => route.query.id,
@@ -247,31 +229,31 @@ watch(
                   >
                     <Eye class="w-4 h-4" />
                   </button>
-                  <button
-                    class="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors job-action-menu"
-                    @click.stop="toggleActionMenu(job.id)"
-                  >
-                    <MoreVertical class="w-4 h-4" />
-                  </button>
-                  <div
-                    v-if="activeActionMenu === job.id"
-                    class="absolute right-0 top-8 mt-1 w-40 bg-white rounded-lg shadow-lg border border-border z-50 py-1"
-                  >
-                    <button
-                      class="w-full px-4 py-2 text-left text-sm hover:bg-muted flex items-center gap-2"
-                      @click.stop="openJobDetail(job.id)"
-                    >
-                      <Eye class="w-4 h-4" />
-                      View Details
-                    </button>
-                    <NuxtLink
-                      :to="`/operational/jobs/${job.id}/edit`"
-                      class="w-full px-4 py-2 text-left text-sm hover:bg-muted flex items-center gap-2"
-                    >
-                      <Edit class="w-4 h-4" />
-                      Edit
-                    </NuxtLink>
-                  </div>
+                  <UiActionMenu>
+                    <template #trigger>
+                      <button
+                        class="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors"
+                      >
+                        <MoreVertical class="w-4 h-4" />
+                      </button>
+                    </template>
+                    <template #content>
+                      <button
+                        class="w-full px-4 py-2 text-left text-sm hover:bg-muted flex items-center gap-2"
+                        @click="openJobDetail(job.id)"
+                      >
+                        <Eye class="w-4 h-4" />
+                        View Details
+                      </button>
+                      <NuxtLink
+                        :to="`/operational/jobs/${job.id}/edit`"
+                        class="w-full px-4 py-2 text-left text-sm hover:bg-muted flex items-center gap-2"
+                      >
+                        <Edit class="w-4 h-4" />
+                        Edit
+                      </NuxtLink>
+                    </template>
+                  </UiActionMenu>
                 </div>
               </td>
             </tr>
@@ -316,31 +298,31 @@ watch(
             >
               <Eye class="w-4 h-4" />
             </button>
-            <button
-              class="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors job-action-menu"
-              @click.stop="toggleActionMenu(job.id)"
-            >
-              <MoreVertical class="w-4 h-4" />
-            </button>
-            <div
-              v-if="activeActionMenu === job.id"
-              class="absolute right-0 top-8 mt-1 w-40 bg-white rounded-lg shadow-lg border border-border z-50 py-1"
-            >
-              <button
-                class="w-full px-4 py-2 text-left text-sm hover:bg-muted flex items-center gap-2"
-                @click.stop="openJobDetail(job.id)"
-              >
-                <Eye class="w-4 h-4" />
-                View Details
-              </button>
-              <NuxtLink
-                :to="`/operational/jobs/${job.id}/edit`"
-                class="w-full px-4 py-2 text-left text-sm hover:bg-muted flex items-center gap-2"
-              >
-                <Edit class="w-4 h-4" />
-                Edit
-              </NuxtLink>
-            </div>
+            <UiActionMenu>
+              <template #trigger>
+                <button
+                  class="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors"
+                >
+                  <MoreVertical class="w-4 h-4" />
+                </button>
+              </template>
+              <template #content>
+                <button
+                  class="w-full px-4 py-2 text-left text-sm hover:bg-muted flex items-center gap-2"
+                  @click="openJobDetail(job.id)"
+                >
+                  <Eye class="w-4 h-4" />
+                  View Details
+                </button>
+                <NuxtLink
+                  :to="`/operational/jobs/${job.id}/edit`"
+                  class="w-full px-4 py-2 text-left text-sm hover:bg-muted flex items-center gap-2"
+                >
+                  <Edit class="w-4 h-4" />
+                  Edit
+                </NuxtLink>
+              </template>
+            </UiActionMenu>
           </div>
         </div>
 

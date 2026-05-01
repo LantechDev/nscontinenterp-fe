@@ -60,7 +60,7 @@ const initData = async () => {
       if (org) {
         form.value = {
           name: org.name,
-          slug: org.slug,
+          slug: org.slug || "",
           logo: org.logo || "",
           address: org.metadata?.address || "",
           phone: org.metadata?.phone || "",
@@ -85,9 +85,21 @@ watchEffect(() => {
     initData();
   } else {
     isEditing.value = false;
-    // Optional: auto-generate slug from name if needed, but for now leave empty
   }
 });
+
+watch(
+  () => form.value.name,
+  (newName) => {
+    // Sync slug with name if creating new or if slug is currently empty
+    if (!isEditing.value || !form.value.slug) {
+      form.value.slug = newName
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/(^-|-$)+/g, "");
+    }
+  },
+);
 
 watch(
   () => form.value.logo,
@@ -244,15 +256,14 @@ const handleSubmit = async () => {
               v-model="form.slug"
               type="text"
               placeholder="ns-continent"
-              class="input-field"
-              :class="{ 'bg-muted/50': isEditing, 'border-red-500': errors.slug }"
-              :readonly="isEditing"
+              class="input-field bg-muted/50"
+              :class="{ 'border-red-500': errors.slug }"
+              readonly
               title="Slug digunakan untuk identifikasi URL"
             />
             <p v-if="errors.slug" class="text-xs text-red-500">{{ errors.slug }}</p>
             <p class="text-[10px] text-muted-foreground">
-              Slug digunakan untuk identifikasi URL dan sistem.
-              {{ isEditing ? "(Read-only)" : "(Auto-generated from name)" }}
+              Slug digunakan untuk identifikasi URL dan sistem. (Auto-generated & Read-only)
             </p>
           </div>
           <div class="col-span-1 md:col-span-2 space-y-2">

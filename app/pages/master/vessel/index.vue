@@ -165,23 +165,6 @@ const handleDelete = async () => {
 
   isSubmitting.value = false;
 };
-
-// Dropdown menu state
-const openMenuId = ref<string | null>(null);
-
-const toggleMenu = (id: string) => {
-  openMenuId.value = openMenuId.value === id ? null : id;
-};
-
-// Close menu when clicking outside
-onMounted(() => {
-  document.addEventListener("click", (e) => {
-    const target = e.target as HTMLElement;
-    if (!target.closest(".dropdown-menu")) {
-      openMenuId.value = null;
-    }
-  });
-});
 </script>
 
 <template>
@@ -226,9 +209,7 @@ onMounted(() => {
       :vessels="sortedVessels"
       :sort-field="sortField"
       :sort-direction="sortDirection"
-      :open-menu-id="openMenuId"
       @toggle-sort="toggleSort"
-      @toggle-menu="toggleMenu"
       @edit="openEditModal"
       @delete="openDeleteModal"
     />

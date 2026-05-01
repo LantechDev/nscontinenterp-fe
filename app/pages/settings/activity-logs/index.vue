@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { Search, Globe, Monitor } from "lucide-vue-next";
 import {
   getActivityLogs,
   getActionLabel,
@@ -239,7 +240,7 @@ watch(
           <label class="block text-sm font-medium text-gray-700 mb-1">Search Keywords</label>
           <div class="relative">
             <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <div class="i-lucide-search h-4 w-4 text-gray-400" />
+              <Search class="h-4 w-4 text-gray-400" />
             </span>
             <input
               v-model="filters.search"
@@ -373,11 +374,11 @@ watch(
               <div class="text-sm text-gray-900 mb-1">{{ log.description }}</div>
               <div class="flex flex-wrap gap-x-3 gap-y-1">
                 <div v-if="log.ipAddress" class="flex items-center text-xs text-gray-400">
-                  <div class="i-lucide-globe h-3 w-3 mr-1" />
+                  <Globe class="h-3 w-3 mr-1" />
                   {{ log.ipAddress }}
                 </div>
                 <div v-if="log.userAgent" class="flex items-center text-xs text-gray-400">
-                  <div class="i-lucide-monitor h-3 w-3 mr-1" />
+                  <Monitor class="h-3 w-3 mr-1" />
                   {{ parseUA(log.userAgent) }}
                 </div>
               </div>

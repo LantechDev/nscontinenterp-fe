@@ -122,9 +122,6 @@ const handleDelete = async (role: Role) => {
         <table class="w-full">
           <thead>
             <tr class="border-b border-border bg-white text-left">
-              <th class="py-3 px-4 w-10">
-                <UiCheckbox disabled />
-              </th>
               <th class="py-3 px-4 text-sm font-medium text-foreground">Name</th>
               <th class="py-3 px-4 text-sm font-medium text-foreground">Code</th>
               <th class="py-3 px-4 text-sm font-medium text-foreground">Description</th>
@@ -148,14 +145,8 @@ const handleDelete = async (role: Role) => {
               :key="role.id"
               class="border-b border-border last:border-0 hover:bg-muted/30 transition-colors"
             >
-              <td class="py-3 px-4">
-                <UiCheckbox />
-              </td>
               <td class="py-3 px-4 text-sm font-medium">
                 <div class="flex items-center gap-3">
-                  <div class="w-8 h-8 rounded-full bg-accent/10 flex items-center justify-center">
-                    <Shield class="w-4 h-4 text-accent" />
-                  </div>
                   <span>{{ role.name }}</span>
                 </div>
               </td>
