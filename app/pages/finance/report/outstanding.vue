@@ -13,10 +13,13 @@ import {
   ChevronLeft,
 } from "lucide-vue-next";
 import * as XLSX from "xlsx";
+import { jsPDF } from "jspdf";
+import { buildStyledWorkbook, type StyledRow } from "~/lib/excel-styled";
 import { usePayments, type OutstandingReport } from "~/composables/usePayments";
 import { useCompanies } from "~/composables/useCompanies";
 import { formatRupiah } from "~/lib/utils";
 import Combobox from "~/components/ui/Combobox.vue";
+import { useExportPopup } from "~/composables/useExportPopup";
 
 definePageMeta({
   layout: "dashboard",
@@ -26,6 +29,8 @@ definePageMeta({
 
 const { fetchOutstandingReport, isLoading } = usePayments();
 const { companies, fetchCompanies } = useCompanies();
+const { showExportOptions, triggerX, triggerY, triggerWidth, triggerHeight, openExportPopup } =
+  useExportPopup();
 
 const filters = ref({
   companyId: "",
@@ -75,39 +80,164 @@ const formatDate = (dateStr: string) => {
 
 const isExporting = ref(false);
 
-const handleExport = () => {
+const handleExportExcel = () => {
   if (!reportData.value) return;
   isExporting.value = true;
 
   try {
-    const headers = ["Inv Date", "Invoice No.", "Customer", "Total", "Outstanding", "Status"];
-    const rows = reportData.value.invoices.map((inv) => [
-      formatDate(inv.issuedDate),
-      inv.invoiceNumber,
-      inv.company.name,
-      inv.total,
-      inv.balanceDue,
-      inv.status.name,
-    ]);
+    const colHeaders = ["Inv Date", "Invoice No.", "Customer", "Total", "Outstanding", "Status"];
+    const monthName = monthOptions.find((m) => m.value === filters.value.month)?.label ?? "";
+    const filterLabel = `Period: ${monthName} ${filters.value.year} | Customer: ${filters.value.companyId ? (companies.value.find((c) => c.id === filters.value.companyId)?.name ?? "All") : "All"} | Generated: ${new Date().toLocaleDateString("id-ID")}`;
 
-    // Add summary row
-    rows.push([]);
-    rows.push([
-      "",
-      "",
-      "GRAND TOTALS",
-      reportData.value.summary.totalInvoiced,
-      reportData.value.summary.totalOutstanding,
-      "",
-    ]);
+    const rows: StyledRow[] = [
+      { cells: ["PT NOVA SYNC — OUTSTANDING PAYMENTS REPORT", "", "", "", "", ""], style: 7 },
+      { cells: [filterLabel, "", "", "", "", ""], style: 8 },
+      { cells: colHeaders, style: 0 },
+    ];
 
-    const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Outstanding Report");
+    reportData.value.invoices.forEach((inv, i) => {
+      const isEven = i % 2 === 0;
+      rows.push({
+        cells: [
+          formatDate(inv.issuedDate),
+          inv.invoiceNumber || "-",
+          inv.company.name || "-",
+          inv.total || 0,
+          inv.balanceDue || 0,
+          inv.status.name || "-",
+        ],
+        style: isEven ? 5 : 6,
+        cellStyles: [
+          isEven ? 1 : 2,
+          isEven ? 1 : 2,
+          isEven ? 1 : 2,
+          isEven ? 5 : 6,
+          isEven ? 5 : 6,
+          isEven ? 11 : 11,
+        ],
+      });
+    });
 
-    XLSX.writeFile(workbook, `OUTSTANDING_REPORT_${new Date().toISOString().split("T")[0]}.xlsx`);
+    rows.push({
+      cells: [
+        "",
+        "",
+        "GRAND TOTALS",
+        reportData.value.summary.totalInvoiced || 0,
+        reportData.value.summary.totalOutstanding || 0,
+        "",
+      ],
+      style: 3,
+      cellStyles: [10, 10, 10, 3, 3, 10],
+    });
+
+    const colWidths = [14, 18, 30, 18, 18, 15];
+    buildStyledWorkbook(
+      "Outstanding Report",
+      rows,
+      colWidths,
+      `OUTSTANDING_REPORT_${new Date().toISOString().split("T")[0]}.xlsx`,
+    );
   } catch (error) {
     console.error("Export error:", error);
+  } finally {
+    isExporting.value = false;
+  }
+};
+
+const handleExportPdf = () => {
+  if (!reportData.value) return;
+  isExporting.value = true;
+  try {
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const margin = 16;
+    let yPos = 18;
+
+    const addLine = (
+      text: string,
+      opts?: { bold?: boolean; size?: number; align?: "left" | "center" | "right" | "justify" },
+    ) => {
+      doc.setFont("helvetica", opts?.bold ? "bold" : "normal");
+      doc.setFontSize(opts?.size || 10);
+      const lines = doc.splitTextToSize(text, pageWidth - margin * 2);
+      if (yPos + lines.length * 6 > doc.internal.pageSize.getHeight() - margin) {
+        doc.addPage();
+        yPos = margin;
+      }
+      doc.text(lines, margin, yPos, opts?.align ? { align: opts.align } : {});
+      yPos += lines.length * 6;
+    };
+
+    // Header
+    doc.setFillColor(1, 45, 90);
+    doc.rect(0, 0, pageWidth, 30, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(16);
+    doc.setFont("helvetica", "bold");
+    doc.text("PT NOVA SYNC — OUTSTANDING PAYMENTS REPORT", pageWidth / 2, 18, { align: "center" });
+    yPos = 38;
+
+    const monthName = monthOptions.find((m) => m.value === filters.value.month)?.label ?? "";
+    doc.setTextColor(31, 41, 55);
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    doc.text(`Period: ${monthName} ${filters.value.year}`, margin, yPos);
+    doc.text(`Generated: ${new Date().toLocaleDateString("id-ID")}`, pageWidth - margin, yPos, {
+      align: "right",
+    });
+    yPos += 10;
+
+    // Column headers
+    doc.setFillColor(1, 45, 90);
+    doc.rect(margin, yPos, pageWidth - margin * 2, 8, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "bold");
+    doc.text("Inv Date", margin + 2, yPos + 6);
+    doc.text("Invoice No.", margin + 30, yPos + 6);
+    doc.text("Customer", margin + 60, yPos + 6);
+    doc.text("Total", pageWidth - margin - 50, yPos + 6);
+    doc.text("Outstanding", pageWidth - margin - 20, yPos + 6);
+    yPos += 8;
+
+    // Data rows
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(31, 41, 55);
+    reportData.value.invoices.forEach((inv, idx) => {
+      if (idx % 2 === 0) {
+        doc.setFillColor(249, 250, 251);
+        doc.rect(margin, yPos, pageWidth - margin * 2, 8, "F");
+      }
+      doc.setTextColor(31, 41, 55);
+      doc.text(formatDate(inv.issuedDate), margin + 2, yPos + 6);
+      doc.text(inv.invoiceNumber?.substring(0, 15) || "-", margin + 30, yPos + 6);
+      doc.text(inv.company.name?.substring(0, 20) || "-", margin + 60, yPos + 6);
+      doc.text(formatCurrency(inv.total), pageWidth - margin - 50, yPos + 6);
+      doc.text(formatCurrency(inv.balanceDue), pageWidth - margin - 20, yPos + 6);
+      yPos += 8;
+    });
+
+    // Total row
+    doc.setFillColor(214, 228, 240);
+    doc.rect(margin, yPos, pageWidth - margin * 2, 8, "F");
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(1, 45, 90);
+    doc.text("GRAND TOTALS", margin + 2, yPos + 6);
+    doc.text(
+      formatCurrency(reportData.value.summary.totalInvoiced),
+      pageWidth - margin - 50,
+      yPos + 6,
+    );
+    doc.text(
+      formatCurrency(reportData.value.summary.totalOutstanding),
+      pageWidth - margin - 20,
+      yPos + 6,
+    );
+
+    doc.save(`OUTSTANDING_REPORT_${new Date().toISOString().split("T")[0]}.pdf`);
+  } catch (error) {
+    console.error("Export PDF error:", error);
   } finally {
     isExporting.value = false;
   }
@@ -212,7 +342,7 @@ onMounted(() => {
 
         <div class="flex items-center gap-3">
           <button
-            @click="handleExport"
+            @click="openExportPopup($event)"
             :disabled="isExporting || !reportData"
             class="flex items-center gap-2 px-3 py-2 text-sm border border-border bg-white hover:bg-gray-50 rounded-lg shadow-sm transition-all active:scale-95 disabled:opacity-50"
           >
@@ -405,6 +535,17 @@ onMounted(() => {
       </div>
     </div>
   </div>
+
+  <UiExportOptionsModal
+    v-model:open="showExportOptions"
+    :trigger-x="triggerX"
+    :trigger-y="triggerY"
+    :trigger-width="triggerWidth"
+    :trigger-height="triggerHeight"
+    title="Export Outstanding Report"
+    @export-pdf="handleExportPdf"
+    @export-excel="handleExportExcel"
+  />
 </template>
 
 <style scoped>

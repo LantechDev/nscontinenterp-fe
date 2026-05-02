@@ -84,8 +84,7 @@ export function useFinanceDashboardPageOverview() {
 
   // Fetch overview data
   async function fetchOverview(period: "day" | "week" | "month" | "year", year?: number) {
-    await fetchOverviewStats(period, year);
-    await charts.fetchChartData(period, year);
+    await Promise.all([fetchOverviewStats(period, year), charts.fetchChartData(period, year)]);
   }
 
   return {

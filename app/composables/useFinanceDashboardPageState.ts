@@ -29,9 +29,11 @@ export function useFinanceDashboardPageState() {
 
   // Sync activeTab with URL
   watch(activeTab, (newTab) => {
-    router.replace({
-      query: { ...route.query, tab: newTab },
-    });
+    if (route.query.tab !== newTab) {
+      router.replace({
+        query: { ...route.query, tab: newTab },
+      });
+    }
   });
 
   // Common state reset

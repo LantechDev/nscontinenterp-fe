@@ -7,6 +7,19 @@ const apiBase = useApiProxy ? configuredApiBase || "/api" : `${apiTarget.replace
 export default defineNuxtConfig({
   compatibilityDate: "2025-07-15",
   devtools: { enabled: true },
+  nitro: {
+    preset: "vercel",
+  },
+  routeRules: {
+    "/api/**": { cors: true, isr: false },
+    "/_nuxt/**": { headers: { "Cache-Control": "public, max-age=31536000, immutable" } },
+    "/images/**": { isr: 3600 },
+    "/fonts/**": { headers: { "Cache-Control": "public, max-age=31536000, immutable" } },
+    "/dashboard": { isr: false },
+    "/master/**": { isr: false },
+    "/": { isr: false },
+    "/operational/**": { isr: false },
+  },
   vite: {
     optimizeDeps: {
       include: [
@@ -16,7 +29,18 @@ export default defineNuxtConfig({
         "jspdf",
         "clsx",
         "tailwind-merge",
+        "html2canvas",
+        "xlsx",
       ],
+    },
+    server: {
+      proxy: {
+        "/api": {
+          target: "http://localhost:8787",
+          changeOrigin: true,
+          secure: false,
+        },
+      },
     },
   },
   srcDir: "app/",
@@ -46,7 +70,6 @@ export default defineNuxtConfig({
       link: [
         { rel: "icon", type: "image/png", href: "/images/logo2.jpeg" },
         { rel: "apple-touch-icon", href: "/images/logo2.jpeg" },
-        // Preconnect to Google Fonts for faster loading
         { rel: "preconnect", href: "https://fonts.googleapis.com" },
         { rel: "preconnect", href: "https://fonts.gstatic.com", crossorigin: "anonymous" },
       ],
@@ -62,11 +85,11 @@ export default defineNuxtConfig({
   experimental: {
     defaults: {
       nuxtLink: {
-        // Prefetch on interaction instead of visibility for better performance
         prefetchOn: {
           interaction: true,
         },
       },
     },
+    payloadExtraction: false,
   },
 });

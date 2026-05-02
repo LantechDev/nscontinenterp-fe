@@ -101,3 +101,31 @@ export const TIME_PERIODS: { label: string; value: PeriodType }[] = [
   { label: "Month", value: "month" },
   { label: "Year", value: "year" },
 ];
+
+export interface OverviewStats {
+  totalIncome: number;
+  totalIncomeFormatted: string;
+  totalOutcome: number;
+  totalOutcomeFormatted: string;
+  netProfit: number;
+  netProfitFormatted: string;
+  margins: number;
+  incomeGrowth: number;
+  outcomeGrowth: number;
+  totalReceivables: number;
+  totalReceivablesFormatted: string;
+  receivablesGrowth: number;
+  totalPayables: number;
+  totalPayablesFormatted: string;
+  payablesGrowth: number;
+}
+
+export interface ChartData {
+  incomeData: number[];
+  expenseData: number[];
+  marginData: number[];
+  months: string[];
+  top5: { name: string; value: number }[];
+}
+
+export interface StatsResult extends OverviewStats {}

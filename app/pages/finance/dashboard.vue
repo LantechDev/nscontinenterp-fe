@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { jsPDF } from "jspdf";
+import { buildStyledWorkbook, type StyledRow } from "~/lib/excel-styled";
 import { useFinanceDashboardPage } from "~/composables/useFinanceDashboardPage";
 import {
   useFinanceDashboardFilters,
@@ -11,8 +11,10 @@ import {
   useAssetsSortOptions,
 } from "~/composables/useFinanceDashboardFilters";
 import { useFinanceDashboardAssets } from "~/composables/useFinanceDashboardAssets";
+import { useExportPopup } from "~/composables/useExportPopup";
 import { useFinanceTax } from "~/composables/useFinanceTax";
 import { cn, formatRupiah } from "~/lib/utils";
+import { exportStyledPdf, type PdfCol } from "~/lib/pdf-export";
 import { TABS, TIME_PERIODS, type PeriodType } from "~/types/finance";
 
 // Import tab components
@@ -141,6 +143,8 @@ const {
   createAsset,
 } = useFinanceDashboardAssets();
 const { fetchTaxes } = useFinanceTax();
+const { showExportOptions, triggerX, triggerY, triggerWidth, triggerHeight, openExportPopup } =
+  useExportPopup();
 
 // Local state for Assets tab
 const assetsSearch = ref("");
@@ -218,26 +222,46 @@ watch(
 );
 
 // Watch for tab change to load data for the selected tab
-watch(
-  activeTab,
-  async (newTab) => {
-    if (newTab === "Overview") {
-      const year = selectedYear.value ? parseInt(selectedYear.value) : undefined;
-      await fetchOverview(selectedPeriod.value, year);
-    } else if (newTab === "Assets") {
-      loadAssets();
-    }
-  },
-  { immediate: true },
-);
-
-// Watch for period change to reload data based on active tab
-watch(selectedPeriod, async () => {
+// Consolidated data fetching
+async function fetchData() {
   if (activeTab.value === "Overview") {
     const year = selectedYear.value ? parseInt(selectedYear.value) : undefined;
     await fetchOverview(selectedPeriod.value, year);
   } else if (activeTab.value === "Assets") {
-    loadAssets();
+    await loadAssets();
+  }
+}
+
+// Watch for tab change
+watch(activeTab, async (newTab, oldTab) => {
+  if (newTab !== oldTab) {
+    await fetchData();
+  }
+});
+
+// Watch for period change
+watch(selectedPeriod, async (newPeriod, oldPeriod) => {
+  if (newPeriod !== oldPeriod) {
+    await fetchData();
+  }
+});
+
+// Watch for year change (Overview only)
+watch(selectedYear, async (newYear, oldYear) => {
+  if (activeTab.value === "Overview" && newYear !== oldYear) {
+    await fetchData();
+  }
+});
+
+// Hydration and initial load logic
+const isHydrated = ref(false);
+
+onMounted(async () => {
+  isHydrated.value = true;
+  // Ensure we fetch data safely after hydration
+  await nextTick();
+  if (activeTab.value === "Overview" || activeTab.value === "Assets") {
+    await fetchData();
   }
 });
 
@@ -271,142 +295,184 @@ function handleAssetsPageChange(page: number) {
 }
 
 function handleAssetsExport() {
-  // Generate PDF export with filter values using jsPDF
-  try {
-    const doc = new jsPDF();
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const pageHeight = doc.internal.pageSize.getHeight();
-    const margin = 20;
-    const contentWidth = pageWidth - margin * 2;
-    let yPos = margin;
-
-    // Colors
-    const primaryColor: [number, number, number] = [1, 45, 90]; // #012D5A
-    const textColor: [number, number, number] = [31, 41, 55]; // #1f2937
-    const grayColor: [number, number, number] = [107, 114, 128]; // #6b7280
-    const lightGrayColor: [number, number, number] = [229, 231, 235]; // #e5e7eb
-
-    // Company Header
-    doc.setFillColor(...primaryColor);
-    doc.rect(0, 0, pageWidth, 40, "F");
-
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(24);
-    doc.setFont("helvetica", "bold");
-    doc.text("ASSETS REPORT", margin, 25);
-
-    doc.setFontSize(12);
-    doc.setFont("helvetica", "normal");
-    const yearLabel = assetsYear.value ? `Year: ${assetsYear.value}` : "All Years";
-    doc.text(yearLabel, pageWidth - margin, 20, { align: "right" });
-    const dateLabel = new Date().toLocaleDateString("id-ID");
-    doc.text(`Generated: ${dateLabel}`, pageWidth - margin, 30, { align: "right" });
-
-    yPos = 55;
-
-    // Filter info
-    doc.setTextColor(...textColor);
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "bold");
-    doc.text("Filters:", margin, yPos);
-    doc.setFont("helvetica", "normal");
-    yPos += 7;
-
-    const filters: string[] = [];
-    if (assetsYear.value) filters.push(`Year: ${assetsYear.value}`);
-    if (assetsServiceId.value) filters.push(`Service ID: ${assetsServiceId.value}`);
-    if (assetsCompanyId.value) filters.push(`Company ID: ${assetsCompanyId.value}`);
-    if (filters.length === 0) filters.push("None (All Data)");
-
-    doc.setTextColor(...grayColor);
-    filters.forEach((filter) => {
-      doc.text(filter, margin, yPos);
-      yPos += 6;
-    });
-
-    yPos += 10;
-
-    // Table Header
-    doc.setFillColor(...primaryColor);
-    doc.rect(margin, yPos, contentWidth, 10, "F");
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(9);
-    doc.setFont("helvetica", "bold");
-    doc.text("No.", margin + 2, yPos + 7);
-    doc.text("Name", margin + 20, yPos + 7);
-    doc.text("Date", margin + 80, yPos + 7);
-    doc.text("Service", margin + 110, yPos + 7);
-    doc.text("Price", margin + 160, yPos + 7);
-
-    yPos += 10;
-
-    // Table Content
-    doc.setTextColor(...textColor);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(8);
-
-    const assetsList = assetsData.value || [];
-    let totalValue = 0;
-
-    assetsList.forEach(
-      (asset: { name: string; date: string; service?: string; price: number }, index: number) => {
-        // Check if we need a new page
-        if (yPos > pageHeight - 30) {
-          doc.addPage();
-          yPos = margin;
-        }
-
-        // Alternate row colors
-        if (index % 2 === 0) {
-          doc.setFillColor(249, 250, 251);
-          doc.rect(margin, yPos, contentWidth, 10, "F");
-        }
-
-        doc.setTextColor(...textColor);
-        doc.text((index + 1).toString(), margin + 2, yPos + 7);
-        doc.text(asset.name?.substring(0, 25) || "-", margin + 20, yPos + 7);
-        doc.text(
-          asset.date ? new Date(asset.date).toLocaleDateString("id-ID") : "-",
-          margin + 80,
-          yPos + 7,
-        );
-        doc.text(asset.service?.substring(0, 20) || "-", margin + 110, yPos + 7);
-        doc.text(formatRupiah(asset.price || 0), margin + 160, yPos + 7);
-
-        totalValue += asset.price || 0;
-        yPos += 10;
-      },
-    );
-
-    // Total row
-    yPos += 5;
-    doc.setFillColor(...lightGrayColor);
-    doc.rect(margin, yPos, contentWidth, 12, "F");
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(...textColor);
-    doc.text("TOTAL", margin + 2, yPos + 8);
-    doc.text(formatRupiah(totalValue), margin + 160, yPos + 8);
-
-    // Footer
-    const footerY = pageHeight - 15;
-    doc.setFillColor(...primaryColor);
-    doc.rect(0, footerY - 5, pageWidth, 20, "F");
-    doc.setTextColor(255, 255, 255);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(8);
-    doc.text("PT. Nusantara Continent - Assets Report", pageWidth / 2, footerY + 5, {
-      align: "center",
-    });
-
-    // Generate filename
-    const filename = `Assets_Report${assetsYear.value ? `_${assetsYear.value}` : ""}.pdf`;
-
-    // Download the PDF directly
-    doc.save(filename);
-  } catch (exportError) {
-    console.error("Failed to export assets PDF:", exportError);
-    toast.error("Failed to export PDF. Please try again.");
+  const list = assetsData.value || [];
+  if (list.length === 0) {
+    toast.error("No asset data to export");
+    return;
   }
+  const period = assetsYear.value ? `Year: ${assetsYear.value}` : "All Years";
+  const rows: (string | number)[][] = list.map((asset, i) => [
+    i + 1,
+    asset.name || "-",
+    asset.date ? new Date(asset.date).toLocaleDateString("id-ID") : "-",
+    asset.service || "-",
+    asset.company || "-",
+    Number(asset.price) || 0,
+  ]);
+  const totalValue = list.reduce((s, a) => s + (Number(a.price) || 0), 0);
+  rows.push(["", "", "", "", "TOTAL", totalValue]);
+  const cols: PdfCol[] = [
+    { header: "No.", width: 0.06 },
+    { header: "Name", width: 0.24 },
+    { header: "Date", width: 0.12 },
+    { header: "Service", width: 0.18 },
+    { header: "Company", width: 0.18 },
+    { header: "Price", width: 0.16, align: "right", isCurrency: true },
+  ];
+  exportStyledPdf({
+    title: "ASSETS REPORT",
+    period,
+    cols,
+    rows,
+    totals: [5],
+    filename: `Assets_Report${assetsYear.value ? `_${assetsYear.value}` : ""}.pdf`,
+  });
+}
+
+function handleTransactionExportExcel() {
+  const list = transactions.value || [];
+  if (list.length === 0) {
+    toast.error("No transaction data to export");
+    return;
+  }
+  const periodLabel = `Year: ${transactionYear.value || "All"} | Generated: ${new Date().toLocaleDateString("id-ID")}`;
+  const rows: StyledRow[] = [
+    { cells: ["PT NOVA SYNC — TRANSACTIONS REPORT", "", "", "", "", "", ""], style: 7 },
+    { cells: [periodLabel, "", "", "", "", "", ""], style: 8 },
+    {
+      cells: ["No.", "Tanggal", "Job Number", "Customer", "Type", "Payment Method", "Total"],
+      style: 0,
+    },
+  ];
+  list.forEach((tx, i) => {
+    const isEven = i % 2 === 0;
+    rows.push({
+      cells: [
+        i + 1,
+        tx.date,
+        tx.jobNumber,
+        tx.customer,
+        tx.type,
+        tx.paymentMethod || "-",
+        tx.total,
+      ],
+      style: isEven ? 1 : 2,
+      cellStyles: [
+        isEven ? 1 : 2,
+        isEven ? 1 : 2,
+        isEven ? 1 : 2,
+        isEven ? 1 : 2,
+        isEven ? 1 : 2,
+        isEven ? 1 : 2,
+        isEven ? 5 : 6,
+      ],
+    });
+  });
+  const grandTotal = list.reduce((s, tx) => s + (tx.total || 0), 0);
+  rows.push({
+    cells: ["", "", "", "", "", "GRAND TOTAL", grandTotal],
+    style: 3,
+    cellStyles: [10, 10, 10, 10, 10, 3, 3],
+  });
+  const colWidths = [6, 15, 18, 25, 15, 18, 18];
+  buildStyledWorkbook(
+    "Transactions",
+    rows,
+    colWidths,
+    `TRANSACTIONS_REPORT_${new Date().toISOString().split("T")[0]}.xlsx`,
+  );
+}
+
+function handleAssetsExportExcel() {
+  const list = assetsData.value || [];
+  if (list.length === 0) {
+    toast.error("No asset data to export");
+    return;
+  }
+  const periodLabel = `Year: ${assetsYear.value || "All"} | Generated: ${new Date().toLocaleDateString("id-ID")}`;
+  const rows: StyledRow[] = [
+    { cells: ["PT NOVA SYNC — ASSETS REPORT", "", "", "", "", ""], style: 7 },
+    { cells: [periodLabel, "", "", "", "", ""], style: 8 },
+    { cells: ["No.", "Name", "Date", "Service", "Company", "Price"], style: 0 },
+  ];
+  list.forEach((asset, i) => {
+    const isEven = i % 2 === 0;
+    rows.push({
+      cells: [
+        i + 1,
+        asset.name,
+        asset.date,
+        asset.service || "-",
+        asset.company || "-",
+        Number(asset.price) || 0,
+      ],
+      style: isEven ? 1 : 2,
+      cellStyles: [
+        isEven ? 1 : 2,
+        isEven ? 1 : 2,
+        isEven ? 1 : 2,
+        isEven ? 1 : 2,
+        isEven ? 1 : 2,
+        isEven ? 5 : 6,
+      ],
+    });
+  });
+  const totalValue = list.reduce((s, a) => s + (Number(a.price) || 0), 0);
+  rows.push({
+    cells: ["", "", "", "", "TOTAL", totalValue],
+    style: 3,
+    cellStyles: [10, 10, 10, 10, 9, 3],
+  });
+  const colWidths = [6, 25, 15, 20, 20, 18];
+  buildStyledWorkbook(
+    "Assets",
+    rows,
+    colWidths,
+    `ASSETS_REPORT_${new Date().toISOString().split("T")[0]}.xlsx`,
+  );
+}
+
+function handleFinanceCloseExportExcel() {
+  const list = closedPeriods.value || [];
+  if (list.length === 0) {
+    toast.error("No finance close data to export");
+    return;
+  }
+  const periodLabel = `Year: ${financeCloseYear.value || "All"} | Generated: ${new Date().toLocaleDateString("id-ID")}`;
+  const rows: StyledRow[] = [
+    { cells: ["PT NOVA SYNC — FINANCE CLOSE REPORT", "", "", "", "", ""], style: 7 },
+    { cells: [periodLabel, "", "", "", "", ""], style: 8 },
+    { cells: ["Period", "Revenue", "COGS", "Nett P&L", "Closed Date", "Status"], style: 0 },
+  ];
+  list.forEach((period, i) => {
+    const isEven = i % 2 === 0;
+    rows.push({
+      cells: [
+        period.period,
+        period.revenue || "Rp 0",
+        period.cogs || "Rp 0",
+        period.nettPL || "Rp 0",
+        period.periodEnd ? new Date(period.periodEnd).toLocaleDateString("id-ID") : "-",
+        "Closed",
+      ],
+      style: isEven ? 1 : 2,
+      cellStyles: [
+        isEven ? 1 : 2,
+        isEven ? 5 : 6,
+        isEven ? 5 : 6,
+        isEven ? 5 : 6,
+        isEven ? 1 : 2,
+        isEven ? 1 : 2,
+      ],
+    });
+  });
+  const colWidths = [20, 20, 20, 20, 18, 12];
+  buildStyledWorkbook(
+    "Finance Close",
+    rows,
+    colWidths,
+    `FINANCE_CLOSE_REPORT_${new Date().toISOString().split("T")[0]}.xlsx`,
+  );
 }
 
 async function handleAssetsAdd() {
@@ -454,6 +520,63 @@ async function handleAssetSave() {
   } finally {
     isSavingAsset.value = false;
   }
+}
+
+function dispatchExportPdf() {
+  if (activeTab.value === "Transaction") {
+    handleTransactionExport();
+  } else if (activeTab.value === "Assets") {
+    handleAssetsExport();
+  } else if (activeTab.value === "Finance Close") {
+    handleFinanceCloseExport();
+  }
+}
+
+function dispatchExportExcel() {
+  if (activeTab.value === "Transaction") {
+    handleTransactionExportExcel();
+  } else if (activeTab.value === "Assets") {
+    handleAssetsExportExcel();
+  } else if (activeTab.value === "Finance Close") {
+    handleFinanceCloseExportExcel();
+  }
+}
+
+// Finance Close PDF export (minimal placeholder)
+function handleFinanceCloseExport() {
+  const list = closedPeriods.value || [];
+  if (list.length === 0) {
+    toast.error("No finance close data to export");
+    return;
+  }
+  const period = financeCloseYear.value ? `Year: ${financeCloseYear.value}` : "All Years";
+  const rows: (string | number)[][] = list.map((p) => [
+    p.period || "-",
+    typeof p.revenue === "number"
+      ? p.revenue
+      : Number(String(p.revenue || "0").replace(/[^\d-]/g, "")),
+    typeof p.cogs === "number" ? p.cogs : Number(String(p.cogs || "0").replace(/[^\d-]/g, "")),
+    typeof p.nettPL === "number"
+      ? p.nettPL
+      : Number(String(p.nettPL || "0").replace(/[^\d-]/g, "")),
+    p.periodEnd || "-",
+    "Closed",
+  ]);
+  const cols: PdfCol[] = [
+    { header: "Period", width: 0.22 },
+    { header: "Revenue", width: 0.18, align: "right", isCurrency: true },
+    { header: "COGS", width: 0.18, align: "right", isCurrency: true },
+    { header: "Nett P&L", width: 0.18, align: "right", isCurrency: true },
+    { header: "Closed Date", width: 0.14, align: "center" },
+    { header: "Status", width: 0.1, align: "center" },
+  ];
+  exportStyledPdf({
+    title: "FINANCE CLOSE REPORT",
+    period,
+    cols,
+    rows,
+    filename: `FINANCE_CLOSE_REPORT_${new Date().toISOString().split("T")[0]}.pdf`,
+  });
 }
 </script>
 
@@ -573,7 +696,7 @@ async function handleAssetSave() {
           @search-keydown="handleTransactionSearchKeydown"
           @sort="handleTransactionSort"
           @toggle-sort-dropdown="handleTransactionSortDropdownToggle"
-          @export="handleTransactionExport"
+          @export="openExportPopup($event)"
           @page-change="handlePageChange"
           @create="handleTransactionCreate"
           @edit="handleTransactionEdit"
@@ -609,6 +732,7 @@ async function handleAssetSave() {
           @toggle-sort-dropdown="handleFinanceCloseSortDropdownToggle"
           @page-change="handlePageChange"
           @reopen-period="handleReopenPeriod"
+          @export="openExportPopup($event)"
         />
 
         <TrialBalanceTab
@@ -670,7 +794,7 @@ async function handleAssetSave() {
           @sort="handleAssetsSort"
           @toggle-sort-dropdown="() => (assetsShowSortDropdown = !assetsShowSortDropdown)"
           @page-change="handleAssetsPageChange"
-          @export="handleAssetsExport"
+          @export="openExportPopup($event)"
           @add-asset="handleAssetsAdd"
         />
 
@@ -748,5 +872,16 @@ async function handleAssetSave() {
         </div>
       </form>
     </UiModal>
+
+    <UiExportOptionsModal
+      v-model:open="showExportOptions"
+      :trigger-x="triggerX"
+      :trigger-y="triggerY"
+      :trigger-width="triggerWidth"
+      :trigger-height="triggerHeight"
+      :title="`Export ${activeTab} Report`"
+      @export-pdf="dispatchExportPdf"
+      @export-excel="dispatchExportExcel"
+    />
   </div>
 </template>

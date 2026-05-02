@@ -13,8 +13,18 @@ export default defineNuxtRouteMiddleware(async (to, _from) => {
     }
   }
 
+  // Store last visited path for protected routes
+  if (!isPublicRoute && isLoggedIn.value) {
+    if (process.client) {
+      localStorage.setItem("lastVisitedPath", to.fullPath);
+    }
+  }
+
   // Redirect if not logged in and trying to access protected route
   if (!isLoggedIn.value && !isPublicRoute) {
+    if (process.client) {
+      localStorage.setItem("redirectAfterLogin", to.fullPath);
+    }
     return navigateTo("/login");
   }
 
@@ -33,9 +43,16 @@ export default defineNuxtRouteMiddleware(async (to, _from) => {
     }
   }
 
-  // Redirect logged in users away from public routes
+  // Redirect logged in users away from public routes to last visited page
   if (isLoggedIn.value && isPublicRoute) {
-    return navigateTo("/dashboard");
+    let redirectTo = "/dashboard";
+    if (process.client) {
+      const lastPath = localStorage.getItem("lastVisitedPath");
+      if (lastPath && lastPath !== "/login" && lastPath !== "/") {
+        redirectTo = lastPath;
+      }
+    }
+    return navigateTo(redirectTo);
   }
 
   if (isLoggedIn.value && !isPublicRoute) {

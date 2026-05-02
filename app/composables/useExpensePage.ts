@@ -38,7 +38,7 @@ export const formatCurrency = (value: number) => {
 
 // Navigation handler
 const navigateToExpense = (id: string) => {
-  navigateTo(`/finance/expense/${id}`);
+  navigateTo(`/finance/expenses/${id}`);
 };
 
 export interface ExpenseFormData {

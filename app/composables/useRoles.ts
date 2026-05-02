@@ -1,4 +1,5 @@
-import { type AuthResponse } from "../types/auth";
+import { ref } from "vue";
+import type { AuthResponse } from "../types/auth";
 
 export interface Role {
   id: string;

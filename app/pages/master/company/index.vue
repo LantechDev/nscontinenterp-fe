@@ -68,7 +68,7 @@ const sortedCompanies = computed(() => {
     type: c.isVendor && c.isCustomer ? "Both" : c.isVendor ? "Vendor" : "Customer",
     categoryName: c.category?.name || "-",
     status: c.isActive ? "Active" : "Inactive",
-    totalJobs: jobCounts.value[c.id] ?? c.totalJobs ?? 0,
+    totalJobs: c.totalJobs ?? 0,
   }));
 
   const sorted = [...mapped];
@@ -192,35 +192,6 @@ const toQueryStatus = () => {
       return "ALL";
   }
 };
-
-const jobCounts = ref<Record<string, number>>({});
-
-const { data: jobsData } = await useAsyncData(
-  "jobs-count",
-  () =>
-    $fetch<
-      Array<{
-        id: string;
-        customerId: string | null;
-        vendorId: string | null;
-        shipperId: string | null;
-        consigneeId: string | null;
-      }>
-    >("/api/operational/jobs", { query: { limit: 1000 } }),
-  { server: false },
-);
-
-watchEffect(() => {
-  const allJobs = jobsData.value ?? [];
-  const counts: Record<string, number> = {};
-  for (const job of allJobs) {
-    if (job.customerId) counts[job.customerId] = (counts[job.customerId] || 0) + 1;
-    if (job.vendorId) counts[job.vendorId] = (counts[job.vendorId] || 0) + 1;
-    if (job.shipperId) counts[job.shipperId] = (counts[job.shipperId] || 0) + 1;
-    if (job.consigneeId) counts[job.consigneeId] = (counts[job.consigneeId] || 0) + 1;
-  }
-  jobCounts.value = counts;
-});
 
 const fetchWithFilters = async (page = 1) => {
   await loadCompanies({
