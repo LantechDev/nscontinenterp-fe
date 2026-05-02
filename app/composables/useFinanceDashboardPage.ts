@@ -368,7 +368,7 @@ export function useFinanceDashboardPage() {
           doc.setLineWidth(0.3);
           // Draw cell borders
           let cx = margin;
-          colW.forEach((w, i) => {
+          colW.forEach((w) => {
             doc.rect(cx, yPos, w, 7);
             cx += w;
           });
