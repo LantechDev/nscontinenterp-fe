@@ -47,12 +47,28 @@ function close() {
   emit("update:open", false);
 }
 
+// Track whether popup was just opened to skip the first outside-click event
+let skipNextOutsideClick = false;
+
 function handleClickOutside(event: MouseEvent) {
+  if (skipNextOutsideClick) {
+    skipNextOutsideClick = false;
+    return;
+  }
   const target = event.target as HTMLElement;
   if (!target.closest(".export-popup")) {
     close();
   }
 }
+
+watch(
+  () => props.open,
+  (isOpen) => {
+    if (isOpen) {
+      skipNextOutsideClick = true;
+    }
+  },
+);
 
 onMounted(() => document.addEventListener("click", handleClickOutside));
 onUnmounted(() => document.removeEventListener("click", handleClickOutside));
