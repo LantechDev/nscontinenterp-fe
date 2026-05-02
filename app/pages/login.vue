@@ -33,7 +33,16 @@ const handleSubmit = async () => {
       } else {
         console.warn("[Login] No organizations found for user");
       }
-      router.push("/dashboard");
+      // Redirect to last visited page or dashboard
+      let redirectTo = "/dashboard";
+      if (typeof window !== "undefined") {
+        const stored = localStorage.getItem("redirectAfterLogin");
+        if (stored) {
+          redirectTo = stored;
+          localStorage.removeItem("redirectAfterLogin");
+        }
+      }
+      router.push(redirectTo);
     } else {
       // Show specific error message from API
       errorMessage.value = result.error || "Login gagal. Periksa email dan password Anda.";

@@ -1,16 +1,7 @@
 <script setup lang="ts">
 import { onClickOutside } from "@vueuse/core";
 import { jsPDF } from "jspdf";
-import * as XLSX from "xlsx";
-import {
-  EXCEL_COLORS,
-  EXCEL_FONTS,
-  makeCellStyle,
-  applyStyleToRange,
-  mergeCells,
-  setColWidth,
-  setRowHeight,
-} from "~/lib/excel-styles";
+import { buildStyledWorkbook, type StyledRow } from "~/lib/excel-styled";
 import {
   Wallet,
   Ship,
@@ -26,6 +17,7 @@ import {
 } from "lucide-vue-next";
 import { toast } from "vue-sonner";
 import { formatRupiah } from "~/lib/utils";
+import { useExportPopup } from "~/composables/useExportPopup";
 
 definePageMeta({
   layout: "dashboard",
@@ -33,12 +25,13 @@ definePageMeta({
 
 const { pendingApprovals } = useDashboard();
 const { canApproveJobs, user } = useAuth();
+const { showExportOptions, triggerX, triggerY, triggerWidth, triggerHeight, openExportPopup } =
+  useExportPopup();
 
 // State
 const isExporting = ref(false);
 const showPeriodDropdown = ref(false);
 const periodDropdownRef = ref<HTMLElement | null>(null);
-const showExportOptions = ref(false);
 
 // Period selection state
 const currentYear = new Date().getFullYear();
@@ -107,96 +100,210 @@ const handleExportPdf = async () => {
   isExporting.value = true;
 
   try {
-    const doc = new jsPDF();
+    const doc = new jsPDF({ orientation: "landscape" });
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
-    const margin = 16;
-    let yPos = 18;
+    const margin = 14;
+    const contentWidth = pageWidth - margin * 2;
+    let yPos = margin;
 
-    const addLine = (
-      text: string,
-      options?: { bold?: boolean; indent?: number; size?: number },
-    ) => {
-      const indent = options?.indent || 0;
-      doc.setFont("helvetica", options?.bold ? "bold" : "normal");
-      doc.setFontSize(options?.size || 10);
+    // Colors
+    const darkNavy = [1, 45, 90] as [number, number, number];
+    const lightBlue = [214, 228, 240] as [number, number, number];
+    const white = [255, 255, 255] as [number, number, number];
+    const black = [31, 41, 55] as [number, number, number];
+    const gray = [249, 250, 251] as [number, number, number];
 
-      const lines = doc.splitTextToSize(text, pageWidth - margin * 2 - indent);
-      if (yPos + lines.length * 6 > pageHeight - margin) {
+    // Helper: check page break
+    const checkPage = (needed: number) => {
+      if (yPos + needed > pageHeight - margin - 12) {
+        addFooter();
         doc.addPage();
         yPos = margin;
       }
-
-      doc.text(lines, margin + indent, yPos);
-      yPos += lines.length * 6;
     };
 
-    const addSection = (title: string) => {
-      yPos += 4;
-      addLine(title, { bold: true, size: 12 });
-      yPos += 1;
+    // Helper: draw section header row (light blue bg, dark navy text, bold, NO borders)
+    const drawSectionHeader = (text: string) => {
+      checkPage(12);
+      doc.setFillColor(...lightBlue);
+      doc.rect(margin, yPos, contentWidth, 8, "F");
+      doc.setTextColor(...darkNavy);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(9);
+      doc.text(text, margin + 3, yPos + 5.5);
+      yPos += 10;
     };
 
+    // Helper: draw column header row (dark navy bg, white text)
+    const drawColHeader = (cols: string[], colWidths: number[]) => {
+      checkPage(10);
+      doc.setFillColor(...darkNavy);
+      doc.rect(margin, yPos, contentWidth, 8, "F");
+      doc.setTextColor(...white);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(9);
+      let tx = margin + 2;
+      cols.forEach((col, i) => {
+        doc.text(col, tx, yPos + 5.5);
+        tx += colWidths[i] ?? 0;
+      });
+      yPos += 8;
+    };
+
+    // Helper: draw data row with alternating white/gray bg, thin navy borders, black text
+    const drawDataRow = (cols: string[], colWidths: number[], idx: number) => {
+      checkPage(8);
+      const bg = idx % 2 === 0 ? white : gray;
+      doc.setFillColor(...bg);
+      doc.rect(margin, yPos, contentWidth, 7, "F");
+
+      // Draw all borders (thin navy)
+      doc.setDrawColor(...darkNavy);
+      doc.setLineWidth(0.3);
+      doc.rect(margin, yPos, contentWidth, 7);
+
+      // Draw text
+      doc.setTextColor(...black);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      let tx = margin + 2;
+      cols.forEach((col, i) => {
+        const maxW = (colWidths[i] ?? 0) - 4;
+        const text = doc.splitTextToSize(col, maxW);
+        doc.text(text[0]?.toString() || "", tx, yPos + 5);
+        tx += colWidths[i] ?? 0;
+      });
+      yPos += 7;
+    };
+
+    // Helper: add footer on all pages
+    const addFooter = () => {
+      const pageCount = doc.getNumberOfPages();
+      for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        doc.setFillColor(...darkNavy);
+        doc.rect(0, pageHeight - 12, pageWidth, 12, "F");
+        doc.setTextColor(...white);
+        doc.setFontSize(8);
+        doc.setFont("helvetica", "normal");
+        doc.text(new Date().toLocaleDateString("id-ID"), margin, pageHeight - 4);
+        doc.text(`Page ${i} of ${pageCount}`, pageWidth - margin, pageHeight - 4, {
+          align: "right",
+        });
+      }
+    };
+
+    // === Row 1: Company Header (dark navy, company name left, report title right) ===
+    doc.setFillColor(...darkNavy);
+    doc.rect(0, 0, pageWidth, 16, "F");
+    doc.setTextColor(...white);
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(18);
-    doc.text("Dashboard Summary", margin, yPos);
+    doc.setFontSize(14);
+    doc.text("PT NOVA SYNC", margin, 11);
+    doc.setFontSize(11);
+    doc.text("Dashboard Summary", pageWidth / 2, 11, { align: "center" });
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    doc.text(`Generated: ${new Date().toLocaleDateString("id-ID")}`, pageWidth - margin, 11, {
+      align: "right",
+    });
+    yPos = 20;
+
+    // === Row 2: Period info bar (dark navy) ===
+    doc.setFillColor(...darkNavy);
+    doc.rect(0, yPos - 4, pageWidth, 8, "F");
+    doc.setTextColor(...white);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
+    doc.text(`Period: ${periodDisplay.value}`, margin, yPos);
     yPos += 8;
 
-    addLine(`Period: ${periodDisplay.value}`);
-    addLine(`Generated: ${new Date().toLocaleString("id-ID")}`);
-
-    addSection("Key Metrics");
-    const metricLines = [
-      `Total Income: ${dashboardData.value.stats.totalIncome}`,
-      `Active Job: ${dashboardData.value.stats.activeJobs}`,
-      `Invoice Pending: ${dashboardData.value.stats.pendingInvoices}`,
-      `Active Offer: ${dashboardData.value.stats.activeOffers}`,
+    // === Key Metrics ===
+    drawSectionHeader("KEY METRICS");
+    const colW3 = [contentWidth * 0.3, contentWidth * 0.35, contentWidth * 0.35];
+    drawColHeader(["Description", "Value", "Change"], colW3);
+    const metricItems = [
+      [
+        "Total Income",
+        dashboardData.value.stats.totalIncome || "Rp0",
+        `${(dashboardData.value.stats.totalIncomeChange ?? 0) >= 0 ? "+" : ""}${dashboardData.value.stats.totalIncomeChange ?? 0}%`,
+      ],
+      [
+        "Active Jobs",
+        String(dashboardData.value.stats.activeJobs ?? 0),
+        `${(dashboardData.value.stats.activeJobsChange ?? 0) >= 0 ? "+" : ""}${dashboardData.value.stats.activeJobsChange ?? 0}%`,
+      ],
+      [
+        "Invoice Pending",
+        String(dashboardData.value.stats.pendingInvoices ?? 0),
+        `${(dashboardData.value.stats.pendingInvoicesChange ?? 0) >= 0 ? "+" : ""}${dashboardData.value.stats.pendingInvoicesChange ?? 0}%`,
+      ],
+      [
+        "Active Offers",
+        String(dashboardData.value.stats.activeOffers ?? 0),
+        `${(dashboardData.value.stats.activeOffersChange ?? 0) >= 0 ? "+" : ""}${dashboardData.value.stats.activeOffersChange ?? 0}%`,
+      ],
     ];
-    metricLines.forEach((line) => addLine(line, { indent: 2 }));
+    metricItems.forEach((row, idx) => drawDataRow(row, colW3, idx));
 
-    addSection("Financial Overview");
-    if (
-      dashboardData.value.financialOverview.categories &&
-      dashboardData.value.financialOverview.categories.length > 0 &&
-      dashboardData.value.financialOverview.income &&
-      dashboardData.value.financialOverview.outcome
-    ) {
-      dashboardData.value.financialOverview.categories.forEach((category, index) => {
-        const income = dashboardData.value?.financialOverview.income[index] || 0;
-        const outcome = dashboardData.value?.financialOverview.outcome[index] || 0;
-        addLine(
-          `${category}: Income ${formatRupiah(income * 1000000)} | Outcome ${formatRupiah(outcome * 1000000)}`,
-          { indent: 2 },
+    // === Financial Overview ===
+    yPos += 4;
+    drawSectionHeader("FINANCIAL OVERVIEW");
+    const colW4 = [contentWidth * 0.25, contentWidth * 0.375, contentWidth * 0.375];
+    drawColHeader(["Category", "Income", "Outcome"], colW4);
+    if (dashboardData.value.financialOverview.categories?.length) {
+      dashboardData.value.financialOverview.categories.forEach((cat, idx) => {
+        const income = dashboardData.value?.financialOverview.income[idx] || 0;
+        const outcome = dashboardData.value?.financialOverview.outcome[idx] || 0;
+        drawDataRow(
+          [cat, formatRupiah(income * 1000000), formatRupiah(outcome * 1000000)],
+          colW4,
+          idx,
         );
       });
     } else {
-      addLine("No financial data available", { indent: 2 });
+      drawDataRow(["No financial data available", "", ""], colW4, 0);
     }
 
-    addSection("Recent Jobs");
+    // === Recent Jobs ===
+    yPos += 4;
+    drawSectionHeader("RECENT JOBS");
+    const colW5 = [
+      contentWidth * 0.15,
+      contentWidth * 0.25,
+      contentWidth * 0.38,
+      contentWidth * 0.22,
+    ];
+    drawColHeader(["Job No.", "Customer", "Route", "Status"], colW5);
     if (dashboardData.value.recentJobs.length === 0) {
-      addLine("No recent jobs", { indent: 2 });
+      drawDataRow(["No recent jobs", "", "", ""], colW5, 0);
     } else {
-      dashboardData.value.recentJobs.forEach((job) => {
-        addLine(
-          `${job.jobNumber} • ${job.customer} • ${job.origin} -> ${job.destination} • ${job.status}`,
-          { indent: 2 },
+      dashboardData.value.recentJobs.forEach((job, idx) => {
+        drawDataRow(
+          [job.jobNumber, job.customer, `${job.origin} -> ${job.destination}`, job.status],
+          colW5,
+          idx,
         );
       });
     }
 
-    addSection("Upcoming Activities");
+    // === Upcoming Activities ===
+    yPos += 4;
+    drawSectionHeader("UPCOMING ACTIVITIES");
+    const colW6 = [contentWidth * 0.3, contentWidth * 0.42, contentWidth * 0.28];
+    drawColHeader(["Activity", "Description", "Time"], colW6);
     if (dashboardData.value.upcomingEvents.length === 0) {
-      addLine("No upcoming activities", { indent: 2 });
+      drawDataRow(["No upcoming activities", "", ""], colW6, 0);
     } else {
-      dashboardData.value.upcomingEvents.forEach((activity) => {
-        addLine(`${activity.title} • ${activity.description} • ${activity.time}`, { indent: 2 });
+      dashboardData.value.upcomingEvents.forEach((act, idx) => {
+        drawDataRow([act.title, act.description || "-", act.time || "-"], colW6, idx);
       });
     }
 
-    doc.save(
-      `dashboard-summary-${selectedYear.value}-${selectedStartMonth.value + 1}-${selectedEndMonth.value + 1}.pdf`,
-    );
+    addFooter();
+
+    doc.save(`DASHBOARD_SUMMARY_${new Date().toISOString().split("T")[0]}.pdf`);
     toast.success("Dashboard exported to PDF");
   } catch (exportError) {
     console.error("Failed to export dashboard PDF:", exportError);
@@ -213,174 +320,110 @@ const handleExportExcel = () => {
   }
   isExporting.value = true;
   try {
-    const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.aoa_to_sheet([[], []]);
+    const rows: StyledRow[] = [];
 
-    const HEADER_ROW = 0;
-    const PERIOD_ROW = 1;
-    const KEY_METRICS_ROW = 2;
-    const DATA_START = 3;
-
-    // Row 1: Header
-    XLSX.utils.sheet_add_aoa(ws, [["PT NOVA SYNC — DASHBOARD SUMMARY"]], {
-      origin: { r: HEADER_ROW, c: 0 },
+    // Row 0: Title
+    rows.push({ cells: ["PT NOVA SYNC — DASHBOARD SUMMARY", "", "", ""], style: 7 });
+    // Row 1: Period
+    rows.push({
+      cells: [
+        `Period: ${periodDisplay.value}  |  Generated: ${new Date().toLocaleDateString("id-ID")}`,
+        "",
+        "",
+        "",
+      ],
+      style: 8,
     });
-    mergeCells(ws, { c: 0, r: HEADER_ROW }, { c: 3, r: HEADER_ROW });
-    setRowHeight(ws, HEADER_ROW, 22);
-    applyStyleToRange(
-      ws,
-      { s: { c: 0, r: HEADER_ROW }, e: { c: 3, r: HEADER_ROW } },
-      makeCellStyle({ bold: true, fontSize: 14, fontColor: EXCEL_COLORS.white, bgColor: EXCEL_COLORS.darkNavy, align: "center" }),
-    );
+    // Row 2: Key Metrics section header
+    rows.push({ cells: ["KEY METRICS", "", "", ""], style: 9 });
 
-    // Row 2: Period info
-    XLSX.utils.sheet_add_aoa(ws, [[`Period: ${periodDisplay.value}`]], {
-      origin: { r: PERIOD_ROW, c: 0 },
-    });
-    mergeCells(ws, { c: 0, r: PERIOD_ROW }, { c: 3, r: PERIOD_ROW });
-    setRowHeight(ws, PERIOD_ROW, 18);
-    applyStyleToRange(
-      ws,
-      { s: { c: 0, r: PERIOD_ROW }, e: { c: 3, r: PERIOD_ROW } },
-      makeCellStyle({ bold: true, fontSize: EXCEL_FONTS.colHeaderSize, fontColor: EXCEL_COLORS.white, bgColor: EXCEL_COLORS.darkNavy, align: "center" }),
-    );
-
-    // Row 3: Key Metrics Header
-    XLSX.utils.sheet_add_aoa(ws, [["KEY METRICS", "", "", ""]], {
-      origin: { r: KEY_METRICS_ROW, c: 0 },
-    });
-    mergeCells(ws, { c: 0, r: KEY_METRICS_ROW }, { c: 3, r: KEY_METRICS_ROW });
-    setRowHeight(ws, KEY_METRICS_ROW, 18);
-    applyStyleToRange(
-      ws,
-      { s: { c: 0, r: KEY_METRICS_ROW }, e: { c: 3, r: KEY_METRICS_ROW } },
-      makeCellStyle({ bold: true, fontSize: EXCEL_FONTS.colHeaderSize, fontColor: EXCEL_COLORS.darkNavy, bgColor: EXCEL_COLORS.lightBlue, align: "left" }),
-    );
-
+    // Metrics rows
+    const stats = dashboardData.value.stats;
     const metrics = [
-      ["Total Income", formatRupiah(dashboardData.value.stats.totalIncome)],
-      ["Active Jobs", String(dashboardData.value.stats.activeJobs)],
-      ["Invoice Pending", String(dashboardData.value.stats.pendingInvoices)],
-      ["Active Offers", String(dashboardData.value.stats.activeOffers)],
+      [
+        "Total Income",
+        stats.totalIncome || "Rp0",
+        `${(stats.totalIncomeChange ?? 0) >= 0 ? "+" : ""}${stats.totalIncomeChange ?? 0}%`,
+      ],
+      [
+        "Active Jobs",
+        String(stats.activeJobs ?? 0),
+        `${(stats.activeJobsChange ?? 0) >= 0 ? "+" : ""}${stats.activeJobsChange ?? 0}%`,
+      ],
+      [
+        "Invoice Pending",
+        String(stats.pendingInvoices ?? 0),
+        `${(stats.pendingInvoicesChange ?? 0) >= 0 ? "+" : ""}${stats.pendingInvoicesChange ?? 0}%`,
+      ],
+      [
+        "Active Offers",
+        String(stats.activeOffers ?? 0),
+        `${(stats.activeOffersChange ?? 0) >= 0 ? "+" : ""}${stats.activeOffersChange ?? 0}%`,
+      ],
     ];
-
-    metrics.forEach(([label, val], idx) => {
-      const row = DATA_START + idx;
-      XLSX.utils.sheet_add_aoa(ws, [[label, val]], { origin: { r: row, c: 0 } });
-      setRowHeight(ws, row, 16);
-      const bg = idx % 2 === 0 ? EXCEL_COLORS.white : EXCEL_COLORS.lightGray;
-      mergeCells(ws, { c: 0, r: row }, { c: 0, r: row });
-      applyStyleToRange(
-        ws,
-        { s: { c: 0, r: row }, e: { c: 0, r: row } },
-        makeCellStyle({ fontSize: EXCEL_FONTS.dataSize, bgColor: bg, align: "left" }),
-      );
-      applyStyleToRange(
-        ws,
-        { s: { c: 1, r: row }, e: { c: 3, r: row } },
-        makeCellStyle({ fontSize: EXCEL_FONTS.dataSize, bgColor: bg, align: "left" }),
-      );
+    metrics.forEach((m, i) => {
+      rows.push({ cells: [m[0], m[1], m[2], ""], style: i % 2 === 0 ? 1 : 2 });
     });
 
-    const financialRow = DATA_START + metrics.length + 1;
-    XLSX.utils.sheet_add_aoa(ws, [["FINANCIAL OVERVIEW", "", "", ""]], {
-      origin: { r: financialRow, c: 0 },
-    });
-    mergeCells(ws, { c: 0, r: financialRow }, { c: 3, r: financialRow });
-    setRowHeight(ws, financialRow, 18);
-    applyStyleToRange(
-      ws,
-      { s: { c: 0, r: financialRow }, e: { c: 3, r: financialRow } },
-      makeCellStyle({ bold: true, fontSize: EXCEL_FONTS.colHeaderSize, fontColor: EXCEL_COLORS.darkNavy, bgColor: EXCEL_COLORS.lightBlue, align: "left" }),
-    );
-
-    let r = financialRow + 1;
+    // Spacer
+    rows.push({ cells: ["", "", "", ""], style: 1 });
+    // Financial Overview section
+    rows.push({ cells: ["FINANCIAL OVERVIEW", "", "", ""], style: 9 });
     if (dashboardData.value.financialOverview.categories?.length) {
       dashboardData.value.financialOverview.categories.forEach((cat, idx) => {
         const income = dashboardData.value?.financialOverview.income[idx] || 0;
         const outcome = dashboardData.value?.financialOverview.outcome[idx] || 0;
-        XLSX.utils.sheet_add_aoa(ws, [[cat, "Income: " + formatRupiah(income * 1000000), "Outcome: " + formatRupiah(outcome * 1000000), ""]], {
-          origin: { r, c: 0 },
+        rows.push({
+          cells: [
+            cat,
+            "Income: " + formatRupiah(income * 1000000),
+            "Outcome: " + formatRupiah(outcome * 1000000),
+            "",
+          ],
+          style: idx % 2 === 0 ? 1 : 2,
         });
-        setRowHeight(ws, r, 16);
-        const bg = idx % 2 === 0 ? EXCEL_COLORS.white : EXCEL_COLORS.lightGray;
-        applyStyleToRange(ws, { s: { c: 0, r }, e: { c: 3, r } }, makeCellStyle({ fontSize: EXCEL_FONTS.dataSize, bgColor: bg, align: "left" }));
-        r++;
       });
+    } else {
+      rows.push({ cells: ["No financial data available", "", "", ""], style: 1 });
     }
 
-    r++;
-    XLSX.utils.sheet_add_aoa(ws, [["RECENT JOBS", "", "", ""]], {
-      origin: { r, c: 0 },
-    });
-    mergeCells(ws, { c: 0, r }, { c: 3, r });
-    setRowHeight(ws, r, 18);
-    applyStyleToRange(
-      ws,
-      { s: { c: 0, r }, e: { c: 3, r } },
-      makeCellStyle({ bold: true, fontSize: EXCEL_FONTS.colHeaderSize, fontColor: EXCEL_COLORS.darkNavy, bgColor: EXCEL_COLORS.lightBlue, align: "left" }),
-    );
-    r++;
-
+    // Spacer
+    rows.push({ cells: ["", "", "", ""], style: 1 });
+    // Recent Jobs section
+    rows.push({ cells: ["RECENT JOBS", "", "", ""], style: 9 });
     if (dashboardData.value.recentJobs.length === 0) {
-      XLSX.utils.sheet_add_aoa(ws, [["No recent jobs", "", "", ""]], {
-        origin: { r, c: 0 },
-      });
-      setRowHeight(ws, r, 16);
-      applyStyleToRange(ws, { s: { c: 0, r }, e: { c: 3, r } }, makeCellStyle({ fontSize: EXCEL_FONTS.dataSize, bgColor: EXCEL_COLORS.white, align: "left" }));
-      r++;
+      rows.push({ cells: ["No recent jobs", "", "", ""], style: 1 });
     } else {
-      dashboardData.value.recentJobs.forEach((job, idx) => {
-        XLSX.utils.sheet_add_aoa(ws, [[job.jobNumber, job.customer, `${job.origin} -> ${job.destination}`, job.status]], {
-          origin: { r, c: 0 },
+      dashboardData.value.recentJobs.forEach((job, i) => {
+        rows.push({
+          cells: [job.jobNumber, job.customer, `${job.origin} → ${job.destination}`, job.status],
+          style: i % 2 === 0 ? 1 : 2,
         });
-        setRowHeight(ws, r, 16);
-        const bg = idx % 2 === 0 ? EXCEL_COLORS.white : EXCEL_COLORS.lightGray;
-        applyStyleToRange(ws, { s: { c: 0, r }, e: { c: 3, r } }, makeCellStyle({ fontSize: EXCEL_FONTS.dataSize, bgColor: bg, align: "left" }));
-        r++;
       });
     }
 
-    r++;
-    XLSX.utils.sheet_add_aoa(ws, [["UPCOMING ACTIVITIES", "", "", ""]], {
-      origin: { r, c: 0 },
-    });
-    mergeCells(ws, { c: 0, r }, { c: 3, r });
-    setRowHeight(ws, r, 18);
-    applyStyleToRange(
-      ws,
-      { s: { c: 0, r }, e: { c: 3, r } },
-      makeCellStyle({ bold: true, fontSize: EXCEL_FONTS.colHeaderSize, fontColor: EXCEL_COLORS.darkNavy, bgColor: EXCEL_COLORS.lightBlue, align: "left" }),
-    );
-    r++;
-
+    // Spacer
+    rows.push({ cells: ["", "", "", ""], style: 1 });
+    // Upcoming Activities section
+    rows.push({ cells: ["UPCOMING ACTIVITIES", "", "", ""], style: 9 });
     if (dashboardData.value.upcomingEvents.length === 0) {
-      XLSX.utils.sheet_add_aoa(ws, [["No upcoming activities", "", "", ""]], {
-        origin: { r, c: 0 },
-      });
-      setRowHeight(ws, r, 16);
-      applyStyleToRange(ws, { s: { c: 0, r }, e: { c: 3, r } }, makeCellStyle({ fontSize: EXCEL_FONTS.dataSize, bgColor: EXCEL_COLORS.white, align: "left" }));
+      rows.push({ cells: ["No upcoming activities", "", "", ""], style: 1 });
     } else {
-      dashboardData.value.upcomingEvents.forEach((act, idx) => {
-        XLSX.utils.sheet_add_aoa(ws, [[act.title, act.description, act.time, ""]], {
-          origin: { r, c: 0 },
+      dashboardData.value.upcomingEvents.forEach((act, i) => {
+        rows.push({
+          cells: [act.title, act.description || "", act.time || "", ""],
+          style: i % 2 === 0 ? 1 : 2,
         });
-        setRowHeight(ws, r, 16);
-        const bg = idx % 2 === 0 ? EXCEL_COLORS.white : EXCEL_COLORS.lightGray;
-        applyStyleToRange(ws, { s: { c: 0, r }, e: { c: 3, r } }, makeCellStyle({ fontSize: EXCEL_FONTS.dataSize, bgColor: bg, align: "left" }));
-        r++;
       });
     }
 
-    setColWidth(ws, 0, 25);
-    setColWidth(ws, 1, 35);
-    setColWidth(ws, 2, 30);
-    setColWidth(ws, 3, 20);
-
-    ws["!ref"] = XLSX.utils.encode_range({ s: { c: 0, r: 0 }, e: { c: 3, r: r } });
-
-    XLSX.utils.book_append_sheet(wb, ws, "Dashboard");
-    XLSX.writeFile(wb, `DASHBOARD_SUMMARY_${new Date().toISOString().split("T")[0]}.xlsx`);
+    const colWidths = [26, 36, 32, 22];
+    buildStyledWorkbook(
+      "Dashboard",
+      rows,
+      colWidths,
+      `DASHBOARD_SUMMARY_${new Date().toISOString().split("T")[0]}.xlsx`,
+    );
     toast.success("Dashboard exported to Excel");
   } catch (exportError) {
     console.error("Failed to export dashboard Excel:", exportError);
@@ -490,7 +533,7 @@ onClickOutside(periodDropdownRef as Ref<HTMLElement>, () => {
         <button
           class="flex items-center gap-2 px-3 py-2 text-sm font-medium bg-muted hover:bg-muted/80 rounded-lg transition-colors"
           :disabled="isExporting || loading"
-          @click="showExportOptions = true"
+          @click="openExportPopup($event)"
         >
           <Loader2 v-if="isExporting" class="w-4 h-4 text-muted-foreground animate-spin" />
           <Download v-else class="w-4 h-4 text-muted-foreground" />
@@ -628,6 +671,10 @@ onClickOutside(periodDropdownRef as Ref<HTMLElement>, () => {
 
     <UiExportOptionsModal
       v-model:open="showExportOptions"
+      :trigger-x="triggerX"
+      :trigger-y="triggerY"
+      :trigger-width="triggerWidth"
+      :trigger-height="triggerHeight"
       title="Export Dashboard"
       @export-pdf="handleExportPdf"
       @export-excel="handleExportExcel"

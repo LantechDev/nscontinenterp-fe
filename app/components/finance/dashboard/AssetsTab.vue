@@ -9,7 +9,7 @@ export interface AssetItem {
   date: string;
   description: string;
   price: number;
-  service?: string;
+  service?: string | null;
   company?: string;
 }
 
@@ -50,7 +50,7 @@ const emit = defineEmits<{
   (e: "sort", field: string): void;
   (e: "toggleSortDropdown"): void;
   (e: "pageChange", page: number): void;
-  (e: "export"): void;
+  (e: "export", event: MouseEvent): void;
   (e: "addAsset"): void;
 }>();
 
@@ -162,7 +162,7 @@ const localShowSortDropdown = computed({
 
           <button
             class="flex items-center gap-2 px-3 py-2 text-sm border border-border bg-white hover:bg-gray-50 rounded-lg"
-            @click="emit('export')"
+            @click="emit('export', $event)"
           >
             <Download class="w-4 h-4" /><span>Export</span>
           </button>

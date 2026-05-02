@@ -42,7 +42,7 @@ const emit = defineEmits<{
   (e: "toggleSortDropdown"): void;
   (e: "pageChange", page: number): void;
   (e: "reopenPeriod", periodCloseId: string): void;
-  (e: "export"): void;
+  (e: "export", event?: MouseEvent): void;
 }>();
 
 // Expose transactions for template use
@@ -156,7 +156,7 @@ function handleRowClick(period: FinanceClosePeriod) {
       @sort="emit('sort', $event)"
       @toggle-sort-dropdown="emit('toggleSortDropdown')"
       @page-change="emit('pageChange', $event)"
-      @export="emit('export')"
+      @export="emit('export', $event)"
     />
   </div>
 </template>
