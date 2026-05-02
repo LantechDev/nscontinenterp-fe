@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { onMounted, onUnmounted } from "vue";
 import { FileText, Table2 } from "lucide-vue-next";
 
 const props = defineProps<{
@@ -46,6 +47,16 @@ function close() {
   emit("update:open", false);
 }
 
+function handleClickOutside(event: MouseEvent) {
+  const target = event.target as HTMLElement;
+  if (!target.closest(".export-popup")) {
+    close();
+  }
+}
+
+onMounted(() => document.addEventListener("click", handleClickOutside));
+onUnmounted(() => document.removeEventListener("click", handleClickOutside));
+
 function handleExportPdf() {
   emit("export-pdf");
   close();
@@ -62,7 +73,8 @@ function handleExportExcel() {
     <Transition name="dropdown">
       <div
         v-if="open"
-        class="fixed z-[100] w-60 bg-white rounded-xl shadow-2xl border border-border overflow-hidden"
+        class="fixed z-[100] w-60 bg-white rounded-xl shadow-2xl border border-border overflow-hidden export-popup"
+        @click.stop
         :style="popupStyle"
       >
         <div class="px-4 py-3 border-b border-border bg-[#012D5A]">
