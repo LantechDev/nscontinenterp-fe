@@ -1,6 +1,16 @@
 <script setup lang="ts">
 import { onClickOutside } from "@vueuse/core";
 import { jsPDF } from "jspdf";
+import * as XLSX from "xlsx";
+import {
+  EXCEL_COLORS,
+  EXCEL_FONTS,
+  makeCellStyle,
+  applyStyleToRange,
+  mergeCells,
+  setColWidth,
+  setRowHeight,
+} from "~/lib/excel-styles";
 import {
   Wallet,
   Ship,
@@ -28,6 +38,7 @@ const { canApproveJobs, user } = useAuth();
 const isExporting = ref(false);
 const showPeriodDropdown = ref(false);
 const periodDropdownRef = ref<HTMLElement | null>(null);
+const showExportOptions = ref(false);
 
 // Period selection state
 const currentYear = new Date().getFullYear();
@@ -87,7 +98,7 @@ const applyPeriod = () => {
   refreshDashboard();
 };
 
-const handleExport = async () => {
+const handleExportPdf = async () => {
   if (!dashboardData.value) {
     toast.error("Dashboard data is not ready yet");
     return;
@@ -195,6 +206,190 @@ const handleExport = async () => {
   }
 };
 
+const handleExportExcel = () => {
+  if (!dashboardData.value) {
+    toast.error("Dashboard data is not ready yet");
+    return;
+  }
+  isExporting.value = true;
+  try {
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet([[], []]);
+
+    const HEADER_ROW = 0;
+    const PERIOD_ROW = 1;
+    const KEY_METRICS_ROW = 2;
+    const DATA_START = 3;
+
+    // Row 1: Header
+    XLSX.utils.sheet_add_aoa(ws, [["PT NOVA SYNC — DASHBOARD SUMMARY"]], {
+      origin: { r: HEADER_ROW, c: 0 },
+    });
+    mergeCells(ws, { c: 0, r: HEADER_ROW }, { c: 3, r: HEADER_ROW });
+    setRowHeight(ws, HEADER_ROW, 22);
+    applyStyleToRange(
+      ws,
+      { s: { c: 0, r: HEADER_ROW }, e: { c: 3, r: HEADER_ROW } },
+      makeCellStyle({ bold: true, fontSize: 14, fontColor: EXCEL_COLORS.white, bgColor: EXCEL_COLORS.darkNavy, align: "center" }),
+    );
+
+    // Row 2: Period info
+    XLSX.utils.sheet_add_aoa(ws, [[`Period: ${periodDisplay.value}`]], {
+      origin: { r: PERIOD_ROW, c: 0 },
+    });
+    mergeCells(ws, { c: 0, r: PERIOD_ROW }, { c: 3, r: PERIOD_ROW });
+    setRowHeight(ws, PERIOD_ROW, 18);
+    applyStyleToRange(
+      ws,
+      { s: { c: 0, r: PERIOD_ROW }, e: { c: 3, r: PERIOD_ROW } },
+      makeCellStyle({ bold: true, fontSize: EXCEL_FONTS.colHeaderSize, fontColor: EXCEL_COLORS.white, bgColor: EXCEL_COLORS.darkNavy, align: "center" }),
+    );
+
+    // Row 3: Key Metrics Header
+    XLSX.utils.sheet_add_aoa(ws, [["KEY METRICS", "", "", ""]], {
+      origin: { r: KEY_METRICS_ROW, c: 0 },
+    });
+    mergeCells(ws, { c: 0, r: KEY_METRICS_ROW }, { c: 3, r: KEY_METRICS_ROW });
+    setRowHeight(ws, KEY_METRICS_ROW, 18);
+    applyStyleToRange(
+      ws,
+      { s: { c: 0, r: KEY_METRICS_ROW }, e: { c: 3, r: KEY_METRICS_ROW } },
+      makeCellStyle({ bold: true, fontSize: EXCEL_FONTS.colHeaderSize, fontColor: EXCEL_COLORS.darkNavy, bgColor: EXCEL_COLORS.lightBlue, align: "left" }),
+    );
+
+    const metrics = [
+      ["Total Income", formatRupiah(dashboardData.value.stats.totalIncome)],
+      ["Active Jobs", String(dashboardData.value.stats.activeJobs)],
+      ["Invoice Pending", String(dashboardData.value.stats.pendingInvoices)],
+      ["Active Offers", String(dashboardData.value.stats.activeOffers)],
+    ];
+
+    metrics.forEach(([label, val], idx) => {
+      const row = DATA_START + idx;
+      XLSX.utils.sheet_add_aoa(ws, [[label, val]], { origin: { r: row, c: 0 } });
+      setRowHeight(ws, row, 16);
+      const bg = idx % 2 === 0 ? EXCEL_COLORS.white : EXCEL_COLORS.lightGray;
+      mergeCells(ws, { c: 0, r: row }, { c: 0, r: row });
+      applyStyleToRange(
+        ws,
+        { s: { c: 0, r: row }, e: { c: 0, r: row } },
+        makeCellStyle({ fontSize: EXCEL_FONTS.dataSize, bgColor: bg, align: "left" }),
+      );
+      applyStyleToRange(
+        ws,
+        { s: { c: 1, r: row }, e: { c: 3, r: row } },
+        makeCellStyle({ fontSize: EXCEL_FONTS.dataSize, bgColor: bg, align: "left" }),
+      );
+    });
+
+    const financialRow = DATA_START + metrics.length + 1;
+    XLSX.utils.sheet_add_aoa(ws, [["FINANCIAL OVERVIEW", "", "", ""]], {
+      origin: { r: financialRow, c: 0 },
+    });
+    mergeCells(ws, { c: 0, r: financialRow }, { c: 3, r: financialRow });
+    setRowHeight(ws, financialRow, 18);
+    applyStyleToRange(
+      ws,
+      { s: { c: 0, r: financialRow }, e: { c: 3, r: financialRow } },
+      makeCellStyle({ bold: true, fontSize: EXCEL_FONTS.colHeaderSize, fontColor: EXCEL_COLORS.darkNavy, bgColor: EXCEL_COLORS.lightBlue, align: "left" }),
+    );
+
+    let r = financialRow + 1;
+    if (dashboardData.value.financialOverview.categories?.length) {
+      dashboardData.value.financialOverview.categories.forEach((cat, idx) => {
+        const income = dashboardData.value?.financialOverview.income[idx] || 0;
+        const outcome = dashboardData.value?.financialOverview.outcome[idx] || 0;
+        XLSX.utils.sheet_add_aoa(ws, [[cat, "Income: " + formatRupiah(income * 1000000), "Outcome: " + formatRupiah(outcome * 1000000), ""]], {
+          origin: { r, c: 0 },
+        });
+        setRowHeight(ws, r, 16);
+        const bg = idx % 2 === 0 ? EXCEL_COLORS.white : EXCEL_COLORS.lightGray;
+        applyStyleToRange(ws, { s: { c: 0, r }, e: { c: 3, r } }, makeCellStyle({ fontSize: EXCEL_FONTS.dataSize, bgColor: bg, align: "left" }));
+        r++;
+      });
+    }
+
+    r++;
+    XLSX.utils.sheet_add_aoa(ws, [["RECENT JOBS", "", "", ""]], {
+      origin: { r, c: 0 },
+    });
+    mergeCells(ws, { c: 0, r }, { c: 3, r });
+    setRowHeight(ws, r, 18);
+    applyStyleToRange(
+      ws,
+      { s: { c: 0, r }, e: { c: 3, r } },
+      makeCellStyle({ bold: true, fontSize: EXCEL_FONTS.colHeaderSize, fontColor: EXCEL_COLORS.darkNavy, bgColor: EXCEL_COLORS.lightBlue, align: "left" }),
+    );
+    r++;
+
+    if (dashboardData.value.recentJobs.length === 0) {
+      XLSX.utils.sheet_add_aoa(ws, [["No recent jobs", "", "", ""]], {
+        origin: { r, c: 0 },
+      });
+      setRowHeight(ws, r, 16);
+      applyStyleToRange(ws, { s: { c: 0, r }, e: { c: 3, r } }, makeCellStyle({ fontSize: EXCEL_FONTS.dataSize, bgColor: EXCEL_COLORS.white, align: "left" }));
+      r++;
+    } else {
+      dashboardData.value.recentJobs.forEach((job, idx) => {
+        XLSX.utils.sheet_add_aoa(ws, [[job.jobNumber, job.customer, `${job.origin} -> ${job.destination}`, job.status]], {
+          origin: { r, c: 0 },
+        });
+        setRowHeight(ws, r, 16);
+        const bg = idx % 2 === 0 ? EXCEL_COLORS.white : EXCEL_COLORS.lightGray;
+        applyStyleToRange(ws, { s: { c: 0, r }, e: { c: 3, r } }, makeCellStyle({ fontSize: EXCEL_FONTS.dataSize, bgColor: bg, align: "left" }));
+        r++;
+      });
+    }
+
+    r++;
+    XLSX.utils.sheet_add_aoa(ws, [["UPCOMING ACTIVITIES", "", "", ""]], {
+      origin: { r, c: 0 },
+    });
+    mergeCells(ws, { c: 0, r }, { c: 3, r });
+    setRowHeight(ws, r, 18);
+    applyStyleToRange(
+      ws,
+      { s: { c: 0, r }, e: { c: 3, r } },
+      makeCellStyle({ bold: true, fontSize: EXCEL_FONTS.colHeaderSize, fontColor: EXCEL_COLORS.darkNavy, bgColor: EXCEL_COLORS.lightBlue, align: "left" }),
+    );
+    r++;
+
+    if (dashboardData.value.upcomingEvents.length === 0) {
+      XLSX.utils.sheet_add_aoa(ws, [["No upcoming activities", "", "", ""]], {
+        origin: { r, c: 0 },
+      });
+      setRowHeight(ws, r, 16);
+      applyStyleToRange(ws, { s: { c: 0, r }, e: { c: 3, r } }, makeCellStyle({ fontSize: EXCEL_FONTS.dataSize, bgColor: EXCEL_COLORS.white, align: "left" }));
+    } else {
+      dashboardData.value.upcomingEvents.forEach((act, idx) => {
+        XLSX.utils.sheet_add_aoa(ws, [[act.title, act.description, act.time, ""]], {
+          origin: { r, c: 0 },
+        });
+        setRowHeight(ws, r, 16);
+        const bg = idx % 2 === 0 ? EXCEL_COLORS.white : EXCEL_COLORS.lightGray;
+        applyStyleToRange(ws, { s: { c: 0, r }, e: { c: 3, r } }, makeCellStyle({ fontSize: EXCEL_FONTS.dataSize, bgColor: bg, align: "left" }));
+        r++;
+      });
+    }
+
+    setColWidth(ws, 0, 25);
+    setColWidth(ws, 1, 35);
+    setColWidth(ws, 2, 30);
+    setColWidth(ws, 3, 20);
+
+    ws["!ref"] = XLSX.utils.encode_range({ s: { c: 0, r: 0 }, e: { c: 3, r: r } });
+
+    XLSX.utils.book_append_sheet(wb, ws, "Dashboard");
+    XLSX.writeFile(wb, `DASHBOARD_SUMMARY_${new Date().toISOString().split("T")[0]}.xlsx`);
+    toast.success("Dashboard exported to Excel");
+  } catch (exportError) {
+    console.error("Failed to export dashboard Excel:", exportError);
+    toast.error("Failed to export dashboard");
+  } finally {
+    isExporting.value = false;
+  }
+};
+
 // Close dropdown when clicking outside
 onClickOutside(periodDropdownRef as Ref<HTMLElement>, () => {
   showPeriodDropdown.value = false;
@@ -295,7 +490,7 @@ onClickOutside(periodDropdownRef as Ref<HTMLElement>, () => {
         <button
           class="flex items-center gap-2 px-3 py-2 text-sm font-medium bg-muted hover:bg-muted/80 rounded-lg transition-colors"
           :disabled="isExporting || loading"
-          @click="handleExport"
+          @click="showExportOptions = true"
         >
           <Loader2 v-if="isExporting" class="w-4 h-4 text-muted-foreground animate-spin" />
           <Download v-else class="w-4 h-4 text-muted-foreground" />
@@ -430,5 +625,12 @@ onClickOutside(periodDropdownRef as Ref<HTMLElement>, () => {
 
     <!-- Recent jobs -->
     <DashboardRecentJobs :jobs="dashboardData?.recentJobs" />
+
+    <UiExportOptionsModal
+      v-model:open="showExportOptions"
+      title="Export Dashboard"
+      @export-pdf="handleExportPdf"
+      @export-excel="handleExportExcel"
+    />
   </div>
 </template>

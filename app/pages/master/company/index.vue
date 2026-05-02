@@ -42,7 +42,6 @@ const selectedCompanyDetail = ref<MappedCompany | null>(null);
 const isFormOpen = ref(false);
 const formMode = ref<"create" | "edit">("create");
 const selectedCompanyForm = ref<MappedCompany | null>(null);
-const activeActionMenu = ref<string | null>(null);
 const selectedIds = ref<Set<string>>(new Set());
 
 const openDetailModal = (company: MappedCompany) => {
@@ -235,14 +234,6 @@ const toggleSelect = (payload: { id: string; value: boolean }) => {
   selectedIds.value = next;
 };
 
-const toggleActionMenu = (id: string) => {
-  activeActionMenu.value = activeActionMenu.value === id ? null : id;
-};
-
-const closeActionMenu = () => {
-  activeActionMenu.value = null;
-};
-
 const openCreateModal = () => {
   formMode.value = "create";
   selectedCompanyForm.value = null;
@@ -250,14 +241,12 @@ const openCreateModal = () => {
 };
 
 const openEditModal = (company: MappedCompany) => {
-  closeActionMenu();
   formMode.value = "edit";
   selectedCompanyForm.value = company;
   isFormOpen.value = true;
 };
 
 const handleDeleteCompany = async (company: MappedCompany) => {
-  closeActionMenu();
   const isConfirmed = await confirm({
     title: "Delete company?",
     message: `Are you sure you want to delete "${company.name}"? This action cannot be undone.`,
@@ -275,23 +264,8 @@ const handleDeleteCompany = async (company: MappedCompany) => {
   }
 };
 
-const handleClickOutside = (event: MouseEvent) => {
-  const target = event.target as HTMLElement;
-  if (!target.closest(".company-action-menu")) {
-    closeActionMenu();
-  }
-};
-
 watch([selectedType, selectedStatus, selectedCategory], () => {
   fetchWithFilters(1);
-});
-
-onMounted(() => {
-  document.addEventListener("click", handleClickOutside);
-});
-
-onUnmounted(() => {
-  document.removeEventListener("click", handleClickOutside);
 });
 </script>
 
@@ -380,12 +354,10 @@ onUnmounted(() => {
       :sort-direction="sortDirection"
       :select-all="selectAll"
       :selected-ids="selectedIds"
-      :active-menu-id="activeActionMenu"
       @update:sort="toggleSort"
       @open-detail="openDetailModal"
       @update:select-all="selectAll = $event"
       @toggle-select="toggleSelect"
-      @toggle-menu="toggleActionMenu"
       @edit="openEditModal"
       @delete="handleDeleteCompany"
     />
@@ -393,9 +365,7 @@ onUnmounted(() => {
     <CompanyGrid
       v-else
       :companies="sortedCompanies"
-      :active-menu-id="activeActionMenu"
       @open-detail="openDetailModal"
-      @toggle-menu="toggleActionMenu"
       @edit="openEditModal"
       @delete="handleDeleteCompany"
     />

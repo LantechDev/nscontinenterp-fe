@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { X } from "lucide-vue-next";
+import { useScrollLock } from "@vueuse/core";
 import { cn } from "~/lib/utils";
 
 const props = defineProps<{
@@ -19,6 +20,17 @@ const close = () => {
   emit("update:modelValue", false);
   emit("close");
 };
+
+// Lock body scroll when modal is open
+const bodyEl = import.meta.client ? ref(document.documentElement) : ref<HTMLElement | null>(null);
+const isLocked = useScrollLock(bodyEl, props.modelValue);
+
+watch(
+  () => props.modelValue,
+  (val) => {
+    isLocked.value = val;
+  },
+);
 </script>
 
 <template>
@@ -40,6 +52,7 @@ const close = () => {
 
       <!-- Modal Content -->
       <div
+        data-modal
         :class="
           cn(
             'relative bg-white shadow-xl w-full flex flex-col transition-all duration-200 animate-in fade-in zoom-in-95',

@@ -160,7 +160,12 @@ watch(open, (isOpen) => {
   }
 });
 
-onClickOutside(containerRef, () => {
+onClickOutside(containerRef, (event) => {
+  // Don't close if clicking inside a modal dialog
+  const modal = document.querySelector("[data-modal]");
+  if (modal && modal.contains(event.target as Node)) {
+    return;
+  }
   open.value = false;
 });
 

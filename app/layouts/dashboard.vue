@@ -460,8 +460,8 @@ onUnmounted(() => {
       </header>
 
       <!-- Page content -->
-      <main>
-        <NuxtPage />
+      <main class="overflow-hidden">
+        <NuxtPage :key="$route.fullPath" />
       </main>
     </div>
 

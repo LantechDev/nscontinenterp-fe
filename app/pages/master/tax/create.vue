@@ -20,7 +20,7 @@ const form = ref({
 async function handleSubmit() {
   try {
     await createTax(form.value);
-    navigateTo("/finance/tax");
+    navigateTo("/master/tax");
   } catch (error) {
     toast.error("Gagal menyimpan pajak: " + (error as Error).message);
   }
@@ -31,7 +31,7 @@ async function handleSubmit() {
   <div class="space-y-6 animate-fade-in p-6">
     <div class="page-header">
       <div class="flex items-center gap-4">
-        <NuxtLink to="/finance/tax" class="p-2 rounded-lg hover:bg-muted transition-colors">
+        <NuxtLink to="/master/tax" class="p-2 rounded-lg hover:bg-muted transition-colors">
           <ArrowLeft class="w-5 h-5" />
         </NuxtLink>
         <div>
@@ -103,7 +103,7 @@ async function handleSubmit() {
         <div class="flex justify-end gap-3 pt-4 border-t border-border">
           <button
             type="button"
-            @click="navigateTo('/finance/tax')"
+            @click="navigateTo('/master/tax')"
             class="px-6 py-2 border rounded-lg hover:bg-muted transition-colors font-medium"
           >
             Batal

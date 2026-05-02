@@ -1,5 +1,15 @@
 <script setup lang="ts">
 import { jsPDF } from "jspdf";
+import * as XLSX from "xlsx";
+import {
+  EXCEL_COLORS,
+  EXCEL_FONTS,
+  makeCellStyle,
+  applyStyleToRange,
+  mergeCells,
+  setColWidth,
+  setRowHeight,
+} from "~/lib/excel-styles";
 import { useFinanceDashboardPage } from "~/composables/useFinanceDashboardPage";
 import {
   useFinanceDashboardFilters,
@@ -152,6 +162,7 @@ const assetsSortOrder = ref<"asc" | "desc">("desc");
 const assetsShowSortDropdown = ref(false);
 const showAssetModal = ref(false);
 const isSavingAsset = ref(false);
+const showExportOptions = ref(false);
 const assetTaxOptions = ref<Array<{ id: string; name: string; rate: number }>>([]);
 const assetForm = ref({
   name: "",
@@ -429,6 +440,266 @@ function handleAssetsExport() {
   }
 }
 
+function handleTransactionExportExcel() {
+  const list = transactions.value || [];
+  if (list.length === 0) {
+    toast.error("No transaction data to export");
+    return;
+  }
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet([[], []]);
+
+  const HEADER_ROW = 0;
+  const PERIOD_ROW = 1;
+  const COL_HEADER_ROW = 2;
+  const DATA_START = 3;
+
+  // Row 1: Header
+  XLSX.utils.sheet_add_aoa(ws, [["PT NOVA SYNC — TRANSACTIONS REPORT"]], {
+    origin: { r: HEADER_ROW, c: 0 },
+  });
+  mergeCells(ws, { c: 0, r: HEADER_ROW }, { c: 6, r: HEADER_ROW });
+  setRowHeight(ws, HEADER_ROW, 22);
+  applyStyleToRange(
+    ws,
+    { s: { c: 0, r: HEADER_ROW }, e: { c: 6, r: HEADER_ROW } },
+    makeCellStyle({ bold: true, fontSize: 14, fontColor: EXCEL_COLORS.white, bgColor: EXCEL_COLORS.darkNavy, align: "center" }),
+  );
+
+  // Row 2: Period info
+  const periodLabel = `Year: ${transactionYear.value || "All"} | Generated: ${new Date().toLocaleDateString("id-ID")}`;
+  XLSX.utils.sheet_add_aoa(ws, [[periodLabel]], {
+    origin: { r: PERIOD_ROW, c: 0 },
+  });
+  mergeCells(ws, { c: 0, r: PERIOD_ROW }, { c: 6, r: PERIOD_ROW });
+  setRowHeight(ws, PERIOD_ROW, 18);
+  applyStyleToRange(
+    ws,
+    { s: { c: 0, r: PERIOD_ROW }, e: { c: 6, r: PERIOD_ROW } },
+    makeCellStyle({ bold: true, fontSize: EXCEL_FONTS.colHeaderSize, fontColor: EXCEL_COLORS.white, bgColor: EXCEL_COLORS.darkNavy, align: "center" }),
+  );
+
+  // Row 3: Column Headers
+  const colHeaders = ["No.", "Tanggal", "Job Number", "Customer", "Type", "Payment Method", "Total"];
+  XLSX.utils.sheet_add_aoa(ws, [colHeaders], {
+    origin: { r: COL_HEADER_ROW, c: 0 },
+  });
+  setRowHeight(ws, COL_HEADER_ROW, 18);
+  applyStyleToRange(
+    ws,
+    { s: { c: 0, r: COL_HEADER_ROW }, e: { c: 6, r: COL_HEADER_ROW } },
+    makeCellStyle({ bold: true, fontSize: EXCEL_FONTS.colHeaderSize, fontColor: EXCEL_COLORS.white, bgColor: EXCEL_COLORS.darkNavy, align: "center" }),
+  );
+
+  // Data rows
+  list.forEach((tx, idx) => {
+    const row = DATA_START + idx;
+    XLSX.utils.sheet_add_aoa(
+      ws,
+      [[idx + 1, tx.date, tx.jobNumber, tx.customer, tx.type, tx.paymentMethod || "-", tx.total]],
+      { origin: { r: row, c: 0 } },
+    );
+    const bg = idx % 2 === 0 ? EXCEL_COLORS.white : EXCEL_COLORS.lightGray;
+    applyStyleToRange(ws, { s: { c: 0, r: row }, e: { c: 5, r: row } }, makeCellStyle({ fontSize: EXCEL_FONTS.dataSize, bgColor: bg, align: "left" }));
+    applyStyleToRange(ws, { s: { c: 6, r: row }, e: { c: 6, r: row } }, makeCellStyle({ fontSize: EXCEL_FONTS.dataSize, bgColor: bg, align: "right", numFmt: "#,##0" }));
+  });
+
+  // Grand Total
+  const totalRow = DATA_START + list.length;
+  const grandTotal = list.reduce((sum, tx) => sum + (tx.total || 0), 0);
+  XLSX.utils.sheet_add_aoa(ws, [["", "", "", "", "", "GRAND TOTAL", grandTotal]], {
+    origin: { r: totalRow, c: 0 },
+  });
+  setRowHeight(ws, totalRow, 18);
+  applyStyleToRange(
+    ws,
+    { s: { c: 0, r: totalRow }, e: { c: 5, r: totalRow } },
+    makeCellStyle({ bold: true, fontSize: EXCEL_FONTS.dataSize, fontColor: EXCEL_COLORS.darkNavy, bgColor: EXCEL_COLORS.lightBlue, align: "left" }),
+  );
+  applyStyleToRange(
+    ws,
+    { s: { c: 6, r: totalRow }, e: { c: 6, r: totalRow } },
+    makeCellStyle({ bold: true, fontSize: EXCEL_FONTS.dataSize, fontColor: EXCEL_COLORS.darkNavy, bgColor: EXCEL_COLORS.lightBlue, align: "right", numFmt: "#,##0" }),
+  );
+
+  setColWidth(ws, 0, 6);
+  setColWidth(ws, 1, 15);
+  setColWidth(ws, 2, 18);
+  setColWidth(ws, 3, 25);
+  setColWidth(ws, 4, 15);
+  setColWidth(ws, 5, 18);
+  setColWidth(ws, 6, 18);
+
+  ws["!ref"] = XLSX.utils.encode_range({ s: { c: 0, r: 0 }, e: { c: 6, r: totalRow } });
+
+  XLSX.utils.book_append_sheet(wb, ws, "Transactions");
+  XLSX.writeFile(wb, `TRANSACTIONS_REPORT_${new Date().toISOString().split("T")[0]}.xlsx`);
+  toast.success("Transactions exported to Excel");
+}
+
+function handleAssetsExportExcel() {
+  const list = assetsData.value || [];
+  if (list.length === 0) {
+    toast.error("No asset data to export");
+    return;
+  }
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet([[], []]);
+
+  const HEADER_ROW = 0;
+  const PERIOD_ROW = 1;
+  const COL_HEADER_ROW = 2;
+  const DATA_START = 3;
+
+  XLSX.utils.sheet_add_aoa(ws, [["PT NOVA SYNC — ASSETS REPORT"]], {
+    origin: { r: HEADER_ROW, c: 0 },
+  });
+  mergeCells(ws, { c: 0, r: HEADER_ROW }, { c: 5, r: HEADER_ROW });
+  setRowHeight(ws, HEADER_ROW, 22);
+  applyStyleToRange(
+    ws,
+    { s: { c: 0, r: HEADER_ROW }, e: { c: 5, r: HEADER_ROW } },
+    makeCellStyle({ bold: true, fontSize: 14, fontColor: EXCEL_COLORS.white, bgColor: EXCEL_COLORS.darkNavy, align: "center" }),
+  );
+
+  XLSX.utils.sheet_add_aoa(ws, [[`Year: ${assetsYear.value || "All"} | Generated: ${new Date().toLocaleDateString("id-ID")}`]], {
+    origin: { r: PERIOD_ROW, c: 0 },
+  });
+  mergeCells(ws, { c: 0, r: PERIOD_ROW }, { c: 5, r: PERIOD_ROW });
+  setRowHeight(ws, PERIOD_ROW, 18);
+  applyStyleToRange(
+    ws,
+    { s: { c: 0, r: PERIOD_ROW }, e: { c: 5, r: PERIOD_ROW } },
+    makeCellStyle({ bold: true, fontSize: EXCEL_FONTS.colHeaderSize, fontColor: EXCEL_COLORS.white, bgColor: EXCEL_COLORS.darkNavy, align: "center" }),
+  );
+
+  const colHeaders = ["No.", "Name", "Date", "Service", "Company", "Price"];
+  XLSX.utils.sheet_add_aoa(ws, [colHeaders], {
+    origin: { r: COL_HEADER_ROW, c: 0 },
+  });
+  setRowHeight(ws, COL_HEADER_ROW, 18);
+  applyStyleToRange(
+    ws,
+    { s: { c: 0, r: COL_HEADER_ROW }, e: { c: 5, r: COL_HEADER_ROW } },
+    makeCellStyle({ bold: true, fontSize: EXCEL_FONTS.colHeaderSize, fontColor: EXCEL_COLORS.white, bgColor: EXCEL_COLORS.darkNavy, align: "center" }),
+  );
+
+  list.forEach((asset, idx) => {
+    const row = DATA_START + idx;
+    XLSX.utils.sheet_add_aoa(
+      ws,
+      [[idx + 1, asset.name, asset.date, asset.service || "-", asset.company || "-", asset.price]],
+      { origin: { r: row, c: 0 } },
+    );
+    const bg = idx % 2 === 0 ? EXCEL_COLORS.white : EXCEL_COLORS.lightGray;
+    applyStyleToRange(ws, { s: { c: 0, r: row }, e: { c: 4, r: row } }, makeCellStyle({ fontSize: EXCEL_FONTS.dataSize, bgColor: bg, align: "left" }));
+    applyStyleToRange(ws, { s: { c: 5, r: row }, e: { c: 5, r: row } }, makeCellStyle({ fontSize: EXCEL_FONTS.dataSize, bgColor: bg, align: "right", numFmt: "#,##0" }));
+  });
+
+  const totalRow = DATA_START + list.length;
+  const totalValue = list.reduce((sum, a) => sum + (a.price || 0), 0);
+  XLSX.utils.sheet_add_aoa(ws, [["", "", "", "", "TOTAL", totalValue]], {
+    origin: { r: totalRow, c: 0 },
+  });
+  setRowHeight(ws, totalRow, 18);
+  applyStyleToRange(
+    ws,
+    { s: { c: 0, r: totalRow }, e: { c: 4, r: totalRow } },
+    makeCellStyle({ bold: true, fontSize: EXCEL_FONTS.dataSize, fontColor: EXCEL_COLORS.darkNavy, bgColor: EXCEL_COLORS.lightBlue, align: "left" }),
+  );
+  applyStyleToRange(
+    ws,
+    { s: { c: 5, r: totalRow }, e: { c: 5, r: totalRow } },
+    makeCellStyle({ bold: true, fontSize: EXCEL_FONTS.dataSize, fontColor: EXCEL_COLORS.darkNavy, bgColor: EXCEL_COLORS.lightBlue, align: "right", numFmt: "#,##0" }),
+  );
+
+  setColWidth(ws, 0, 6);
+  setColWidth(ws, 1, 25);
+  setColWidth(ws, 2, 15);
+  setColWidth(ws, 3, 20);
+  setColWidth(ws, 4, 20);
+  setColWidth(ws, 5, 18);
+
+  ws["!ref"] = XLSX.utils.encode_range({ s: { c: 0, r: 0 }, e: { c: 5, r: totalRow } });
+
+  XLSX.utils.book_append_sheet(wb, ws, "Assets");
+  XLSX.writeFile(wb, `ASSETS_REPORT_${new Date().toISOString().split("T")[0]}.xlsx`);
+  toast.success("Assets exported to Excel");
+}
+
+function handleFinanceCloseExportExcel() {
+  const list = closedPeriods.value || [];
+  if (list.length === 0) {
+    toast.error("No finance close data to export");
+    return;
+  }
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet([[], []]);
+
+  const HEADER_ROW = 0;
+  const PERIOD_ROW = 1;
+  const COL_HEADER_ROW = 2;
+  const DATA_START = 3;
+
+  XLSX.utils.sheet_add_aoa(ws, [["PT NOVA SYNC — FINANCE CLOSE REPORT"]], {
+    origin: { r: HEADER_ROW, c: 0 },
+  });
+  mergeCells(ws, { c: 0, r: HEADER_ROW }, { c: 5, r: HEADER_ROW });
+  setRowHeight(ws, HEADER_ROW, 22);
+  applyStyleToRange(
+    ws,
+    { s: { c: 0, r: HEADER_ROW }, e: { c: 5, r: HEADER_ROW } },
+    makeCellStyle({ bold: true, fontSize: 14, fontColor: EXCEL_COLORS.white, bgColor: EXCEL_COLORS.darkNavy, align: "center" }),
+  );
+
+  XLSX.utils.sheet_add_aoa(ws, [[`Year: ${financeCloseYear.value || "All"} | Generated: ${new Date().toLocaleDateString("id-ID")}`]], {
+    origin: { r: PERIOD_ROW, c: 0 },
+  });
+  mergeCells(ws, { c: 0, r: PERIOD_ROW }, { c: 5, r: PERIOD_ROW });
+  setRowHeight(ws, PERIOD_ROW, 18);
+  applyStyleToRange(
+    ws,
+    { s: { c: 0, r: PERIOD_ROW }, e: { c: 5, r: PERIOD_ROW } },
+    makeCellStyle({ bold: true, fontSize: EXCEL_FONTS.colHeaderSize, fontColor: EXCEL_COLORS.white, bgColor: EXCEL_COLORS.darkNavy, align: "center" }),
+  );
+
+  const colHeaders = ["Period", "Revenue", "COGS", "Nett P&L", "Closed Date", "Status"];
+  XLSX.utils.sheet_add_aoa(ws, [colHeaders], {
+    origin: { r: COL_HEADER_ROW, c: 0 },
+  });
+  setRowHeight(ws, COL_HEADER_ROW, 18);
+  applyStyleToRange(
+    ws,
+    { s: { c: 0, r: COL_HEADER_ROW }, e: { c: 5, r: COL_HEADER_ROW } },
+    makeCellStyle({ bold: true, fontSize: EXCEL_FONTS.colHeaderSize, fontColor: EXCEL_COLORS.white, bgColor: EXCEL_COLORS.darkNavy, align: "center" }),
+  );
+
+  list.forEach((period, idx) => {
+    const row = DATA_START + idx;
+    XLSX.utils.sheet_add_aoa(
+      ws,
+      [[period.period, period.revenue, period.cogs, period.nettPL, period.periodEnd || "-", "Closed"]],
+      { origin: { r: row, c: 0 } },
+    );
+    const bg = idx % 2 === 0 ? EXCEL_COLORS.white : EXCEL_COLORS.lightGray;
+    applyStyleToRange(ws, { s: { c: 0, r: row }, e: { c: 3, r: row } }, makeCellStyle({ fontSize: EXCEL_FONTS.dataSize, bgColor: bg, align: "left" }));
+    applyStyleToRange(ws, { s: { c: 4, r: row }, e: { c: 5, r: row } }, makeCellStyle({ fontSize: EXCEL_FONTS.dataSize, bgColor: bg, align: "center" }));
+  });
+
+  setColWidth(ws, 0, 20);
+  setColWidth(ws, 1, 20);
+  setColWidth(ws, 2, 20);
+  setColWidth(ws, 3, 20);
+  setColWidth(ws, 4, 18);
+  setColWidth(ws, 5, 12);
+
+  ws["!ref"] = XLSX.utils.encode_range({ s: { c: 0, r: 0 }, e: { c: 5, r: DATA_START + list.length - 1 } });
+
+  XLSX.utils.book_append_sheet(wb, ws, "Finance Close");
+  XLSX.writeFile(wb, `FINANCE_CLOSE_REPORT_${new Date().toISOString().split("T")[0]}.xlsx`);
+  toast.success("Finance Close exported to Excel");
+}
+
 async function handleAssetsAdd() {
   showAssetModal.value = true;
   if (assetTaxOptions.value.length === 0) {
@@ -474,6 +745,68 @@ async function handleAssetSave() {
   } finally {
     isSavingAsset.value = false;
   }
+}
+
+function dispatchExportPdf() {
+  if (activeTab.value === "Transaction") {
+    handleTransactionExport();
+  } else if (activeTab.value === "Assets") {
+    handleAssetsExport();
+  } else if (activeTab.value === "Finance Close") {
+    handleFinanceCloseExport();
+  }
+}
+
+function dispatchExportExcel() {
+  if (activeTab.value === "Transaction") {
+    handleTransactionExportExcel();
+  } else if (activeTab.value === "Assets") {
+    handleAssetsExportExcel();
+  } else if (activeTab.value === "Finance Close") {
+    handleFinanceCloseExportExcel();
+  }
+}
+
+// Finance Close PDF export (minimal placeholder)
+function handleFinanceCloseExport() {
+  const list = closedPeriods.value || [];
+  if (list.length === 0) {
+    toast.error("No finance close data to export");
+    return;
+  }
+  const doc = new jsPDF();
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const margin = 20;
+  let yPos = margin;
+
+  doc.setFillColor(1, 45, 90);
+  doc.rect(0, 0, pageWidth, 30, "F");
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(18);
+  doc.setFont("helvetica", "bold");
+  doc.text("FINANCE CLOSE REPORT", margin, 20);
+  yPos = 45;
+
+  doc.setTextColor(31, 41, 55);
+  doc.setFontSize(10);
+  doc.setFont("helvetica", "bold");
+  doc.text("Period", margin, yPos);
+  doc.text("Revenue", margin + 50, yPos);
+  doc.text("COGS", margin + 100, yPos);
+  doc.text("Nett P&L", margin + 140, yPos);
+  yPos += 8;
+
+  doc.setFont("helvetica", "normal");
+  list.forEach((p) => {
+    doc.text(p.period || "-", margin, yPos);
+    doc.text(String(p.revenue || 0), margin + 50, yPos);
+    doc.text(String(p.cogs || 0), margin + 100, yPos);
+    doc.text(p.nettPL || "-", margin + 140, yPos);
+    yPos += 7;
+  });
+
+  doc.save(`FINANCE_CLOSE_REPORT_${new Date().toISOString().split("T")[0]}.pdf`);
+  toast.success("Finance Close exported to PDF");
 }
 </script>
 
@@ -593,7 +926,7 @@ async function handleAssetSave() {
           @search-keydown="handleTransactionSearchKeydown"
           @sort="handleTransactionSort"
           @toggle-sort-dropdown="handleTransactionSortDropdownToggle"
-          @export="handleTransactionExport"
+          @export="showExportOptions = true"
           @page-change="handlePageChange"
           @create="handleTransactionCreate"
           @edit="handleTransactionEdit"
@@ -629,6 +962,7 @@ async function handleAssetSave() {
           @toggle-sort-dropdown="handleFinanceCloseSortDropdownToggle"
           @page-change="handlePageChange"
           @reopen-period="handleReopenPeriod"
+          @export="showExportOptions = true"
         />
 
         <TrialBalanceTab
@@ -690,7 +1024,7 @@ async function handleAssetSave() {
           @sort="handleAssetsSort"
           @toggle-sort-dropdown="() => (assetsShowSortDropdown = !assetsShowSortDropdown)"
           @page-change="handleAssetsPageChange"
-          @export="handleAssetsExport"
+          @export="showExportOptions = true"
           @add-asset="handleAssetsAdd"
         />
 
@@ -768,5 +1102,12 @@ async function handleAssetSave() {
         </div>
       </form>
     </UiModal>
+
+    <UiExportOptionsModal
+      v-model:open="showExportOptions"
+      :title="`Export ${activeTab} Report`"
+      @export-pdf="dispatchExportPdf"
+      @export-excel="dispatchExportExcel"
+    />
   </div>
 </template>

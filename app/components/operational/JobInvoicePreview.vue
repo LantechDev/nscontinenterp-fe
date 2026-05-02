@@ -4,16 +4,39 @@ import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import { toast } from "vue-sonner";
 import type { InvoiceDetail } from "~/composables/useInvoices";
+import { useBankAccounts, type BankAccount } from "~/composables/useBankAccounts";
 
 const props = defineProps<{
   invoice: InvoiceDetail | null;
 }>();
 
 const logoUrl = ref("/images/transparentnscontinenttebal.png");
-onMounted(() => {
+const bankAccounts = ref<BankAccount[]>([]);
+const { fetchBankAccounts } = useBankAccounts();
+
+const loadBankAccounts = async () => {
+  const res = await fetchBankAccounts({ isActive: true });
+  if (res.success) {
+    bankAccounts.value = res.data || [];
+  }
+};
+
+onMounted(async () => {
   if (typeof window !== "undefined") {
     logoUrl.value = window.location.origin + "/images/transparentnscontinenttebal.png";
   }
+  await loadBankAccounts();
+});
+
+const matchedBankAccount = computed(() => {
+  if (!props.invoice) return null;
+
+  return (
+    bankAccounts.value.find((b) => b.currency === props.invoice?.currency) ||
+    bankAccounts.value.find((b) => b.currency === "IDR") ||
+    bankAccounts.value[0] ||
+    null
+  );
 });
 
 const isGeneratingPDF = ref(false);
@@ -21,6 +44,96 @@ const printContainerRef = ref<HTMLElement | null>(null);
 
 const getVal = (val: unknown, fallback: unknown = "") =>
   val ? String(val) : fallback ? String(fallback) : "";
+
+const displayAddress = computed(() => {
+  if (props.invoice?.companyAddress) return props.invoice.companyAddress;
+
+  const company = props.invoice?.company;
+  const addresses = company?.addresses;
+
+  if (addresses && addresses.length > 0) {
+    const defaultAddr = addresses.find((a) => a.isDefault);
+    const firstAddr = addresses[0];
+    return defaultAddr?.fullAddress || firstAddr?.fullAddress || "-";
+  }
+
+  return company?.address || "-";
+});
+
+const allContainerNumbers = computed(() => {
+  const job = props.invoice?.job;
+  const bls = job?.billsOfLading || [];
+  const jobContainers = job?.jobContainers || [];
+  const numbers = new Set<string>();
+
+  // Use numbers from BLs
+  bls.forEach((bl) => {
+    if (bl.containerNumber) numbers.add(bl.containerNumber);
+    bl.blContainers?.forEach((bc) => {
+      if (bc.container?.containerNumber) numbers.add(bc.container.containerNumber);
+    });
+  });
+
+  // Use numbers from Job Containers (fallback/additional)
+  jobContainers.forEach((jc) => {
+    if (jc.containerNumber) numbers.add(jc.containerNumber);
+  });
+
+  const uniqueList = Array.from(numbers).filter((n) => !!n);
+  return uniqueList.length > 0 ? uniqueList.toSorted().join(", ") : "-";
+});
+
+const allContainerTypes = computed(() => {
+  const job = props.invoice?.job;
+  const bls = job?.billsOfLading || [];
+  const jobContainers = job?.jobContainers || [];
+
+  const processedContainerIds = new Set<string>();
+  const typeCounts = new Map<string, number>();
+
+  const processContainer = (
+    idStr: string | null | undefined,
+    typeCode: string | null | undefined,
+  ) => {
+    if (!typeCode) return;
+
+    const uniqueId = idStr || `unknown-${Math.random()}`;
+
+    if (processedContainerIds.has(uniqueId)) return;
+    processedContainerIds.add(uniqueId);
+
+    typeCounts.set(typeCode, (typeCounts.get(typeCode) || 0) + 1);
+  };
+
+  bls.forEach((bl) => {
+    // Top-level containers in BL
+    if (bl.containerType?.code) {
+      processContainer(bl.id, bl.containerType.code);
+    }
+    // Linked containers in BL
+    bl.blContainers?.forEach((bc) => {
+      if (bc.container?.containerType?.code) {
+        processContainer(
+          bc.container.id || bc.container.containerNumber,
+          bc.container.containerType.code,
+        );
+      }
+    });
+  });
+
+  jobContainers.forEach((jc) => {
+    if (jc.containerType?.code) {
+      processContainer(jc.id || jc.containerNumber, jc.containerType.code);
+    }
+  });
+
+  const parts: string[] = [];
+  typeCounts.forEach((count, type) => {
+    parts.push(`${count}x${type}`);
+  });
+
+  return parts.length > 0 ? parts.toSorted().join(", ") : "-";
+});
 
 const formatCurrency = (amount: unknown): string => {
   if (amount === undefined || amount === null) return "-";
@@ -152,7 +265,7 @@ defineExpose({
               <div
                 class="whitespace-pre-wrap font-mono uppercase text-[0.65rem] leading-tight text-black/80 mt-1"
               >
-                {{ getVal(invoice?.companyAddress, invoice?.company?.address) }}
+                {{ displayAddress }}
               </div>
             </div>
             <div class="w-1/2">
@@ -195,7 +308,7 @@ defineExpose({
             </div>
           </div>
 
-          <!-- Shipment Operational Info -->
+          <!-- Shipment Operational Info Row 1 -->
           <div class="flex border-b border-[#062c58]" style="min-height: 45px">
             <div class="w-1/2 border-r border-[#062c58] pt-1 px-2 pb-1">
               <span class="font-bold text-[0.6rem] block leading-none mb-1">VESSEL / VOYAGE</span>
@@ -203,44 +316,62 @@ defineExpose({
                 {{
                   invoice?.job?.vessels?.[0]?.vessel?.name ||
                   invoice?.job?.vessels?.[0]?.vesselName ||
+                  invoice?.job?.vessel?.name ||
                   "-"
                 }}
                 {{
-                  invoice?.job?.vessels?.[0]?.voyageNumber
-                    ? "/ " + invoice?.job?.vessels[0].voyageNumber
+                  invoice?.job?.vessels?.[0]?.voyageNumber || invoice?.job?.voyageNumber
+                    ? "/ " +
+                      (invoice?.job?.vessels?.[0]?.voyageNumber || invoice?.job?.voyageNumber)
                     : ""
                 }}
               </span>
             </div>
-            <div class="w-1/4 border-r border-[#062c58] pt-1 px-2">
+            <div class="w-1/2 pt-1 px-2 pb-1">
+              <span class="font-bold text-[0.6rem] block leading-none mb-1">B/L NUMBER</span>
+              <span class="font-mono text-[0.75rem] uppercase text-black">
+                {{ invoice?.blNumber || "-" }}
+              </span>
+            </div>
+          </div>
+
+          <!-- Shipment Operational Info Row 2 -->
+          <div class="flex border-b border-[#062c58]" style="min-height: 45px">
+            <div class="w-1/4 border-r border-[#062c58] pt-1 px-2 pb-1">
+              <span class="font-bold text-[0.6rem] block leading-none mb-1">DEPARTURE DATE</span>
+              <span class="font-mono text-[0.75rem] uppercase text-black font-medium">
+                {{ formatDate(invoice?.job?.vessels?.[0]?.etd || invoice?.job?.etd) || "-" }}
+              </span>
+            </div>
+            <div class="w-[30%] border-r border-[#062c58] pt-1 px-2 pb-1">
               <span class="font-bold text-[0.6rem] block leading-none mb-1">PORT OF LOADING</span>
               <span class="font-mono text-[0.7rem] uppercase text-black">
                 {{ invoice?.job?.polName || invoice?.job?.pol || "-" }}
               </span>
             </div>
-            <div class="w-1/4 pt-1 px-2">
+            <div class="w-[30%] border-r border-[#062c58] pt-1 px-2 pb-1">
               <span class="font-bold text-[0.6rem] block leading-none mb-1">PORT OF DISCHARGE</span>
               <span class="font-mono text-[0.7rem] uppercase text-black">
                 {{ invoice?.job?.podName || invoice?.job?.pod || "-" }}
               </span>
             </div>
+            <div class="w-[15%] pt-1 px-2 pb-1 text-center">
+              <span class="font-bold text-[0.6rem] block leading-none mb-1">TERM</span>
+              <span class="font-mono text-[0.7rem] uppercase text-black">{{
+                getVal(invoice?.job?.tradeType?.name, "PREPAID")
+              }}</span>
+            </div>
           </div>
 
-          <!-- Terms & Reference -->
+          <!-- Terms & Reference Row 3 -->
           <div class="flex border-b border-[#062c58]" style="min-height: 45px">
-            <div class="w-1/4 border-r border-[#062c58] pt-1 px-2">
+            <div class="w-[15%] border-r border-[#062c58] pt-1 px-2">
               <span class="font-bold text-[0.6rem] block leading-none mb-1">CURRENCY</span>
               <span class="font-mono text-[0.75rem] uppercase text-black font-medium">{{
                 invoice?.currency || "IDR"
               }}</span>
             </div>
-            <div class="w-1/4 border-r border-[#062c58] pt-1 px-2">
-              <span class="font-bold text-[0.6rem] block leading-none mb-1">FREIGHT TERM</span>
-              <span class="font-mono text-[0.7rem] uppercase text-black">{{
-                getVal(invoice?.job?.tradeType?.name, "PREPAID")
-              }}</span>
-            </div>
-            <div class="w-1/2 pt-1 px-2">
+            <div class="flex-1 pt-1 px-2">
               <span class="font-bold text-[0.6rem] block leading-none mb-1"
                 >CUSTOMER REFERENCE</span
               >
@@ -255,6 +386,30 @@ defineExpose({
                     return uniqueRefs.length ? uniqueRefs.join(", ") : "-";
                   })()
                 }}
+              </span>
+            </div>
+          </div>
+
+          <!-- Container Info Section -->
+          <div class="flex border-b border-[#062c58] bg-gray-50/10" style="min-height: 40px">
+            <div
+              class="w-[70%] border-r border-[#062c58] pt-1 px-2 pb-1 flex flex-col justify-center"
+            >
+              <span
+                class="font-bold text-[0.6rem] block leading-none mb-1 uppercase tracking-wider text-[#062c58]/70"
+                >CONTAINER NO.</span
+              >
+              <span class="font-mono text-[0.75rem] uppercase text-black break-all leading-tight">
+                {{ allContainerNumbers }}
+              </span>
+            </div>
+            <div class="w-[30%] pt-1 px-2 pb-1 flex flex-col justify-center">
+              <span
+                class="font-bold text-[0.6rem] block leading-none mb-1 uppercase tracking-wider text-[#062c58]/70"
+                >TYPE</span
+              >
+              <span class="font-mono text-[0.75rem] uppercase text-black font-bold leading-tight">
+                {{ allContainerTypes }}
               </span>
             </div>
           </div>
@@ -333,15 +488,19 @@ defineExpose({
                   class="grid grid-cols-[100px_1fr] gap-x-2 gap-y-1 text-[0.65rem] font-mono text-black leading-tight uppercase"
                 >
                   <span class="text-[#062c58]/70">BANK NAME:</span>
-                  <span class="font-medium">BANK CENTRAL ASIA (BCA)</span>
+                  <span class="font-bold underline">{{
+                    matchedBankAccount?.bankName || "BANK CENTRAL ASIA (BCA)"
+                  }}</span>
                   <span class="text-[#062c58]/70">ACCOUNT NAME:</span>
-                  <span class="font-medium">PT NOVA SYNC CONTINENT</span>
+                  <span class="font-medium">{{
+                    matchedBankAccount?.accountHolder || "PT NOVA SYNC CONTINENT"
+                  }}</span>
                   <span class="text-[#062c58]/70">ACCOUNT NO:</span>
-                  <span class="font-medium text-sm"
-                    >1234567890 ({{ invoice?.currency || "IDR" }})</span
+                  <span class="font-bold text-sm"
+                    >{{ matchedBankAccount?.accountNumber || "1234567890" }} ({{
+                      matchedBankAccount?.currency || props.invoice?.currency || "IDR"
+                    }})</span
                   >
-                  <span class="text-[#062c58]/70">SWIFT CODE:</span>
-                  <span class="font-medium">CENAIDJA</span>
                 </div>
                 <div class="mt-4 pt-2 border-t border-[#062c58]/10">
                   <span class="font-bold text-[0.55rem] text-[#062c58]/50 block uppercase"

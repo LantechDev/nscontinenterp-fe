@@ -68,6 +68,12 @@ export interface DashboardData {
     pendingInvoicesChange: number;
     activeOffers: number;
     activeOffersChange: number;
+    totalReceivables: string;
+    totalReceivablesRaw: number;
+    totalReceivablesChange: number;
+    totalPayables: string;
+    totalPayablesRaw: number;
+    totalPayablesChange: number;
   };
   recentJobs: DashboardJob[];
   upcomingEvents: DashboardActivity[];

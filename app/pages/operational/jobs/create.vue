@@ -11,11 +11,11 @@ import {
   Users,
   Trash2,
   Plus,
-  Building2,
 } from "lucide-vue-next";
 import Combobox from "~/components/ui/Combobox.vue";
 import DatePicker from "~/components/ui/DatePicker.vue";
-import Modal from "~/components/ui/Modal.vue";
+import TimePicker from "~/components/ui/TimePicker.vue";
+import Checkbox from "~/components/ui/Checkbox.vue";
 import type {
   Company,
   ContainerType,
@@ -25,6 +25,7 @@ import type {
 } from "~/composables/useMasterData";
 import SectionCard from "./components/SectionCard.vue";
 import JobPartyRow from "./components/JobPartyRow.vue";
+import CompanyCreateModal from "~/pages/master/company/components/CompanyCreateModal.vue";
 
 definePageMeta({
   layout: "dashboard",
@@ -33,7 +34,7 @@ definePageMeta({
 
 const { createJob, isLoading } = useJobs();
 const { confirm } = useConfirm();
-const { createCompany, createVessel } = useMasterData();
+const { createVessel } = useMasterData();
 const router = useRouter();
 import { toast } from "vue-sonner";
 
@@ -74,34 +75,37 @@ const {
 const companies = computed(() => masterData.value?.companies || []);
 const containerTypes = computed(() => masterData.value?.containerTypes || []);
 const vessels = computed(() => masterData.value?.vessels || []);
-const portsPol = computed(() => masterData.value?.ports || []);
-const portsPod = computed(() => masterData.value?.ports || []);
 const packageTypes = computed(() => masterData.value?.packageTypes || []);
+
+const searchedPorts = ref<Port[]>([]);
+watch(
+  () => masterData.value?.ports,
+  (val) => {
+    if (val && searchedPorts.value.length === 0) {
+      searchedPorts.value = val;
+    }
+  },
+  { immediate: true },
+);
+
+const portsPol = computed(() => searchedPorts.value);
+const portsPod = computed(() => searchedPorts.value);
 
 // Company Modal State
 const isCompanyModalOpen = ref(false);
-const isSubmittingCompany = ref(false);
+const presetCompanyName = ref("");
 const activeCompanyField = ref<
   "shipperId" | "consigneeId" | "notifyPartyId" | "forwarderId" | "customerId" | null
 >(null);
-const companyForm = reactive({
-  name: "",
-  fullAddress: "",
-  street: "",
-  city: "",
-  state: "",
-  postalCode: "",
-  country: "Indonesia",
-  eori: "",
-  taxId: "",
-});
 
 // Search handlers for ports (client-side only)
 async function handleSearchPol(query: string) {
   if (!query) {
-    return masterData.value?.ports || [];
+    searchedPorts.value = masterData.value?.ports || [];
+    return;
   }
-  return await $fetch<Port[]>(`/api/master/ports?q=${encodeURIComponent(query)}`);
+  const results = await $fetch<Port[]>(`/api/master/ports?q=${encodeURIComponent(query)}`);
+  searchedPorts.value = results;
 }
 
 const handleSearchPod = handleSearchPol;
@@ -113,6 +117,7 @@ const refreshMasterData = async () => {
 
 const formData = reactive({
   // Job Info
+  serviceType: "OCEAN",
   tradeTypeId: "EXPORT",
   customerId: "",
 
@@ -124,6 +129,8 @@ const formData = reactive({
   placeOfReceipt: "",
   placeOfDelivery: "",
   finalDestination: "",
+  pickupAddress: "",
+  deliveryAddress: "",
 
   // Cargo & Customs
   hsCode: "",
@@ -182,11 +189,17 @@ const formData = reactive({
       vesselName: "",
       voyageNumber: "",
       etd: "",
+      eta: "",
       sequence: 0,
     },
   ],
   etd: "",
   eta: "",
+  pickupDate: "",
+  pickupTime: "",
+  deliveryDate: "",
+  deliveryTime: "",
+  truckType: "",
 
   // Weight & Measurement
   grossWeight: null as number | null,
@@ -200,6 +213,7 @@ const formData = reactive({
   isNegotiable: false,
   placeOfIssue: "",
   dateOfIssue: "",
+  isDirectMaster: false,
 
   // Involved Parties
   shipperId: "",
@@ -306,15 +320,24 @@ watch(
       }
     });
 
-    // Only update if there are items, to avoid resetting manual input when adding a new empty container
-    const hasItems = containers.some((c) => c.items && c.items.length > 0);
-    if (hasItems) {
-      if (totalGw > 0) formData.grossWeight = totalGw;
-      if (totalNw > 0) formData.netWeight = totalNw;
-      if (totalCbm > 0) formData.measurement = totalCbm;
-    }
+    // Always update to reflect the current sum of items (resets to 0 if items are deleted)
+    formData.grossWeight = totalGw > 0 ? totalGw : null;
+    formData.netWeight = totalNw > 0 ? totalNw : null;
+    formData.measurement = totalCbm > 0 ? totalCbm : null;
   },
   { deep: true },
+);
+
+// Sync Direct Master with Total BL Count
+watch(
+  () => formData.isDirectMaster,
+  (val) => {
+    if (val) {
+      formData.totalBlCount = 0;
+    } else if (formData.totalBlCount === 0) {
+      formData.totalBlCount = 1;
+    }
+  },
 );
 
 // --- LIVE VALIDATION COMPUTEDS ---
@@ -452,6 +475,25 @@ const jobErrors = computed(() => {
 const TRADE_TYPES = [
   { id: "EXPORT", name: "Export" },
   { id: "IMPORT", name: "Import" },
+  { id: "DOMESTIC", name: "Domestic" },
+];
+
+const SERVICE_TYPES = [
+  { id: "OCEAN", name: "OCEAN (FREIGHT)" },
+  { id: "TRUCKING", name: "TRUCKING" },
+  { id: "CUSTOM_CLEARANCE", name: "CUSTOM CLEARANCE" },
+];
+
+const TRUCK_TYPES = [
+  "BLIND VAN",
+  "CDE",
+  "CDD",
+  "CDD LONG",
+  "FUSO",
+  "WING BOX",
+  "20FT",
+  "40FT/HC",
+  "45HC",
 ];
 
 const CARGO_MOVEMENTS = [
@@ -466,12 +508,16 @@ const DELIVERY_MOVEMENTS = [
   { id: "CY_DOOR", name: "CY-DOOR" },
   { id: "DOOR_CY", name: "DOOR-CY" },
   { id: "DOOR_DOOR", name: "DOOR-DOOR" },
+  { id: "CFS_CY", name: "CFS-CY" },
+  { id: "CFS_CFS", name: "CFS-CFS" },
+  { id: "CY_CFS", name: "CY-CFS" },
 ];
 
 const BL_TYPES = [
   { id: "DRAFT", name: "DRAFT" },
   { id: "ORIGINAL", name: "ORIGINAL" },
   { id: "SEAWAYBILL", name: "SEAWAYBILL" },
+  { id: "TELEX_RELEASE", name: "TELEX RELEASE/EXPRESS RELEASE" },
 ];
 
 const FREIGHT_TERMS = [
@@ -479,15 +525,21 @@ const FREIGHT_TERMS = [
   { id: "COLLECT", name: "COLLECT" },
 ];
 
-const SECTIONS = [
-  { id: "job-info", label: "Job Information", step: 1 },
-  { id: "parties", label: "Involved Parties", step: 2 },
-  { id: "route", label: "Route Details", step: 3 },
-  { id: "cargo", label: "Cargo Information", step: 4 },
-  { id: "movement", label: "Movement & Schedule", step: 5 },
-  { id: "weight", label: "Weight & Measurement", step: 6 },
-  { id: "bl", label: "BL Setup", step: 7 },
-];
+const SECTIONS = computed(() => {
+  const baseSections = [
+    { id: "job-info", label: "Job Information", step: 1 },
+    { id: "parties", label: "Involved Parties", step: 2 },
+    { id: "route", label: "Route Details", step: 3 },
+    { id: "cargo", label: "Cargo Information", step: 4 },
+    { id: "movement", label: "Movement & Schedule", step: 5 },
+  ];
+
+  if (formData.serviceType === "OCEAN") {
+    baseSections.push({ id: "bl", label: "BL Setup", step: 6 });
+  }
+
+  return baseSections;
+});
 
 const activeSection = ref("job-info");
 const isManualScroll = ref(false);
@@ -497,65 +549,21 @@ function handleCreateCompany(
   name: string,
   field: "shipperId" | "consigneeId" | "notifyPartyId" | "forwarderId" | "customerId",
 ) {
-  // Open the Modal and preset the name
-  companyForm.name = name;
-  companyForm.fullAddress = "";
-  companyForm.street = "";
-  companyForm.city = "";
-  companyForm.state = "";
-  companyForm.postalCode = "";
-  companyForm.country = "Indonesia";
-  companyForm.eori = "";
-  companyForm.taxId = "";
-
+  presetCompanyName.value = name;
   activeCompanyField.value = field;
   isCompanyModalOpen.value = true;
 }
 
-async function submitCompanyForm() {
-  if (!companyForm.name) {
-    toast.error("Company Name is required.");
-    return;
+const onCompanyCreateSuccess = async (company: Company) => {
+  await refreshMasterData();
+
+  // Auto-assign the created company to the active field
+  if (activeCompanyField.value) {
+    formData[activeCompanyField.value] = company.id;
   }
 
-  try {
-    isSubmittingCompany.value = true;
-
-    const addressPayload =
-      companyForm.fullAddress || companyForm.city || companyForm.taxId
-        ? {
-            fullAddress: companyForm.fullAddress || companyForm.city || "-", // fallback if only city is provided
-            street: companyForm.street,
-            city: companyForm.city,
-            state: companyForm.state,
-            postalCode: companyForm.postalCode,
-            country: companyForm.country,
-            eori: companyForm.eori,
-            taxId: companyForm.taxId,
-          }
-        : undefined;
-
-    const result = await createCompany(companyForm.name, addressPayload);
-
-    if (result.success && result.data && result.data.id) {
-      await refreshMasterData();
-
-      // Auto-assign the created company to the active field
-      if (activeCompanyField.value) {
-        formData[activeCompanyField.value] = result.data.id;
-      }
-
-      // Close Modal
-      isCompanyModalOpen.value = false;
-    } else {
-      toast.error("Failed to create company: " + (result.error || "Unknown error"));
-    }
-  } catch (error: unknown) {
-    toast.error("Failed to create company: " + (error as Error)?.message);
-  } finally {
-    isSubmittingCompany.value = false;
-  }
-}
+  isCompanyModalOpen.value = false;
+};
 
 async function handleCreateVessel(
   name: string,
@@ -665,6 +673,7 @@ async function handleSubmit(isDraft: boolean = false) {
     netWeight: formData.netWeight ?? null,
     measurement: formData.measurement ?? null,
     shippingMark: formData.shippingMark || undefined,
+    isDirectMaster: formData.isDirectMaster,
   };
 
   const { success, error } = await createJob(payload);
@@ -729,7 +738,7 @@ onMounted(() => {
 
     // Fallback for bottom of the page
     if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 50) {
-      const lastSection = SECTIONS[SECTIONS.length - 1];
+      const lastSection = SECTIONS.value[SECTIONS.value.length - 1];
       if (lastSection) activeSection.value = lastSection.id;
       return;
     }
@@ -756,7 +765,7 @@ onMounted(() => {
 
   // Observe all sections
   setTimeout(() => {
-    SECTIONS.forEach((section) => {
+    SECTIONS.value.forEach((section) => {
       const el = document.getElementById(section.id);
       if (el) observer.observe(el);
     });
@@ -925,7 +934,18 @@ function scrollTo(id: string) {
                 />
               </div>
 
-              <!-- Trade Type / Service -->
+              <!-- Trade Type -->
+              <div class="space-y-2">
+                <div class="h-6 flex items-center">
+                  <label
+                    class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
+                    >TRADE TYPE <span class="text-destructive">*</span></label
+                  >
+                </div>
+                <Combobox v-model="formData.tradeTypeId" :options="TRADE_TYPES" />
+              </div>
+
+              <!-- Service Type -->
               <div class="space-y-2">
                 <div class="h-6 flex items-center">
                   <label
@@ -933,7 +953,22 @@ function scrollTo(id: string) {
                     >SERVICE TYPE <span class="text-destructive">*</span></label
                   >
                 </div>
-                <Combobox v-model="formData.tradeTypeId" :options="TRADE_TYPES" />
+                <Combobox v-model="formData.serviceType" :options="SERVICE_TYPES" />
+              </div>
+
+              <!-- Truck Type (Conditional) -->
+              <div v-if="formData.serviceType === 'TRUCKING'" class="space-y-2">
+                <div class="h-6 flex items-center">
+                  <label
+                    class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
+                    >TRUCK TYPE <span class="text-destructive">*</span></label
+                  >
+                </div>
+                <!-- Convert array of strings to array of objects for combobox -->
+                <Combobox
+                  v-model="formData.truckType"
+                  :options="TRUCK_TYPES.map((t) => ({ id: t, name: t }))"
+                />
               </div>
               <div class="space-y-2">
                 <div class="h-6 flex items-center">
@@ -1006,6 +1041,7 @@ function scrollTo(id: string) {
                 />
 
                 <JobPartyRow
+                  v-if="formData.serviceType !== 'TRUCKING'"
                   label="Notify Party"
                   :companies="companies"
                   v-model:companyId="formData.notifyPartyId"
@@ -1018,18 +1054,19 @@ function scrollTo(id: string) {
                   <template #extra-controls>
                     <label
                       class="flex items-center gap-2 text-[14px] text-muted-foreground cursor-pointer hover:text-foreground transition-colors group w-fit mb-1.5"
+                      @click="formData.isNotifySameAsConsignee = !formData.isNotifySameAsConsignee"
                     >
-                      <input
-                        type="checkbox"
+                      <Checkbox
                         v-model="formData.isNotifySameAsConsignee"
-                        class="rounded border-input text-primary focus:ring-primary h-4 w-4 bg-background transition-all"
+                        class="pointer-events-none"
                       />
-                      <span class="group-hover:underline">Same as Consignee</span>
+                      <span class="group-hover:underline select-none">Same as Consignee</span>
                     </label>
                   </template>
                 </JobPartyRow>
 
                 <JobPartyRow
+                  v-if="formData.serviceType === 'OCEAN'"
                   label="Forwarder"
                   description="(Optional)"
                   :companies="companies"
@@ -1045,176 +1082,183 @@ function scrollTo(id: string) {
           <!-- Route Details -->
           <SectionCard id="route" title="Route Details" :icon="MapPin">
             <div class="grid grid-cols-1 md:grid-cols-2 gap-y-8 gap-x-12 relative items-end pb-4">
-              <!-- Row 1: Pre-Carriage & Place of Receipt -->
-              <div class="space-y-2">
-                <label class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
-                  >PRE-CARRIAGE BY</label
-                >
-                <input
-                  v-model="formData.preCarriageBy"
-                  type="text"
-                  placeholder="e.g. TRUCK"
-                  class="input-field"
-                />
-              </div>
-              <div class="space-y-2">
-                <label class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
-                  >PLACE OF RECEIPT</label
-                >
-                <input
-                  v-model="formData.placeOfReceipt"
-                  type="text"
-                  placeholder="Defaults to POL if empty"
-                  class="input-field"
-                />
-              </div>
-
-              <!-- Row 2: POL & POD -->
-              <div class="space-y-2 relative">
-                <label class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
-                  >PORT OF LOADING (POL)</label
-                >
-                <div class="relative group">
-                  <MapPin
-                    class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/40 group-focus-within:text-primary transition-colors z-10 pointer-events-none"
-                  />
-                  <Combobox
-                    v-model="formData.pol"
-                    :options="portsPol"
-                    label-key="name"
-                    value-key="code"
-                    placeholder="Search port..."
-                    class="[&_button]:pl-10"
-                    :class="{
-                      '[&_button]:border-destructive [&_button]:ring-destructive/20':
-                        routeErrors.polPod,
-                    }"
-                    :filter-local="false"
-                    @search="handleSearchPol"
+              <template v-if="formData.serviceType !== 'TRUCKING'">
+                <!-- Row 1: Pre-Carriage & Place of Receipt -->
+                <div class="space-y-2">
+                  <label
+                    class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
+                    >PRE-CARRIAGE BY</label
+                  >
+                  <input
+                    v-model="formData.preCarriageBy"
+                    type="text"
+                    placeholder="e.g. TRUCK"
+                    class="input-field"
                   />
                 </div>
-                <p v-if="routeErrors.polPod" class="text-[10px] text-destructive font-medium mt-1">
-                  {{ routeErrors.polPod }}
-                </p>
-              </div>
+                <div class="space-y-2">
+                  <label
+                    class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
+                    >PLACE OF RECEIPT</label
+                  >
+                  <input
+                    v-model="formData.placeOfReceipt"
+                    type="text"
+                    placeholder="Defaults to POL if empty"
+                    class="input-field"
+                  />
+                </div>
 
-              <!-- Visual connector for POL -> POD -->
-              <div
-                class="hidden md:flex absolute left-1/2 top-[55%] -translate-x-1/2 -translate-y-1/2 z-20"
-              >
+                <!-- Row 2: POL & POD -->
+                <div class="space-y-2 relative">
+                  <label
+                    class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
+                    >PORT OF LOADING (POL)</label
+                  >
+                  <div class="relative group">
+                    <MapPin
+                      class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/40 group-focus-within:text-primary transition-colors z-10 pointer-events-none"
+                    />
+                    <Combobox
+                      v-model="formData.pol"
+                      :options="portsPol"
+                      label-key="name"
+                      value-key="code"
+                      placeholder="Search port..."
+                      class="[&_button]:pl-10"
+                      :class="{
+                        '[&_button]:border-destructive [&_button]:ring-destructive/20':
+                          routeErrors.polPod,
+                      }"
+                      :filter-local="false"
+                      @search="handleSearchPol"
+                    />
+                  </div>
+                  <p
+                    v-if="routeErrors.polPod"
+                    class="text-[10px] text-destructive font-medium mt-1"
+                  >
+                    {{ routeErrors.polPod }}
+                  </p>
+                </div>
+
+                <!-- Visual connector for POL -> POD -->
                 <div
-                  class="w-8 h-8 rounded-full bg-white border border-border shadow-sm flex items-center justify-center text-muted-foreground/40"
+                  class="hidden md:flex absolute left-1/2 top-[55%] -translate-x-1/2 -translate-y-1/2 z-20"
                 >
-                  <ArrowLeft class="w-3.5 h-3.5 rotate-180" />
+                  <div
+                    class="w-8 h-8 rounded-full bg-white border border-border shadow-sm flex items-center justify-center text-muted-foreground/40"
+                  >
+                    <ArrowLeft class="w-3.5 h-3.5 rotate-180" />
+                  </div>
                 </div>
-              </div>
 
-              <div class="space-y-2 relative">
-                <label class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
-                  >PORT OF DISCHARGE (POD)</label
-                >
-                <div class="relative group">
-                  <MapPin
-                    class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/40 group-focus-within:text-primary transition-colors z-10 pointer-events-none"
-                  />
-                  <Combobox
-                    v-model="formData.pod"
-                    :options="portsPod"
-                    label-key="name"
-                    value-key="code"
-                    placeholder="Search port..."
-                    class="[&_button]:pl-10"
-                    :class="{
-                      '[&_button]:border-destructive [&_button]:ring-destructive/20':
-                        routeErrors.polPod,
-                    }"
-                    :filter-local="false"
-                    @search="handleSearchPod"
+                <div class="space-y-2 relative">
+                  <label
+                    class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
+                    >PORT OF DISCHARGE (POD)</label
+                  >
+                  <div class="relative group">
+                    <MapPin
+                      class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/40 group-focus-within:text-primary transition-colors z-10 pointer-events-none"
+                    />
+                    <Combobox
+                      v-model="formData.pod"
+                      :options="portsPod"
+                      label-key="name"
+                      value-key="code"
+                      placeholder="Search port..."
+                      class="[&_button]:pl-10"
+                      :class="{
+                        '[&_button]:border-destructive [&_button]:ring-destructive/20':
+                          routeErrors.polPod,
+                      }"
+                      :filter-local="false"
+                      @search="handleSearchPod"
+                    />
+                  </div>
+                  <p
+                    v-if="routeErrors.polPod"
+                    class="text-[10px] text-destructive font-medium mt-1"
+                  >
+                    {{ routeErrors.polPod }}
+                  </p>
+                </div>
+
+                <!-- Row 3: Place of Delivery & Final Destination -->
+                <div class="space-y-2">
+                  <label
+                    class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
+                    >PLACE OF DELIVERY</label
+                  >
+                  <input
+                    v-model="formData.placeOfDelivery"
+                    type="text"
+                    placeholder="Defaults to POD if empty"
+                    class="input-field"
                   />
                 </div>
-                <p v-if="routeErrors.polPod" class="text-[10px] text-destructive font-medium mt-1">
-                  {{ routeErrors.polPod }}
-                </p>
-              </div>
+                <div class="space-y-2">
+                  <label
+                    class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
+                    >FINAL DESTINATION</label
+                  >
+                  <input
+                    v-model="formData.finalDestination"
+                    type="text"
+                    placeholder="Defaults to POD if empty"
+                    class="input-field"
+                  />
+                </div>
+              </template>
 
-              <!-- Row 3: Place of Delivery & Final Destination -->
-              <div class="space-y-2">
-                <label class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
-                  >PLACE OF DELIVERY</label
-                >
-                <input
-                  v-model="formData.placeOfDelivery"
-                  type="text"
-                  placeholder="Defaults to POD if empty"
-                  class="input-field"
-                />
-              </div>
-              <div class="space-y-2">
-                <label class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
-                  >FINAL DESTINATION</label
-                >
-                <input
-                  v-model="formData.finalDestination"
-                  type="text"
-                  placeholder="Defaults to POD if empty"
-                  class="input-field"
-                />
-              </div>
+              <template v-else>
+                <!-- Trucking specific route: Address to Address -->
+                <div class="space-y-2 md:col-span-2">
+                  <label
+                    class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
+                    >PICKUP ADDRESS <span class="text-destructive">*</span></label
+                  >
+                  <textarea
+                    v-model="formData.pickupAddress"
+                    rows="3"
+                    placeholder="Full pickup address..."
+                    class="input-field py-3 resize-y transition-all duration-200"
+                  ></textarea>
+                </div>
+                <div class="space-y-2 md:col-span-2">
+                  <label
+                    class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
+                    >DELIVERY ADDRESS <span class="text-destructive">*</span></label
+                  >
+                  <textarea
+                    v-model="formData.deliveryAddress"
+                    rows="3"
+                    placeholder="Full delivery destination address..."
+                    class="input-field py-3 resize-y transition-all duration-200"
+                  ></textarea>
+                </div>
+              </template>
             </div>
           </SectionCard>
 
           <!-- Cargo Information -->
           <SectionCard id="cargo" title="Cargo Information" :icon="Box">
             <div class="space-y-6">
-              <div class="space-y-2">
-                <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
-                  >HS CODE / COMMODITY</label
-                >
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-                  <div class="md:col-span-1">
-                    <input
-                      v-model="formData.hsCode"
-                      type="text"
-                      placeholder="e.g. 1902..."
-                      class="input-field"
-                      :class="{
-                        '!border-destructive focus:!ring-destructive/20': jobErrors.hsCode,
-                      }"
-                      required
-                    />
-                    <p
-                      v-if="jobErrors.hsCode"
-                      class="text-[10px] text-destructive mt-1 font-medium"
-                    >
-                      {{ jobErrors.hsCode }}
-                    </p>
-                  </div>
-                  <div class="md:col-span-3">
-                    <textarea
-                      v-model="formData.commodity"
-                      rows="6"
-                      placeholder="e.g. 3317 CARTONS OF INSTANT NOODLES"
-                      class="input-field min-h-[120px] py-3 resize-y transition-all duration-200"
-                      required
-                    ></textarea>
-                  </div>
-                </div>
-              </div>
-
               <div class="space-y-2 md:col-span-4">
                 <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
                   >MAIN DESCRIPTION (OVERALL COMMODITY)</label
                 >
                 <textarea
                   v-model="formData.mainDescription"
-                  rows="8"
+                  rows="10"
                   placeholder="Description of goods to appear on BL..."
-                  class="input-field min-h-[150px] py-3 resize-y transition-all duration-200"
+                  class="input-field min-h-[200px] py-3 resize-y transition-all duration-200"
                 ></textarea>
               </div>
 
               <!-- Dynamic Containers List -->
-              <div class="border border-border/60 rounded-xl mt-8 overflow-hidden bg-muted/5">
+              <div class="border border-border/60 rounded-xl mt-8 bg-muted/5">
                 <div
                   class="bg-muted/10 px-5 py-3.5 border-b border-border/50 flex justify-between items-center"
                 >
@@ -1261,6 +1305,7 @@ function scrollTo(id: string) {
                     v-for="(container, index) in formData.containers"
                     :key="container.id"
                     class="space-y-5 pb-8 border-b border-border/40 last:border-0 last:pb-0 relative group"
+                    :style="{ zIndex: 100 - index }"
                   >
                     <!-- Floating Index -->
                     <div
@@ -1318,13 +1363,9 @@ function scrollTo(id: string) {
                       <div class="md:col-span-1 flex flex-col items-center justify-center pb-2">
                         <label
                           class="text-[11px] font-bold text-muted-foreground/70 uppercase mb-2 tracking-widest"
-                          >HM</label
+                          >DG</label
                         >
-                        <input
-                          type="checkbox"
-                          v-model="container.isHazardous"
-                          class="w-4 h-4 rounded border-border text-primary focus:ring-primary/20 cursor-pointer transition-all"
-                        />
+                        <Checkbox v-model="container.isHazardous" />
                       </div>
                     </div>
 
@@ -1379,6 +1420,7 @@ function scrollTo(id: string) {
                           v-for="(item, itemIndex) in container.items"
                           :key="item.id"
                           class="p-4 bg-white/60 border border-border/40 rounded-xl shadow-sm hover:shadow-md hover:border-primary/20 transition-all duration-300 relative group/item"
+                          :style="{ zIndex: 50 - itemIndex }"
                         >
                           <div class="grid grid-cols-12 gap-x-4 gap-y-3">
                             <div class="col-span-2 space-y-1.5 relative">
@@ -1561,280 +1603,253 @@ function scrollTo(id: string) {
           <!-- Movement & Schedule -->
           <SectionCard id="movement" title="Movement & Schedule" :icon="Clock">
             <div class="space-y-8">
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pb-6 border-b border-border/40">
-                <!-- Cargo Movement -->
-                <div class="space-y-2">
-                  <label
-                    class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
-                    >CARGO MOVEMENT <span class="text-destructive">*</span></label
-                  >
-                  <Combobox v-model="formData.cargoMovementId" :options="CARGO_MOVEMENTS" />
+              <template v-if="formData.serviceType !== 'TRUCKING'">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pb-6 border-b border-border/40">
+                  <!-- Cargo Movement -->
+                  <div class="space-y-2">
+                    <label
+                      class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
+                      >CARGO MOVEMENT <span class="text-destructive">*</span></label
+                    >
+                    <Combobox v-model="formData.cargoMovementId" :options="CARGO_MOVEMENTS" />
+                  </div>
+
+                  <!-- Delivery Movement -->
+                  <div class="space-y-2">
+                    <label
+                      class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
+                      >DELIVERY MOVEMENT <span class="text-destructive">*</span></label
+                    >
+                    <Combobox v-model="formData.deliveryMovementId" :options="DELIVERY_MOVEMENTS" />
+                  </div>
                 </div>
 
-                <!-- Delivery Movement -->
-                <div class="space-y-2">
-                  <label
-                    class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
-                    >DELIVERY MOVEMENT <span class="text-destructive">*</span></label
-                  >
-                  <Combobox v-model="formData.deliveryMovementId" :options="DELIVERY_MOVEMENTS" />
-                </div>
-              </div>
-
-              <!-- Multi-Vessel List -->
-              <div class="space-y-4">
-                <div class="flex items-center justify-between">
-                  <h4
-                    class="text-sm font-bold text-foreground/80 uppercase tracking-widest flex items-center gap-2"
-                  >
-                    <div class="w-1.5 h-4 bg-primary rounded-full"></div>
-                    Vessel Schedule
-                  </h4>
-                  <button
-                    type="button"
-                    @click="
-                      formData.vessels.push({
-                        id: Date.now(),
-                        vesselId: '',
-                        vesselName: '',
-                        voyageNumber: '',
-                        etd: '',
-                        sequence: formData.vessels.length,
-                      })
-                    "
-                    class="btn-secondary py-1.5 px-3 text-[11px] font-bold uppercase tracking-widest flex items-center gap-2 transition-all hover:ring-2 hover:ring-primary/20"
-                  >
-                    <Plus class="w-3.5 h-3.5" /> Add Vessel
-                  </button>
-                </div>
-
+                <!-- Multi-Vessel List -->
                 <div class="space-y-4">
-                  <div
-                    v-for="(vessel, vIndex) in formData.vessels"
-                    :key="vessel.id"
-                    class="p-5 bg-muted/30 border border-border/40 rounded-2xl relative group/vessel transition-all hover:bg-white hover:shadow-md hover:border-primary/20"
-                  >
-                    <div class="grid grid-cols-1 md:grid-cols-12 gap-5 items-end">
-                      <!-- Vessel Selection -->
-                      <div class="md:col-span-5 space-y-2">
-                        <label
-                          class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1"
-                        >
-                          {{ vIndex === 0 ? "Feeder / First Vessel" : "Vessel " + (vIndex + 1) }}
-                        </label>
-                        <Combobox
-                          v-model="vessel.vesselId"
-                          :options="vessels"
-                          label-key="name"
-                          value-key="id"
-                          placeholder="Search Vessel..."
-                          allow-create
-                          @create="(name) => handleCreateVessel(name, vessel)"
-                          class="h-10"
-                        />
-                      </div>
+                  <div class="flex items-center justify-between">
+                    <h4
+                      class="text-sm font-bold text-foreground/80 uppercase tracking-widest flex items-center gap-2"
+                    >
+                      <div class="w-1.5 h-4 bg-primary rounded-full"></div>
+                      Vessel Schedule
+                    </h4>
+                    <button
+                      type="button"
+                      @click="
+                        formData.vessels.push({
+                          id: Date.now(),
+                          vesselId: '',
+                          vesselName: '',
+                          voyageNumber: '',
+                          etd: '',
+                          eta: '',
+                          sequence: formData.vessels.length,
+                        })
+                      "
+                      class="btn-secondary py-1.5 px-3 text-[11px] font-bold uppercase tracking-widest flex items-center gap-2 transition-all hover:ring-2 hover:ring-primary/20"
+                    >
+                      <Plus class="w-3.5 h-3.5" /> Add Vessel
+                    </button>
+                  </div>
 
-                      <!-- Voyage Number -->
-                      <div class="md:col-span-3 space-y-2">
-                        <label
-                          class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1"
-                          >Voyage No</label
-                        >
-                        <input
-                          v-model="vessel.voyageNumber"
-                          type="text"
-                          class="input-field h-10"
-                          placeholder="Voyage..."
-                        />
-                      </div>
+                  <div class="space-y-4">
+                    <div
+                      v-for="(vessel, vIndex) in formData.vessels"
+                      :key="vessel.id"
+                      class="p-5 bg-muted/30 border border-border/40 rounded-2xl relative group/vessel transition-all hover:bg-white hover:shadow-md hover:border-primary/20"
+                    >
+                      <div class="grid grid-cols-1 md:grid-cols-12 gap-5 items-end">
+                        <!-- Vessel Selection -->
+                        <div class="md:col-span-5 space-y-2">
+                          <label
+                            class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1"
+                          >
+                            {{ vIndex === 0 ? "Feeder / First Vessel" : "Vessel " + (vIndex + 1) }}
+                          </label>
+                          <Combobox
+                            v-model="vessel.vesselId"
+                            :options="vessels"
+                            label-key="name"
+                            value-key="id"
+                            placeholder="Search Vessel..."
+                            allow-create
+                            @create="(name) => handleCreateVessel(name, vessel)"
+                            class="h-10"
+                          />
+                        </div>
 
-                      <!-- ETD -->
-                      <div class="md:col-span-3 space-y-2">
-                        <label
-                          class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1"
-                          >ETD</label
-                        >
-                        <DatePicker v-model="vessel.etd" placeholder="Select ETD..." class="h-10" />
-                      </div>
+                        <!-- Voyage Number -->
+                        <div class="md:col-span-3 space-y-2">
+                          <label
+                            class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1"
+                            >Voyage No</label
+                          >
+                          <input
+                            v-model="vessel.voyageNumber"
+                            type="text"
+                            class="input-field h-10"
+                            placeholder="Voyage..."
+                          />
+                        </div>
 
-                      <!-- Remove Button -->
-                      <div
-                        class="md:col-span-1 flex justify-end pb-1"
-                        v-if="formData.vessels.length > 1"
+                        <!-- ETD POL -->
+                        <div class="md:col-span-2 space-y-2">
+                          <label
+                            class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1"
+                            >ETD POL</label
+                          >
+                          <DatePicker
+                            v-model="vessel.etd"
+                            placeholder="Select ETD..."
+                            class="h-10"
+                          />
+                        </div>
+
+                        <!-- ETA POD -->
+                        <div class="md:col-span-2 space-y-2">
+                          <label
+                            class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1"
+                            >ETA POD</label
+                          >
+                          <DatePicker
+                            v-model="vessel.eta"
+                            placeholder="Select ETA..."
+                            class="h-10"
+                          />
+                        </div>
+
+                        <!-- Remove Button -->
+                        <div
+                          class="md:col-span-1 flex justify-end pb-1"
+                          v-if="formData.vessels.length > 1"
+                        >
+                          <button
+                            type="button"
+                            @click="formData.vessels.splice(vIndex, 1)"
+                            class="w-10 h-10 rounded-xl bg-white border border-destructive/10 text-destructive flex items-center justify-center hover:bg-destructive hover:text-white transition-all shadow-sm"
+                          >
+                            <Trash2 class="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- ETA (Usually for the last vessel, but keeping it at section level for now) -->
+                  <div class="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4">
+                    <div class="space-y-2">
+                      <label
+                        class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
+                        >Final ETA</label
                       >
-                        <button
-                          type="button"
-                          @click="formData.vessels.splice(vIndex, 1)"
-                          class="w-10 h-10 rounded-xl bg-white border border-destructive/10 text-destructive flex items-center justify-center hover:bg-destructive hover:text-white transition-all shadow-sm"
+                      <DatePicker
+                        v-model="formData.eta"
+                        placeholder="Select Final ETA..."
+                        :class="{
+                          '[&_button]:border-destructive [&_button]:ring-destructive/20':
+                            scheduleErrors.eta,
+                        }"
+                      />
+                      <p
+                        v-if="scheduleErrors.eta"
+                        class="text-[10px] text-destructive mt-1 font-medium"
+                      >
+                        {{ scheduleErrors.eta }}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </template>
+
+              <!-- Trucking Timeline / Schedule -->
+              <template v-else>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8 relative items-start">
+                  <!-- Pickup Timeline -->
+                  <div class="space-y-4">
+                    <h4
+                      class="text-sm font-bold text-foreground/80 uppercase tracking-widest flex items-center gap-2"
+                    >
+                      <div class="w-1.5 h-4 bg-primary rounded-full"></div>
+                      Pickup Timeline
+                    </h4>
+                    <div
+                      class="grid grid-cols-1 gap-4 p-5 bg-muted/20 border border-border/40 rounded-xl"
+                    >
+                      <div class="space-y-2">
+                        <label
+                          class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest pl-1"
+                          >Target Pickup Date</label
                         >
-                          <Trash2 class="w-4 h-4" />
-                        </button>
+                        <DatePicker
+                          v-model="formData.pickupDate"
+                          placeholder="Select Date..."
+                          class="h-10 w-full"
+                        />
+                      </div>
+                      <div class="space-y-2">
+                        <label
+                          class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest pl-1"
+                          >Target Pickup Time</label
+                        >
+                        <TimePicker v-model="formData.pickupTime" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Visual Connector Desktop -->
+                  <div
+                    class="hidden md:flex absolute left-1/2 top-[55%] -translate-x-1/2 -translate-y-1/2 z-20"
+                  >
+                    <div
+                      class="w-8 h-8 rounded-full bg-white border border-border shadow-sm flex items-center justify-center text-muted-foreground/40"
+                    >
+                      <ArrowLeft class="w-3.5 h-3.5 rotate-180" />
+                    </div>
+                  </div>
+
+                  <!-- Delivery Timeline -->
+                  <div class="space-y-4">
+                    <h4
+                      class="text-sm font-bold text-foreground/80 uppercase tracking-widest flex items-center gap-2"
+                    >
+                      <div class="w-1.5 h-4 bg-primary rounded-full"></div>
+                      Delivery Timeline
+                    </h4>
+                    <div
+                      class="grid grid-cols-1 gap-4 p-5 bg-muted/20 border border-border/40 rounded-xl"
+                    >
+                      <div class="space-y-2">
+                        <label
+                          class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest pl-1"
+                          >Target Delivery Date</label
+                        >
+                        <DatePicker
+                          v-model="formData.deliveryDate"
+                          placeholder="Select Date..."
+                          class="h-10 w-full"
+                        />
+                      </div>
+                      <div class="space-y-2">
+                        <label
+                          class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest pl-1"
+                          >Target Delivery Time</label
+                        >
+                        <TimePicker v-model="formData.deliveryTime" />
                       </div>
                     </div>
                   </div>
                 </div>
-
-                <!-- ETA (Usually for the last vessel, but keeping it at section level for now) -->
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4">
-                  <div class="space-y-2">
-                    <label
-                      class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
-                      >Final ETA</label
-                    >
-                    <DatePicker
-                      v-model="formData.eta"
-                      placeholder="Select Final ETA..."
-                      :class="{
-                        '[&_button]:border-destructive [&_button]:ring-destructive/20':
-                          scheduleErrors.eta,
-                      }"
-                    />
-                    <p
-                      v-if="scheduleErrors.eta"
-                      class="text-[10px] text-destructive mt-1 font-medium"
-                    >
-                      {{ scheduleErrors.eta }}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </SectionCard>
-
-          <!-- Weight & Measurement -->
-          <SectionCard id="weight" title="Weight & Measurement" :icon="Scale">
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-              <div class="relative space-y-2">
-                <label class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
-                  >GROSS WT</label
-                >
-                <div class="relative group">
-                  <input
-                    v-model.number="formData.grossWeight"
-                    type="number"
-                    step="0.01"
-                    class="input-field pr-12 group-hover:border-primary/50 transition-colors"
-                    :class="{
-                      '!border-destructive focus:!ring-destructive/20':
-                        totalErrorsConfigs.errors.gw,
-                      '!border-amber-500 focus:!ring-amber-500/20':
-                        !totalErrorsConfigs.errors.gw && totalErrorsConfigs.warnings.gw,
-                    }"
-                    placeholder="0"
-                  />
-                  <div
-                    class="absolute inset-y-0 right-0 flex items-center pr-4 pointer-events-none text-[11px] font-bold text-muted-foreground"
-                    :class="{
-                      'text-destructive': totalErrorsConfigs.errors.gw,
-                      'text-amber-600':
-                        !totalErrorsConfigs.errors.gw && totalErrorsConfigs.warnings.gw,
-                    }"
-                  >
-                    KG
-                  </div>
-                </div>
-                <p
-                  v-if="totalErrorsConfigs.errors.gw"
-                  class="text-[10px] text-destructive font-medium mt-1"
-                >
-                  {{ totalErrorsConfigs.errors.gw }}
-                </p>
-                <p
-                  v-else-if="totalErrorsConfigs.warnings.gw"
-                  class="text-[10px] text-amber-600 font-medium mt-1"
-                >
-                  {{ totalErrorsConfigs.warnings.gw }}
-                </p>
-              </div>
-              <div class="relative space-y-2">
-                <label class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
-                  >NET WT</label
-                >
-                <div class="relative group">
-                  <input
-                    v-model.number="formData.netWeight"
-                    type="number"
-                    step="0.01"
-                    class="input-field pr-12 group-hover:border-primary/50 transition-colors"
-                    :class="{
-                      '!border-destructive focus:!ring-destructive/20':
-                        totalErrorsConfigs.errors.nw,
-                      '!border-amber-500 focus:!ring-amber-500/20':
-                        !totalErrorsConfigs.errors.nw && totalErrorsConfigs.warnings.nw,
-                    }"
-                    placeholder="0"
-                  />
-                  <div
-                    class="absolute inset-y-0 right-0 flex items-center pr-4 pointer-events-none text-[11px] font-bold text-muted-foreground"
-                    :class="{
-                      'text-destructive': totalErrorsConfigs.errors.nw,
-                      'text-amber-600':
-                        !totalErrorsConfigs.errors.nw && totalErrorsConfigs.warnings.nw,
-                    }"
-                  >
-                    KG
-                  </div>
-                </div>
-                <p
-                  v-if="totalErrorsConfigs.errors.nw"
-                  class="text-[10px] text-destructive font-medium mt-1"
-                >
-                  {{ totalErrorsConfigs.errors.nw }}
-                </p>
-                <p
-                  v-else-if="totalErrorsConfigs.warnings.nw"
-                  class="text-[10px] text-amber-600 font-medium mt-1"
-                >
-                  {{ totalErrorsConfigs.warnings.nw }}
-                </p>
-              </div>
-              <div class="relative space-y-2">
-                <label class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
-                  >MEAS.</label
-                >
-                <div class="relative group">
-                  <input
-                    v-model.number="formData.measurement"
-                    type="number"
-                    step="0.01"
-                    class="input-field pr-14 group-hover:border-primary/50 transition-colors"
-                    :class="{
-                      '!border-destructive focus:!ring-destructive/20':
-                        totalErrorsConfigs.errors.cbm,
-                      '!border-amber-500 focus:!ring-amber-500/20':
-                        !totalErrorsConfigs.errors.cbm && totalErrorsConfigs.warnings.cbm,
-                    }"
-                    placeholder="0"
-                  />
-                  <div
-                    class="absolute inset-y-0 right-0 flex items-center pr-4 pointer-events-none text-[11px] font-bold text-muted-foreground"
-                    :class="{
-                      'text-destructive': totalErrorsConfigs.errors.cbm,
-                      'text-amber-600':
-                        !totalErrorsConfigs.errors.cbm && totalErrorsConfigs.warnings.cbm,
-                    }"
-                  >
-                    CBM
-                  </div>
-                </div>
-                <p
-                  v-if="totalErrorsConfigs.errors.cbm"
-                  class="text-[10px] text-destructive font-medium mt-1"
-                >
-                  {{ totalErrorsConfigs.errors.cbm }}
-                </p>
-                <p
-                  v-else-if="totalErrorsConfigs.warnings.cbm"
-                  class="text-[10px] text-amber-600 font-medium mt-1"
-                >
-                  {{ totalErrorsConfigs.warnings.cbm }}
-                </p>
-              </div>
+              </template>
             </div>
           </SectionCard>
 
           <!-- BL Setup -->
-          <SectionCard id="bl" title="BL Setup" :icon="FileText">
+          <SectionCard
+            v-if="formData.serviceType === 'OCEAN'"
+            id="bl"
+            title="BL Setup"
+            :icon="FileText"
+          >
             <div class="space-y-10">
               <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
                 <!-- BL Type -->
@@ -1855,17 +1870,35 @@ function scrollTo(id: string) {
                   <Combobox v-model="formData.freightTerm" :options="FREIGHT_TERMS" />
                 </div>
 
-                <!-- Total BL Count -->
+                <!-- Direct Master -->
                 <div class="space-y-2">
                   <label
                     class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
+                    >Direct Master</label
+                  >
+                  <div
+                    class="flex items-center h-11 px-4 border rounded-md bg-muted/10 hover:bg-muted/30 cursor-pointer transition-colors"
+                    @click="formData.isDirectMaster = !formData.isDirectMaster"
+                  >
+                    <Checkbox v-model="formData.isDirectMaster" class="pointer-events-none" />
+                    <span class="ml-3 text-sm font-medium text-foreground select-none"
+                      >Yes, Direct Master</span
+                    >
+                  </div>
+                </div>
+
+                <!-- Total BL Count -->
+                <div class="space-y-2">
+                  <label
+                    class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest close"
                     >TOTAL BL COUNT</label
                   >
                   <input
                     v-model.number="formData.totalBlCount"
                     type="number"
-                    min="1"
+                    min="0"
                     class="input-field h-11"
+                    :disabled="formData.isDirectMaster"
                   />
                 </div>
               </div>
@@ -1896,12 +1929,14 @@ function scrollTo(id: string) {
 
                 <!-- Negotiable Toggle -->
                 <div class="h-11 flex items-center">
-                  <label class="flex items-center gap-3.5 cursor-pointer group select-none">
+                  <label
+                    class="flex items-center gap-3.5 cursor-pointer group select-none"
+                    @click="formData.isNegotiable = !formData.isNegotiable"
+                  >
                     <div class="relative flex items-center">
-                      <input
-                        type="checkbox"
+                      <Checkbox
                         v-model="formData.isNegotiable"
-                        class="w-5 h-5 rounded-md border-border/60 text-primary focus:ring-primary/20 transition-all cursor-pointer shadow-sm"
+                        class="pointer-events-none w-5 h-5"
                       />
                     </div>
                     <div class="flex flex-col">
@@ -1924,126 +1959,10 @@ function scrollTo(id: string) {
     </div>
 
     <!-- Company Creation Modal -->
-    <Modal
+    <CompanyCreateModal
       v-model="isCompanyModalOpen"
-      title="Add New Company"
-      description="Create a new company to use in this job."
-      width="max-w-2xl"
-    >
-      <div class="space-y-6">
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div class="space-y-2 md:col-span-2">
-            <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
-              >Company Name <span class="text-destructive">*</span></label
-            >
-            <input
-              v-model="companyForm.name"
-              type="text"
-              placeholder="e.g. PT Maju Bersama"
-              class="input-field"
-              required
-            />
-          </div>
-
-          <div class="space-y-2 md:col-span-2">
-            <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
-              >Full Address</label
-            >
-            <textarea
-              v-model="companyForm.fullAddress"
-              rows="2"
-              placeholder="e.g. Jl. Raya Perjuangan No.1"
-              class="input-field resize-none"
-            ></textarea>
-          </div>
-
-          <div class="space-y-2">
-            <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
-              >City</label
-            >
-            <input
-              v-model="companyForm.city"
-              type="text"
-              placeholder="e.g. Jakarta"
-              class="input-field"
-            />
-          </div>
-
-          <div class="space-y-2">
-            <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
-              >State / Province</label
-            >
-            <input
-              v-model="companyForm.state"
-              type="text"
-              placeholder="e.g. DKI Jakarta"
-              class="input-field"
-            />
-          </div>
-
-          <div class="space-y-2">
-            <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
-              >Postal Code</label
-            >
-            <input
-              v-model="companyForm.postalCode"
-              type="text"
-              placeholder="e.g. 12345"
-              class="input-field"
-            />
-          </div>
-
-          <div class="space-y-2">
-            <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
-              >Country</label
-            >
-            <input
-              v-model="companyForm.country"
-              type="text"
-              placeholder="e.g. Indonesia"
-              class="input-field"
-            />
-          </div>
-
-          <div class="space-y-2">
-            <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
-              >Tax ID / NPWP</label
-            >
-            <input
-              v-model="companyForm.taxId"
-              type="text"
-              placeholder="e.g. 01.234.567.8-901.000"
-              class="input-field"
-            />
-          </div>
-
-          <div class="space-y-2">
-            <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
-              >EORI (Optional)</label
-            >
-            <input v-model="companyForm.eori" type="text" placeholder="" class="input-field" />
-          </div>
-        </div>
-      </div>
-      <template #footer>
-        <button
-          type="button"
-          @click="isCompanyModalOpen = false"
-          class="btn-outline justify-center px-4"
-          :disabled="isSubmittingCompany"
-        >
-          Cancel
-        </button>
-        <button
-          type="button"
-          @click="submitCompanyForm"
-          class="btn-primary justify-center bg-[#062c58] hover:bg-[#062c58]/90 text-white shadow-sm"
-          :disabled="isSubmittingCompany || !companyForm.name"
-        >
-          <Building2 class="w-4 h-4 mr-2" />
-          {{ isSubmittingCompany ? "Saving..." : "Save Company" }}
-        </button>
-      </template>
-    </Modal>
+      :preset-name="presetCompanyName"
+      @success="onCompanyCreateSuccess"
+    />
   </div>
 </template>

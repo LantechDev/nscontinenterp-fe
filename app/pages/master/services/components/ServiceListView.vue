@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { MoreVertical, ChevronDown } from "lucide-vue-next";
 import { cn } from "~/lib/utils";
+import Checkbox from "~/components/ui/Checkbox.vue";
 
 interface ServiceItem {
   id: string;
@@ -23,9 +24,26 @@ const emit = defineEmits<{
   (e: "row-click", id: string): void;
 }>();
 
-const isAllSelected = computed(() => {
-  return props.services.length > 0 && props.services.every((s) => s.selected);
+const selectedIds = ref(new Set<string>());
+
+const isAllSelected = computed({
+  get: () => props.services.length > 0 && props.services.every((s) => selectedIds.value.has(s.id)),
+  set: (val: boolean) => {
+    if (val) {
+      props.services.forEach((s) => selectedIds.value.add(s.id));
+    } else {
+      selectedIds.value.clear();
+    }
+  },
 });
+
+const toggleSelection = (id: string) => {
+  if (selectedIds.value.has(id)) {
+    selectedIds.value.delete(id);
+  } else {
+    selectedIds.value.add(id);
+  }
+};
 
 const toggleSort = (field: string) => {
   emit("toggle-sort", field);
@@ -43,11 +61,7 @@ const handleRowClick = (id: string) => {
         <thead>
           <tr class="border-b border-border bg-white text-left">
             <th class="py-3 px-4 w-10">
-              <input
-                type="checkbox"
-                v-model="isAllSelected"
-                class="w-4 h-4 rounded border-gray-300"
-              />
+              <Checkbox v-model="isAllSelected" />
             </th>
             <th
               class="py-3 px-4 text-sm font-medium text-foreground cursor-pointer hover:bg-muted/50"
@@ -100,10 +114,9 @@ const handleRowClick = (id: string) => {
             @click="handleRowClick(service.id)"
           >
             <td class="py-3 px-4" @click.stop>
-              <input
-                type="checkbox"
-                v-model="service.selected"
-                class="w-4 h-4 rounded border-gray-300"
+              <Checkbox
+                :modelValue="selectedIds.has(service.id)"
+                @update:modelValue="toggleSelection(service.id)"
               />
             </td>
             <td class="py-3 px-4 text-sm font-medium">{{ service.code }}</td>

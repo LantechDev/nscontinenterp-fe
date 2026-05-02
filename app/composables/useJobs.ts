@@ -11,6 +11,7 @@ export interface JobVessel {
   vesselName: string | null;
   voyageNumber: string | null;
   etd: string | null;
+  eta: string | null;
   sequence: number;
   vessel?: { name: string; imoNumber?: string | null } | null;
 }
@@ -21,6 +22,7 @@ export interface BlVessel {
   vesselName: string | null;
   voyageNumber: string | null;
   etd: string | null;
+  eta: string | null;
   sequence: number;
   vessel?: { name: string; imoNumber?: string | null } | null;
 }
@@ -39,8 +41,9 @@ export interface Job {
   id: string;
   jobNumber: string;
   organizationId: string;
-  pol: string;
-  pod: string;
+  serviceType: string;
+  pol?: string | null;
+  pod?: string | null;
   polName?: string | null;
   podName?: string | null;
   voyageNumber?: string | null;
@@ -48,6 +51,8 @@ export interface Job {
   placeOfReceipt?: string | null;
   placeOfDelivery?: string | null;
   finalDestination?: string | null;
+  pickupAddress?: string | null;
+  deliveryAddress?: string | null;
   tradeTypeId?: string | null;
   commodity: string;
   mainDescription?: string | null;
@@ -61,6 +66,11 @@ export interface Job {
   vesselId?: string | null;
   etd?: string | null;
   eta?: string | null;
+  pickupDate?: string | null;
+  pickupTime?: string | null;
+  deliveryDate?: string | null;
+  deliveryTime?: string | null;
+  truckType?: string | null;
   grossWeight?: string | null;
   netWeight?: string | null;
   measurement?: string | null;
@@ -75,6 +85,7 @@ export interface Job {
   placeOfIssue?: string | null;
   dateOfIssue?: string | null;
   customerReference?: string | null;
+  isDirectMaster: boolean;
   createdAt: string;
   updatedAt: string;
   vessels?: JobVessel[];
@@ -208,8 +219,9 @@ export interface CreateJob {
   commodity: string;
   customerId?: string;
   containerTypeId?: string;
-  pol: string;
-  pod: string;
+  serviceType?: string;
+  pol?: string | null;
+  pod?: string | null;
   vesselId?: string;
   voyageNumber?: string | null;
   preCarriageBy?: string | null;
@@ -223,6 +235,7 @@ export interface CreateJob {
     vesselName?: string | null;
     voyageNumber?: string | null;
     etd?: string | null;
+    eta?: string | null;
     sequence?: number;
   }[];
   totalBlCount: number;
@@ -234,6 +247,7 @@ export interface CreateJob {
   measurement?: number | null;
   shippingMark?: string;
   mainDescription?: string;
+  isDirectMaster?: boolean;
 
   freightTerm?: "PREPAID" | "COLLECT";
   hsCode?: string;
@@ -282,6 +296,7 @@ export interface UpdateBlDraft {
   mainDescription?: string;
   shippingMark?: string;
   commodity?: string;
+  isDirectMaster?: boolean;
   hsCode?: string;
 
   blNumber?: string;
@@ -307,6 +322,7 @@ export interface UpdateBlDraft {
     vesselName?: string | null;
     voyageNumber?: string | null;
     etd?: string | null;
+    eta?: string | null;
     sequence?: number;
   }[];
   tradeTypeId?: string;

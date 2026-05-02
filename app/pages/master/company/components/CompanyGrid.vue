@@ -4,7 +4,6 @@ import type { MappedCompany } from "~/composables/useCompanies";
 
 defineProps<{
   companies: MappedCompany[];
-  activeMenuId: string | null;
 }>();
 
 defineEmits<{
@@ -33,33 +32,29 @@ defineEmits<{
             <p class="text-xs text-muted-foreground">{{ company.code }}</p>
           </div>
         </div>
-        <div class="company-action-menu relative">
-          <button
-            class="text-muted-foreground hover:text-foreground"
-            @click.stop="$emit('toggle-menu', company.id)"
-          >
-            <MoreVertical class="w-4 h-4" />
-          </button>
-          <div
-            v-if="activeMenuId === company.id"
-            class="absolute right-0 top-6 z-50 min-w-[140px] rounded-lg border border-slate-200 bg-white py-1 shadow-lg"
-          >
+        <UiActionMenu>
+          <template #trigger>
+            <button class="text-muted-foreground hover:text-foreground">
+              <MoreVertical class="w-4 h-4" />
+            </button>
+          </template>
+          <template #content>
             <button
               class="flex w-full items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
-              @click.stop="$emit('edit', company)"
+              @click="$emit('edit', company)"
             >
               <Pencil class="w-3.5 h-3.5 text-slate-600" />
               Edit
             </button>
             <button
               class="flex w-full items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50"
-              @click.stop="$emit('delete', company)"
+              @click="$emit('delete', company)"
             >
               <Trash2 class="w-3.5 h-3.5 text-red-500" />
               Delete
             </button>
-          </div>
-        </div>
+          </template>
+        </UiActionMenu>
       </div>
 
       <div class="space-y-2 mb-6">

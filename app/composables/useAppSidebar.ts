@@ -23,6 +23,8 @@ export const NAV_ITEMS: NavItem[] = [
       { title: "Company", href: "/master/company" },
       { title: "Service", href: "/master/services" },
       { title: "Vessel", href: "/master/vessel" },
+      { title: "Bank Account", href: "/master/bank-account" },
+      { title: "Pajak", href: "/master/tax" },
     ],
   },
   {
@@ -42,7 +44,6 @@ export const NAV_ITEMS: NavItem[] = [
       { title: "Invoice", href: "/finance/invoice" },
       { title: "Outstanding Report", href: "/finance/report/outstanding" },
       { title: "Biaya Operasional", href: "/finance/expenses" },
-      { title: "Pajak", href: "/finance/tax" },
     ],
   },
   // Backlog for now - Rafael, 25/03/2026

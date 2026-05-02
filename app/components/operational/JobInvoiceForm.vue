@@ -3,9 +3,15 @@ import { Plus, Trash2, X, Building2 } from "lucide-vue-next";
 import { useInvoices } from "~/composables/useInvoices";
 import { useServices } from "~/composables/useServices";
 import { useCompanies } from "~/composables/useCompanies";
+import { useFinanceTax } from "~/composables/useFinanceTax";
+import { useJobs } from "~/composables/useJobs";
 import Combobox from "~/components/ui/Combobox.vue";
 import Modal from "~/components/ui/Modal.vue";
 import { toast } from "vue-sonner";
+
+const TAX_OPTIONS = ref([{ name: "0%", value: "0" }]);
+
+const jobBillsOfLading = ref<Array<{ blNumber: string }>>([]);
 
 const props = defineProps<{
   jobId: string;
@@ -19,6 +25,8 @@ const emit = defineEmits(["success", "cancel"]);
 const { createInvoice, updateInvoice, isLoading: isSaving } = useInvoices();
 const { services, fetchServices, createService, isLoading: isFetchingServices } = useServices();
 const { companies, fetchCompanies, isLoading: isFetchingCompanies } = useCompanies();
+const { fetchTaxes } = useFinanceTax();
+const { getJob } = useJobs();
 
 interface FormItem {
   id?: string;
@@ -42,16 +50,15 @@ const form = ref({
   currency: props.invoice?.currency || "IDR",
   customerId: props.invoice?.company?.id || props.customerId || "",
   notes: props.invoice?.notes || "",
+  blNumber: props.invoice?.blNumber || props.invoice?.job?.billsOfLading?.[0]?.blNumber || "",
   items: (props.invoice?.items?.map((item) => ({
     id: item.id,
     serviceId: item.service?.id || "",
     description: item.description,
     quantity: item.quantity,
     unitPrice: item.unitPrice,
-    taxRate: 11,
-  })) || [
-    { serviceId: "", description: "", quantity: 1, unitPrice: 0, taxRate: 11 },
-  ]) as FormItem[],
+    taxRate: 0,
+  })) || [{ serviceId: "", description: "", quantity: 1, unitPrice: 0, taxRate: 0 }]) as FormItem[],
 });
 
 // Service Modal State
@@ -64,7 +71,41 @@ const serviceForm = reactive({
 });
 
 onMounted(async () => {
-  await Promise.all([fetchServices(), fetchCompanies({ type: "CUSTOMER" })]);
+  if (props.invoice?.job?.billsOfLading) {
+    jobBillsOfLading.value = props.invoice.job.billsOfLading;
+  } else if (props.jobId) {
+    const jobRes = await getJob(props.jobId);
+    if (jobRes.success && jobRes.data?.billsOfLading) {
+      jobBillsOfLading.value = jobRes.data.billsOfLading;
+      if (!form.value.blNumber && jobBillsOfLading.value.length > 0) {
+        form.value.blNumber = jobBillsOfLading.value[0]?.blNumber || "";
+      }
+    }
+  }
+
+  const [taxesRes] = await Promise.all([
+    fetchTaxes({ isActive: true }),
+    fetchServices(),
+    fetchCompanies({ type: "CUSTOMER" }),
+  ]);
+
+  if (taxesRes?.items) {
+    const uniqueRates = new Set<number>();
+    const dynamicTaxes = taxesRes.items
+      .filter((t) => {
+        const rate = Number(t.rate);
+        if ((rate === 1.1 || rate === 11) && !uniqueRates.has(rate)) {
+          uniqueRates.add(rate);
+          return true;
+        }
+        return false;
+      })
+      .map((t) => ({
+        name: `${t.name} (${Number(t.rate)}%)`,
+        value: String(Number(t.rate)),
+      }));
+    TAX_OPTIONS.value = [{ name: "0%", value: "0" }, ...dynamicTaxes];
+  }
 });
 
 const addItem = () => {
@@ -166,6 +207,7 @@ const handleSubmit = async () => {
     total: total.value,
     balanceDue: total.value,
     notes: form.value.notes,
+    blNumber: form.value.blNumber,
     items: form.value.items.map((item) => ({
       id: item.id, // Include id for updates
       serviceId: item.serviceId || undefined,
@@ -193,6 +235,20 @@ const formatCurrency = (amount: number) => {
     currency: form.value.currency,
     minimumFractionDigits: form.value.currency === "IDR" ? 0 : 2,
   }).format(amount);
+};
+
+const parseInputCurrency = (val: string) => {
+  const numeric = Number(val.replace(/[^0-9.-]+/g, ""));
+  return isNaN(numeric) ? 0 : numeric;
+};
+
+const formatInputCurrency = (val: number | string) => {
+  if (!val && val !== 0) return "";
+  const numericVal = typeof val === "string" ? parseInputCurrency(val) : val;
+  if (isNaN(numericVal)) return "";
+  return new Intl.NumberFormat("en-US", {
+    maximumFractionDigits: 2,
+  }).format(numericVal);
 };
 </script>
 
@@ -300,6 +356,37 @@ const formatCurrency = (amount: number) => {
         </div>
       </div>
 
+      <!-- Shipment Details -->
+      <div class="grid grid-cols-1 gap-4">
+        <div class="space-y-1.5">
+          <label class="text-xs font-bold text-muted-foreground uppercase tracking-wider"
+            >B/L Number</label
+          >
+          <div class="flex gap-2">
+            <input
+              type="text"
+              v-model="form.blNumber"
+              placeholder="Enter B/L number..."
+              class="flex-1 px-3 py-2 bg-white border border-border rounded-md text-sm focus:ring-2 focus:ring-[#012D5A]/20 focus:border-[#012D5A] outline-none transition-all font-mono"
+            />
+            <div v-if="jobBillsOfLading.length > 0" class="flex items-center gap-2">
+              <span class="text-[10px] text-muted-foreground font-bold uppercase italic"
+                >From B/L:</span
+              >
+              <Combobox
+                :model-value="null"
+                :options="jobBillsOfLading"
+                label-key="blNumber"
+                value-key="blNumber"
+                placeholder="Select B/L..."
+                class="min-w-[180px]"
+                @update:model-value="(val) => (form.blNumber = val as string)"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Items Section -->
       <div class="space-y-4">
         <div class="flex items-center justify-between">
@@ -320,9 +407,9 @@ const formatCurrency = (amount: number) => {
             class="grid grid-cols-12 gap-3 px-4 py-2 border-b border-border bg-gray-50/50 text-[10px] font-bold text-muted-foreground uppercase tracking-wider"
           >
             <div class="col-span-4">Service / Description</div>
-            <div class="col-span-2">Qty</div>
+            <div class="col-span-1">Qty</div>
             <div class="col-span-3 text-right">Unit Price</div>
-            <div class="col-span-2 px-2">Tax</div>
+            <div class="col-span-3 px-2">Tax</div>
             <div class="col-span-1"></div>
           </div>
 
@@ -351,7 +438,7 @@ const formatCurrency = (amount: number) => {
                   class="w-full px-3 py-1.5 bg-white border border-border rounded-md text-xs focus:ring-2 focus:ring-[#012D5A]/20 focus:border-[#012D5A] outline-none transition-all resize-none"
                 ></textarea>
               </div>
-              <div class="col-span-2">
+              <div class="col-span-1">
                 <input
                   type="number"
                   v-model.number="item.quantity"
@@ -366,9 +453,12 @@ const formatCurrency = (amount: number) => {
                     >{{ form.currency }}</span
                   >
                   <input
-                    type="number"
-                    v-model.number="item.unitPrice"
-                    step="0.01"
+                    type="text"
+                    :value="formatInputCurrency(item.unitPrice)"
+                    @input="
+                      (e) =>
+                        (item.unitPrice = parseInputCurrency((e.target as HTMLInputElement).value))
+                    "
                     class="w-full pl-10 pr-3 py-2 bg-white border border-border rounded-md text-sm text-right font-medium focus:ring-2 focus:ring-[#012D5A]/20 focus:border-[#012D5A] outline-none transition-all"
                   />
                 </div>
@@ -376,15 +466,16 @@ const formatCurrency = (amount: number) => {
                   Sub: {{ formatCurrency(Number(item.quantity) * Number(item.unitPrice)) }}
                 </p>
               </div>
-              <div class="col-span-2 px-2">
-                <select
-                  v-model.number="item.taxRate"
-                  class="w-full bg-white border border-border rounded px-2 py-2 text-xs font-bold outline-none focus:ring-1 focus:ring-[#012D5A]"
-                >
-                  <option :value="0">0%</option>
-                  <option :value="1.1">1.1%</option>
-                  <option :value="11">11%</option>
-                </select>
+              <div class="col-span-3 px-2 flex flex-col items-end mr-4">
+                <Combobox
+                  :model-value="String(item.taxRate)"
+                  :options="TAX_OPTIONS"
+                  label-key="name"
+                  value-key="value"
+                  placeholder="Tax..."
+                  class="w-[180px] h-9 [&_button]:h-9 [&_button]:text-xs [&_button]:font-bold"
+                  @update:model-value="(val) => (item.taxRate = Number(val))"
+                />
                 <p class="text-[9px] text-right mt-1.5 font-bold text-slate-400">
                   Tax:
                   {{

@@ -13,6 +13,15 @@ import {
   ChevronLeft,
 } from "lucide-vue-next";
 import * as XLSX from "xlsx";
+import {
+  EXCEL_COLORS,
+  EXCEL_FONTS,
+  makeCellStyle,
+  applyStyleToRange,
+  mergeCells,
+  setColWidth,
+  setRowHeight,
+} from "~/lib/excel-styles";
 import { usePayments, type OutstandingReport } from "~/composables/usePayments";
 import { useCompanies } from "~/composables/useCompanies";
 import { formatRupiah } from "~/lib/utils";
@@ -74,40 +83,261 @@ const formatDate = (dateStr: string) => {
 };
 
 const isExporting = ref(false);
+const showExportOptions = ref(false);
 
-const handleExport = () => {
+const handleExportExcel = () => {
   if (!reportData.value) return;
   isExporting.value = true;
 
   try {
-    const headers = ["Inv Date", "Invoice No.", "Customer", "Total", "Outstanding", "Status"];
-    const rows = reportData.value.invoices.map((inv) => [
-      formatDate(inv.issuedDate),
-      inv.invoiceNumber,
-      inv.company.name,
-      inv.total,
-      inv.balanceDue,
-      inv.status.name,
-    ]);
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet([[], []]);
 
-    // Add summary row
-    rows.push([]);
-    rows.push([
-      "",
-      "",
-      "GRAND TOTALS",
-      reportData.value.summary.totalInvoiced,
-      reportData.value.summary.totalOutstanding,
-      "",
-    ]);
+    const startRow = 0;
+    const HEADER_ROW = startRow;
+    const TITLE_ROW = startRow + 1;
+    const COL_HEADER_ROW = startRow + 2;
+    const DATA_START = startRow + 3;
 
-    const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Outstanding Report");
+    // --- Row 1: Company Name Header ---
+    XLSX.utils.sheet_add_aoa(ws, [["PT NOVA SYNC — OUTSTANDING PAYMENTS REPORT"]], {
+      origin: { r: HEADER_ROW, c: 0 },
+    });
+    mergeCells(ws, { c: 0, r: HEADER_ROW }, { c: 5, r: HEADER_ROW });
+    setRowHeight(ws, HEADER_ROW, 22);
+    const headerStyle = makeCellStyle({
+      bold: true,
+      fontSize: EXCEL_FONTS.headerSize,
+      fontColor: EXCEL_COLORS.white,
+      bgColor: EXCEL_COLORS.darkNavy,
+      align: "center",
+    });
+    applyStyleToRange(ws, { s: { c: 0, r: HEADER_ROW }, e: { c: 5, r: HEADER_ROW } }, headerStyle);
 
-    XLSX.writeFile(workbook, `OUTSTANDING_REPORT_${new Date().toISOString().split("T")[0]}.xlsx`);
+    // --- Row 2: Filter Info ---
+    const monthName = monthOptions.find((m) => m.value === filters.value.month)?.label ?? "";
+    const filterLabel = `Period: ${monthName} ${filters.value.year} | Customers: ${
+      filters.value.companyId
+        ? companies.value.find((c) => c.id === filters.value.companyId)?.name ?? "All"
+        : "All"
+    }`;
+    XLSX.utils.sheet_add_aoa(ws, [[filterLabel]], { origin: { r: TITLE_ROW, c: 0 } });
+    mergeCells(ws, { c: 0, r: TITLE_ROW }, { c: 5, r: TITLE_ROW });
+    setRowHeight(ws, TITLE_ROW, 18);
+    const titleStyle = makeCellStyle({
+      bold: true,
+      fontSize: EXCEL_FONTS.colHeaderSize,
+      fontColor: EXCEL_COLORS.white,
+      bgColor: EXCEL_COLORS.darkNavy,
+      align: "center",
+    });
+    applyStyleToRange(ws, { s: { c: 0, r: TITLE_ROW }, e: { c: 5, r: TITLE_ROW } }, titleStyle);
+
+    // --- Row 3: Column Headers ---
+    const colHeaders = ["Inv Date", "Invoice No.", "Customer", "Total", "Outstanding", "Status"];
+    XLSX.utils.sheet_add_aoa(ws, [colHeaders], { origin: { r: COL_HEADER_ROW, c: 0 } });
+    setRowHeight(ws, COL_HEADER_ROW, 18);
+    const colHeaderStyle = makeCellStyle({
+      bold: true,
+      fontSize: EXCEL_FONTS.colHeaderSize,
+      fontColor: EXCEL_COLORS.white,
+      bgColor: EXCEL_COLORS.darkNavy,
+      align: "center",
+    });
+    applyStyleToRange(ws, { s: { c: 0, r: COL_HEADER_ROW }, e: { c: 5, r: COL_HEADER_ROW } }, colHeaderStyle);
+
+    // --- Data Rows ---
+    reportData.value.invoices.forEach((inv, idx) => {
+      const row = DATA_START + idx;
+      const isEven = idx % 2 === 0;
+      const bgColor = isEven ? EXCEL_COLORS.white : EXCEL_COLORS.lightGray;
+
+      XLSX.utils.sheet_add_aoa(
+        ws,
+        [
+          [
+            formatDate(inv.issuedDate),
+            inv.invoiceNumber,
+            inv.company.name,
+            inv.total,
+            inv.balanceDue,
+            inv.status.name,
+          ],
+        ],
+        { origin: { r: row, c: 0 } },
+      );
+
+      // Apply styles per cell
+      const dataStyle = makeCellStyle({
+        fontSize: EXCEL_FONTS.dataSize,
+        bgColor,
+        align: "left",
+      });
+      const numStyle = makeCellStyle({
+        fontSize: EXCEL_FONTS.dataSize,
+        bgColor,
+        align: "right",
+        numFmt: "#,##0",
+      });
+      const centerStyle = makeCellStyle({
+        fontSize: EXCEL_FONTS.dataSize,
+        bgColor,
+        align: "center",
+      });
+
+      // Col A: date
+      applyStyleToRange(ws, { s: { c: 0, r: row }, e: { c: 0, r: row } }, dataStyle);
+      // Col B: invoice no
+      applyStyleToRange(ws, { s: { c: 1, r: row }, e: { c: 1, r: row } }, dataStyle);
+      // Col C: customer
+      applyStyleToRange(ws, { s: { c: 2, r: row }, e: { c: 2, r: row } }, dataStyle);
+      // Col D: total
+      applyStyleToRange(ws, { s: { c: 3, r: row }, e: { c: 3, r: row } }, numStyle);
+      // Col E: outstanding
+      applyStyleToRange(ws, { s: { c: 4, r: row }, e: { c: 4, r: row } }, numStyle);
+      // Col F: status
+      applyStyleToRange(ws, { s: { c: 5, r: row }, e: { c: 5, r: row } }, centerStyle);
+    });
+
+    // --- Grand Totals Row ---
+    const totalRow = DATA_START + reportData.value.invoices.length;
+    setRowHeight(ws, totalRow, 18);
+    XLSX.utils.sheet_add_aoa(
+      ws,
+      [
+        [
+          "",
+          "",
+          "GRAND TOTALS",
+          reportData.value.summary.totalInvoiced,
+          reportData.value.summary.totalOutstanding,
+          "",
+        ],
+      ],
+      { origin: { r: totalRow, c: 0 } },
+    );
+    mergeCells(ws, { c: 0, r: totalRow }, { c: 2, r: totalRow });
+    const totalStyle = makeCellStyle({
+      bold: true,
+      fontSize: EXCEL_FONTS.dataSize,
+      fontColor: EXCEL_COLORS.darkNavy,
+      bgColor: EXCEL_COLORS.lightBlue,
+      align: "left",
+    });
+    const totalNumStyle = makeCellStyle({
+      bold: true,
+      fontSize: EXCEL_FONTS.dataSize,
+      fontColor: EXCEL_COLORS.darkNavy,
+      bgColor: EXCEL_COLORS.lightBlue,
+      align: "right",
+      numFmt: "#,##0",
+    });
+    applyStyleToRange(ws, { s: { c: 0, r: totalRow }, e: { c: 2, r: totalRow } }, totalStyle);
+    applyStyleToRange(ws, { s: { c: 3, r: totalRow }, e: { c: 3, r: totalRow } }, totalNumStyle);
+    applyStyleToRange(ws, { s: { c: 4, r: totalRow }, e: { c: 5, r: totalRow } }, totalNumStyle);
+
+    // --- Column Widths ---
+    setColWidth(ws, 0, 14); // Inv Date
+    setColWidth(ws, 1, 16); // Invoice No.
+    setColWidth(ws, 2, 30); // Customer
+    setColWidth(ws, 3, 18); // Total
+    setColWidth(ws, 4, 18); // Outstanding
+    setColWidth(ws, 5, 18); // Status
+
+    // --- Sheet Range ---
+    const lastRow = totalRow;
+    ws["!ref"] = XLSX.utils.encode_range({ s: { c: 0, r: 0 }, e: { c: 5, r: lastRow } });
+
+    XLSX.utils.book_append_sheet(wb, ws, "Outstanding Report");
+    XLSX.writeFile(wb, `OUTSTANDING_REPORT_${new Date().toISOString().split("T")[0]}.xlsx`);
   } catch (error) {
     console.error("Export error:", error);
+  } finally {
+    isExporting.value = false;
+  }
+};
+
+const handleExportPdf = () => {
+  if (!reportData.value) return;
+  isExporting.value = true;
+  try {
+    const { jsPDF } = require("jspdf");
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const margin = 16;
+    let yPos = 18;
+
+    const addLine = (text: string, opts?: { bold?: boolean; size?: number; align?: string }) => {
+      doc.setFont("helvetica", opts?.bold ? "bold" : "normal");
+      doc.setFontSize(opts?.size || 10);
+      const lines = doc.splitTextToSize(text, pageWidth - margin * 2);
+      if (yPos + lines.length * 6 > doc.internal.pageSize.getHeight() - margin) {
+        doc.addPage();
+        yPos = margin;
+      }
+      doc.text(lines, margin, yPos, opts?.align ? { align: opts.align } : {});
+      yPos += lines.length * 6;
+    };
+
+    // Header
+    doc.setFillColor(1, 45, 90);
+    doc.rect(0, 0, pageWidth, 30, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(16);
+    doc.setFont("helvetica", "bold");
+    doc.text("PT NOVA SYNC — OUTSTANDING PAYMENTS REPORT", pageWidth / 2, 18, { align: "center" });
+    yPos = 38;
+
+    const monthName = monthOptions.find((m) => m.value === filters.value.month)?.label ?? "";
+    doc.setTextColor(31, 41, 55);
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    doc.text(`Period: ${monthName} ${filters.value.year}`, margin, yPos);
+    doc.text(`Generated: ${new Date().toLocaleDateString("id-ID")}`, pageWidth - margin, yPos, { align: "right" });
+    yPos += 10;
+
+    // Column headers
+    doc.setFillColor(1, 45, 90);
+    doc.rect(margin, yPos, pageWidth - margin * 2, 8, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "bold");
+    doc.text("Inv Date", margin + 2, yPos + 6);
+    doc.text("Invoice No.", margin + 30, yPos + 6);
+    doc.text("Customer", margin + 60, yPos + 6);
+    doc.text("Total", pageWidth - margin - 50, yPos + 6);
+    doc.text("Outstanding", pageWidth - margin - 20, yPos + 6);
+    yPos += 8;
+
+    // Data rows
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(31, 41, 55);
+    reportData.value.invoices.forEach((inv, idx) => {
+      if (idx % 2 === 0) {
+        doc.setFillColor(249, 250, 251);
+        doc.rect(margin, yPos, pageWidth - margin * 2, 8, "F");
+      }
+      doc.setTextColor(31, 41, 55);
+      doc.text(formatDate(inv.issuedDate), margin + 2, yPos + 6);
+      doc.text(inv.invoiceNumber?.substring(0, 15) || "-", margin + 30, yPos + 6);
+      doc.text(inv.company.name?.substring(0, 20) || "-", margin + 60, yPos + 6);
+      doc.text(formatCurrency(inv.total), pageWidth - margin - 50, yPos + 6);
+      doc.text(formatCurrency(inv.balanceDue), pageWidth - margin - 20, yPos + 6);
+      yPos += 8;
+    });
+
+    // Total row
+    doc.setFillColor(214, 228, 240);
+    doc.rect(margin, yPos, pageWidth - margin * 2, 8, "F");
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(1, 45, 90);
+    doc.text("GRAND TOTALS", margin + 2, yPos + 6);
+    doc.text(formatCurrency(reportData.value.summary.totalInvoiced), pageWidth - margin - 50, yPos + 6);
+    doc.text(formatCurrency(reportData.value.summary.totalOutstanding), pageWidth - margin - 20, yPos + 6);
+
+    doc.save(`OUTSTANDING_REPORT_${new Date().toISOString().split("T")[0]}.pdf`);
+  } catch (error) {
+    console.error("Export PDF error:", error);
   } finally {
     isExporting.value = false;
   }
@@ -212,7 +442,7 @@ onMounted(() => {
 
         <div class="flex items-center gap-3">
           <button
-            @click="handleExport"
+            @click="showExportOptions = true"
             :disabled="isExporting || !reportData"
             class="flex items-center gap-2 px-3 py-2 text-sm border border-border bg-white hover:bg-gray-50 rounded-lg shadow-sm transition-all active:scale-95 disabled:opacity-50"
           >
@@ -405,6 +635,13 @@ onMounted(() => {
       </div>
     </div>
   </div>
+
+  <UiExportOptionsModal
+    v-model:open="showExportOptions"
+    title="Export Outstanding Report"
+    @export-pdf="handleExportPdf"
+    @export-excel="handleExportExcel"
+  />
 </template>
 
 <style scoped>

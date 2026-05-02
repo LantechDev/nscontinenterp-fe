@@ -6,7 +6,7 @@ import { toast } from "vue-sonner";
 
 // Navigation handler
 const navigateToTax = (id: string) => {
-  navigateTo(`/finance/tax/${id}`);
+  navigateTo(`/master/tax/${id}`);
 };
 
 export interface TaxFormData {
@@ -114,8 +114,21 @@ export function useTaxPage() {
 
   // Edit handlers
   const openEditModal = async (id: string) => {
+    console.log("[Tax] Opening edit modal for ID:", id);
+    editingTaxId.value = id;
+
+    // Reset form data to avoid showing old data
+    formData.value = {
+      name: "",
+      rate: 0,
+      type: "",
+      description: "",
+      isActive: true,
+    };
+
+    isEditModalOpen.value = true; // Open immediately to show loading state
+
     try {
-      editingTaxId.value = id;
       const taxData = await fetchTaxById(id);
       if (!taxData) {
         throw new Error("Failed to load tax data");
@@ -130,11 +143,11 @@ export function useTaxPage() {
         isActive: tax.isActive ?? true,
       };
 
-      isEditModalOpen.value = true;
       editError.value = null;
     } catch (e) {
       console.error("Failed to open edit modal:", e);
       editError.value = "Failed to load tax data";
+      // Don't close, let user see error in modal
     }
   };
 
