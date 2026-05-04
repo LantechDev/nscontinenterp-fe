@@ -30,7 +30,7 @@ export default defineNuxtConfig({
         "clsx",
         "tailwind-merge",
         "html2canvas",
-        "xlsx",
+        "jszip",
       ],
     },
     server: {

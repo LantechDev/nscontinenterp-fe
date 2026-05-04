@@ -418,22 +418,22 @@ Refactor my Nuxt 3 application into a production-grade, SSR-first, scalable arch
 
 This must cover ALL layers:
 
-* Page
-* Composable
-* Component
-* API (using a single catch-all proxy `/server/api/[...path].ts`)
+- Page
+- Composable
+- Component
+- API (using a single catch-all proxy `/server/api/[...path].ts`)
 
 ---
 
 # 🎯 OBJECTIVES
 
-* Fix slow production performance
-* Eliminate blank screen on initial load
-* Enforce SSR-first rendering
-* Prevent duplicate fetching
-* Remove ALL client-only initial fetch patterns
-* Ensure clean separation of concerns
-* Make architecture reusable across all modules
+- Fix slow production performance
+- Eliminate blank screen on initial load
+- Enforce SSR-first rendering
+- Prevent duplicate fetching
+- Remove ALL client-only initial fetch patterns
+- Ensure clean separation of concerns
+- Make architecture reusable across all modules
 
 ---
 
@@ -444,21 +444,21 @@ You MUST reject and refactor any of the following patterns:
 ### ❌ FORBIDDEN:
 
 ```ts
-onMounted(() => fetchData())
+onMounted(() => fetchData());
 ```
 
 ```ts
 if (import.meta.client) {
-  initialize()
+  initialize();
 }
 ```
 
 ```ts
-fetchData() // auto run inside composable
+fetchData(); // auto run inside composable
 ```
 
 ```ts
-$fetch("https://external-api.com/...")
+$fetch("https://external-api.com/...");
 ```
 
 ```ts
@@ -485,38 +485,35 @@ If data is needed on FIRST RENDER → it MUST be fetched on SERVER via `useAsync
 
 ### ✅ MUST:
 
-* Use:
+- Use:
 
 ```ts
-const { data, pending, error, refresh } = await useAsyncData("key", () =>
-  $fetch("/api/...")
-)
+const { data, pending, error, refresh } = await useAsyncData("key", () => $fetch("/api/..."));
 ```
 
-* Responsibilities:
-
-  * initial data fetching (SSR)
-  * read query params (filters, pagination)
-  * pass data into composable
+- Responsibilities:
+  - initial data fetching (SSR)
+  - read query params (filters, pagination)
+  - pass data into composable
 
 ---
 
 ### ❌ MUST NOT:
 
-* use `onMounted` for initial fetch
-* use `import.meta.client`
-* fetch directly inside template or component
-* duplicate fetching with composable
+- use `onMounted` for initial fetch
+- use `import.meta.client`
+- fetch directly inside template or component
+- duplicate fetching with composable
 
 ---
 
 ### ✅ MUST INJECT DATA:
 
 ```ts
-const module = useModule()
+const module = useModule();
 
 if (data.value) {
-  module.setData(data.value)
+  module.setData(data.value);
 }
 ```
 
@@ -526,18 +523,18 @@ if (data.value) {
 
 ### ✅ MUST CONTAIN:
 
-* `ref`, `reactive`
-* computed
-* business logic
-* CRUD actions
+- `ref`, `reactive`
+- computed
+- business logic
+- CRUD actions
 
 ---
 
 ### ❌ MUST NOT:
 
-* perform initial fetch automatically
-* run fetch on import
-* contain SSR logic
+- perform initial fetch automatically
+- run fetch on import
+- contain SSR logic
 
 ---
 
@@ -545,7 +542,7 @@ if (data.value) {
 
 ```ts
 function setData(data) {
-  state.value = data
+  state.value = data;
 }
 ```
 
@@ -555,9 +552,9 @@ function setData(data) {
 
 ONLY for:
 
-* pagination change
-* filter change
-* user actions (create/update/delete)
+- pagination change
+- filter change
+- user actions (create/update/delete)
 
 ---
 
@@ -567,20 +564,20 @@ ONLY for:
 
 ### ❌ COMPONENT MUST NOT:
 
-* call `$fetch`
-* use `useAsyncData`
-* fetch data
-* mutate global state directly
-* contain heavy watchers
-* compute expensive logic repeatedly
+- call `$fetch`
+- use `useAsyncData`
+- fetch data
+- mutate global state directly
+- contain heavy watchers
+- compute expensive logic repeatedly
 
 ---
 
 ### ✅ COMPONENT MUST:
 
-* receive data via props
-* emit events upward
-* use computed instead of watch
+- receive data via props
+- emit events upward
+- use computed instead of watch
 
 ---
 
@@ -604,29 +601,29 @@ ONLY for:
 ## 3.2 EVENT-DRIVEN DESIGN
 
 ```ts
-emit("edit", id)
-emit("delete", id)
-emit("refresh")
+emit("edit", id);
+emit("delete", id);
+emit("refresh");
 ```
 
 ---
 
 ## 3.3 PERFORMANCE RULES
 
-* Use `v-memo` for large lists
-* Use stable `:key`
-* Avoid inline functions in template
-* Avoid deep watchers
-* Memoize expensive computed
-* Avoid mapping large objects in template
+- Use `v-memo` for large lists
+- Use stable `:key`
+- Avoid inline functions in template
+- Avoid deep watchers
+- Memoize expensive computed
+- Avoid mapping large objects in template
 
 ---
 
 ## 3.4 LIST OPTIMIZATION
 
-* Use pagination OR virtual scrolling
-* NEVER render full dataset blindly
-* Pre-map data in composable, not template
+- Use pagination OR virtual scrolling
+- NEVER render full dataset blindly
+- Pre-map data in composable, not template
 
 ---
 
@@ -642,17 +639,17 @@ Use ONLY:
 
 ### MUST:
 
-* proxy to backend API
-* forward cookies
-* support all HTTP methods
-* normalize headers
-* include caching:
+- proxy to backend API
+- forward cookies
+- support all HTTP methods
+- normalize headers
+- include caching:
 
 ```ts
 export default cachedEventHandler(handler, {
   maxAge: 60,
   swr: true,
-})
+});
 ```
 
 ---
@@ -662,7 +659,7 @@ export default cachedEventHandler(handler, {
 ### ✅ MUST:
 
 ```ts
-$fetch("/api/finance/expense")
+$fetch("/api/finance/expense");
 ```
 
 ---
@@ -670,7 +667,7 @@ $fetch("/api/finance/expense")
 ### ❌ NEVER:
 
 ```ts
-$fetch("https://erp.nscontinent.com/api/...")
+$fetch("https://erp.nscontinent.com/api/...");
 ```
 
 ---
@@ -695,8 +692,8 @@ Component (pure UI)
 
 ## 7. LOADING STRATEGY
 
-* Initial load → use `pending` from `useAsyncData`
-* Subsequent actions → use `isLoading` from composable
+- Initial load → use `pending` from `useAsyncData`
+- Subsequent actions → use `isLoading` from composable
 
 ---
 
@@ -704,12 +701,12 @@ Component (pure UI)
 
 After refactor:
 
-* No blank screen
-* No client-only first fetch
-* No duplicate API calls
-* Minimal re-render
-* Fast TTFB + fast hydration
-* Scalable across all modules
+- No blank screen
+- No client-only first fetch
+- No duplicate API calls
+- Minimal re-render
+- Fast TTFB + fast hydration
+- Scalable across all modules
 
 ---
 
@@ -722,31 +719,30 @@ You MUST output:
 3. Refactored Components (pure UI)
 4. Optimized `[...path].ts` (if needed)
 5. Explanation:
-
-   * what was wrong
-   * what was fixed
-   * why it improves performance
+   - what was wrong
+   - what was fixed
+   - why it improves performance
 
 ---
 
 ## ⚠️ HARD CONSTRAINTS
 
-* DO NOT remove business logic
-* DO NOT reduce features
-* DO NOT merge layers into one file
-* DO NOT create new API files (use `[...path].ts`)
-* KEEP strict TypeScript
-* KEEP existing functionality intact
+- DO NOT remove business logic
+- DO NOT reduce features
+- DO NOT merge layers into one file
+- DO NOT create new API files (use `[...path].ts`)
+- KEEP strict TypeScript
+- KEEP existing functionality intact
 
 ---
 
 ## 🧠 BONUS OPTIMIZATION (APPLY IF POSSIBLE)
 
-* Debounce search input
-* Lazy-load dropdown data
-* Split heavy components
-* Cache expensive computed
-* Avoid unnecessary reactive dependencies
+- Debounce search input
+- Lazy-load dropdown data
+- Split heavy components
+- Cache expensive computed
+- Avoid unnecessary reactive dependencies
 
 ---
 
@@ -755,18 +751,17 @@ You MUST output:
 If you see ANY of these:
 
 ```ts
-onMounted(fetchData)
-initialize()
-import.meta.client
+onMounted(fetchData);
+initialize();
+import.meta.client;
 ```
 
 You MUST:
 
-* DELETE IT
-* MOVE logic into `useAsyncData`
-* RESTRUCTURE properly
+- DELETE IT
+- MOVE logic into `useAsyncData`
+- RESTRUCTURE properly
 
 NO EXCEPTIONS.
-
 
 **End of Guide**

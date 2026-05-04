@@ -18,6 +18,7 @@ Complete guide to SSR hydration in Nuxt 4, common issues, and solutions.
 **Hydration** is the process of making server-rendered HTML interactive on the client by attaching Vue's reactivity system and event listeners.
 
 **Process:**
+
 1. Server renders HTML from Vue components
 2. HTML is sent to browser
 3. Browser displays HTML (instant visual)
@@ -31,7 +32,7 @@ Complete guide to SSR hydration in Nuxt 4, common issues, and solutions.
 ```vue
 <!-- ❌ Wrong: window doesn't exist on server -->
 <script setup>
-const width = window.innerWidth
+const width = window.innerWidth;
 </script>
 
 <template>
@@ -40,11 +41,11 @@ const width = window.innerWidth
 
 <!-- ✅ Right: Check environment first -->
 <script setup>
-const width = ref(0)
+const width = ref(0);
 
 onMounted(() => {
-  width.value = window.innerWidth
-})
+  width.value = window.innerWidth;
+});
 </script>
 
 <template>
@@ -57,8 +58,8 @@ onMounted(() => {
 ```vue
 <!-- ❌ Wrong: Different value on server vs client -->
 <script setup>
-const id = Math.random()
-const timestamp = Date.now()
+const id = Math.random();
+const timestamp = Date.now();
 </script>
 
 <template>
@@ -67,8 +68,8 @@ const timestamp = Date.now()
 
 <!-- ✅ Right: Use useState for consistent values -->
 <script setup>
-const id = useState('unique-id', () => Math.random())
-const timestamp = useState('timestamp', () => Date.now())
+const id = useState("unique-id", () => Math.random());
+const timestamp = useState("timestamp", () => Date.now());
 </script>
 
 <template>
@@ -81,9 +82,9 @@ const timestamp = useState('timestamp', () => Date.now())
 ```vue
 <!-- ❌ Wrong: Library uses window -->
 <script setup>
-import SomeLibrary from 'some-library'
+import SomeLibrary from "some-library";
 
-const instance = new SomeLibrary()
+const instance = new SomeLibrary();
 </script>
 
 <!-- ✅ Right: Initialize on client only -->
@@ -104,7 +105,7 @@ onMounted(async () => {
 ```vue
 <!-- ❌ Wrong: Different structure on server vs client -->
 <script setup>
-const isMobile = window.innerWidth < 768
+const isMobile = window.innerWidth < 768;
 </script>
 
 <template>
@@ -114,11 +115,11 @@ const isMobile = window.innerWidth < 768
 
 <!-- ✅ Right: Same structure, different styling -->
 <script setup>
-const isMobile = ref(false)
+const isMobile = ref(false);
 
 onMounted(() => {
-  isMobile.value = window.innerWidth < 768
-})
+  isMobile.value = window.innerWidth < 768;
+});
 </script>
 
 <template>
@@ -157,12 +158,12 @@ onMounted(() => {
 // Check at runtime
 if (process.client) {
   // Client-only code
-  window.addEventListener('resize', handleResize)
+  window.addEventListener("resize", handleResize);
 }
 
 if (process.server) {
   // Server-only code
-  console.log('Running on server')
+  console.log("Running on server");
 }
 
 // Check at compile time
@@ -179,19 +180,19 @@ if (import.meta.server) {
 
 ```vue
 <script setup>
-const chart = ref(null)
+const chart = ref(null);
 
 onMounted(async () => {
   // Guaranteed to run on client only
-  const { default: Chart } = await import('chart.js')
+  const { default: Chart } = await import("chart.js");
 
-  chart.value = new Chart(/* ... */)
-})
+  chart.value = new Chart(/* ... */);
+});
 
 onUnmounted(() => {
   // Cleanup
-  chart.value?.destroy()
-})
+  chart.value?.destroy();
+});
 </script>
 ```
 
@@ -200,20 +201,20 @@ onUnmounted(() => {
 ```vue
 <script setup>
 // ✅ Consistent value across server and client
-const theme = useState('theme', () => {
+const theme = useState("theme", () => {
   if (import.meta.client) {
-    return localStorage.getItem('theme') || 'light'
+    return localStorage.getItem("theme") || "light";
   }
-  return 'light'  // Server default
-})
+  return "light"; // Server default
+});
 
 // Update on mount
 onMounted(() => {
-  const stored = localStorage.getItem('theme')
+  const stored = localStorage.getItem("theme");
   if (stored) {
-    theme.value = stored
+    theme.value = stored;
   }
-})
+});
 </script>
 ```
 
@@ -228,17 +229,18 @@ export default defineNuxtConfig({
     vue: {
       template: {
         compilerOptions: {
-          hydration: 'debug'
-        }
-      }
-    }
-  }
-})
+          hydration: "debug",
+        },
+      },
+    },
+  },
+});
 ```
 
 ### Console Messages
 
 Look for warnings like:
+
 ```
 [Vue warn]: Hydration node mismatch:
 - Client vnode: div
@@ -258,11 +260,11 @@ Vue dev tools will show which component has the mismatch.
 
 <!-- ✅ Right -->
 <script setup>
-const currentTime = ref('')
+const currentTime = ref("");
 
 onMounted(() => {
-  currentTime.value = new Date().toISOString()
-})
+  currentTime.value = new Date().toISOString();
+});
 </script>
 
 <template>
@@ -277,7 +279,7 @@ onMounted(() => {
 
 <!-- ✅ Right -->
 <script setup>
-const key = useState('random-key', () => Math.random())
+const key = useState("random-key", () => Math.random());
 </script>
 
 <template>
@@ -287,16 +289,16 @@ const key = useState('random-key', () => Math.random())
 <!-- Pattern 3: Browser Detection -->
 <!-- ❌ Wrong -->
 <script setup>
-const userAgent = navigator.userAgent
+const userAgent = navigator.userAgent;
 </script>
 
 <!-- ✅ Right -->
 <script setup>
-const userAgent = ref('')
+const userAgent = ref("");
 
 onMounted(() => {
-  userAgent.value = navigator.userAgent
-})
+  userAgent.value = navigator.userAgent;
+});
 </script>
 ```
 

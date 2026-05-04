@@ -12,7 +12,6 @@ import {
   Loader2,
   ChevronLeft,
 } from "lucide-vue-next";
-import * as XLSX from "xlsx";
 import { jsPDF } from "jspdf";
 import { buildStyledWorkbook, type StyledRow } from "~/lib/excel-styled";
 import { usePayments, type OutstandingReport } from "~/composables/usePayments";

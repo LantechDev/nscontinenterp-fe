@@ -47,9 +47,9 @@ npx wrangler pages deploy .output/public --project-name my-nuxt-app
 // nuxt.config.ts
 export default defineNuxtConfig({
   nitro: {
-    preset: 'cloudflare-pages'
-  }
-})
+    preset: "cloudflare-pages",
+  },
+});
 ```
 
 ### Environment Variables
@@ -74,9 +74,9 @@ API_SECRET=your-secret
 // nuxt.config.ts
 export default defineNuxtConfig({
   nitro: {
-    preset: 'cloudflare-module'  // or 'cloudflare-pages'
-  }
-})
+    preset: "cloudflare-module", // or 'cloudflare-pages'
+  },
+});
 ```
 
 ### Build & Deploy
@@ -144,16 +144,16 @@ npm install @nuxthub/core
 ```typescript
 // nuxt.config.ts
 export default defineNuxtConfig({
-  modules: ['@nuxthub/core'],
+  modules: ["@nuxthub/core"],
 
   hub: {
-    database: true,  // D1 database
-    kv: true,        // KV storage
-    blob: true,      // R2 blob storage
-    cache: true,     // Cache API
-    ai: true         // Workers AI
-  }
-})
+    database: true, // D1 database
+    kv: true, // KV storage
+    blob: true, // R2 blob storage
+    cache: true, // Cache API
+    ai: true, // Workers AI
+  },
+});
 ```
 
 ### Features
@@ -170,19 +170,19 @@ export default defineNuxtConfig({
 // server/api/users.get.ts
 export default defineEventHandler(async (event) => {
   // Database
-  const db = hubDatabase()
-  const users = await db.select().from(tables.users)
+  const db = hubDatabase();
+  const users = await db.select().from(tables.users);
 
   // KV
-  const kv = hubKV()
-  await kv.set('users-count', users.length)
+  const kv = hubKV();
+  await kv.set("users-count", users.length);
 
   // Blob
-  const blob = hubBlob()
-  const avatar = await blob.get('avatars/user-1.jpg')
+  const blob = hubBlob();
+  const avatar = await blob.get("avatars/user-1.jpg");
 
-  return { users, count: users.length, avatar }
-})
+  return { users, count: users.length, avatar };
+});
 ```
 
 ## Bindings
@@ -208,29 +208,29 @@ database_id = "your-database-id"
 
 ```typescript
 // server/utils/db.ts
-import { drizzle } from 'drizzle-orm/d1'
-import * as schema from '../database/schema'
+import { drizzle } from "drizzle-orm/d1";
+import * as schema from "../database/schema";
 
 export const useDB = (event: H3Event) => {
-  const { cloudflare } = event.context
+  const { cloudflare } = event.context;
 
   if (!cloudflare?.env?.DB) {
     throw createError({
       statusCode: 500,
-      message: 'Database not configured'
-    })
+      message: "Database not configured",
+    });
   }
 
-  return drizzle(cloudflare.env.DB, { schema })
-}
+  return drizzle(cloudflare.env.DB, { schema });
+};
 
 // server/api/users.get.ts
 export default defineEventHandler(async (event) => {
-  const db = useDB(event)
-  const users = await db.select().from(schema.users)
+  const db = useDB(event);
+  const users = await db.select().from(schema.users);
 
-  return users
-})
+  return users;
+});
 ```
 
 **Local Development:**
@@ -243,8 +243,8 @@ npm install -D nitro-cloudflare-dev
 ```typescript
 // nuxt.config.ts
 export default defineNuxtConfig({
-  modules: ['nitro-cloudflare-dev']
-})
+  modules: ["nitro-cloudflare-dev"],
+});
 ```
 
 ### KV Storage
@@ -268,48 +268,48 @@ id = "your-kv-id"
 ```typescript
 // server/utils/kv.ts
 export const useKV = (event: H3Event) => {
-  const { cloudflare } = event.context
+  const { cloudflare } = event.context;
 
   if (!cloudflare?.env?.KV) {
     throw createError({
       statusCode: 500,
-      message: 'KV not configured'
-    })
+      message: "KV not configured",
+    });
   }
 
-  return cloudflare.env.KV
-}
+  return cloudflare.env.KV;
+};
 
 // server/api/cache/[key].get.ts
 export default defineEventHandler(async (event) => {
-  const key = getRouterParam(event, 'key')
-  const kv = useKV(event)
+  const key = getRouterParam(event, "key");
+  const kv = useKV(event);
 
-  const value = await kv.get(key)
+  const value = await kv.get(key);
 
   if (!value) {
     throw createError({
       statusCode: 404,
-      message: 'Key not found'
-    })
+      message: "Key not found",
+    });
   }
 
-  return { key, value }
-})
+  return { key, value };
+});
 
 // server/api/cache/[key].put.ts
 export default defineEventHandler(async (event) => {
-  const key = getRouterParam(event, 'key')
-  const { value, ttl } = await readBody(event)
+  const key = getRouterParam(event, "key");
+  const { value, ttl } = await readBody(event);
 
-  const kv = useKV(event)
+  const kv = useKV(event);
 
   await kv.put(key, value, {
-    expirationTtl: ttl || 3600
-  })
+    expirationTtl: ttl || 3600,
+  });
 
-  return { success: true }
-})
+  return { success: true };
+});
 ```
 
 ### R2 Storage
@@ -331,62 +331,62 @@ bucket_name = "my-bucket"
 ```typescript
 // server/utils/r2.ts
 export const useR2 = (event: H3Event) => {
-  const { cloudflare } = event.context
+  const { cloudflare } = event.context;
 
   if (!cloudflare?.env?.R2) {
     throw createError({
       statusCode: 500,
-      message: 'R2 not configured'
-    })
+      message: "R2 not configured",
+    });
   }
 
-  return cloudflare.env.R2
-}
+  return cloudflare.env.R2;
+};
 
 // server/api/upload.post.ts
 export default defineEventHandler(async (event) => {
-  const formData = await readMultipartFormData(event)
-  const file = formData?.find((item) => item.name === 'file')
+  const formData = await readMultipartFormData(event);
+  const file = formData?.find((item) => item.name === "file");
 
   if (!file) {
     throw createError({
       statusCode: 400,
-      message: 'No file provided'
-    })
+      message: "No file provided",
+    });
   }
 
-  const r2 = useR2(event)
+  const r2 = useR2(event);
 
   // Upload to R2
   await r2.put(file.filename, file.data, {
     httpMetadata: {
-      contentType: file.type
-    }
-  })
+      contentType: file.type,
+    },
+  });
 
   return {
     success: true,
     filename: file.filename,
-    url: `https://your-bucket.r2.dev/${file.filename}`
-  }
-})
+    url: `https://your-bucket.r2.dev/${file.filename}`,
+  };
+});
 
 // server/api/files/[key].get.ts
 export default defineEventHandler(async (event) => {
-  const key = getRouterParam(event, 'key')
-  const r2 = useR2(event)
+  const key = getRouterParam(event, "key");
+  const r2 = useR2(event);
 
-  const object = await r2.get(key)
+  const object = await r2.get(key);
 
   if (!object) {
     throw createError({
       statusCode: 404,
-      message: 'File not found'
-    })
+      message: "File not found",
+    });
   }
 
-  return object
-})
+  return object;
+});
 ```
 
 ### Durable Objects
@@ -406,17 +406,17 @@ script_name = "counter-worker"
 ```typescript
 // server/api/counter.ts
 export default defineEventHandler(async (event) => {
-  const { cloudflare } = event.context
+  const { cloudflare } = event.context;
 
   // Get Durable Object stub
-  const id = cloudflare.env.COUNTER.idFromName('global')
-  const stub = cloudflare.env.COUNTER.get(id)
+  const id = cloudflare.env.COUNTER.idFromName("global");
+  const stub = cloudflare.env.COUNTER.get(id);
 
   // Call Durable Object
-  const count = await stub.fetch('https://fake-host/increment')
+  const count = await stub.fetch("https://fake-host/increment");
 
-  return { count }
-})
+  return { count };
+});
 ```
 
 ### Queues
@@ -441,34 +441,34 @@ queue = "my-queue"
 ```typescript
 // server/api/queue-job.post.ts
 export default defineEventHandler(async (event) => {
-  const body = await readBody(event)
+  const body = await readBody(event);
 
-  const { cloudflare } = event.context
+  const { cloudflare } = event.context;
 
   // Send message to queue
   await cloudflare.env.QUEUE.send({
-    type: 'process-user',
-    userId: body.userId
-  })
+    type: "process-user",
+    userId: body.userId,
+  });
 
-  return { queued: true }
-})
+  return { queued: true };
+});
 
 // Consumer (separate worker or route)
 export default {
   async queue(batch, env) {
     for (const message of batch.messages) {
-      const { type, userId } = message.body
+      const { type, userId } = message.body;
 
-      if (type === 'process-user') {
+      if (type === "process-user") {
         // Process user
-        await processUser(userId)
+        await processUser(userId);
       }
 
-      message.ack()
+      message.ack();
     }
-  }
-}
+  },
+};
 ```
 
 ### Workers AI
@@ -486,19 +486,16 @@ binding = "AI"
 ```typescript
 // server/api/ai/generate.post.ts
 export default defineEventHandler(async (event) => {
-  const { prompt } = await readBody(event)
+  const { prompt } = await readBody(event);
 
-  const { cloudflare } = event.context
+  const { cloudflare } = event.context;
 
-  const response = await cloudflare.env.AI.run(
-    '@cf/meta/llama-2-7b-chat-int8',
-    {
-      prompt
-    }
-  )
+  const response = await cloudflare.env.AI.run("@cf/meta/llama-2-7b-chat-int8", {
+    prompt,
+  });
 
-  return response
-})
+  return response;
+});
 ```
 
 ## Environment Variables
@@ -527,18 +524,18 @@ export default defineNuxtConfig({
   runtimeConfig: {
     apiSecret: process.env.API_SECRET,
     public: {
-      apiUrl: process.env.PUBLIC_API_URL
-    }
-  }
-})
+      apiUrl: process.env.PUBLIC_API_URL,
+    },
+  },
+});
 
 // In server routes
 export default defineEventHandler((event) => {
-  const config = useRuntimeConfig()
-  const secret = config.apiSecret
+  const config = useRuntimeConfig();
+  const secret = config.apiSecret;
 
-  return { secret }
-})
+  return { secret };
+});
 ```
 
 ## WebSocket Support
@@ -550,10 +547,10 @@ export default defineEventHandler((event) => {
 export default defineNuxtConfig({
   nitro: {
     experimental: {
-      websocket: true
-    }
-  }
-})
+      websocket: true,
+    },
+  },
+});
 ```
 
 ### WebSocket Route
@@ -562,24 +559,24 @@ export default defineNuxtConfig({
 // server/api/ws.ts
 export default defineWebSocketHandler({
   open(peer) {
-    console.log('Client connected:', peer.id)
-    peer.send({ type: 'connected', message: 'Welcome!' })
+    console.log("Client connected:", peer.id);
+    peer.send({ type: "connected", message: "Welcome!" });
   },
 
   message(peer, message) {
-    console.log('Received:', message)
+    console.log("Received:", message);
 
     // Echo back
-    peer.send({ type: 'echo', data: message })
+    peer.send({ type: "echo", data: message });
 
     // Broadcast to all
-    peer.publish('chat', message)
+    peer.publish("chat", message);
   },
 
   close(peer) {
-    console.log('Client disconnected:', peer.id)
-  }
-})
+    console.log("Client disconnected:", peer.id);
+  },
+});
 ```
 
 ### Client Usage
@@ -687,6 +684,7 @@ npx wrangler deploy
 **Issue**: Build command not found
 
 **Solution**:
+
 ```toml
 # wrangler.toml
 [build]
@@ -706,8 +704,8 @@ npm install -D nitro-cloudflare-dev
 ```typescript
 // nuxt.config.ts
 export default defineNuxtConfig({
-  modules: ['nitro-cloudflare-dev']
-})
+  modules: ["nitro-cloudflare-dev"],
+});
 ```
 
 ### WebSocket Not Working
@@ -715,6 +713,7 @@ export default defineNuxtConfig({
 **Issue**: WebSocket connections fail
 
 **Solution**:
+
 1. Ensure `websocket: true` in config
 2. Use `wss://` protocol
 3. Check compatibility date >= `2024-09-19`
@@ -724,6 +723,7 @@ export default defineNuxtConfig({
 **Issue**: Env vars undefined in production
 
 **Solution**:
+
 1. Use `wrangler secret put` for sensitive values
 2. Use `[vars]` in `wrangler.toml` for public values
 3. Access via `useRuntimeConfig()`
@@ -733,6 +733,7 @@ export default defineNuxtConfig({
 **Issue**: `Database not configured`
 
 **Solution**:
+
 1. Verify binding in `wrangler.toml`
 2. Check database ID is correct
 3. Ensure `nitro-cloudflare-dev` installed for local dev

@@ -1,5 +1,3 @@
-import * as XLSX from "xlsx";
-
 export const EXCEL_COLORS = {
   darkNavy: "012D5A",
   lightBlue: "D6E4F0",
@@ -53,6 +51,29 @@ interface CellObj {
   k?: string;
 }
 
+interface ColInfo {
+  wch?: number;
+}
+
+interface MergeInfo {
+  s: { c: number; r: number };
+  e: { c: number; r: number };
+}
+
+interface RowInfo {
+  hpt?: number;
+}
+
+type ColsArray = (ColInfo | undefined)[];
+type RowsArray = (RowInfo | undefined)[];
+
+export interface WorkSheet {
+  [key: string]: unknown;
+  "!cols"?: ColsArray;
+  "!rows"?: RowsArray;
+  "!merges"?: MergeInfo[];
+}
+
 export function makeBorder(): CellStyle["border"] {
   return {
     top: { style: "thin", color: { rgb: EXCEL_COLORS.darkNavy } },
@@ -96,14 +117,14 @@ export function makeCellStyle(opts: {
 }
 
 export function applyStyleToRange(
-  ws: XLSX.WorkSheet,
+  ws: WorkSheet,
   range: { s: { c: number; r: number }; e: { c: number; r: number } },
   style: CellStyle,
 ) {
   const styleMap = style as unknown as Record<string, unknown>;
   for (let r = range.s.r; r <= range.e.r; r++) {
     for (let c = range.s.c; c <= range.e.c; c++) {
-      const addr = XLSX.utils.encode_cell({ r, c });
+      const addr = colLetter(c) + (r + 1);
       if (!ws[addr]) {
         ws[addr] = { t: "s", v: "", s: style };
       } else {
@@ -121,8 +142,12 @@ export function applyStyleToRange(
   }
 }
 
+function colLetter(c: number): string {
+  return String.fromCharCode(65 + c);
+}
+
 export function mergeCells(
-  ws: XLSX.WorkSheet,
+  ws: WorkSheet,
   s: { c: number; r: number },
   e: { c: number; r: number },
 ) {
@@ -130,12 +155,12 @@ export function mergeCells(
   ws["!merges"].push({ s, e });
 }
 
-export function setColWidth(ws: XLSX.WorkSheet, col: number, width: number) {
+export function setColWidth(ws: WorkSheet, col: number, width: number) {
   if (!ws["!cols"]) ws["!cols"] = [];
   ws["!cols"][col] = { wch: width };
 }
 
-export function setRowHeight(ws: XLSX.WorkSheet, row: number, height: number) {
+export function setRowHeight(ws: WorkSheet, row: number, height: number) {
   if (!ws["!rows"]) ws["!rows"] = [];
   ws["!rows"][row] = { hpt: height };
 }
