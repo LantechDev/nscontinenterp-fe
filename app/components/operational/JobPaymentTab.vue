@@ -16,6 +16,7 @@ import Modal from "~/components/ui/Modal.vue";
 
 const props = defineProps<{
   jobId: string;
+  isCompleted?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -125,6 +126,9 @@ const handleVoidPayment = async () => {
     isVoiding.value = false;
   }
 };
+defineExpose({
+  refresh: loadData,
+});
 </script>
 
 <template>
@@ -234,7 +238,11 @@ const handleVoidPayment = async () => {
                   {{ payment.invoiceNumber }}
                 </div>
                 <button
-                  v-if="(payment.status || '').toUpperCase() === 'PAID' && payment.paymentNumber"
+                  v-if="
+                    (payment.status || '').toUpperCase() === 'PAID' &&
+                    payment.paymentNumber &&
+                    !isCompleted
+                  "
                   @click="confirmVoid(payment.id, payment.paymentNumber!)"
                   class="flex items-center gap-1.5 px-2 py-1 text-red-600 hover:bg-red-50 rounded-md transition-all border border-red-100/50 hover:border-red-200 shadow-sm"
                   title="Void Payment"
@@ -258,7 +266,7 @@ const handleVoidPayment = async () => {
                   Method
                 </p>
                 <p class="text-xs font-bold text-foreground">
-                  {{ payment.paymentMethod?.name || "Bank Transfer" }}
+                  {{ payment.paymentMethod?.name || "-" }}
                 </p>
               </div>
               <div class="text-right">

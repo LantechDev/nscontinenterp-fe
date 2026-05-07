@@ -26,6 +26,7 @@ import type {
 import SectionCard from "./components/SectionCard.vue";
 import JobPartyRow from "./components/JobPartyRow.vue";
 import CompanyCreateModal from "~/pages/master/company/components/CompanyCreateModal.vue";
+import VesselQuickAddModal from "~/components/operational/VesselQuickAddModal.vue";
 
 definePageMeta({
   layout: "dashboard",
@@ -97,6 +98,20 @@ const presetCompanyName = ref("");
 const activeCompanyField = ref<
   "shipperId" | "consigneeId" | "notifyPartyId" | "forwarderId" | "customerId" | null
 >(null);
+
+// Vessel Modal State
+const isVesselModalOpen = ref(false);
+const presetVesselName = ref("");
+const activeVesselObj = ref<{
+  id: number;
+  vesselId: string;
+  vesselName: string;
+  voyageNumber: string;
+  etd: string;
+  eta: string;
+  sequence: number;
+  vesselType: string;
+} | null>(null);
 
 // Search handlers for ports (client-side only)
 async function handleSearchPol(query: string) {
@@ -191,6 +206,7 @@ const formData = reactive({
       etd: "",
       eta: "",
       sequence: 0,
+      vesselType: "feeder",
     },
   ],
   etd: "",
@@ -338,6 +354,18 @@ watch(
       formData.totalBlCount = 1;
     }
   },
+);
+
+// Maintain Vessel Roles and Sequence
+watch(
+  () => formData.vessels,
+  (vessels) => {
+    vessels.forEach((v, idx) => {
+      v.sequence = idx;
+      v.vesselType = idx === 0 ? "feeder" : "mother";
+    });
+  },
+  { deep: true },
 );
 
 // --- LIVE VALIDATION COMPUTEDS ---
@@ -568,36 +596,34 @@ const onCompanyCreateSuccess = async (company: Company) => {
 async function handleCreateVessel(
   name: string,
   vessel?: {
+    id: number;
     vesselId: string;
     vesselName: string;
     voyageNumber: string;
     etd: string;
+    eta: string;
     sequence: number;
+    vesselType: string;
   },
 ) {
-  const isConfirmed = await confirm({
-    title: "Create New Vessel",
-    message: `Are you sure you want to create a new vessel named "${name}"?`,
-    confirmText: "Create Vessel",
-    type: "info",
-  });
-  if (!isConfirmed) return;
-
-  const result = await createVessel(name);
-  if (result.success && result.data) {
-    await refreshMasterData();
-    if (vessel) {
-      vessel.vesselId = result.data.id;
-    } else {
-      if (formData.vessels[0]) {
-        formData.vessels[0].vesselId = result.data.id;
-      }
-    }
-    toast.success(`Vessel "${name}" created successfully.`);
-  } else {
-    toast.error("Failed to create vessel: " + (result.error || "Unknown error"));
-  }
+  presetVesselName.value = name;
+  activeVesselObj.value = vessel || null;
+  isVesselModalOpen.value = true;
 }
+
+const onVesselCreateSuccess = async (vessel: { id: string; name: string }) => {
+  await refreshMasterData();
+
+  // Auto-assign the created vessel to the active field
+  if (activeVesselObj.value) {
+    activeVesselObj.value.vesselId = vessel.id;
+  } else if (formData.vessels[0]) {
+    formData.vessels[0].vesselId = vessel.id;
+  }
+
+  isVesselModalOpen.value = false;
+  toast.success(`Vessel "${vessel.name}" created successfully.`);
+};
 
 async function handleSubmit(isDraft: boolean = false) {
   if (
@@ -652,7 +678,9 @@ async function handleSubmit(isDraft: boolean = false) {
       vesselName: v.vesselName || null,
       voyageNumber: v.voyageNumber || null,
       etd: v.etd || null,
+      eta: v.eta || null,
       sequence: v.sequence,
+      vesselType: v.vesselType,
     })),
     preCarriageBy: formData.preCarriageBy || undefined,
     placeOfReceipt: formData.placeOfReceipt || undefined,
@@ -792,6 +820,34 @@ function scrollTo(id: string) {
     const y = el.getBoundingClientRect().top + window.scrollY - 160; // Offset for both main and sub headers
     window.scrollTo({ top: y, behavior: "smooth" });
   }
+}
+
+function getVesselLabels(index: number) {
+  const isFeeder = index === 0;
+  const isLast = index === formData.vessels.length - 1;
+  const hasTransit = formData.vessels.length > 1;
+
+  return {
+    header: isFeeder ? "Feeder Vessel" : `Mother Vessel ${index}`,
+    etd: isFeeder ? "ETD POL" : "ETD T/S PORT",
+    eta: isLast ? "ETA POD" : "ETA T/S PORT",
+    isFeeder,
+    isLast,
+    hasTransit,
+  };
+}
+
+function addVessel() {
+  formData.vessels.push({
+    id: Date.now(),
+    vesselId: "",
+    vesselName: "",
+    voyageNumber: "",
+    etd: "",
+    eta: "",
+    sequence: formData.vessels.length,
+    vesselType: "mother",
+  });
 }
 </script>
 
@@ -1635,17 +1691,7 @@ function scrollTo(id: string) {
                     </h4>
                     <button
                       type="button"
-                      @click="
-                        formData.vessels.push({
-                          id: Date.now(),
-                          vesselId: '',
-                          vesselName: '',
-                          voyageNumber: '',
-                          etd: '',
-                          eta: '',
-                          sequence: formData.vessels.length,
-                        })
-                      "
+                      @click="addVessel()"
                       class="btn-secondary py-1.5 px-3 text-[11px] font-bold uppercase tracking-widest flex items-center gap-2 transition-all hover:ring-2 hover:ring-primary/20"
                     >
                       <Plus class="w-3.5 h-3.5" /> Add Vessel
@@ -1664,7 +1710,7 @@ function scrollTo(id: string) {
                           <label
                             class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1"
                           >
-                            {{ vIndex === 0 ? "Feeder / First Vessel" : "Vessel " + (vIndex + 1) }}
+                            {{ getVesselLabels(vIndex).header }}
                           </label>
                           <Combobox
                             v-model="vessel.vesselId"
@@ -1692,11 +1738,11 @@ function scrollTo(id: string) {
                           />
                         </div>
 
-                        <!-- ETD POL -->
+                        <!-- ETD -->
                         <div class="md:col-span-2 space-y-2">
                           <label
                             class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1"
-                            >ETD POL</label
+                            >{{ getVesselLabels(vIndex).etd }}</label
                           >
                           <DatePicker
                             v-model="vessel.etd"
@@ -1705,17 +1751,24 @@ function scrollTo(id: string) {
                           />
                         </div>
 
-                        <!-- ETA POD -->
-                        <div class="md:col-span-2 space-y-2">
+                        <!-- ETA -->
+                        <div class="md:col-span-2 space-y-2 relative">
                           <label
                             class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1"
-                            >ETA POD</label
+                            >{{ getVesselLabels(vIndex).eta }}</label
                           >
                           <DatePicker
                             v-model="vessel.eta"
                             placeholder="Select ETA..."
                             class="h-10"
                           />
+                          <!-- Micro hint for transit -->
+                          <div
+                            v-if="vIndex === 0 && getVesselLabels(vIndex).hasTransit"
+                            class="absolute -bottom-4 left-1 text-[9px] text-primary font-bold animate-pulse"
+                          >
+                            Transit detected → T/S Port
+                          </div>
                         </div>
 
                         <!-- Remove Button -->
@@ -1963,6 +2016,13 @@ function scrollTo(id: string) {
       v-model="isCompanyModalOpen"
       :preset-name="presetCompanyName"
       @success="onCompanyCreateSuccess"
+    />
+
+    <!-- Quick Add Vessel Modal -->
+    <VesselQuickAddModal
+      v-model:is-open="isVesselModalOpen"
+      :initial-name="presetVesselName"
+      @success="onVesselCreateSuccess"
     />
   </div>
 </template>

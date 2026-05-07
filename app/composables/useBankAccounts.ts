@@ -4,6 +4,7 @@ export interface BankAccount {
   accountNumber: string;
   accountHolder: string;
   currency: string;
+  swiftCode?: string;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -14,6 +15,7 @@ export interface CreateBankAccount {
   accountNumber: string;
   accountHolder: string;
   currency: string;
+  swiftCode?: string;
   isActive?: boolean;
 }
 

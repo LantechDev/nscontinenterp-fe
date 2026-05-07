@@ -281,7 +281,7 @@ const handleExportPdf = async () => {
     } else {
       dashboardData.value.recentJobs.forEach((job, idx) => {
         drawDataRow(
-          [job.jobNumber, job.customer, `${job.origin} -> ${job.destination}`, job.status],
+          [job.jobNumber, job.customer, `${job.origin} -> ${job.destination}`, job.status.name],
           colW5,
           idx,
         );
@@ -396,7 +396,12 @@ const handleExportExcel = () => {
     } else {
       dashboardData.value.recentJobs.forEach((job, i) => {
         rows.push({
-          cells: [job.jobNumber, job.customer, `${job.origin} → ${job.destination}`, job.status],
+          cells: [
+            job.jobNumber,
+            job.customer,
+            `${job.origin} → ${job.destination}`,
+            job.status.name,
+          ],
           style: i % 2 === 0 ? 1 : 2,
         });
       });
@@ -648,7 +653,7 @@ onClickOutside(periodDropdownRef as Ref<HTMLElement>, () => {
         :icon="Receipt"
       />
       <DashboardStatCard
-        title="Active Offer"
+        title="Active eBL"
         :value="String(dashboardData?.stats?.activeOffers || 0)"
         :change="dashboardData?.stats?.activeOffersChange ?? 0"
         change-label="vs Last Year"

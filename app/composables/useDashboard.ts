@@ -29,6 +29,7 @@ export interface PendingApprovalBl {
 
 export interface DashboardActivity {
   id: string;
+  type: "Departure" | "Arrival";
   title: string;
   description: string;
   time: string;
@@ -51,7 +52,10 @@ export interface DashboardJob {
   jobNumber: string;
   customer: string;
   type: "Export" | "Import";
-  status: "Active" | "Pending" | "Canceled" | "Done";
+  status: {
+    code: string;
+    name: string;
+  };
   origin: string;
   destination: string;
   date: string;

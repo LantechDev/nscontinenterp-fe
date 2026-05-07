@@ -27,7 +27,6 @@ const {
   isSubmitting,
   editError,
   formData,
-  selectedTaxId,
   currentPage,
   pagination,
   statusOptions,
@@ -48,6 +47,7 @@ const {
   addLineItem,
   removeLineItem,
   updateItemAmount,
+  toggleTax,
   initialize,
 } = useInvoicePage();
 
@@ -141,10 +141,6 @@ const handleInvoiceClick = (id: string) => {
 const handleEdit = (id: string) => {
   openEditModal(id);
 };
-
-const handleTaxIdChange = (value: string) => {
-  selectedTaxId.value = value;
-};
 </script>
 
 <template>
@@ -210,15 +206,7 @@ const handleTaxIdChange = (value: string) => {
         />
       </div>
 
-      <div class="flex items-center gap-3">
-        <NuxtLink
-          to="/finance/invoice/create"
-          class="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-[#012D5A] text-white hover:bg-[#012D5A]/90 rounded-lg transition-colors min-w-fit whitespace-nowrap"
-        >
-          <Plus class="w-4 h-4" />
-          <span>Buat Invoice</span>
-        </NuxtLink>
-      </div>
+      <div class="flex items-center gap-3"></div>
     </div>
 
     <!-- Loading state -->
@@ -244,13 +232,6 @@ const handleTaxIdChange = (value: string) => {
     >
       <Receipt class="w-12 h-12 text-muted-foreground mx-auto mb-4" />
       <p class="text-muted-foreground">Belum ada invoice</p>
-      <NuxtLink
-        to="/finance/invoice/create"
-        class="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-[#012D5A] text-white rounded-lg"
-      >
-        <Plus class="w-4 h-4" />
-        Buat Invoice Pertama
-      </NuxtLink>
     </div>
 
     <!-- List View -->
@@ -292,7 +273,6 @@ const handleTaxIdChange = (value: string) => {
       :is-submitting="isSubmitting"
       :edit-error="editError"
       :form-data="formData"
-      :selected-tax-id="selectedTaxId"
       :status-options="editStatusOptions"
       :tax-options="taxOptions"
       :companies="companies"
@@ -303,14 +283,14 @@ const handleTaxIdChange = (value: string) => {
       @add-line-item="addLineItem"
       @remove-line-item="removeLineItem"
       @update-item-amount="updateItemAmount"
-      @update-tax-id="handleTaxIdChange"
+      @toggle-tax="toggleTax"
     />
 
     <!-- Job Detail Slide-over -->
     <OperationalJobDetailSlideOver
       v-model="isJobDetailOpen"
       :job-id="selectedJobId"
-      initial-tab="invoice"
+      initial-tab="finance"
       :initial-invoice-id="initialInvoiceId"
     />
 

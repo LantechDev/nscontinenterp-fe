@@ -43,9 +43,15 @@ const filteredJobs = computed(() => {
 });
 
 // Helper for status badge class
-const getStatusClass = (statusId: string | null | undefined) => {
-  if (statusId === "completed") return "bg-gray-100 text-gray-700 border-gray-200";
-  if (statusId === "pending") return "bg-yellow-50 text-yellow-700 border-yellow-200";
+const getStatusClass = (statusCode: string | null | undefined) => {
+  const code = (statusCode || "").toUpperCase();
+  if (code === "COMPLETED" || code === "CLOSED" || code === "DONE")
+    return "bg-green-50 text-green-700 border-green-200";
+  if (code === "DRAFT") return "bg-gray-100 text-gray-600 border-gray-200";
+  if (code === "CANCELLED" || code === "VOID") return "bg-red-50 text-red-700 border-red-200";
+  if (code === "PENDING" || code === "ACTIVE" || code === "IN_PROGRESS")
+    return "bg-yellow-50 text-yellow-700 border-yellow-200";
+  if (code === "CONFIRMED") return "bg-blue-50 text-blue-700 border-blue-200";
   return "bg-blue-50 text-blue-700 border-blue-200";
 };
 

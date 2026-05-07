@@ -501,6 +501,10 @@ defineExpose({
                       matchedBankAccount?.currency || props.invoice?.currency || "IDR"
                     }})</span
                   >
+                  <template v-if="matchedBankAccount?.swiftCode">
+                    <span class="text-[#062c58]/70">SWIFT CODE:</span>
+                    <span class="font-bold">{{ matchedBankAccount.swiftCode }}</span>
+                  </template>
                 </div>
                 <div class="mt-4 pt-2 border-t border-[#062c58]/10">
                   <span class="font-bold text-[0.55rem] text-[#062c58]/50 block uppercase"

@@ -4,6 +4,7 @@ import type {
   ActiveJobData,
   EblContainer,
 } from "../components/operational/ebl/types";
+import type { JobCostBreakdownResponse } from "~/types/finance-dashboard";
 
 export interface JobVessel {
   id: string;
@@ -13,6 +14,7 @@ export interface JobVessel {
   etd: string | null;
   eta: string | null;
   sequence: number;
+  vesselType?: string;
   vessel?: { name: string; imoNumber?: string | null } | null;
 }
 
@@ -415,6 +417,7 @@ function getErrorMessage(error: unknown): string {
 }
 
 function handleApiError<T = unknown>(error: unknown): AuthResponse<T> {
+  console.error("[useJobs API Error]", error);
   return { success: false, error: getErrorMessage(error) };
 }
 
@@ -721,6 +724,25 @@ export function useJobs() {
     }
   }
 
+  async function fetchClosingJobs(params?: {
+    period?: string;
+    search?: string;
+    page?: number;
+    limit?: number;
+  }) {
+    isLoading.value = true;
+    try {
+      const data = await $fetch<JobCostBreakdownResponse>("/api/operational/jobs/closing-list", {
+        params,
+      });
+      return { success: true, data };
+    } catch (error) {
+      return handleApiError<JobCostBreakdownResponse>(error);
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
   return {
     jobs,
     currentJob,
@@ -742,5 +764,6 @@ export function useJobs() {
     getJobDocuments,
     uploadJobDocument,
     deleteJobDocument,
+    fetchClosingJobs,
   };
 }

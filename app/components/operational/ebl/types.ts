@@ -6,6 +6,7 @@ export interface EblVessel {
   etd?: string | null;
   eta?: string | null;
   sequence?: number;
+  vesselType?: string | null;
 }
 export interface EblContainerItem {
   id?: string | number;
@@ -45,7 +46,7 @@ export interface EblParty {
   companyId?: string;
   companyName?: string;
   company?: { name?: string };
-  addressBookId?: string;
+  addressBookId?: string | null;
   addressBook?: { fullAddress?: string; address?: string; city?: string; isDefault?: boolean };
 }
 export interface ActiveBlData {

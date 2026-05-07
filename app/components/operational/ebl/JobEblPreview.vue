@@ -10,17 +10,29 @@ import type {
   EblContainer,
   EblContainerItem,
 } from "./types";
+import { useBlConditions } from "~/composables/useBlConditions";
 
 const props = defineProps<{
   jobData: ActiveJobData;
   activeBl: ActiveBlData | null;
 }>();
 
+const { conditions, fetchConditions } = useBlConditions();
+const activeConditions = computed(() =>
+  conditions.value
+    .filter((c) => c.isActive)
+    .map((c) => ({
+      ...c,
+      clauseContent: (c.clauseContent || "").trim(),
+    })),
+);
+
 const logoUrl = ref("/images/transparentnscontinenttebal.png");
-onMounted(() => {
+onMounted(async () => {
   if (typeof window !== "undefined") {
     logoUrl.value = window.location.origin + "/images/transparentnscontinenttebal.png";
   }
+  await fetchConditions();
 });
 
 const isGeneratingPDF = ref(false);
@@ -49,8 +61,10 @@ const isFinalized = computed(
   () => blStatus.value === "finalized" || blStatus.value === "confirmed",
 );
 
-const getVal = (val: unknown, fallback: unknown = "") =>
-  val ? String(val) : fallback ? String(fallback) : "";
+const getVal = (val: unknown, fallback: unknown = "") => {
+  const s = val ? String(val).trim() : fallback ? String(fallback).trim() : "";
+  return s;
+};
 
 const formatNumber = (num: unknown, decimals: number = 3): string => {
   if (!num && num !== 0) return "-";
@@ -180,10 +194,14 @@ const totals = computed(() => {
 
 const formatPartyDisplay = (partyInfo: EblParty | undefined) => {
   if (!partyInfo) return "";
-  const name = partyInfo.companyName || partyInfo.company?.name || "";
-  const address = partyInfo.addressBook?.fullAddress || partyInfo.addressBook?.address || "";
-  const city = partyInfo.addressBook?.city || "";
-  const parts = [name, address, city].filter(Boolean);
+  const name = (partyInfo.companyName || partyInfo.company?.name || "").trim();
+  const address = (
+    partyInfo.addressBook?.fullAddress ||
+    partyInfo.addressBook?.address ||
+    ""
+  ).trim();
+  const city = (partyInfo.addressBook?.city || "").trim();
+  const parts = [name, address, city].filter((p) => p.length > 0);
   return parts.join("\n");
 };
 
@@ -239,7 +257,7 @@ const paginatedPages = computed(() => {
     currentHeight += headerHeight;
 
     (container.items || []).forEach((item: EblContainerItem) => {
-      const descriptionText = item.description || "";
+      const descriptionText = (item.description || "").trim();
       const rawLines = descriptionText.split("\n");
       const processedLines: string[] = [];
 
@@ -632,7 +650,7 @@ defineExpose({
               <div
                 class="w-[3%] border-r border-[#062c58] p-1 flex flex-col items-center justify-center leading-none"
               >
-                <span>H</span><span class="mt-0.5">M</span>
+                <span>D</span><span class="mt-0.5">G</span>
               </div>
               <div class="w-[40%] border-r border-[#062c58] p-1 flex items-center justify-center">
                 DESCRIPTION OF PACKAGES AND GOODS
@@ -654,7 +672,7 @@ defineExpose({
               <div class="w-[12.5%]"></div>
             </div>
 
-            <div class="relative z-[1] text-black font-mono pt-4">
+            <div class="relative z-[1] text-black font-mono pt-1">
               <template v-for="(cnt, cIdx) in pageItems" :key="cIdx">
                 <div
                   v-if="cnt.isHeaderVisible && !cnt.isFallback"
@@ -684,7 +702,7 @@ defineExpose({
                 <div
                   v-for="(item, iIdx) in cnt.renderItems"
                   :key="iIdx"
-                  class="flex w-full mb-3 tracking-tight"
+                  class="flex w-full mb-1 tracking-tight"
                 >
                   <div class="w-[22%] pl-3 text-[9px] uppercase leading-tight">
                     {{ pIdx === 0 && cIdx === 0 && iIdx === 0 ? jobData?.shippingMark : "" }}
@@ -925,6 +943,46 @@ defineExpose({
               >
             </div>
           </div>
+        </div>
+      </div>
+
+      <!-- Conditions of Contract Page (Back Page) -->
+      <div
+        v-if="activeConditions.length > 0"
+        class="a4-page-wrapper bg-white shadow-xl shrink-0 flex flex-col text-[#062c58] border p-5"
+        style="
+          width: 794px;
+          height: 1123px;
+          box-sizing: border-box;
+          position: relative;
+          background-color: #fff;
+        "
+      >
+        <div class="mb-2 text-center border-b border-[#062c58] pb-1">
+          <h2 class="text-[15px] font-bold uppercase tracking-widest">
+            Combined Transport Bill of Lading
+          </h2>
+          <h3 class="text-xs font-semibold uppercase">Conditions of Contract</h3>
+        </div>
+
+        <div
+          class="columns-2 gap-x-3 text-justify flex-1 overflow-hidden"
+          style="font-size: 8.5px; line-height: 1.1"
+        >
+          <div
+            v-for="condition in activeConditions"
+            :key="condition.id"
+            class="mb-1 break-inside-avoid"
+          >
+            <span class="font-bold mr-0.5"
+              >{{ condition.clauseNumber }}. {{ condition.clauseTitle }}:</span
+            >
+            <span class="leading-none">{{ condition.clauseContent }}</span>
+          </div>
+        </div>
+
+        <div class="mt-1 pt-1 border-t border-gray-200 text-[6px] text-center italic opacity-50">
+          * These terms and conditions are continued from the face of the Bill of Lading *
         </div>
       </div>
     </div>

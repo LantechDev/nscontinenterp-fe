@@ -1,3 +1,11 @@
+export interface ExpenseItem {
+  id?: string;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  amount: number;
+}
+
 export interface Expense {
   id: string;
   number: string;
@@ -13,6 +21,9 @@ export interface Expense {
   job?: { id: string; jobNumber: string };
   notes?: string;
   createdAt: string;
+  currency?: string;
+  exchangeRate?: number;
+  items?: ExpenseItem[];
 }
 
 export interface Pagination {
@@ -26,6 +37,7 @@ export interface ExpenseFilters {
   search?: string;
   categoryId?: string;
   vendorId?: string;
+  jobId?: string;
   startDate?: string;
   endDate?: string;
   sortBy?: string;

@@ -7,7 +7,25 @@ import { useFinanceTax } from "~/composables/useFinanceTax";
 import { useJobs } from "~/composables/useJobs";
 import Combobox from "~/components/ui/Combobox.vue";
 import Modal from "~/components/ui/Modal.vue";
+import DatePicker from "~/components/ui/DatePicker.vue";
 import { toast } from "vue-sonner";
+import { z } from "zod";
+
+const invoiceSchema = z.object({
+  customerId: z.string().min(1, "Please select a Billing Party (Customer)"),
+  currency: z.enum(["IDR", "USD"]),
+  exchangeRate: z.number().gt(0, "Exchange rate must be greater than 0"),
+  items: z
+    .array(
+      z.object({
+        serviceId: z.string().min(1, "Service is required"),
+        description: z.string().min(1, "Description is required"),
+        quantity: z.number().gt(0, "Quantity must be greater than 0"),
+        unitPrice: z.number().gt(0, "Unit Price must be greater than 0"),
+      }),
+    )
+    .min(1, "At least one service item is required"),
+});
 
 const TAX_OPTIONS = ref([{ name: "0%", value: "0" }]);
 
@@ -48,6 +66,7 @@ const form = ref({
     ? new Date(props.invoice.dueDate).toISOString().split("T")[0]
     : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
   currency: props.invoice?.currency || "IDR",
+  exchangeRate: Number(props.invoice?.exchangeRate || 1),
   customerId: props.invoice?.company?.id || props.customerId || "",
   notes: props.invoice?.notes || "",
   blNumber: props.invoice?.blNumber || props.invoice?.job?.billsOfLading?.[0]?.blNumber || "",
@@ -190,8 +209,11 @@ const total = computed(() => {
 });
 
 const handleSubmit = async () => {
-  if (!form.value.customerId) {
-    toast.error("Please select a Billing Party (Customer) for this invoice.");
+  const result = invoiceSchema.safeParse(form.value);
+
+  if (!result.success) {
+    const firstError = result.error.issues[0];
+    toast.error(firstError?.message || "Invalid form data");
     return;
   }
 
@@ -200,6 +222,7 @@ const handleSubmit = async () => {
     invoiceNumber: form.value.invoiceNumber,
     companyId: form.value.customerId,
     currency: form.value.currency,
+    exchangeRate: form.value.exchangeRate,
     issuedDate: (form.value.issuedDate || new Date().toISOString().split("T")[0]) as string,
     dueDate: (form.value.dueDate || new Date().toISOString().split("T")[0]) as string,
     subTotal: subTotal.value,
@@ -218,14 +241,14 @@ const handleSubmit = async () => {
     })),
   };
 
-  const result = props.invoice?.id
+  const saveResult = props.invoice?.id
     ? await updateInvoice(props.invoice.id, payload)
     : await createInvoice(payload);
 
-  if (result.success) {
+  if (saveResult.success) {
     emit("success");
   } else {
-    toast.error(result.error || `Failed to ${props.invoice?.id ? "update" : "create"} invoice`);
+    toast.error(saveResult.error || `Failed to ${props.invoice?.id ? "update" : "create"} invoice`);
   }
 };
 
@@ -294,6 +317,27 @@ const formatInputCurrency = (val: number | string) => {
             </button>
           </div>
         </div>
+
+        <div
+          v-if="form.currency === 'USD'"
+          class="flex items-center gap-2 animate-in slide-in-from-left-2 duration-300"
+        >
+          <span class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest"
+            >Ex. Rate</span
+          >
+          <div class="relative group/rate">
+            <input
+              type="text"
+              :value="formatInputCurrency(form.exchangeRate)"
+              @input="
+                (e) =>
+                  (form.exchangeRate = parseInputCurrency((e.target as HTMLInputElement).value))
+              "
+              class="w-28 px-3 py-1 text-xs font-bold text-[#012D5A] border border-border rounded-lg focus:ring-2 focus:ring-[#012D5A]/10 focus:border-[#012D5A] outline-none transition-all bg-white"
+              placeholder="16,000"
+            />
+          </div>
+        </div>
       </div>
       <button
         type="button"
@@ -338,21 +382,13 @@ const formatInputCurrency = (val: number | string) => {
           <label class="text-xs font-bold text-muted-foreground uppercase tracking-wider"
             >Issued Date</label
           >
-          <input
-            type="date"
-            v-model="form.issuedDate"
-            class="w-full px-3 py-2 bg-white border border-border rounded-md text-sm focus:ring-2 focus:ring-[#012D5A]/20 focus:border-[#012D5A] outline-none transition-all"
-          />
+          <DatePicker v-model="form.issuedDate" placeholder="Select issued date..." />
         </div>
         <div class="space-y-1.5">
           <label class="text-xs font-bold text-muted-foreground uppercase tracking-wider"
             >Due Date</label
           >
-          <input
-            type="date"
-            v-model="form.dueDate"
-            class="w-full px-3 py-2 bg-white border border-border rounded-md text-sm focus:ring-2 focus:ring-[#012D5A]/20 focus:border-[#012D5A] outline-none transition-all"
-          />
+          <DatePicker v-model="form.dueDate" placeholder="Select due date..." />
         </div>
       </div>
 
@@ -529,10 +565,26 @@ const formatInputCurrency = (val: number | string) => {
             }}</span>
           </div>
           <div class="flex justify-between border-t border-border pt-2 mt-2">
-            <span class="font-bold text-foreground font-inter">Total Amount</span>
             <span class="font-bold text-[#0a0b0b] text-lg font-inter">{{
               formatCurrency(total)
             }}</span>
+          </div>
+          <div
+            v-if="form.currency === 'USD'"
+            class="flex justify-between border-t border-border/50 pt-2 mt-1 italic"
+          >
+            <span class="text-[10px] font-bold text-muted-foreground uppercase"
+              >IDR Equivalent</span
+            >
+            <span class="text-[10px] font-bold text-[#012D5A]">
+              {{
+                new Intl.NumberFormat("id-ID", {
+                  style: "currency",
+                  currency: "IDR",
+                  minimumFractionDigits: 0,
+                }).format(total * form.exchangeRate)
+              }}
+            </span>
           </div>
         </div>
       </div>

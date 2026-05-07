@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { cn } from "~/lib/utils";
 import {
   X,
   Building2,
@@ -20,7 +21,7 @@ import {
   Trash2,
   Check,
 } from "lucide-vue-next";
-import JobInvoiceTab from "./JobInvoiceTab.vue";
+import JobFinanceTab from "./JobFinanceTab.vue";
 import JobEblTab from "./JobEblTab.vue";
 import JobDocumentTab from "./JobDocumentTab.vue";
 import { useAuth } from "~/composables/useAuth";
@@ -30,6 +31,7 @@ import DatePicker from "~/components/ui/DatePicker.vue";
 import { toast } from "vue-sonner";
 import type { EblVessel, ActiveJobData } from "./ebl/types";
 import type { Vessel } from "~/composables/useMasterData";
+import VesselQuickAddModal from "./VesselQuickAddModal.vue";
 
 interface Props {
   modelValue: boolean;
@@ -51,7 +53,7 @@ const activeTab = ref("overview");
 const tabs = [
   { id: "overview", label: "Overview" },
   { id: "ebl", label: "eBL" },
-  { id: "invoice", label: "Billing" },
+  { id: "finance", label: "Finance" },
   { id: "document", label: "Upload Document" },
 ];
 
@@ -60,31 +62,33 @@ const { confirm } = useConfirm();
 
 const isEditingVessels = ref(false);
 const editableVessels = ref<EblVessel[]>([]);
+const activeVesselObj = ref<EblVessel | null>(null);
 const masterVessels = ref<Vessel[]>([]);
 
 const refreshMasterData = async () => {
   masterVessels.value = await fetchVessels();
 };
 
-const handleCreateVessel = async (name: string, vessel?: EblVessel) => {
-  const isConfirmed = await confirm({
-    title: "Create New Vessel",
-    message: `Are you sure you want to create a new vessel named "${name}"?`,
-    confirmText: "Create Vessel",
-    type: "info",
-  });
-  if (!isConfirmed) return;
+// Vessel Modal State
+const isVesselModalOpen = ref(false);
+const presetVesselName = ref("");
 
-  const result = await createVessel(name);
-  if (result.success && result.data) {
-    await refreshMasterData();
-    if (vessel) {
-      vessel.vesselId = result.data.id;
-    }
-    toast.success(`Vessel "${name}" created successfully.`);
-  } else {
-    toast.error("Failed to create vessel: " + (result.error || "Unknown error"));
+const handleCreateVessel = async (name: string, vessel?: EblVessel) => {
+  presetVesselName.value = name;
+  activeVesselObj.value = vessel || null;
+  isVesselModalOpen.value = true;
+};
+
+const onVesselCreateSuccess = async (vessel: { id: string; name: string }) => {
+  await refreshMasterData();
+
+  // Auto-assign the created vessel to the active field
+  if (activeVesselObj.value) {
+    activeVesselObj.value.vesselId = vessel.id;
   }
+
+  isVesselModalOpen.value = false;
+  toast.success(`Vessel "${vessel.name}" created successfully.`);
 };
 
 const startEditVessels = () => {
@@ -101,7 +105,9 @@ const addVessel = () => {
     vesselName: "",
     voyageNumber: "",
     etd: new Date().toISOString().split("T")[0],
+    eta: "",
     sequence: editableVessels.value.length + 1,
+    vesselType: "mother",
   });
 };
 
@@ -121,7 +127,11 @@ const saveVessels = async () => {
 const job = computed(() => currentJob.value);
 const isCompleting = ref(false);
 const isCancelingComplete = ref(false);
-const isCompleted = computed(() => job.value?.status?.code === "COMPLETED");
+const isCompleted = computed(() => {
+  const code = (job.value?.status?.code || "").trim().toUpperCase();
+  return ["COMPLETED", "CLOSED", "DONE"].includes(code);
+});
+
 const hasUnfinalizedEbl = computed(() => {
   if (!job.value?.billsOfLading?.length) return false;
   return job.value.billsOfLading.some((bl) => {
@@ -175,8 +185,7 @@ const getCustomerName = computed(
   () => job.value?.customer?.name || job.value?.customerId || "CUST-001",
 );
 const getStatusName = computed(() => {
-  const name = job.value?.status?.name || "Not Invoiced";
-  return name.toUpperCase() === "CONFIRMED" ? "FINALIZED" : name;
+  return job.value?.status?.name || "Active";
 });
 const getJobTypeName = computed(
   () => job.value?.tradeType?.name || job.value?.tradeTypeId || "Export",
@@ -269,6 +278,32 @@ const handleCancelCompleteJob = async () => {
   }
   isCancelingComplete.value = false;
 };
+
+function getVesselLabels(index: number, list: (EblVessel | JobVessel)[]) {
+  const isFeeder = index === 0;
+  const isLast = index === list.length - 1;
+  const hasTransit = list.length > 1;
+
+  return {
+    header: isFeeder ? "Feeder Vessel" : `Mother Vessel ${index}`,
+    etd: isFeeder ? "ETD POL" : "ETD T/S PORT",
+    eta: isLast ? "ETA POD" : "ETA T/S PORT",
+    isFeeder,
+    isLast,
+    hasTransit,
+  };
+}
+
+watch(
+  () => editableVessels.value,
+  (vessels) => {
+    vessels.forEach((v, idx) => {
+      v.sequence = idx + 1;
+      v.vesselType = idx === 0 ? "feeder" : "mother";
+    });
+  },
+  { deep: true },
+);
 </script>
 
 <template>
@@ -293,22 +328,23 @@ const handleCancelCompleteJob = async () => {
             </div>
             <div class="flex items-center gap-2">
               <button
-                v-if="!isCompleted"
-                :disabled="isCompleting || hasUnfinalizedEbl"
-                @click="handleCompleteJob"
-                class="px-3 py-2 rounded-md text-xs font-semibold bg-[#012D5A] text-white hover:bg-[#012D5A]/90 disabled:opacity-50 disabled:cursor-not-allowed"
+                @click="isCompleted ? handleCancelCompleteJob() : handleCompleteJob()"
+                :disabled="
+                  isCompleting || isCancelingComplete || (!isCompleted && hasUnfinalizedEbl)
+                "
+                :class="
+                  cn(
+                    'px-3 py-2 rounded-md text-xs font-semibold transition-colors flex items-center gap-2',
+                    isCompleted
+                      ? 'border border-red-200 text-red-600 hover:bg-red-50'
+                      : 'bg-[#012D5A] text-white hover:bg-[#012D5A]/90',
+                  )
+                "
               >
-                <Loader2 v-if="isCompleting" class="w-4 h-4 animate-spin" />
-                <span v-else>Complete Job</span>
-              </button>
-              <button
-                v-else
-                :disabled="isCancelingComplete"
-                @click="handleCancelCompleteJob"
-                class="px-3 py-2 rounded-md text-xs font-semibold border border-border text-foreground hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <Loader2 v-if="isCancelingComplete" class="w-4 h-4 animate-spin" />
-                <span v-else>Batalkan Complete</span>
+                <Loader2 v-if="isCompleting || isCancelingComplete" class="w-4 h-4 animate-spin" />
+                <Check v-else-if="!isCompleted" class="w-4 h-4" />
+                <X v-else class="w-4 h-4" />
+                <span>{{ isCompleted ? "Batalkan Complete" : "Complete Job" }}</span>
               </button>
               <button
                 @click="$emit('update:modelValue', false)"
@@ -341,7 +377,14 @@ const handleCancelCompleteJob = async () => {
                   </div>
                   <div>
                     <span
-                      class="inline-flex items-center px-3 py-1 rounded-md text-xs font-bold leading-none bg-yellow-100 text-yellow-800 border border-yellow-200"
+                      :class="
+                        cn(
+                          'inline-flex items-center px-3 py-1 rounded-md text-xs font-bold leading-none border',
+                          isCompleted
+                            ? 'bg-green-100 text-green-800 border-green-200'
+                            : 'bg-yellow-100 text-yellow-800 border-yellow-200',
+                        )
+                      "
                     >
                       {{ getStatusName }}
                     </span>
@@ -434,7 +477,10 @@ const handleCancelCompleteJob = async () => {
                             >
                               Vessel Schedule
                             </p>
-                            <div v-if="!isEditingVessels" class="flex items-center gap-2">
+                            <div
+                              v-if="!isEditingVessels && !isCompleted"
+                              class="flex items-center gap-2"
+                            >
                               <button
                                 @click="startEditVessels"
                                 class="p-1.5 rounded-md hover:bg-blue-50 text-[#012D5A] transition-colors"
@@ -486,20 +532,40 @@ const handleCancelCompleteJob = async () => {
                                       vessel.vesselName || vessel.vessel?.name || "Unknown Vessel"
                                     }}
                                   </p>
-                                  <p class="text-[11px] text-muted-foreground">
-                                    Voyage: {{ vessel.voyageNumber || "-" }}
-                                  </p>
+                                  <div class="flex items-center gap-2 mt-0.5">
+                                    <span
+                                      class="text-[10px] px-1.5 py-0.5 bg-muted rounded font-bold text-muted-foreground uppercase tracking-tighter"
+                                    >
+                                      {{ getVesselLabels(idx, job.vessels || []).header }}
+                                    </span>
+                                    <p class="text-[11px] text-muted-foreground">
+                                      Voyage: {{ vessel.voyageNumber || "-" }}
+                                    </p>
+                                  </div>
                                 </div>
                               </div>
-                              <div class="text-right">
-                                <p
-                                  class="text-[11px] font-bold text-primary uppercase tracking-tighter"
-                                >
-                                  ETD
-                                </p>
-                                <p class="text-xs font-semibold text-foreground">
-                                  {{ formatDate(vessel.etd) }}
-                                </p>
+                              <div class="text-right flex items-center gap-4">
+                                <div>
+                                  <p
+                                    class="text-[10px] font-bold text-primary uppercase tracking-tighter leading-none mb-0.5"
+                                  >
+                                    {{ getVesselLabels(idx, job.vessels || []).etd }}
+                                  </p>
+                                  <p class="text-[11px] font-semibold text-foreground">
+                                    {{ formatDate(vessel.etd) }}
+                                  </p>
+                                </div>
+                                <div class="w-px h-6 bg-border mx-1"></div>
+                                <div>
+                                  <p
+                                    class="text-[10px] font-bold text-primary uppercase tracking-tighter leading-none mb-0.5"
+                                  >
+                                    {{ getVesselLabels(idx, job.vessels || []).eta }}
+                                  </p>
+                                  <p class="text-[11px] font-semibold text-foreground">
+                                    {{ formatDate(vessel.eta) }}
+                                  </p>
+                                </div>
                               </div>
                             </div>
                             <div
@@ -528,7 +594,7 @@ const handleCancelCompleteJob = async () => {
                                 <div>
                                   <label
                                     class="text-[9px] font-bold text-muted-foreground uppercase mb-1 block"
-                                    >Vessel Name</label
+                                    >{{ getVesselLabels(idx, editableVessels).header }}</label
                                   >
                                   <Combobox
                                     v-model="vessel.vesselId"
@@ -557,13 +623,32 @@ const handleCancelCompleteJob = async () => {
                                   <div>
                                     <label
                                       class="text-[9px] font-bold text-muted-foreground uppercase mb-1 block"
-                                      >ETD</label
+                                      >{{ getVesselLabels(idx, editableVessels).etd }}</label
                                     >
                                     <DatePicker
                                       v-model="vessel.etd"
                                       placeholder="ETD..."
                                       class="h-8 shadow-none"
                                     />
+                                  </div>
+                                  <div>
+                                    <label
+                                      class="text-[9px] font-bold text-muted-foreground uppercase mb-1 block"
+                                      >{{ getVesselLabels(idx, editableVessels).eta }}</label
+                                    >
+                                    <DatePicker
+                                      v-model="vessel.eta"
+                                      placeholder="ETA..."
+                                      class="h-8 shadow-none"
+                                    />
+                                  </div>
+                                  <div
+                                    v-if="
+                                      idx === 0 && getVesselLabels(idx, editableVessels).hasTransit
+                                    "
+                                    class="col-span-2 text-[9px] text-primary font-bold animate-pulse mt-[-4px]"
+                                  >
+                                    Transit detected → T/S Port
                                   </div>
                                 </div>
                               </div>
@@ -899,17 +984,19 @@ const handleCancelCompleteJob = async () => {
                   </section>
                 </div>
 
-                <!-- Invoice Tab -->
+                <!-- Finance Tab (AR & AP) -->
                 <div
-                  v-else-if="activeTab === 'invoice'"
+                  v-else-if="activeTab === 'finance'"
                   class="space-y-8 animate-fade-in pb-12 pt-4"
                 >
-                  <JobInvoiceTab
+                  <JobFinanceTab
                     :job-id="job.id"
                     :job-number="job.jobNumber"
                     :customer-id="job.customerId || undefined"
                     :job-parties="job.jobParties"
                     :initial-invoice-id="initialInvoiceId"
+                    @refresh-job="getJob(props.jobId)"
+                    :is-completed="isCompleted"
                   />
                 </div>
 
@@ -919,6 +1006,7 @@ const handleCancelCompleteJob = async () => {
                     :job="job as ActiveJobData"
                     :initial-bl-id="initialBlId"
                     @refresh="getJob(props.jobId)"
+                    :is-completed="isCompleted"
                   />
                 </div>
 
@@ -957,6 +1045,13 @@ const handleCancelCompleteJob = async () => {
         </div>
       </div>
     </Transition>
+
+    <!-- Quick Add Vessel Modal -->
+    <VesselQuickAddModal
+      v-model:is-open="isVesselModalOpen"
+      :initial-name="presetVesselName"
+      @success="onVesselCreateSuccess"
+    />
   </Teleport>
 </template>
 
@@ -964,6 +1059,7 @@ const handleCancelCompleteJob = async () => {
 .slide-over-enter-active {
   transition: opacity 0.4s ease;
 }
+
 .slide-over-leave-active {
   transition: opacity 0.3s ease;
 }
@@ -980,6 +1076,7 @@ const handleCancelCompleteJob = async () => {
 .slide-over-enter-active .slide-panel {
   transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
 }
+
 .slide-over-leave-active .slide-panel {
   transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
