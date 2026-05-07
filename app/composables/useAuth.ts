@@ -1,5 +1,5 @@
 import type { User, Session, AuthSession } from "../types/auth";
-import { authApi } from "~/lib/auth-api";
+import { authApi, clearStoredToken } from "~/lib/auth-api";
 
 export function useAuth() {
   const user = useState<User | null>("auth-user", () => null);
@@ -39,7 +39,11 @@ export function useAuth() {
     isLoading.value = true;
     try {
       const result = await authApi.signOut();
-      if (result.success) user.value = null;
+      if (result.success) {
+        user.value = null;
+        session.value = null;
+        clearStoredToken();
+      }
       return result;
     } finally {
       isLoading.value = false;

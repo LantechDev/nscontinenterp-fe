@@ -1,3 +1,21 @@
+async function handleUnauthorized() {
+  if (import.meta.client) {
+    localStorage.removeItem("auth_token");
+    localStorage.removeItem("auth_token_expiry");
+    localStorage.removeItem("active_organization_id");
+    if (window.location.pathname !== "/login") {
+      window.location.href = "/login";
+    }
+  }
+}
+
+function getClientToken(): string | null {
+  if (import.meta.client) {
+    return localStorage.getItem("auth_token");
+  }
+  return null;
+}
+
 export default defineNuxtPlugin(() => {
   const config = useRuntimeConfig();
 
@@ -23,6 +41,14 @@ export default defineNuxtPlugin(() => {
         if (options.credentials == null) {
           options.credentials = "include";
         }
+
+        // Add Bearer token for client-side requests
+        if (import.meta.client) {
+          const token = getClientToken();
+          if (token && !headers.has("authorization")) {
+            headers.set("authorization", `Bearer ${token}`);
+          }
+        }
       }
 
       if (import.meta.server && isApiRequest) {
@@ -41,13 +67,16 @@ export default defineNuxtPlugin(() => {
         }
       }
 
-      // GET/HEAD requests do not need a JSON content type header and removing it
-      // avoids unnecessary non-simple requests when the API is called cross-origin.
       if ((method === "GET" || method === "HEAD") && options.body == null) {
         headers.delete("content-type");
       }
 
       options.headers = headers;
+    },
+    async onResponseError(context) {
+      if (import.meta.client && context.response.status === 401) {
+        await handleUnauthorized();
+      }
     },
   });
 

@@ -46,7 +46,8 @@ export interface Session {
 
 export interface AuthSession {
   session: Session;
-  user: User;
+  sessionToken: string | null;
+  user: User | null;
 }
 
 export interface AuthResponse<T = unknown> {
@@ -56,10 +57,11 @@ export interface AuthResponse<T = unknown> {
 }
 
 export interface LoginResponse {
-  token: string;
+  message?: string;
+  sessionToken: string;
+  expiresAt: string;
+  activeOrganizationId?: string | null;
   user: User;
-  url?: string;
-  redirect?: boolean;
 }
 
 export interface SignUpResponse {

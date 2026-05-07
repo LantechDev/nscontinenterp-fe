@@ -9,13 +9,79 @@ import type {
   AuthSession,
 } from "~/types/auth";
 
+const TOKEN_KEY = "auth_token";
+const TOKEN_EXPIRY_KEY = "auth_token_expiry";
+const ACTIVE_ORG_KEY = "active_organization_id";
+
+export function getStoredToken(): string | null {
+  if (import.meta.server) return null;
+  return localStorage.getItem(TOKEN_KEY);
+}
+
+export function setStoredToken(token: string, expiresAt: string) {
+  if (import.meta.server) return;
+  localStorage.setItem(TOKEN_KEY, token);
+  localStorage.setItem(TOKEN_EXPIRY_KEY, expiresAt);
+}
+
+export function clearStoredToken() {
+  if (import.meta.server) return;
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(TOKEN_EXPIRY_KEY);
+  localStorage.removeItem(ACTIVE_ORG_KEY);
+}
+
+export function getStoredOrgId(): string | null {
+  if (import.meta.server) return null;
+  return localStorage.getItem(ACTIVE_ORG_KEY);
+}
+
+export function setStoredOrgId(orgId: string) {
+  if (import.meta.server) return;
+  localStorage.setItem(ACTIVE_ORG_KEY, orgId);
+}
+
+async function handleUnauthorized() {
+  clearStoredToken();
+  if (import.meta.client && window.location.pathname !== "/login") {
+    window.location.href = "/login";
+  }
+}
+
 function getApiFetch() {
   const base = import.meta.server ? useRequestFetch() : $fetch;
-  const fetchWithCredentials = (
+  const token = getStoredToken();
+  const fetchWithAuth = async (
     url: Parameters<typeof base>[0],
     opts?: Parameters<typeof base>[1],
-  ) => base(url, { credentials: "include", ...opts } as Parameters<typeof base>[1]);
-  return fetchWithCredentials as typeof base;
+  ) => {
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+    const existingHeaders = (opts as { headers?: Record<string, string> } | undefined)?.headers;
+    try {
+      const response = await base(url, {
+        ...opts,
+        headers: { ...existingHeaders, ...headers },
+      } as Parameters<typeof base>[1]);
+
+      // Check for 401 in response (ofetch wraps non-2xx as error)
+      if (import.meta.client && (response as unknown as { status?: number }).status === 401) {
+        await handleUnauthorized();
+      }
+
+      return response;
+    } catch (err: unknown) {
+      // ofetch throws FetchError with status field for non-2xx
+      const fetchError = err as { status?: number; statusCode?: number };
+      if (fetchError.status === 401 || fetchError.statusCode === 401) {
+        await handleUnauthorized();
+      }
+      throw err;
+    }
+  };
+  return fetchWithAuth as typeof base;
 }
 
 function normalizeOrganizationListResponse(
@@ -26,29 +92,22 @@ function normalizeOrganizationListResponse(
     | null
     | undefined,
 ) {
-  if (!response) {
-    return [];
-  }
-
-  if (Array.isArray(response)) {
-    return response;
-  }
-
-  if ("data" in response && Array.isArray(response.data)) {
-    return response.data;
-  }
-
-  if ("organizations" in response && Array.isArray(response.organizations)) {
+  if (!response) return [];
+  if (Array.isArray(response)) return response;
+  if ("data" in response && Array.isArray(response.data)) return response.data;
+  if ("organizations" in response && Array.isArray(response.organizations))
     return response.organizations;
-  }
-
   return [];
 }
 
 export const authApi = {
   async getSession(): Promise<AuthSession | null> {
     try {
-      return await getApiFetch()<AuthSession>("/api/auth/get-session");
+      const data = await getApiFetch()<AuthSession>("/api/auth/get-session");
+      if (data?.sessionToken) {
+        setStoredToken(data.sessionToken, data.session?.expiresAt || "");
+      }
+      return data;
     } catch (error) {
       console.warn("[Auth] Session fetch failed:", error);
       return null;
@@ -61,6 +120,12 @@ export const authApi = {
         method: "POST",
         body: { email, password },
       });
+      if (data.sessionToken) {
+        setStoredToken(data.sessionToken, data.expiresAt || "");
+      }
+      if (data.activeOrganizationId) {
+        setStoredOrgId(data.activeOrganizationId);
+      }
       return { success: true, data };
     } catch (error) {
       return handleApiError<LoginResponse>(error);
@@ -69,11 +134,11 @@ export const authApi = {
 
   async signOut(): Promise<AuthResponse> {
     try {
-      await getApiFetch()("/api/auth/logout", {
-        method: "POST",
-      });
+      await getApiFetch()("/api/auth/logout", { method: "POST" });
+      clearStoredToken();
       return { success: true };
     } catch (error) {
+      clearStoredToken();
       return handleApiError(error);
     }
   },
@@ -133,9 +198,7 @@ export const authApi = {
 
   async updateUser(data: { name?: string; image?: string }): Promise<AuthResponse<{ user: User }>> {
     try {
-      const responseData = await getApiFetch()<{
-        user: User;
-      }>("/api/auth/update-user", {
+      const responseData = await getApiFetch()<{ user: User }>("/api/auth/update-user", {
         method: "POST",
         body: data,
       });
@@ -174,9 +237,7 @@ export const authApi = {
     },
   ): Promise<AuthResponse<{ user: User }>> {
     try {
-      const responseData = await getApiFetch()<{
-        user: User;
-      }>("/api/auth/admin/update-user", {
+      const responseData = await getApiFetch()<{ user: User }>("/api/auth/admin/update-user", {
         method: "POST",
         body: { userId, data },
       });
@@ -215,6 +276,7 @@ export const authApi = {
         method: "POST",
         body: { organizationId },
       });
+      setStoredOrgId(organizationId);
       return { success: true };
     } catch (error) {
       return handleApiError(error);
