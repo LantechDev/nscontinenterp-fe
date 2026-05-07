@@ -320,9 +320,9 @@ function addVessel() {
 // Maintain Vessel Roles and Sequence
 watch(
   () => editForm.value.vessels,
-  (vessels) => {
-    if (!vessels) return;
-    vessels.forEach((v, idx) => {
+  (vesselList) => {
+    if (!vesselList) return;
+    vesselList.forEach((v, idx) => {
       v.sequence = idx;
       v.vesselType = idx === 0 ? "feeder" : "mother";
     });

@@ -359,8 +359,8 @@ watch(
 // Maintain Vessel Roles and Sequence
 watch(
   () => formData.vessels,
-  (vessels) => {
-    vessels.forEach((v, idx) => {
+  (vesselList) => {
+    vesselList.forEach((v, idx) => {
       v.sequence = idx;
       v.vesselType = idx === 0 ? "feeder" : "mother";
     });
