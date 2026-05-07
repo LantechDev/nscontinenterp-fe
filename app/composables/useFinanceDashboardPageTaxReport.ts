@@ -1,0 +1,65 @@
+import { ref } from "vue";
+import { formatRupiah } from "~/lib/utils";
+
+export interface DetailedTaxReportItem {
+  invoiceId: string;
+  jobId: string | null;
+  invoiceNumber: string;
+  issuedDate: string;
+  companyName: string;
+  taxName: string;
+  rate: number;
+  baseAmount: number;
+  taxAmount: number;
+}
+
+export function useFinanceDashboardPageTaxReport() {
+  const isLoading = ref(false);
+  const taxReportData = ref<DetailedTaxReportItem[]>([]);
+  const error = ref<string | null>(null);
+
+  async function fetchTaxReport(startDate: string, endDate: string) {
+    isLoading.value = true;
+    error.value = null;
+    try {
+      const data = await $fetch<DetailedTaxReportItem[]>("/api/finance/tax-report/detailed", {
+        query: { startDate, endDate },
+      });
+      taxReportData.value = data;
+    } catch (e) {
+      error.value = "Failed to fetch tax report";
+      console.error(e);
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  const taxStatsCards = computed(() => {
+    const totalTax = taxReportData.value.reduce((sum, item) => sum + Number(item.taxAmount), 0);
+    const totalBase = taxReportData.value.reduce((sum, item) => sum + Number(item.baseAmount), 0);
+    const uniqueInvoices = new Set(taxReportData.value.map((item) => item.invoiceId));
+
+    return [
+      {
+        title: "Total Pajak",
+        value: formatRupiah(totalTax),
+        isPrimary: true,
+      },
+      {
+        title: "Total Dasar Pengenaan",
+        value: formatRupiah(totalBase),
+      },
+      {
+        title: "Jumlah Transaksi",
+        value: uniqueInvoices.size.toString(),
+      },
+    ];
+  });
+
+  return {
+    isLoading,
+    taxReportData,
+    taxStatsCards,
+    fetchTaxReport,
+  };
+}

@@ -32,6 +32,7 @@ import type {
 const props = defineProps<{
   job: ActiveJobData;
   initialBlId?: string;
+  isCompleted?: boolean;
 }>();
 
 const { getBlRender, finalizeBl, unfinalizeBl, updateBlDraft, requestFinalizeBl, rejectBl } =
@@ -727,7 +728,7 @@ const submitReject = async () => {
         <!-- Actions -->
         <div class="flex flex-wrap items-center justify-end gap-3 shrink-0">
           <button
-            v-if="isFinalized"
+            v-if="isFinalized && !isCompleted"
             @click="handleUnfinalize"
             :disabled="isRendering"
             class="px-4 py-2 text-xs font-semibold rounded-md border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 flex items-center gap-2 shadow-sm transition-colors"
@@ -737,7 +738,7 @@ const submitReject = async () => {
           </button>
 
           <button
-            v-if="isDraft || (isPendingApproval && canApproveJobs)"
+            v-if="(isDraft || (isPendingApproval && canApproveJobs)) && !isCompleted"
             @click="toggleEditMode"
             :disabled="isRendering"
             class="px-4 py-2 text-xs font-semibold rounded-md border border-border bg-white hover:bg-gray-50 flex items-center gap-2 shadow-sm transition-colors"
@@ -748,7 +749,7 @@ const submitReject = async () => {
           </button>
 
           <button
-            v-if="isDraft && !editMode"
+            v-if="isDraft && !editMode && !isCompleted"
             @click="handleRequestFinalize"
             :disabled="isRendering"
             class="px-4 py-2 text-xs font-semibold rounded-md border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors shadow-sm flex items-center gap-2"
@@ -758,7 +759,7 @@ const submitReject = async () => {
           </button>
 
           <button
-            v-if="isPendingApproval && !editMode && canApproveJobs"
+            v-if="isPendingApproval && !editMode && canApproveJobs && !isCompleted"
             @click="handleReject"
             :disabled="isRendering || isRejecting"
             class="px-4 py-2 text-xs font-semibold rounded-md border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 flex items-center gap-2 shadow-sm transition-colors"
@@ -769,7 +770,7 @@ const submitReject = async () => {
           </button>
 
           <button
-            v-if="isPendingApproval && !editMode && canApproveJobs"
+            v-if="isPendingApproval && !editMode && canApproveJobs && !isCompleted"
             @click="handleFinalize"
             :disabled="isRendering || isFinalizing"
             class="px-5 py-2.5 bg-emerald-600 text-white text-xs font-bold rounded-lg hover:bg-emerald-700 transition-all shadow-md flex items-center gap-2 disabled:opacity-50"

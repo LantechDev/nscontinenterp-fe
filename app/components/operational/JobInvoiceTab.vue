@@ -27,6 +27,11 @@ const props = defineProps<{
   customerId?: string;
   jobParties?: Array<{ partyRole?: { code?: string } | null; companyId?: string | null }>;
   initialInvoiceId?: string;
+  isCompleted?: boolean;
+}>();
+
+const emit = defineEmits<{
+  (e: "refresh-job"): void;
 }>();
 
 const { fetchInvoices, isLoading, fetchInvoiceById, voidInvoice } = useInvoices();
@@ -51,6 +56,7 @@ const isGeneratingPDF = ref(false);
 const isVoiding = ref(false);
 const showVoidConfirm = ref(false);
 const showMoreActions = ref(false);
+const paymentTabRef = ref<InstanceType<typeof JobPaymentTab> | null>(null);
 
 const resolvedCustomerId = computed(() => {
   if (props.customerId) return props.customerId;
@@ -116,6 +122,7 @@ const handleVoid = async () => {
     showVoidConfirm.value = false;
     await loadInvoiceDetail(activeInvoice.value.id);
     await loadInvoices();
+    emit("refresh-job");
   } else {
     toast.error(result.error || "Failed to void invoice");
   }
@@ -186,6 +193,8 @@ const handlePaymentSuccess = () => {
     loadInvoiceDetail(activeInvoice.value.id);
   }
   loadInvoices();
+  paymentTabRef.value?.refresh();
+  emit("refresh-job");
 };
 
 const handlePaymentVoided = async () => {
@@ -193,6 +202,7 @@ const handlePaymentVoided = async () => {
   if (activeInvoice.value) {
     await loadInvoiceDetail(activeInvoice.value.id);
   }
+  emit("refresh-job");
 };
 </script>
 
@@ -300,6 +310,7 @@ const handlePaymentVoided = async () => {
                 </div>
 
                 <button
+                  v-if="!isCompleted"
                   @click="
                     handleEdit();
                     showMoreActions = false;
@@ -311,7 +322,7 @@ const handlePaymentVoided = async () => {
                 </button>
 
                 <button
-                  v-if="activeInvoice.status?.code !== 'VOIDED'"
+                  v-if="activeInvoice.status?.code !== 'VOIDED' && !isCompleted"
                   @click="
                     showVoidConfirm = true;
                     showMoreActions = false;
@@ -350,7 +361,7 @@ const handlePaymentVoided = async () => {
               <div v-if="alloc.payment">
                 <p class="text-sm font-bold text-foreground">{{ formatCurrency(alloc.amount) }}</p>
                 <p class="text-[10px] text-muted-foreground uppercase tracking-wider">
-                  {{ alloc.payment.paymentMethod?.name || "Bank Transfer" }} •
+                  {{ alloc.payment.paymentMethod?.name || "-" }} •
                   {{ formatDate(alloc.payment.paymentDate) }}
                 </p>
               </div>
@@ -385,6 +396,7 @@ const handlePaymentVoided = async () => {
       <div class="flex items-center justify-between">
         <h3 class="text-base font-bold text-foreground">Job Invoices</h3>
         <button
+          v-if="!isCompleted"
           @click="showForm = true"
           class="inline-flex items-center px-3 py-1.5 bg-[#062c58] text-white text-xs font-semibold rounded-md hover:bg-[#062c58]/90 transition-colors gap-1.5 shadow-sm"
         >
@@ -461,28 +473,33 @@ const handlePaymentVoided = async () => {
           <div class="grid grid-cols-2 gap-4 border-t border-border pt-4">
             <div>
               <p
-                class="text-[10px] text-muted-foreground mb-1 uppercase tracking-wider font-semibold"
+                class="text-[9px] text-muted-foreground mb-1.5 uppercase tracking-widest font-bold opacity-70"
               >
                 Total Amount
               </p>
-              <p class="font-bold text-sm text-foreground">{{ formatCurrency(invoice.total) }}</p>
+              <p class="font-black text-xs text-foreground whitespace-nowrap">
+                {{ formatCurrency(invoice.total) }}
+              </p>
             </div>
             <div class="text-right">
               <p
-                class="text-[10px] text-muted-foreground mb-1 uppercase tracking-wider font-semibold"
+                class="text-[9px] text-muted-foreground mb-1.5 uppercase tracking-widest font-bold opacity-70"
               >
                 Balance Due
               </p>
               <p
-                class="font-bold text-sm text-gray-400 line-through"
+                class="font-black text-xs text-gray-400 line-through whitespace-nowrap"
                 v-if="invoice.status?.code === 'VOIDED'"
               >
                 Voided
               </p>
-              <p class="font-bold text-sm text-red-600" v-else-if="Number(invoice.balanceDue) > 0">
+              <p
+                class="font-black text-xs text-red-600 whitespace-nowrap"
+                v-else-if="Number(invoice.balanceDue) > 0"
+              >
                 {{ formatCurrency(invoice.balanceDue) }}
               </p>
-              <p class="font-bold text-sm text-green-600" v-else>Paid In Full</p>
+              <p class="font-black text-xs text-green-600 whitespace-nowrap" v-else>Paid In Full</p>
             </div>
           </div>
         </div>
@@ -492,7 +509,12 @@ const handlePaymentVoided = async () => {
           <h3 class="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-6">
             Consolidated Payment History
           </h3>
-          <JobPaymentTab :job-id="jobId" @reload="handlePaymentVoided" />
+          <JobPaymentTab
+            ref="paymentTabRef"
+            :job-id="jobId"
+            :is-completed="isCompleted"
+            @reload="handlePaymentVoided"
+          />
         </div>
       </div>
     </div>

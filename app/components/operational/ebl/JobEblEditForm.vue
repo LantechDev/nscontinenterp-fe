@@ -8,6 +8,7 @@ import JobPartyRow from "~/pages/operational/jobs/components/JobPartyRow.vue";
 import SectionCard from "~/pages/operational/jobs/components/SectionCard.vue";
 import DatePicker from "~/components/ui/DatePicker.vue";
 import Checkbox from "~/components/ui/Checkbox.vue";
+import VesselQuickAddModal from "~/components/operational/VesselQuickAddModal.vue";
 
 import type {
   ActiveJobData,
@@ -68,6 +69,11 @@ onMounted(async () => {
   if (editForm.value.pol) portsPol.value = await fetchPorts(editForm.value.pol);
   if (editForm.value.pod) portsPod.value = await fetchPorts(editForm.value.pod);
 });
+
+// Vessel Modal State
+const isVesselModalOpen = ref(false);
+const presetVesselName = ref("");
+const activeVesselObj = ref<EblVessel | null>(null);
 
 const newShipperRef = ref("");
 const addShipperRef = () => {
@@ -187,39 +193,37 @@ const handleSearchPod = async (q: string) => {
 };
 
 const handleCreateVessel = async (name: string, vessel?: EblVessel) => {
-  const isConfirmed = await confirm({
-    title: "Create New Vessel",
-    message: `Are you sure you want to create a new vessel named "${name}"?`,
-    confirmText: "Create Vessel",
-    type: "info",
-  });
-  if (!isConfirmed) return;
-  const result = await createVessel(name);
-  if (result.success && result.data) {
-    vessels.value = await fetchVessels();
-    if (vessel) {
-      vessel.vesselId = result.data.id;
-    } else {
-      if (!editForm.value.vessels) editForm.value.vessels = [];
-      if (editForm.value.vessels && editForm.value.vessels.length > 0) {
-        const firstVessel = editForm.value.vessels[0];
-        if (firstVessel) {
-          firstVessel.vesselId = result.data.id;
-        }
-      } else {
-        editForm.value.vessels.push({
-          vesselId: result.data.id,
-          vesselName: name,
-          voyageNumber: "",
-          etd: "",
-          sequence: 0,
-        });
-      }
-    }
-    toast.success(`Vessel "${name}" created successfully.`);
+  presetVesselName.value = name;
+  activeVesselObj.value = vessel || null;
+  isVesselModalOpen.value = true;
+};
+
+const onVesselCreateSuccess = async (vessel: { id: string; name: string }) => {
+  vessels.value = await fetchVessels();
+
+  // Auto-assign the created vessel to the active field
+  if (activeVesselObj.value) {
+    activeVesselObj.value.vesselId = vessel.id;
   } else {
-    toast.error("Failed to create vessel: " + (result.error || "Unknown error"));
+    if (!editForm.value.vessels) editForm.value.vessels = [];
+    if (editForm.value.vessels && editForm.value.vessels.length > 0) {
+      const firstVessel = editForm.value.vessels[0];
+      if (firstVessel) {
+        firstVessel.vesselId = vessel.id;
+      }
+    } else {
+      editForm.value.vessels.push({
+        vesselId: vessel.id,
+        vesselName: vessel.name,
+        voyageNumber: "",
+        etd: "",
+        sequence: 0,
+      });
+    }
   }
+
+  isVesselModalOpen.value = false;
+  toast.success(`Vessel "${vessel.name}" created successfully.`);
 };
 
 const TRADE_TYPES = [
@@ -283,6 +287,48 @@ const addContainer = () => {
   });
 };
 const removeContainer = (idx: number) => editForm.value.containers.splice(idx, 1);
+
+function getVesselLabels(index: number) {
+  const isFeeder = index === 0;
+  const isLast = index === editForm.value.vessels?.length - 1;
+  const hasTransit = (editForm.value.vessels?.length || 0) > 1;
+
+  return {
+    header: isFeeder ? "Feeder Vessel" : `Mother Vessel ${index}`,
+    etd: isFeeder ? "ETD POL" : "ETD T/S PORT",
+    eta: isLast ? "ETA POD" : "ETA T/S PORT",
+    isFeeder,
+    isLast,
+    hasTransit,
+  };
+}
+
+function addVessel() {
+  if (!editForm.value.vessels) editForm.value.vessels = [];
+  editForm.value.vessels.push({
+    id: Date.now(),
+    vesselId: "",
+    vesselName: "",
+    voyageNumber: "",
+    etd: "",
+    eta: "",
+    sequence: editForm.value.vessels.length,
+    vesselType: editForm.value.vessels.length === 0 ? "feeder" : "mother",
+  });
+}
+
+// Maintain Vessel Roles and Sequence
+watch(
+  () => editForm.value.vessels,
+  (vessels) => {
+    if (!vessels) return;
+    vessels.forEach((v, idx) => {
+      v.sequence = idx;
+      v.vesselType = idx === 0 ? "feeder" : "mother";
+    });
+  },
+  { deep: true },
+);
 </script>
 
 <template>
@@ -498,7 +544,7 @@ const removeContainer = (idx: number) => editForm.value.containers.splice(idx, 1
             >MAIN DESCRIPTION (OVERALL COMMODITY)</label
           >
           <textarea
-            v-model="editForm.mainDescription"
+            v-model.trim="editForm.mainDescription"
             rows="10"
             placeholder="Description of goods to appear on BL..."
             class="input-field min-h-[250px] py-3 resize-y transition-all duration-200"
@@ -510,7 +556,7 @@ const removeContainer = (idx: number) => editForm.value.containers.splice(idx, 1
             >SHIPPING MARKS</label
           >
           <textarea
-            v-model="editForm.shippingMark"
+            v-model.trim="editForm.shippingMark"
             rows="6"
             placeholder="Enter marks and numbers..."
             class="input-field min-h-[120px] py-3 resize-y transition-all duration-200"
@@ -547,17 +593,7 @@ const removeContainer = (idx: number) => editForm.value.containers.splice(idx, 1
             </h4>
             <button
               type="button"
-              @click="
-                !editForm.vessels ? (editForm.vessels = []) : null;
-                editForm.vessels.push({
-                  vesselId: '',
-                  vesselName: '',
-                  voyageNumber: '',
-                  etd: '',
-                  eta: '',
-                  sequence: editForm.vessels.length,
-                });
-              "
+              @click="addVessel"
               class="text-xs text-blue-600 hover:text-blue-700 font-bold uppercase tracking-widest flex items-center gap-1.5 transition-colors"
             >
               <Plus class="w-3.5 h-3.5" /> Add Vessel
@@ -567,7 +603,7 @@ const removeContainer = (idx: number) => editForm.value.containers.splice(idx, 1
           <div class="space-y-4">
             <div
               v-for="(vessel, vIndex) in editForm.vessels"
-              :key="vIndex"
+              :key="vessel.id || vIndex"
               class="p-5 bg-muted/5 border border-border/50 rounded-2xl relative group/vessel transition-all hover:bg-white hover:shadow-sm"
             >
               <div class="grid grid-cols-1 md:grid-cols-12 gap-5 items-end">
@@ -576,7 +612,7 @@ const removeContainer = (idx: number) => editForm.value.containers.splice(idx, 1
                   <label
                     class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1"
                   >
-                    {{ vIndex === 0 ? "Feeder / First Vessel" : "Vessel " + (vIndex + 1) }}
+                    {{ getVesselLabels(vIndex).header }}
                   </label>
                   <Combobox
                     v-model="vessel.vesselId"
@@ -604,22 +640,29 @@ const removeContainer = (idx: number) => editForm.value.containers.splice(idx, 1
                   />
                 </div>
 
-                <!-- ETD POL -->
-                <div class="md:col-span-3 space-y-2">
+                <!-- ETD -->
+                <div class="md:col-span-2 space-y-2">
                   <label
                     class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1"
-                    >ETD POL</label
+                    >{{ getVesselLabels(vIndex).etd }}</label
                   >
                   <DatePicker v-model="vessel.etd" placeholder="Select ETD..." class="h-10" />
                 </div>
 
-                <!-- ETA POD -->
-                <div class="md:col-span-3 space-y-2">
+                <!-- ETA -->
+                <div class="md:col-span-2 space-y-2 relative">
                   <label
                     class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1"
-                    >ETA POD</label
+                    >{{ getVesselLabels(vIndex).eta }}</label
                   >
                   <DatePicker v-model="vessel.eta" placeholder="Select ETA..." class="h-10" />
+                  <!-- Micro hint for transit -->
+                  <div
+                    v-if="vIndex === 0 && getVesselLabels(vIndex).hasTransit"
+                    class="absolute -bottom-4 left-1 text-[9px] text-primary font-bold animate-pulse"
+                  >
+                    Transit detected → T/S Port
+                  </div>
                 </div>
 
                 <!-- Remove Button -->
@@ -897,5 +940,12 @@ const removeContainer = (idx: number) => editForm.value.containers.splice(idx, 1
         </div>
       </div>
     </SectionCard>
+
+    <!-- Quick Add Vessel Modal -->
+    <VesselQuickAddModal
+      v-model:is-open="isVesselModalOpen"
+      :initial-name="presetVesselName"
+      @success="onVesselCreateSuccess"
+    />
   </div>
 </template>

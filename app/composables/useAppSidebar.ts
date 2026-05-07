@@ -25,6 +25,7 @@ export const NAV_ITEMS: NavItem[] = [
       { title: "Vessel", href: "/master/vessel" },
       { title: "Bank Account", href: "/master/bank-account" },
       { title: "Pajak", href: "/master/tax" },
+      { title: "B/L Conditions", href: "/master/bl-conditions" },
     ],
   },
   {

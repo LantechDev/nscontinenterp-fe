@@ -4,12 +4,14 @@ export interface Invoice {
   issuedDate: string;
   dueDate: string;
   currency: string;
+  exchangeRate?: number;
   companyName?: string;
   companyAddress?: string;
   companyId?: string;
   subTotal: number;
   taxId?: string;
   taxAmount: number;
+  taxTotal?: number;
   total: number;
   balanceDue: number;
   status: {
@@ -24,6 +26,16 @@ export interface Invoice {
     id: string;
     jobNumber: string;
   };
+  invoiceTaxes?: Array<{
+    id: string;
+    taxId: string;
+    taxCode: string;
+    taxName: string;
+    taxType: string;
+    rate: number;
+    baseAmount: number;
+    taxAmount: number;
+  }>;
   createdAt: string;
   paymentAllocations?: Array<{
     id: string;
@@ -113,6 +125,17 @@ export interface InvoiceDetail extends Invoice {
     etd?: string;
   };
   notes?: string;
+  invoiceTaxes?: Array<{
+    id: string;
+    taxId: string;
+    taxCode: string;
+    taxName: string;
+    taxType: string;
+    rate: number;
+    baseAmount: number;
+    taxAmount: number;
+  }>;
+  taxTotal?: number;
 }
 
 type ErrorResponse = {
@@ -193,6 +216,7 @@ export function useInvoices() {
     subTotal: number;
     taxId?: string;
     taxAmount: number;
+    taxTotal?: number;
     total: number;
     balanceDue: number;
     items: Array<{
@@ -204,6 +228,7 @@ export function useInvoices() {
     }>;
     notes?: string;
     blNumber?: string;
+    taxes?: Array<{ taxId: string; baseAmount?: number }>;
   }): Promise<{ success: boolean; data?: Invoice; error?: string }> {
     isLoading.value = true;
     try {
@@ -232,6 +257,8 @@ export function useInvoices() {
       subTotal: number;
       taxId: string;
       taxAmount: number;
+      taxTotal?: number;
+      exchangeRate?: number;
       total: number;
       balanceDue: number;
       statusId: string;
@@ -243,6 +270,7 @@ export function useInvoices() {
         unitPrice: number;
         amount: number;
       }>;
+      taxes?: Array<{ taxId: string; baseAmount?: number }>;
     }>,
   ): Promise<{ success: boolean; data?: Invoice; error?: string }> {
     isLoading.value = true;

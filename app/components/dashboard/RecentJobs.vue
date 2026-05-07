@@ -7,7 +7,10 @@ interface Job {
   jobNumber: string;
   customer: string;
   type: "Export" | "Import";
-  status: "Active" | "Pending" | "Canceled" | "Done";
+  status: {
+    code: string;
+    name: string;
+  };
   origin: string;
   destination: string;
   date: string;
@@ -19,14 +22,16 @@ const props = defineProps<{
 
 const jobs = computed(() => props.jobs || []);
 
-const statusConfig: Record<Job["status"], { label: string; className: string }> = {
-  Active: { label: "Active", className: "text-blue-600 border-blue-200 bg-blue-50 border" },
-  Pending: {
-    label: "Pending",
-    className: "text-yellow-600 border-yellow-200 bg-yellow-50 border",
-  },
-  Canceled: { label: "Canceled", className: "text-red-600 border-red-200 bg-red-50 border" },
-  Done: { label: "Done", className: "text-emerald-600 border-emerald-200 bg-emerald-50 border" },
+const getStatusClass = (statusCode: string | null | undefined) => {
+  const code = (statusCode || "").toUpperCase();
+  if (code === "COMPLETED" || code === "CLOSED" || code === "DONE")
+    return "bg-green-50 text-green-700 border-green-200";
+  if (code === "DRAFT") return "bg-gray-100 text-gray-600 border-gray-200";
+  if (code === "CANCELLED" || code === "VOID") return "bg-red-50 text-red-700 border-red-200";
+  if (code === "PENDING" || code === "ACTIVE" || code === "IN_PROGRESS")
+    return "bg-yellow-50 text-yellow-700 border-yellow-200";
+  if (code === "CONFIRMED") return "bg-blue-50 text-blue-700 border-blue-200";
+  return "bg-blue-50 text-blue-700 border-blue-200";
 };
 </script>
 
@@ -97,12 +102,12 @@ const statusConfig: Record<Job["status"], { label: string; className: string }> 
               <span
                 :class="
                   cn(
-                    'text-xs px-3 py-1 rounded-full border font-medium',
-                    statusConfig[job.status]?.className,
+                    'text-xs px-3 py-1 rounded-full border font-medium whitespace-nowrap',
+                    getStatusClass(job.status.code),
                   )
                 "
               >
-                {{ statusConfig[job.status]?.label }}
+                {{ job.status.name }}
               </span>
             </td>
             <td class="py-3 px-4 text-right">

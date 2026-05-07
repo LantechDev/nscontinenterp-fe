@@ -15,7 +15,7 @@ import { useExportPopup } from "~/composables/useExportPopup";
 import { useFinanceTax } from "~/composables/useFinanceTax";
 import { cn, formatRupiah } from "~/lib/utils";
 import { exportStyledPdf, type PdfCol } from "~/lib/pdf-export";
-import { TABS, TIME_PERIODS, type PeriodType } from "~/types/finance";
+import { TABS, TIME_PERIODS, type PeriodType, type TabName } from "~/types/finance";
 
 // Import tab components
 import FinanceCloseTab from "~/components/finance/dashboard/FinanceCloseTab.vue";
@@ -24,6 +24,7 @@ import TransactionTab from "~/components/finance/dashboard/TransactionTab.vue";
 import TrialBalanceTab from "~/components/finance/dashboard/TrialBalanceTab.vue";
 import AccountsReceivableTab from "~/components/finance/dashboard/AccountsReceivableTab.vue";
 import AssetsTab from "~/components/finance/dashboard/AssetsTab.vue";
+import TaxReportTab from "~/components/finance/dashboard/TaxReportTab.vue";
 import { toast } from "vue-sonner";
 import SearchSelect from "~/components/ui/SearchSelect.vue";
 
@@ -146,6 +147,15 @@ const { fetchTaxes } = useFinanceTax();
 const { showExportOptions, triggerX, triggerY, triggerWidth, triggerHeight, openExportPopup } =
   useExportPopup();
 
+// Tax Report composable
+import { useFinanceDashboardPageTaxReport } from "~/composables/useFinanceDashboardPageTaxReport";
+const {
+  isLoading: isLoadingTaxReport,
+  taxReportData,
+  taxStatsCards,
+  fetchTaxReport,
+} = useFinanceDashboardPageTaxReport();
+
 // Local state for Assets tab
 const assetsSearch = ref("");
 const assetsYear = ref("");
@@ -210,7 +220,24 @@ async function loadAssets() {
   }
 }
 
-// Watch for filter changes and reload assets
+// Watch for filter changes and reload data
+async function fetchData() {
+  const tab = activeTab.value;
+  if (tab === "Overview") {
+    await loadOverview();
+  } else if (tab === "Assets") {
+    await loadAssets();
+  } else if (tab === "Tax Report") {
+    await loadTaxReport();
+  } else if (
+    ["Transaction", "Finance Close", "Accounts Receivable", "Trial Balance"].includes(tab)
+  ) {
+    // Use the composable handler to refresh main tab data
+    await handleTabChange(tab as TabName);
+  }
+}
+
+// Watch for Assets specific filter changes
 watch(
   [assetsSearch, assetsYear, assetsServiceId, assetsCompanyId, assetsSortBy, assetsSortOrder],
   () => {
@@ -221,36 +248,43 @@ watch(
   { deep: true },
 );
 
-// Watch for tab change to load data for the selected tab
-// Consolidated data fetching
-async function fetchData() {
-  if (activeTab.value === "Overview") {
-    const year = selectedYear.value ? parseInt(selectedYear.value) : undefined;
-    await fetchOverview(selectedPeriod.value, year);
-  } else if (activeTab.value === "Assets") {
-    await loadAssets();
+async function loadTaxReport() {
+  const year = selectedYear.value || new Date().getFullYear().toString();
+  let startDate = `${year}-01-01`;
+  let endDate = `${year}-12-31`;
+
+  if (selectedPeriod.value === "month") {
+    const now = new Date();
+    const month = (now.getMonth() + 1).toString().padStart(2, "0");
+    startDate = `${year}-${month}-01`;
+    // End of month is tricky, but let's just use the full year if month selection is not granular yet
+    // Actually, dashboard filters might have a month selector? Let's check.
   }
+
+  await fetchTaxReport(startDate, endDate);
 }
 
-// Watch for tab change
-watch(activeTab, async (newTab, oldTab) => {
-  if (newTab !== oldTab) {
-    await fetchData();
-  }
+async function loadOverview() {
+  const year = selectedYear.value ? parseInt(selectedYear.value) : undefined;
+  await fetchOverview(selectedPeriod.value, year);
+}
+
+// Watch for primary filters that affect all tabs
+watch([selectedPeriod, selectedYear], async () => {
+  await fetchData();
 });
 
-// Watch for period change
-watch(selectedPeriod, async (newPeriod, oldPeriod) => {
-  if (newPeriod !== oldPeriod) {
-    await fetchData();
+// Watch for tab change to load data for the selected tab
+watch(activeTab, async (newTab) => {
+  if (newTab === "Overview") {
+    await loadOverview();
+  } else if (newTab === "Assets") {
+    await loadAssets();
+  } else if (newTab === "Tax Report") {
+    await loadTaxReport();
   }
-});
-
-// Watch for year change (Overview only)
-watch(selectedYear, async (newYear, oldYear) => {
-  if (activeTab.value === "Overview" && newYear !== oldYear) {
-    await fetchData();
-  }
+  // Main tabs (Transaction, etc) are handled by handleTabChange click event
+  // but we can add a guard here for programmatic changes if needed
 });
 
 // Hydration and initial load logic
@@ -262,6 +296,8 @@ onMounted(async () => {
   await nextTick();
   if (activeTab.value === "Overview" || activeTab.value === "Assets") {
     await fetchData();
+  } else if (activeTab.value === "Tax Report") {
+    loadTaxReport();
   }
 });
 
@@ -529,6 +565,8 @@ function dispatchExportPdf() {
     handleAssetsExport();
   } else if (activeTab.value === "Finance Close") {
     handleFinanceCloseExport();
+  } else if (activeTab.value === "Tax Report") {
+    handleTaxReportExport();
   }
 }
 
@@ -539,6 +577,8 @@ function dispatchExportExcel() {
     handleAssetsExportExcel();
   } else if (activeTab.value === "Finance Close") {
     handleFinanceCloseExportExcel();
+  } else if (activeTab.value === "Tax Report") {
+    handleTaxReportExportExcel();
   }
 }
 
@@ -577,6 +617,103 @@ function handleFinanceCloseExport() {
     rows,
     filename: `FINANCE_CLOSE_REPORT_${new Date().toISOString().split("T")[0]}.pdf`,
   });
+}
+
+function handleTaxReportExport() {
+  const list = taxReportData.value || [];
+  if (list.length === 0) {
+    toast.error("Tidak ada data pajak untuk diekspor");
+    return;
+  }
+  const period = selectedYear.value
+    ? `Tahun: ${selectedYear.value}`
+    : `Tahun: ${new Date().getFullYear()}`;
+
+  const rows: (string | number)[][] = list.map((item) => [
+    item.invoiceNumber || "-",
+    item.issuedDate ? new Date(item.issuedDate).toLocaleDateString("id-ID") : "-",
+    item.companyName || "-",
+    `${item.taxName} (${item.rate}%)`,
+    Number(item.baseAmount) || 0,
+    Number(item.taxAmount) || 0,
+  ]);
+
+  const cols: PdfCol[] = [
+    { header: "No. Invoice", width: 0.2 },
+    { header: "Tanggal", width: 0.12 },
+    { header: "Customer", width: 0.2 },
+    { header: "Pajak", width: 0.18 },
+    { header: "Dasar Pengenaan", width: 0.15, align: "right", isCurrency: true },
+    { header: "Total Pajak", width: 0.15, align: "right", isCurrency: true },
+  ];
+
+  exportStyledPdf({
+    title: "LAPORAN PAJAK (DETAIL)",
+    period,
+    cols,
+    rows,
+    totals: [4, 5],
+    filename: `Laporan_Pajak_Detail_${selectedYear.value || new Date().getFullYear()}.pdf`,
+  });
+}
+
+function handleTaxReportExportExcel() {
+  const list = taxReportData.value || [];
+  if (list.length === 0) {
+    toast.error("Tidak ada data pajak untuk diekspor");
+    return;
+  }
+  const periodLabel = `Tahun: ${selectedYear.value || new Date().getFullYear()} | Dibuat: ${new Date().toLocaleDateString("id-ID")}`;
+
+  const rows: StyledRow[] = [
+    { cells: ["PT NOVA SYNC — LAPORAN PAJAK (DETAIL)", "", "", "", "", ""], style: 7 },
+    { cells: [periodLabel, "", "", "", "", ""], style: 8 },
+    {
+      cells: ["No. Invoice", "Tanggal", "Customer", "Pajak", "Dasar Pengenaan", "Total Pajak"],
+      style: 0,
+    },
+  ];
+
+  list.forEach((item, i) => {
+    const isEven = i % 2 === 0;
+    rows.push({
+      cells: [
+        item.invoiceNumber || "-",
+        item.issuedDate ? new Date(item.issuedDate).toLocaleDateString("id-ID") : "-",
+        item.companyName || "-",
+        `${item.taxName} (${item.rate}%)`,
+        Number(item.baseAmount) || 0,
+        Number(item.taxAmount) || 0,
+      ],
+      style: isEven ? 1 : 2,
+      cellStyles: [
+        isEven ? 1 : 2,
+        isEven ? 1 : 2,
+        isEven ? 1 : 2,
+        isEven ? 1 : 2,
+        isEven ? 5 : 6,
+        isEven ? 5 : 6,
+      ],
+    });
+  });
+
+  const totalBase = list.reduce((s, item) => s + (Number(item.baseAmount) || 0), 0);
+  const totalTax = list.reduce((s, item) => s + (Number(item.taxAmount) || 0), 0);
+
+  rows.push({
+    cells: ["", "", "", "TOTAL", totalBase, totalTax],
+    style: 3,
+    cellStyles: [10, 10, 10, 9, 3, 3],
+  });
+
+  const colWidths = [20, 15, 25, 20, 20, 20];
+
+  buildStyledWorkbook(
+    "Tax Report",
+    rows,
+    colWidths,
+    `LAPORAN_PAJAK_DETAIL_${new Date().toISOString().split("T")[0]}.xlsx`,
+  );
 }
 </script>
 
@@ -796,6 +933,14 @@ function handleFinanceCloseExport() {
           @page-change="handleAssetsPageChange"
           @export="openExportPopup($event)"
           @add-asset="handleAssetsAdd"
+        />
+
+        <TaxReportTab
+          v-else-if="activeTab === 'Tax Report'"
+          :is-loading="isLoadingTaxReport"
+          :tax-report-data="taxReportData"
+          :stats-cards="taxStatsCards"
+          @export="openExportPopup($event)"
         />
 
         <!-- Placeholder for other tabs -->

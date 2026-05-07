@@ -8,7 +8,6 @@ interface Props {
   isSubmitting: boolean;
   editError: string | null;
   formData: InvoiceFormData;
-  selectedTaxId: string;
   statusOptions: Array<{ id: string; name: string }>;
   taxOptions: Array<{ id: string; name: string; rate: number }>;
   companies: Array<{ id: string; name: string }>;
@@ -24,10 +23,14 @@ const emit = defineEmits<{
   addLineItem: [];
   removeLineItem: [index: number];
   updateItemAmount: [index: number];
-  updateTaxId: [value: string];
+  toggleTax: [taxId: string];
 }>();
 
 const formatCurrency = formatRupiah;
+
+const isTaxSelected = (taxId: string) => {
+  return props.formData.taxes.some((t) => t.taxId === taxId);
+};
 </script>
 
 <template>
@@ -219,26 +222,40 @@ const formatCurrency = formatRupiah;
       </div>
 
       <!-- Tax and Notes Section -->
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div class="space-y-1.5">
-          <label class="text-sm font-medium text-foreground">PPN</label>
-          <select
-            :value="selectedTaxId"
-            class="w-full px-3 py-2 rounded-lg border border-border focus:outline-none focus:ring-1 focus:ring-primary bg-white"
-            @change="emit('updateTaxId', ($event.target as HTMLSelectElement).value)"
-          >
-            <option value="">Tanpa Pajak</option>
-            <option v-for="tax in taxOptions" :key="tax.id" :value="tax.id">
-              {{ tax.name }} ({{ tax.rate }}%)
-            </option>
-          </select>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div class="space-y-3">
+          <label class="text-sm font-medium text-foreground">Pilih Pajak</label>
+          <div class="grid grid-cols-1 gap-2 p-3 border border-border rounded-lg bg-muted/30">
+            <label
+              v-for="tax in taxOptions"
+              :key="tax.id"
+              class="flex items-center gap-3 p-2 hover:bg-white rounded-md cursor-pointer transition-colors"
+            >
+              <input
+                type="checkbox"
+                :checked="isTaxSelected(tax.id)"
+                @change="emit('toggleTax', tax.id)"
+                class="w-4 h-4 rounded border-border text-primary focus:ring-primary"
+              />
+              <div class="flex flex-col">
+                <span class="text-sm font-medium">{{ tax.name }}</span>
+                <span class="text-xs text-muted-foreground">{{ tax.rate }}%</span>
+              </div>
+            </label>
+            <div
+              v-if="taxOptions.length === 0"
+              class="text-xs text-muted-foreground italic text-center py-2"
+            >
+              Belum ada data pajak tersedia
+            </div>
+          </div>
         </div>
 
         <div class="space-y-1.5">
           <label class="text-sm font-medium text-foreground">Catatan</label>
           <textarea
             v-model="formData.notes"
-            rows="2"
+            rows="5"
             placeholder="Catatan invoice (opsional)"
             class="w-full px-3 py-2 rounded-lg border border-border focus:outline-none focus:ring-1 focus:ring-primary bg-white text-sm"
           ></textarea>
@@ -248,18 +265,35 @@ const formatCurrency = formatRupiah;
       <!-- Totals -->
       <div class="border-t border-border pt-4">
         <div class="flex justify-end">
-          <div class="w-64 space-y-2">
+          <div class="w-72 space-y-2">
             <div class="flex justify-between text-sm">
               <span class="text-muted-foreground">Subtotal:</span>
               <span class="font-medium">{{ formatCurrency(formData.subTotal) }}</span>
             </div>
-            <div class="flex justify-between text-sm">
-              <span class="text-muted-foreground">Pajak (PPN):</span>
-              <span class="font-medium">{{ formatCurrency(formData.taxAmount) }}</span>
+
+            <!-- Individual Taxes -->
+            <div
+              v-for="tax in formData.taxes"
+              :key="tax.taxId"
+              class="flex justify-between text-sm"
+            >
+              <span class="text-muted-foreground">{{ tax.name }} ({{ tax.rate }}%):</span>
+              <span class="font-medium">{{ formatCurrency(tax.taxAmount) }}</span>
             </div>
+
+            <div
+              v-if="formData.taxes.length > 1"
+              class="flex justify-between text-sm pt-1 border-t border-dashed border-border"
+            >
+              <span class="text-muted-foreground font-medium">Total Pajak:</span>
+              <span class="font-medium">{{ formatCurrency(formData.taxTotal) }}</span>
+            </div>
+
             <div class="flex justify-between pt-2 border-t border-border">
-              <span class="font-semibold">Total:</span>
-              <span class="font-semibold text-lg">{{ formatCurrency(formData.total) }}</span>
+              <span class="font-semibold text-foreground">Total Invoice:</span>
+              <span class="font-bold text-lg text-primary">{{
+                formatCurrency(formData.total)
+              }}</span>
             </div>
           </div>
         </div>

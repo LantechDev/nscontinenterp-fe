@@ -94,6 +94,8 @@ export function formatRupiah(value: unknown): string {
   }).format(num);
 }
 
+export { formatRupiah as formatCurrency };
+
 /**
  * Get error message from unknown error
  */

@@ -16,53 +16,79 @@ import {
 } from "lucide-vue-next";
 import { cn } from "~/lib/utils";
 import Modal from "~/components/ui/Modal.vue";
+import { useJobs } from "~/composables/useJobs";
+import type { JobCostItem } from "~/types/finance-dashboard";
+import { formatCurrency } from "~/lib/utils";
+import { toast } from "vue-sonner";
 
 definePageMeta({
   layout: "dashboard",
 });
 
-const closingJobs: ClosingJob[] = [
-  {
-    id: "1",
-    jobId: "3",
-    number: "JOB-2024-001232",
-    customer: "PT Logistik Nusantara",
-    totalRevenue: "Rp 32.500.000",
-    totalCost: "Rp 24.200.000",
-    profit: "Rp 8.300.000",
-    status: "closed",
-  },
-  {
-    id: "2",
-    jobId: "4",
-    number: "JOB-2024-001230",
-    customer: "PT Maju Bersama",
-    totalRevenue: "Rp 28.000.000",
-    totalCost: "Rp 21.500.000",
-    profit: "Rp 6.500.000",
-    status: "pending",
-  },
-];
+const { fetchClosingJobs, completeJob, isLoading } = useJobs();
 
-interface ClosingJob {
-  id: string;
-  jobId: string;
-  number: string;
-  customer: string;
-  totalRevenue: string;
-  totalCost: string;
-  profit: string;
-  status: "closed" | "pending";
-}
+const closingJobs = ref<JobCostItem[]>([]);
+const pagination = ref({
+  page: 1,
+  limit: 20,
+  total: 0,
+  totalPages: 1,
+});
+
+const searchQuery = ref("");
+const period = ref("month");
+
+const loadData = async () => {
+  const response = await fetchClosingJobs({
+    search: searchQuery.value,
+    page: pagination.value.page,
+    limit: pagination.value.limit,
+    period: period.value,
+  });
+
+  if (response.success && response.data) {
+    closingJobs.value = response.data.items;
+    pagination.value = response.data.pagination;
+  }
+};
+
+onMounted(() => {
+  loadData();
+});
+
+// Watch for search or pagination changes
+watch([searchQuery, period], () => {
+  pagination.value.page = 1;
+  loadData();
+});
 
 type ViewMode = "list" | "grid";
 const viewMode = ref<ViewMode>("list");
-const selectedJob = ref<ClosingJob | null>(null);
+const selectedJob = ref<JobCostItem | null>(null);
 const showJobModal = ref(false);
 
-const openJobModal = (job: ClosingJob): void => {
+const openJobModal = (job: JobCostItem): void => {
   selectedJob.value = job;
   showJobModal.value = true;
+};
+
+const handleCloseJob = async () => {
+  if (!selectedJob.value) return;
+
+  const response = await completeJob(selectedJob.value.id);
+  if (response.success) {
+    toast.success("Job berhasil diselesaikan secara operasional.");
+    showJobModal.value = false;
+    selectedJob.value = null;
+    await loadData();
+  } else {
+    toast.error(response.error || "Gagal menyelesaikan job.");
+  }
+};
+
+const handlePageChange = (newPage: number) => {
+  pagination.value.page = newPage;
+  loadData();
 };
 </script>
 
@@ -71,8 +97,10 @@ const openJobModal = (job: ClosingJob): void => {
     <!-- Page header -->
     <div class="flex items-center justify-between">
       <div>
-        <h1 class="text-2xl font-bold">Closing Job</h1>
-        <p class="text-muted-foreground mt-1">Tutup job dan hitung profit</p>
+        <h1 class="text-2xl font-bold">Laporan Profit Job</h1>
+        <p class="text-muted-foreground mt-1">
+          Daftar job yang sudah selesai secara operasional dan perhitungan profitnya
+        </p>
       </div>
 
       <div class="flex items-center gap-2">
@@ -112,8 +140,9 @@ const openJobModal = (job: ClosingJob): void => {
       <div class="relative w-full max-w-sm">
         <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
         <input
+          v-model="searchQuery"
           type="text"
-          placeholder="Cari job untuk closing..."
+          placeholder="Cari data job..."
           class="w-full pl-10 pr-4 py-2 text-sm border border-border rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground"
         />
       </div>
@@ -138,37 +167,53 @@ const openJobModal = (job: ClosingJob): void => {
             </tr>
           </thead>
           <tbody>
+            <tr v-if="isLoading">
+              <td colspan="7" class="py-12 text-center">
+                <div class="flex flex-col items-center gap-2">
+                  <div
+                    class="w-8 h-8 border-4 border-[#012D5A] border-t-transparent rounded-full animate-spin"
+                  ></div>
+                  <p class="text-sm text-muted-foreground font-medium">Memuat data...</p>
+                </div>
+              </td>
+            </tr>
+            <tr v-else-if="closingJobs.length === 0" class="border-b border-border last:border-0">
+              <td colspan="7" class="py-12 text-center">
+                <p class="text-sm text-muted-foreground font-medium">Tidak ada data ditemukan</p>
+              </td>
+            </tr>
             <tr
+              v-else
               v-for="job in closingJobs"
               :key="job.id"
               class="border-b border-border last:border-0 hover:bg-muted/30 transition-colors cursor-pointer"
               @click="openJobModal(job)"
             >
               <td class="py-3 px-4">
-                <span class="text-sm font-medium">{{ job.number }}</span>
+                <span class="text-sm font-medium">{{ job.jobNumber }}</span>
               </td>
               <td class="py-3 px-4 text-sm">{{ job.customer }}</td>
               <td class="py-3 px-4 text-sm text-green-600 font-medium">
-                {{ job.totalRevenue }}
+                {{ formatCurrency(job.revenue) }}
               </td>
               <td class="py-3 px-4 text-sm text-red-600 font-medium">
-                {{ job.totalCost }}
+                {{ formatCurrency(job.cogs) }}
               </td>
-              <td class="py-3 px-4 text-sm text-[#012D5A] font-bold">
-                {{ job.profit }}
+              <td class="py-3 px-4">
+                <div class="flex flex-col">
+                  <span class="text-sm font-bold text-[#012D5A]">{{
+                    formatCurrency(job.profit)
+                  }}</span>
+                  <span class="text-[10px] text-muted-foreground italic"
+                    >Margin: {{ job.margin }}%</span
+                  >
+                </div>
               </td>
               <td class="py-3 px-4">
                 <span
-                  v-if="job.status === 'closed'"
                   class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-200"
                 >
                   <CheckCircle class="w-3 h-3" /> Closed
-                </span>
-                <span
-                  v-else
-                  class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-50 text-yellow-700 border border-yellow-200"
-                >
-                  <Clock class="w-3 h-3" /> Pending
                 </span>
               </td>
               <td class="py-3 px-4 text-right">
@@ -183,139 +228,117 @@ const openJobModal = (job: ClosingJob): void => {
     </div>
 
     <!-- Grid View -->
-    <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    <div v-else>
+      <div v-if="isLoading" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div
+          v-for="i in 6"
+          :key="i"
+          class="border border-border rounded-xl bg-white p-5 animate-pulse"
+        >
+          <div class="h-4 bg-muted rounded w-3/4 mb-4"></div>
+          <div class="h-4 bg-muted rounded w-1/2 mb-6"></div>
+          <div class="space-y-3">
+            <div class="h-3 bg-muted rounded w-full"></div>
+            <div class="h-3 bg-muted rounded w-full"></div>
+          </div>
+        </div>
+      </div>
       <div
-        v-for="job in closingJobs"
-        :key="job.id"
-        class="border border-border rounded-xl bg-white p-5 hover:shadow-sm transition-shadow cursor-pointer"
-        @click="openJobModal(job)"
+        v-else-if="closingJobs.length === 0"
+        class="border border-border rounded-xl bg-white p-12 text-center"
       >
-        <div class="flex items-start justify-between mb-4">
-          <div>
-            <h3 class="font-bold text-base text-foreground">{{ job.number }}</h3>
-            <p class="text-xs text-muted-foreground">{{ job.customer }}</p>
+        <p class="text-sm text-muted-foreground font-medium">Tidak ada data ditemukan</p>
+      </div>
+      <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div
+          v-for="job in closingJobs"
+          :key="job.id"
+          class="border border-border rounded-xl bg-white p-5 hover:shadow-sm transition-shadow cursor-pointer"
+          @click="openJobModal(job)"
+        >
+          <div class="flex items-start justify-between mb-4">
+            <div>
+              <h3 class="font-bold text-base text-foreground">{{ job.jobNumber }}</h3>
+              <p class="text-xs text-muted-foreground">{{ job.customer }}</p>
+            </div>
+            <button class="text-muted-foreground hover:text-foreground" @click.stop>
+              <MoreVertical class="w-4 h-4" />
+            </button>
           </div>
-          <button class="text-muted-foreground hover:text-foreground" @click.stop>
-            <MoreVertical class="w-4 h-4" />
-          </button>
-        </div>
 
-        <div class="space-y-4 mb-4">
-          <div class="grid grid-cols-2 gap-2 text-sm">
-            <div class="space-y-1">
-              <p class="text-xs text-muted-foreground">Revenue</p>
-              <p class="font-medium text-green-600">{{ job.totalRevenue }}</p>
+          <div class="space-y-4 mb-4">
+            <div class="grid grid-cols-2 gap-2 text-sm">
+              <div class="space-y-1">
+                <p class="text-xs text-muted-foreground">Revenue</p>
+                <p class="font-medium text-green-600">{{ formatCurrency(job.revenue) }}</p>
+              </div>
+              <div class="space-y-1">
+                <p class="text-xs text-muted-foreground">Cost</p>
+                <p class="font-medium text-red-600">{{ formatCurrency(job.cogs) }}</p>
+              </div>
             </div>
-            <div class="space-y-1">
-              <p class="text-xs text-muted-foreground">Cost</p>
-              <p class="font-medium text-red-600">{{ job.totalCost }}</p>
+            <div class="pt-3 border-t border-border">
+              <div class="flex items-center justify-between">
+                <div>
+                  <p class="text-sm font-medium text-muted-foreground">Profit</p>
+                  <p class="text-[10px] text-muted-foreground italic">Margin: {{ job.margin }}%</p>
+                </div>
+                <p class="text-lg font-bold text-[#012D5A]">{{ formatCurrency(job.profit) }}</p>
+              </div>
             </div>
           </div>
-          <div class="pt-3 border-t border-border">
-            <div class="flex items-center justify-between">
-              <p class="text-sm font-medium text-muted-foreground">Profit</p>
-              <p class="text-lg font-bold text-[#012D5A]">{{ job.profit }}</p>
-            </div>
-          </div>
-        </div>
 
-        <div class="flex items-center justify-between pt-4 border-t border-border">
-          <span
-            v-if="job.status === 'closed'"
-            class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-200"
-          >
-            <CheckCircle class="w-3 h-3" /> Closed
-          </span>
-          <span
-            v-else
-            class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-50 text-yellow-700 border border-yellow-200"
-          >
-            <Clock class="w-3 h-3" /> Pending
-          </span>
+          <div class="flex items-center justify-between pt-4 border-t border-border">
+            <span
+              class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-200"
+            >
+              <CheckCircle class="w-3 h-3" /> Closed
+            </span>
+          </div>
         </div>
       </div>
     </div>
 
     <!-- Job Detail Modal -->
-    <Modal
+    <!-- Job Details Slide-over -->
+    <OperationalJobDetailSlideOver
       v-model="showJobModal"
-      title="Job Closing Details"
-      :description="selectedJob?.number"
-      width="max-w-2xl"
-      position="right"
-    >
-      <div class="space-y-4">
-        <div class="grid grid-cols-2 gap-4">
-          <div>
-            <p class="text-sm text-muted-foreground">Customer</p>
-            <p class="font-medium">{{ selectedJob?.customer }}</p>
-          </div>
-          <div>
-            <p class="text-sm text-muted-foreground">Status</p>
-            <span
-              v-if="selectedJob?.status === 'closed'"
-              class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-200"
-            >
-              <CheckCircle class="w-3 h-3" /> Closed
-            </span>
-            <span
-              v-else
-              class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-50 text-yellow-700 border border-yellow-200"
-            >
-              <Clock class="w-3 h-3" /> Pending
-            </span>
-          </div>
-        </div>
-
-        <div class="border-t pt-4">
-          <div class="grid grid-cols-3 gap-4">
-            <div>
-              <p class="text-sm text-muted-foreground">Revenue</p>
-              <p class="font-medium text-green-600">{{ selectedJob?.totalRevenue }}</p>
-            </div>
-            <div>
-              <p class="text-sm text-muted-foreground">Cost</p>
-              <p class="font-medium text-red-600">{{ selectedJob?.totalCost }}</p>
-            </div>
-            <div>
-              <p class="text-sm text-muted-foreground">Profit</p>
-              <p class="font-bold text-[#012D5A]">{{ selectedJob?.profit }}</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <template #footer>
-        <button
-          @click="showJobModal = false"
-          class="px-4 py-2 text-sm border border-border rounded-lg hover:bg-muted"
-        >
-          Cancel
-        </button>
-        <button
-          v-if="selectedJob?.status === 'pending'"
-          class="px-4 py-2 text-sm bg-[#012D5A] text-white rounded-lg hover:bg-[#012D5A]/90"
-        >
-          Close Job
-        </button>
-      </template>
-    </Modal>
+      :job-id="selectedJob?.id || ''"
+      initial-tab="finance"
+    />
 
     <!-- Pagination -->
     <div class="flex items-center justify-between text-sm text-muted-foreground">
-      <p>{{ closingJobs.length }} data found.</p>
+      <p>{{ pagination.total }} data found.</p>
       <div class="flex items-center gap-2">
-        <button class="p-1 hover:text-foreground disabled:opacity-50">
+        <button
+          @click="handlePageChange(pagination.page - 1)"
+          :disabled="pagination.page <= 1"
+          class="p-1 hover:text-foreground disabled:opacity-50"
+        >
           <ChevronLeft class="w-4 h-4" />
           <span class="sr-only">Previous</span>
         </button>
         <button
-          class="w-8 h-8 flex items-center justify-center rounded border border-border bg-white text-foreground font-medium"
+          v-for="p in pagination.totalPages"
+          :key="p"
+          @click="handlePageChange(p)"
+          :class="
+            cn(
+              'w-8 h-8 flex items-center justify-center rounded border transition-colors',
+              pagination.page === p
+                ? 'border-primary bg-primary text-white font-medium'
+                : 'border-border bg-white text-foreground hover:bg-muted',
+            )
+          "
         >
-          1
+          {{ p }}
         </button>
-        <span class="px-1">...</span>
-        <button class="flex items-center gap-1 hover:text-foreground">
+        <button
+          @click="handlePageChange(pagination.page + 1)"
+          :disabled="pagination.page >= pagination.totalPages"
+          class="flex items-center gap-1 hover:text-foreground disabled:opacity-50"
+        >
           Next
           <ChevronRight class="w-4 h-4" />
         </button>

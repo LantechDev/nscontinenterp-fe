@@ -64,6 +64,13 @@ export interface InvoiceItemForm {
   amount: number;
 }
 
+export interface InvoiceTaxForm {
+  taxId: string;
+  taxAmount: number;
+  rate: number;
+  name: string;
+}
+
 export interface InvoiceFormData {
   invoiceNumber: string;
   issuedDate: string;
@@ -72,11 +79,13 @@ export interface InvoiceFormData {
   jobId: string;
   notes: string;
   subTotal: number;
-  taxId: string;
-  taxAmount: number;
+  taxId: string; // Legacy
+  taxAmount: number; // Legacy
+  taxTotal: number;
   total: number;
   statusId: string;
   items: InvoiceItemForm[];
+  taxes: InvoiceTaxForm[];
 }
 
 export type StatusType = "pending" | "paid" | "partially" | "overdue" | "voided";
@@ -123,12 +132,12 @@ export function useInvoicePage() {
     subTotal: 0,
     taxId: "",
     taxAmount: 0,
+    taxTotal: 0,
     total: 0,
     statusId: "",
     items: [],
+    taxes: [],
   });
-  const selectedTaxRate = ref(0);
-  const selectedTaxId = ref("");
   const taxOptions = ref<Array<{ id: string; name: string; rate: number }>>([]);
 
   // Pagination
@@ -202,18 +211,43 @@ export function useInvoicePage() {
     return formData.value.items.reduce((sum, item) => sum + calculateItemAmount(item), 0);
   };
 
-  const calculateTaxAmount = () => {
-    return (calculateSubTotal() * selectedTaxRate.value) / 100;
+  const calculateTaxTotal = () => {
+    return formData.value.taxes.reduce((sum, tax) => {
+      const amount = Math.round((calculateSubTotal() * tax.rate) / 100);
+      tax.taxAmount = amount;
+      return sum + amount;
+    }, 0);
   };
 
   const calculateTotal = () => {
-    return calculateSubTotal() + calculateTaxAmount();
+    return calculateSubTotal() + calculateTaxTotal();
   };
 
   const recalculateTotals = () => {
     formData.value.subTotal = calculateSubTotal();
-    formData.value.taxAmount = calculateTaxAmount();
+    formData.value.taxTotal = calculateTaxTotal();
     formData.value.total = calculateTotal();
+    // Sync legacy fields
+    formData.value.taxAmount = formData.value.taxes[0]?.taxAmount || 0;
+    formData.value.taxId = formData.value.taxes[0]?.taxId || "";
+  };
+
+  const toggleTax = (taxId: string) => {
+    const existingIndex = formData.value.taxes.findIndex((t) => t.taxId === taxId);
+    if (existingIndex > -1) {
+      formData.value.taxes.splice(existingIndex, 1);
+    } else {
+      const taxOption = taxOptions.value.find((t) => t.id === taxId);
+      if (taxOption) {
+        formData.value.taxes.push({
+          taxId,
+          name: taxOption.name,
+          rate: taxOption.rate,
+          taxAmount: 0,
+        });
+      }
+    }
+    recalculateTotals();
   };
 
   // Line item management
@@ -295,6 +329,7 @@ export function useInvoicePage() {
         subTotal: toNumber(inv.subTotal),
         taxId: inv.taxId || "",
         taxAmount: toNumber(inv.taxAmount),
+        taxTotal: toNumber(inv.taxTotal),
         total: toNumber(inv.total),
         statusId: inv.status?.code || "",
         items:
@@ -306,17 +341,14 @@ export function useInvoicePage() {
             unitPrice: toNumber(item.unitPrice),
             amount: toNumber(item.amount),
           })) || [],
+        taxes:
+          inv.invoiceTaxes?.map((it) => ({
+            taxId: it.taxId,
+            name: it.taxName,
+            rate: toNumber(it.rate),
+            taxAmount: toNumber(it.taxAmount),
+          })) || [],
       };
-
-      selectedTaxId.value = inv.taxId || "";
-      const selectedTax = taxOptions.value.find((tax) => tax.id === selectedTaxId.value);
-      if (selectedTax) {
-        selectedTaxRate.value = Number(selectedTax.rate) || 0;
-      } else if (inv.subTotal && inv.taxAmount) {
-        selectedTaxRate.value = (toNumber(inv.taxAmount) / toNumber(inv.subTotal)) * 100;
-      } else {
-        selectedTaxRate.value = 0;
-      }
 
       isEditModalOpen.value = true;
       editError.value = null;
@@ -350,7 +382,7 @@ export function useInvoicePage() {
       }));
 
       const subTotal = calculateSubTotal();
-      const taxAmount = calculateTaxAmount();
+      const taxTotal = calculateTaxTotal();
       const total = calculateTotal();
 
       const result = await updateInvoice(invoiceId, {
@@ -361,12 +393,12 @@ export function useInvoicePage() {
         jobId: formData.value.jobId || undefined,
         notes: formData.value.notes,
         subTotal,
-        taxId: selectedTaxId.value || undefined,
-        taxAmount,
+        taxTotal,
         total,
         balanceDue: total,
         statusId: formData.value.statusId,
         items: itemsToUpdate,
+        taxes: formData.value.taxes.map((t) => ({ taxId: t.taxId })),
       });
 
       if (result.success) {
@@ -446,17 +478,6 @@ export function useInvoicePage() {
     loadInvoices();
   });
 
-  watch(selectedTaxRate, () => {
-    recalculateTotals();
-  });
-
-  watch(selectedTaxId, () => {
-    const selectedTax = taxOptions.value.find((tax) => tax.id === selectedTaxId.value);
-    selectedTaxRate.value = selectedTax ? Number(selectedTax.rate) || 0 : 0;
-    formData.value.taxId = selectedTaxId.value;
-    recalculateTotals();
-  });
-
   return {
     // State
     invoices,
@@ -470,8 +491,6 @@ export function useInvoicePage() {
     editError,
     editingInvoiceId,
     formData,
-    selectedTaxRate,
-    selectedTaxId,
     currentPage,
     pagination,
     // Options
@@ -500,6 +519,7 @@ export function useInvoicePage() {
     addLineItem,
     removeLineItem,
     updateItemAmount,
+    toggleTax,
     initialize,
     setData,
   };
