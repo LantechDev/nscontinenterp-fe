@@ -36,7 +36,6 @@ export const useBlConditions = () => {
   };
 
   const createCondition = async (data: Partial<BlCondition>) => {
-    isLoading.value = true;
     try {
       const response = await $fetch<{ success: boolean; data: BlCondition }>(
         "/api/master/bl-conditions",
@@ -46,14 +45,12 @@ export const useBlConditions = () => {
         },
       );
       if (response.success) {
-        await fetchConditions();
+        conditions.value = [response.data, ...conditions.value];
         return { success: true, data: response.data };
       }
       return { success: false, error: "Failed to create condition" };
     } catch (err: unknown) {
       return { success: false, error: (err as Error).message || "An error occurred" };
-    } finally {
-      isLoading.value = false;
     }
   };
 
@@ -68,7 +65,7 @@ export const useBlConditions = () => {
         },
       );
       if (response.success) {
-        await fetchConditions();
+        conditions.value = conditions.value.map((c) => (c.id === id ? response.data : c));
         return { success: true, data: response.data };
       }
       return { success: false, error: "Failed to update condition" };
@@ -86,7 +83,7 @@ export const useBlConditions = () => {
         method: "DELETE",
       });
       if (response.success) {
-        await fetchConditions();
+        conditions.value = conditions.value.filter((c) => c.id !== id);
         return { success: true };
       }
       return { success: false, error: "Failed to delete condition" };

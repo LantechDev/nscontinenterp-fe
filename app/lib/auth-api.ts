@@ -10,7 +10,12 @@ import type {
 } from "~/types/auth";
 
 function getApiFetch() {
-  return import.meta.server ? useRequestFetch() : $fetch;
+  const base = import.meta.server ? useRequestFetch() : $fetch;
+  const fetchWithCredentials = (
+    url: Parameters<typeof base>[0],
+    opts?: Parameters<typeof base>[1],
+  ) => base(url, { credentials: "include", ...opts } as Parameters<typeof base>[1]);
+  return fetchWithCredentials as typeof base;
 }
 
 function normalizeOrganizationListResponse(
