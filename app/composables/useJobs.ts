@@ -36,7 +36,9 @@ export interface JobDocumentItem {
   fileSize: number;
   fileType: string;
   fileUrl: string;
+  publicId: string;
   createdAt: string;
+  updatedAt: string;
 }
 
 export interface Job {
@@ -682,8 +684,10 @@ export function useJobs() {
 
   async function getJobDocuments(jobId: string): Promise<AuthResponse<JobDocumentItem[]>> {
     try {
-      const data = await $fetch<JobDocumentItem[]>(`/api/operational/jobs/${jobId}/documents`);
-      return { success: true, data };
+      const res = await $fetch<{ success: boolean; data: JobDocumentItem[] }>(
+        `/api/operational/jobs/${jobId}/documents`,
+      );
+      return { success: true, data: res.data };
     } catch (error) {
       return handleApiError<JobDocumentItem[]>(error);
     }
@@ -698,11 +702,11 @@ export function useJobs() {
       const formData = new FormData();
       formData.append("file", file);
 
-      const data = await $fetch<JobDocumentItem>(`/api/operational/jobs/${jobId}/documents`, {
-        method: "POST",
-        body: formData,
-      });
-      return { success: true, data };
+      const res = await $fetch<{ success: boolean; data: JobDocumentItem }>(
+        `/api/operational/jobs/${jobId}/documents`,
+        { method: "POST", body: formData },
+      );
+      return { success: true, data: res.data };
     } catch (error) {
       return handleApiError<JobDocumentItem>(error);
     } finally {
