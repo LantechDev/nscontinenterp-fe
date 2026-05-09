@@ -18,6 +18,7 @@ import { usePayments, type OutstandingReport } from "~/composables/usePayments";
 import { useCompanies } from "~/composables/useCompanies";
 import { formatRupiah } from "~/lib/utils";
 import Combobox from "~/components/ui/Combobox.vue";
+import { exportStyledPdf, type PdfCol } from "~/lib/pdf-export";
 import { useExportPopup } from "~/composables/useExportPopup";
 
 definePageMeta({
@@ -89,7 +90,10 @@ const handleExportExcel = () => {
     const filterLabel = `Period: ${monthName} ${filters.value.year} | Customer: ${filters.value.companyId ? (companies.value.find((c) => c.id === filters.value.companyId)?.name ?? "All") : "All"} | Generated: ${new Date().toLocaleDateString("id-ID")}`;
 
     const rows: StyledRow[] = [
-      { cells: ["PT NOVA SYNC — OUTSTANDING PAYMENTS REPORT", "", "", "", "", ""], style: 7 },
+      {
+        cells: ["PT NOVA SYNC CONTINENT — OUTSTANDING PAYMENTS REPORT", "", "", "", "", ""],
+        style: 7,
+      },
       { cells: [filterLabel, "", "", "", "", ""], style: 8 },
       { cells: colHeaders, style: 0 },
     ];
@@ -144,97 +148,39 @@ const handleExportExcel = () => {
   }
 };
 
-const handleExportPdf = () => {
+const handleExportPdf = async () => {
   if (!reportData.value) return;
   isExporting.value = true;
   try {
-    const doc = new jsPDF();
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const margin = 16;
-    let yPos = 18;
-
-    const addLine = (
-      text: string,
-      opts?: { bold?: boolean; size?: number; align?: "left" | "center" | "right" | "justify" },
-    ) => {
-      doc.setFont("helvetica", opts?.bold ? "bold" : "normal");
-      doc.setFontSize(opts?.size || 10);
-      const lines = doc.splitTextToSize(text, pageWidth - margin * 2);
-      if (yPos + lines.length * 6 > doc.internal.pageSize.getHeight() - margin) {
-        doc.addPage();
-        yPos = margin;
-      }
-      doc.text(lines, margin, yPos, opts?.align ? { align: opts.align } : {});
-      yPos += lines.length * 6;
-    };
-
-    // Header
-    doc.setFillColor(1, 45, 90);
-    doc.rect(0, 0, pageWidth, 30, "F");
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(16);
-    doc.setFont("helvetica", "bold");
-    doc.text("PT NOVA SYNC — OUTSTANDING PAYMENTS REPORT", pageWidth / 2, 18, { align: "center" });
-    yPos = 38;
-
     const monthName = monthOptions.find((m) => m.value === filters.value.month)?.label ?? "";
-    doc.setTextColor(31, 41, 55);
-    doc.setFontSize(9);
-    doc.setFont("helvetica", "normal");
-    doc.text(`Period: ${monthName} ${filters.value.year}`, margin, yPos);
-    doc.text(`Generated: ${new Date().toLocaleDateString("id-ID")}`, pageWidth - margin, yPos, {
-      align: "right",
+    const period = `Period: ${monthName} ${filters.value.year} | Customer: ${filters.value.companyId ? (companies.value.find((c) => c.id === filters.value.companyId)?.name ?? "All") : "All"}`;
+
+    const rows: (string | number)[][] = reportData.value.invoices.map((inv) => [
+      formatDate(inv.issuedDate),
+      inv.invoiceNumber || "-",
+      inv.company.name || "-",
+      inv.total || 0,
+      inv.balanceDue || 0,
+      inv.status.name || "-",
+    ]);
+
+    const cols: PdfCol[] = [
+      { header: "Inv Date", width: 0.12 },
+      { header: "Invoice No.", width: 0.18 },
+      { header: "Customer", width: 0.3 },
+      { header: "Total", width: 0.16, align: "right", isCurrency: true },
+      { header: "Outstanding", width: 0.16, align: "right", isCurrency: true },
+      { header: "Status", width: 0.08, align: "center" },
+    ];
+
+    await exportStyledPdf({
+      title: "OUTSTANDING PAYMENTS REPORT",
+      period,
+      cols,
+      rows,
+      totals: [3, 4],
+      filename: `OUTSTANDING_REPORT_${new Date().toISOString().split("T")[0]}.pdf`,
     });
-    yPos += 10;
-
-    // Column headers
-    doc.setFillColor(1, 45, 90);
-    doc.rect(margin, yPos, pageWidth - margin * 2, 8, "F");
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(9);
-    doc.setFont("helvetica", "bold");
-    doc.text("Inv Date", margin + 2, yPos + 6);
-    doc.text("Invoice No.", margin + 30, yPos + 6);
-    doc.text("Customer", margin + 60, yPos + 6);
-    doc.text("Total", pageWidth - margin - 50, yPos + 6);
-    doc.text("Outstanding", pageWidth - margin - 20, yPos + 6);
-    yPos += 8;
-
-    // Data rows
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(31, 41, 55);
-    reportData.value.invoices.forEach((inv, idx) => {
-      if (idx % 2 === 0) {
-        doc.setFillColor(249, 250, 251);
-        doc.rect(margin, yPos, pageWidth - margin * 2, 8, "F");
-      }
-      doc.setTextColor(31, 41, 55);
-      doc.text(formatDate(inv.issuedDate), margin + 2, yPos + 6);
-      doc.text(inv.invoiceNumber?.substring(0, 15) || "-", margin + 30, yPos + 6);
-      doc.text(inv.company.name?.substring(0, 20) || "-", margin + 60, yPos + 6);
-      doc.text(formatCurrency(inv.total), pageWidth - margin - 50, yPos + 6);
-      doc.text(formatCurrency(inv.balanceDue), pageWidth - margin - 20, yPos + 6);
-      yPos += 8;
-    });
-
-    // Total row
-    doc.setFillColor(214, 228, 240);
-    doc.rect(margin, yPos, pageWidth - margin * 2, 8, "F");
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(1, 45, 90);
-    doc.text("GRAND TOTALS", margin + 2, yPos + 6);
-    doc.text(
-      formatCurrency(reportData.value.summary.totalInvoiced),
-      pageWidth - margin - 50,
-      yPos + 6,
-    );
-    doc.text(
-      formatCurrency(reportData.value.summary.totalOutstanding),
-      pageWidth - margin - 20,
-      yPos + 6,
-    );
-
-    doc.save(`OUTSTANDING_REPORT_${new Date().toISOString().split("T")[0]}.pdf`);
   } catch (error) {
     console.error("Export PDF error:", error);
   } finally {

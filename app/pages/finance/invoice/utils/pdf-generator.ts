@@ -2,12 +2,6 @@ import { jsPDF } from "jspdf";
 import { toNumber, formatRupiah } from "~/lib/utils";
 import type { InvoiceDetail } from "~/composables/useInvoices";
 
-// PDF color constants
-const PRIMARY_COLOR: [number, number, number] = [1, 45, 90]; // #012D5A
-const TEXT_COLOR: [number, number, number] = [31, 41, 55]; // #1f2937
-const GRAY_COLOR: [number, number, number] = [107, 114, 128]; // #6b7280
-const LIGHT_GRAY_COLOR: [number, number, number] = [229, 231, 235]; // #e5e7eb
-
 /**
  * Get status label for PDF display
  */
@@ -36,208 +30,222 @@ function formatDate(dateStr: string): string {
  * Generate and download invoice PDF
  */
 export async function generateInvoicePdf(invoice: InvoiceDetail): Promise<void> {
+  // Load Logo
+  const logoUrl = "/images/transparentnscontinenttebal.png";
+  const getLogoBase64 = (): Promise<string | null> => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.addEventListener("load", () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.drawImage(img, 0, 0);
+          resolve(canvas.toDataURL("image/png"));
+        } else {
+          resolve(null);
+        }
+      });
+      img.addEventListener("error", () => resolve(null));
+      img.src = logoUrl;
+    });
+  };
+
+  const logoBase64 = await getLogoBase64();
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
-  const margin = 20;
-  const contentWidth = pageWidth - margin * 2;
-  let yPos = margin;
+  const margin = 10;
+  const contentMargin = 15;
+  const contentWidth = pageWidth - contentMargin * 2;
 
-  // Company Header
-  doc.setFillColor(...PRIMARY_COLOR);
-  doc.rect(0, 0, pageWidth, 40, "F");
+  // Colors
+  const primaryColor: [number, number, number] = [6, 44, 88]; // #062c58
+  const textColor: [number, number, number] = [31, 41, 55]; // #1f2937
+  const grayColor: [number, number, number] = [107, 114, 128]; // #6b7280
 
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(24);
-  doc.setFont("helvetica", "bold");
-  doc.text("INVOICE", margin, 25);
+  // Draw Border
+  doc.setDrawColor(...primaryColor);
+  doc.setLineWidth(0.5);
+  doc.rect(margin, margin, pageWidth - margin * 2, pageHeight - margin * 2);
 
-  doc.setFontSize(12);
+  // Header Section
+  if (logoBase64) {
+    doc.addImage(logoBase64, "PNG", contentMargin, contentMargin, 30, 10);
+  }
+
+  doc.setFontSize(7);
+  doc.setTextColor(...primaryColor);
   doc.setFont("helvetica", "normal");
-  doc.text(invoice.invoiceNumber, pageWidth - margin, 20, { align: "right" });
-  doc.text(getStatusLabel(invoice.status?.code || ""), pageWidth - margin, 30, {
+  doc.text("OPERATIONAL MANAGEMENT SYSTEM", contentMargin, contentMargin + 13);
+
+  // Title
+  doc.setFontSize(14);
+  doc.setFont("helvetica", "bold");
+  doc.text("INVOICE", pageWidth / 2, contentMargin + 7, { align: "center" });
+
+  // Right Header
+  doc.setFontSize(8);
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(...textColor);
+  doc.text(
+    `INV NO: ${invoice.invoiceNumber || "-"}`,
+    pageWidth - contentMargin,
+    contentMargin + 5,
+    { align: "right" },
+  );
+  doc.text(
+    `STATUS: ${getStatusLabel(invoice.status?.code || "")}`,
+    pageWidth - contentMargin,
+    contentMargin + 9,
+    { align: "right" },
+  );
+
+  doc.setDrawColor(...primaryColor);
+  doc.setLineWidth(0.2);
+  doc.line(contentMargin, contentMargin + 15, pageWidth - contentMargin, contentMargin + 15);
+
+  let yPos = contentMargin + 25;
+
+  // Bill To and Date Info Row
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(8);
+  doc.setTextColor(...primaryColor);
+  doc.text("BILL TO:", contentMargin, yPos);
+  doc.text("INVOICE DETAILS:", pageWidth - contentMargin - 50, yPos);
+
+  yPos += 5;
+  doc.setTextColor(...textColor);
+  doc.setFontSize(10);
+  doc.setFont("helvetica", "bold");
+  doc.text(invoice.company?.name || "-", contentMargin, yPos);
+
+  doc.setFontSize(8);
+  doc.setFont("helvetica", "normal");
+  doc.text(`DATE: ${formatDate(invoice.issuedDate)}`, pageWidth - contentMargin, yPos, {
     align: "right",
   });
 
-  yPos = 55;
-
-  // Company Info (left) and Invoice Details (right)
-  doc.setTextColor(...TEXT_COLOR);
-  doc.setFontSize(10);
-  doc.setFont("helvetica", "bold");
-  doc.text("From:", margin, yPos);
+  yPos += 4;
+  doc.setTextColor(...grayColor);
+  doc.setFontSize(8);
   doc.setFont("helvetica", "normal");
-  doc.text("PT. Nusantara Continent", margin, yPos + 7);
-  doc.setTextColor(...GRAY_COLOR);
-  doc.text("Jakarta, Indonesia", margin, yPos + 14);
-
-  // Invoice details on the right
-  doc.setTextColor(...TEXT_COLOR);
-  doc.setFont("helvetica", "bold");
-  doc.text("Invoice Date:", pageWidth - margin - 50, yPos);
-  doc.setFont("helvetica", "normal");
-  doc.text(formatDate(invoice.issuedDate), pageWidth - margin, yPos, { align: "right" });
-
-  doc.setFont("helvetica", "bold");
-  doc.text("Due Date:", pageWidth - margin - 50, yPos + 7);
-  doc.setFont("helvetica", "normal");
-  doc.text(formatDate(invoice.dueDate), pageWidth - margin, yPos + 7, { align: "right" });
+  if (invoice.company?.address) {
+    doc.text(invoice.company.address, contentMargin, yPos);
+    yPos += 4;
+  }
+  doc.text(`DUE DATE: ${formatDate(invoice.dueDate)}`, pageWidth - contentMargin, yPos - 4, {
+    align: "right",
+  });
 
   if (invoice.job) {
-    doc.setFont("helvetica", "bold");
-    doc.text("Job Reference:", pageWidth - margin - 50, yPos + 14);
-    doc.setFont("helvetica", "normal");
-    doc.text(invoice.job.jobNumber, pageWidth - margin, yPos + 14, { align: "right" });
-  }
-
-  yPos += 35;
-
-  // Bill To section
-  doc.setDrawColor(...LIGHT_GRAY_COLOR);
-  doc.line(margin, yPos, pageWidth - margin, yPos);
-  yPos += 10;
-
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(10);
-  doc.text("BILL TO:", margin, yPos);
-  yPos += 7;
-
-  doc.setTextColor(...TEXT_COLOR);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(12);
-  doc.text(invoice.company?.name || "-", margin, yPos);
-  yPos += 7;
-
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(10);
-  doc.setTextColor(...GRAY_COLOR);
-  if (invoice.company?.address) {
-    doc.text(invoice.company.address, margin, yPos);
-    yPos += 6;
-  }
-  if (invoice.company?.email) {
-    doc.text(invoice.company.email, margin, yPos);
-    yPos += 6;
-  }
-  if (invoice.company?.phone) {
-    doc.text(invoice.company.phone, margin, yPos);
-    yPos += 6;
+    doc.text(`JOB REF: ${invoice.job.jobNumber}`, pageWidth - contentMargin, yPos, {
+      align: "right",
+    });
   }
 
   yPos += 15;
 
   // Items Table Header
-  doc.setFillColor(...PRIMARY_COLOR);
-  doc.rect(margin, yPos, contentWidth, 10, "F");
+  doc.setFillColor(...primaryColor);
+  doc.rect(contentMargin, yPos, contentWidth, 8, "F");
 
   doc.setTextColor(255, 255, 255);
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(9);
-  doc.text("DESCRIPTION", margin + 5, yPos + 7);
-  doc.text("QTY", margin + 95, yPos + 7, { align: "center" });
-  doc.text("UNIT PRICE", margin + 125, yPos + 7, { align: "right" });
-  doc.text("AMOUNT", pageWidth - margin - 5, yPos + 7, { align: "right" });
+  doc.setFontSize(8);
+  doc.text("DESCRIPTION", contentMargin + 3, yPos + 5);
+  doc.text("QTY", contentMargin + contentWidth - 65, yPos + 5, { align: "center" });
+  doc.text("UNIT PRICE", contentMargin + contentWidth - 35, yPos + 5, { align: "right" });
+  doc.text("AMOUNT", contentMargin + contentWidth - 3, yPos + 5, { align: "right" });
 
-  yPos += 10;
+  yPos += 8;
 
   // Items Table Body
-  doc.setTextColor(...TEXT_COLOR);
+  doc.setTextColor(...textColor);
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(9);
+  doc.setFontSize(8);
 
-  for (const item of invoice.items) {
-    // Check if we need a new page
-    if (yPos > pageHeight - 50) {
-      doc.addPage();
-      yPos = margin;
-    }
-
-    // Draw row background
-    doc.setFillColor(249, 250, 251);
-    doc.rect(margin, yPos, contentWidth, 12, "F");
-
-    doc.text(item.description, margin + 5, yPos + 8);
-    doc.text(String(item.quantity), margin + 95, yPos + 8, { align: "center" });
-    doc.text(formatRupiah(item.unitPrice), margin + 125, yPos + 8, { align: "right" });
-    doc.text(formatRupiah(item.amount), pageWidth - margin - 5, yPos + 8, { align: "right" });
-
-    yPos += 12;
-  }
-
-  // Draw bottom border for table
-  doc.setDrawColor(...LIGHT_GRAY_COLOR);
-  doc.line(margin, yPos, pageWidth - margin, yPos);
-
-  yPos += 15;
-
-  // Totals section
-  const totalsX = pageWidth - margin - 80;
-
-  doc.setTextColor(...TEXT_COLOR);
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(10);
-
-  // Subtotal
-  doc.text("Subtotal:", totalsX, yPos);
-  doc.text(formatRupiah(toNumber(invoice.subTotal) || 0), pageWidth - margin, yPos, {
-    align: "right",
-  });
-  yPos += 8;
-
-  // Tax
-  doc.text("Pajak (PPN):", totalsX, yPos);
-  doc.text(formatRupiah(toNumber(invoice.taxAmount) || 0), pageWidth - margin, yPos, {
-    align: "right",
-  });
-  yPos += 12;
-
-  // Total line
-  doc.setDrawColor(...PRIMARY_COLOR);
-  doc.setLineWidth(0.5);
-  doc.line(totalsX - 5, yPos, pageWidth - margin, yPos);
-  yPos += 8;
-
-  // Total
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(12);
-  doc.text("TOTAL:", totalsX, yPos);
-  doc.text(formatRupiah(toNumber(invoice.total)), pageWidth - margin, yPos, { align: "right" });
-
-  yPos += 20;
-
-  // Notes section
-  if (invoice.notes) {
+  invoice.items.forEach((item, idx) => {
     if (yPos > pageHeight - 40) {
       doc.addPage();
-      yPos = margin;
+      doc.setDrawColor(...primaryColor);
+      doc.setLineWidth(0.5);
+      doc.rect(margin, margin, pageWidth - margin * 2, pageHeight - margin * 2);
+      yPos = margin + 10;
     }
 
+    if (idx % 2 !== 0) {
+      doc.setFillColor(249, 250, 251);
+      doc.rect(contentMargin, yPos, contentWidth, 8, "F");
+    }
+
+    doc.text(item.description, contentMargin + 3, yPos + 5);
+    doc.text(String(item.quantity), contentMargin + contentWidth - 65, yPos + 5, {
+      align: "center",
+    });
+    doc.text(formatRupiah(item.unitPrice), contentMargin + contentWidth - 35, yPos + 5, {
+      align: "right",
+    });
+    doc.text(formatRupiah(item.amount), contentMargin + contentWidth - 3, yPos + 5, {
+      align: "right",
+    });
+
+    yPos += 8;
+  });
+
+  // Totals Section
+  yPos += 5;
+  const totalsW = 70;
+  const totalsX = contentMargin + contentWidth - totalsW;
+
+  const drawTotalLine = (label: string, value: number, isBold: boolean = false) => {
+    doc.setFont("helvetica", isBold ? "bold" : "normal");
+    doc.setTextColor(...(isBold ? primaryColor : textColor));
+    doc.text(label, totalsX, yPos);
+    doc.text(formatRupiah(value), contentMargin + contentWidth - 3, yPos, { align: "right" });
+    yPos += 6;
+  };
+
+  drawTotalLine("Subtotal:", toNumber(invoice.subTotal) || 0);
+  drawTotalLine("Tax (PPN):", toNumber(invoice.taxAmount) || 0);
+
+  doc.setDrawColor(...primaryColor);
+  doc.setLineWidth(0.5);
+  doc.line(totalsX, yPos - 2, contentMargin + contentWidth, yPos - 2);
+  yPos += 2;
+  drawTotalLine("TOTAL:", toNumber(invoice.total), true);
+
+  // Notes Section
+  if (invoice.notes) {
+    yPos += 10;
     doc.setFillColor(249, 250, 251);
-    doc.rect(margin, yPos, contentWidth, 30, "F");
+    doc.rect(contentMargin, yPos, contentWidth, 20, "F");
+    doc.setDrawColor(229, 231, 235);
+    doc.rect(contentMargin, yPos, contentWidth, 20, "S");
 
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(10);
-    doc.setTextColor(...TEXT_COLOR);
-    doc.text("Notes:", margin + 5, yPos + 8);
+    doc.setFontSize(8);
+    doc.setTextColor(...primaryColor);
+    doc.text("NOTES:", contentMargin + 3, yPos + 6);
 
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
-    doc.setTextColor(...GRAY_COLOR);
-
-    // Split notes into multiple lines
-    const noteLines = doc.splitTextToSize(invoice.notes, contentWidth - 10);
-    doc.text(noteLines, margin + 5, yPos + 16);
+    doc.setTextColor(...grayColor);
+    const noteLines = doc.splitTextToSize(invoice.notes, contentWidth - 6);
+    doc.text(noteLines, contentMargin + 3, yPos + 12);
   }
 
   // Footer
-  const footerY = pageHeight - 15;
-  doc.setFillColor(...PRIMARY_COLOR);
-  doc.rect(0, footerY - 5, pageWidth, 20, "F");
-
-  doc.setTextColor(255, 255, 255);
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(8);
-  doc.text("Thank you for your business!", pageWidth / 2, footerY + 5, { align: "center" });
+  doc.setFontSize(7);
+  doc.setTextColor(...grayColor);
+  doc.setFont("helvetica", "italic");
+  doc.text(
+    "Thank you for your business! This is a computer generated document.",
+    pageWidth / 2,
+    pageHeight - contentMargin + 3,
+    { align: "center" },
+  );
 
   // Generate filename and save
   const filename = `Invoice_${invoice.invoiceNumber.replace(/\//g, "-")}.pdf`;

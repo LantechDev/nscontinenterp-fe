@@ -5,9 +5,8 @@
 import { onMounted, onUnmounted, watch } from "vue";
 import type { TabName, PeriodType } from "~/types/finance";
 import type { TransactionItem } from "~/types/finance-dashboard";
-import { jsPDF } from "jspdf";
-import { formatRupiah } from "~/lib/utils";
 import { toast } from "vue-sonner";
+import { exportStyledPdf, type PdfCol } from "~/lib/pdf-export";
 
 export function useFinanceDashboardPage() {
   // Router
@@ -257,162 +256,40 @@ export function useFinanceDashboardPage() {
     handleTransactionSort: transactions.handleSort,
     handleTransactionSortDropdownToggle: transactions.handleSortDropdownToggle,
     handleTransactionExport: () => {
-      try {
-        const doc = new jsPDF();
-        const pageWidth = doc.internal.pageSize.getWidth();
-        const pageHeight = doc.internal.pageSize.getHeight();
-        const margin = 20;
-        const contentWidth = pageWidth - margin * 2;
-        let yPos = margin;
-
-        const darkNavy: [number, number, number] = [1, 45, 90];
-        const white: [number, number, number] = [255, 255, 255];
-        const black: [number, number, number] = [31, 41, 55];
-        const gray: [number, number, number] = [249, 250, 251];
-        const lightBlue: [number, number, number] = [214, 228, 240];
-
-        // Column widths: No. | Date | Job | Customer | Type | Total
-        const colW = [
-          contentWidth * 0.05, // No.
-          contentWidth * 0.12, // Date
-          contentWidth * 0.15, // Job Number
-          contentWidth * 0.25, // Customer
-          contentWidth * 0.18, // Type
-          contentWidth * 0.25, // Total
-        ];
-        const colHeaders = ["No.", "Tanggal", "Job Number", "Customer", "Type", "Total"];
-
-        // Page break helper
-        const checkPage = (needed: number) => {
-          if (yPos + needed > pageHeight - margin - 12) {
-            addFooter();
-            doc.addPage();
-            yPos = margin;
-          }
-        };
-
-        // Footer helper
-        const addFooter = () => {
-          const pageCount = doc.getNumberOfPages();
-          for (let i = 1; i <= pageCount; i++) {
-            doc.setPage(i);
-            doc.setFillColor(...darkNavy);
-            doc.rect(0, pageHeight - 12, pageWidth, 12, "F");
-            doc.setTextColor(...white);
-            doc.setFontSize(8);
-            doc.setFont("helvetica", "normal");
-            doc.text(new Date().toLocaleDateString("id-ID"), margin, pageHeight - 4);
-            doc.text(`Page ${i} of ${pageCount}`, pageWidth - margin, pageHeight - 4, {
-              align: "right",
-            });
-          }
-        };
-
-        // Header bar
-        doc.setFillColor(...darkNavy);
-        doc.rect(0, 0, pageWidth, 16, "F");
-        doc.setTextColor(...white);
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(14);
-        doc.text("PT NOVA SYNC", margin, 11);
-        doc.setFontSize(11);
-        doc.text("Transactions Report", pageWidth / 2, 11, { align: "center" });
-        doc.setFontSize(9);
-        doc.setFont("helvetica", "normal");
-        const yearLabel = transactionYear.value ? `Year: ${transactionYear.value}` : "All Years";
-        doc.text(`Generated: ${new Date().toLocaleDateString("id-ID")}`, pageWidth - margin, 11, {
-          align: "right",
-        });
-        yPos = 20;
-
-        // Period bar
-        doc.setFillColor(...darkNavy);
-        doc.rect(0, yPos - 4, pageWidth, 8, "F");
-        doc.setTextColor(...white);
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(9);
-        doc.text(`Period: ${yearLabel}`, margin, yPos);
-        yPos += 12;
-
-        // Column headers
-        checkPage(10);
-        doc.setFillColor(...darkNavy);
-        doc.rect(margin, yPos, contentWidth, 8, "F");
-        doc.setDrawColor(...darkNavy);
-        doc.setLineWidth(0.3);
-        doc.rect(margin, yPos, contentWidth, 8);
-        doc.setTextColor(...white);
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(9);
-        let hx = margin + 2;
-        colHeaders.forEach((col, i) => {
-          doc.text(col, hx, yPos + 5.5);
-          hx += colW[i] ?? 0;
-        });
-        yPos += 8;
-
-        // Data rows
-        doc.setTextColor(...black);
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(8);
-
-        const transactionsList = transactions.transactions.value || [];
-        let totalAmount = 0;
-
-        transactionsList.forEach((tx: TransactionItem, idx: number) => {
-          checkPage(8);
-          const bg = idx % 2 === 0 ? white : gray;
-          doc.setFillColor(...bg);
-          doc.rect(margin, yPos, contentWidth, 7, "F");
-          doc.setDrawColor(...darkNavy);
-          doc.setLineWidth(0.3);
-          // Draw cell borders
-          let cx = margin;
-          colW.forEach((w) => {
-            doc.rect(cx, yPos, w, 7);
-            cx += w;
-          });
-          // Cell content
-          doc.setTextColor(...black);
-          doc.setFont("helvetica", "normal");
-          let cellX = margin + 2;
-          const rowData = [
-            String(idx + 1),
-            tx.date ? new Date(tx.date).toLocaleDateString("id-ID") : "-",
-            (tx.jobNumber || "-").substring(0, 18),
-            (tx.customer || "-").substring(0, 20),
-            (tx.type || "-").substring(0, 14),
-            formatRupiah(tx.total || 0),
-          ];
-          rowData.forEach((cell, i) => {
-            doc.text(cell, cellX, yPos + 5);
-            cellX += colW[i] ?? 0;
-          });
-          totalAmount += tx.total || 0;
-          yPos += 7;
-        });
-
-        // Total row
-        checkPage(10);
-        doc.setFillColor(...lightBlue);
-        doc.rect(margin, yPos, contentWidth, 8, "F");
-        doc.setDrawColor(...darkNavy);
-        doc.setLineWidth(0.3);
-        doc.rect(margin, yPos, contentWidth, 8);
-        doc.setTextColor(...darkNavy);
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(9);
-        doc.text("TOTAL", margin + 2, yPos + 5.5);
-        doc.text(formatRupiah(totalAmount), pageWidth - margin - 2, yPos + 5.5, { align: "right" });
-        yPos += 8;
-
-        addFooter();
-        const filename = `Transactions_Report_${new Date().toISOString().split("T")[0]}.pdf`;
-        doc.save(filename);
-      } catch (exportError) {
-        console.error("Failed to export transactions PDF:", exportError);
-        toast.error("Failed to export PDF. Please try again.");
+      const list = transactions.transactions.value || [];
+      if (list.length === 0) {
+        toast.error("No transaction data to export");
+        return;
       }
+      const period = transactionYear.value ? `Year: ${transactionYear.value}` : "All Years";
+
+      const rows: (string | number)[][] = list.map((tx: TransactionItem, i: number) => [
+        i + 1,
+        tx.date ? new Date(tx.date).toLocaleDateString("id-ID") : "-",
+        tx.jobNumber || "-",
+        tx.customer || "-",
+        tx.type || "-",
+        tx.total || 0,
+      ]);
+
+      const cols: PdfCol[] = [
+        { header: "No.", width: 0.06 },
+        { header: "Tanggal", width: 0.12 },
+        { header: "Job Number", width: 0.18 },
+        { header: "Customer", width: 0.28 },
+        { header: "Type", width: 0.16 },
+        { header: "Total", width: 0.2, align: "right", isCurrency: true },
+      ];
+
+      exportStyledPdf({
+        title: "TRANSACTIONS REPORT",
+        period,
+        cols,
+        rows,
+        totals: [5],
+        filename: `Transactions_Report_${new Date().toISOString().split("T")[0]}.pdf`,
+        orientation: "landscape",
+      });
     },
     handleTransactionCreate: () => {
       router.push("/finance/transactions/create");

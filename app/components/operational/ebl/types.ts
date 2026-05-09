@@ -121,6 +121,22 @@ export interface ActiveJobData {
   hsCode?: string | null;
   blType?: string | null;
   vessels?: EblVessel[];
+  serviceType?: string;
+  pickupAddress?: string | null;
+  deliveryAddress?: string | null;
+  pickupDate?: string | null;
+  deliveryDate?: string | null;
+  pickupTime?: string | null;
+  deliveryTime?: string | null;
+  truckType?: string | null;
+  status?: { code?: string; name?: string } | null;
+  customer?: { id?: string; name?: string } | null;
+  customerId?: string | null;
+  vendor?: { id?: string; name?: string } | null;
+  vendorId?: string | null;
+  service?: { id?: string; name?: string } | null;
+  serviceId?: string | null;
+  createdAt?: string | null;
 }
 export interface EditFormType {
   shipperId?: string;

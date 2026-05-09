@@ -1010,7 +1010,7 @@ defineExpose({
 }
 
 .main-border-container {
-  border: 1px solid #1e3a8a;
+  border: 1px solid #062c58;
   display: flex;
   flex-direction: column;
   flex: 1;
@@ -1026,7 +1026,7 @@ defineExpose({
   flex-shrink: 0;
   overflow: hidden;
   position: relative;
-  border-bottom: 1px solid #1e3a8a;
+  border-bottom: 1px solid #062c58;
 }
 
 .cargo-window-p2 {

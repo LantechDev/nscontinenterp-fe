@@ -1,11 +1,14 @@
 <script setup lang="ts">
-import { Plus, Search, Receipt, LayoutList, LayoutGrid } from "lucide-vue-next";
+import { Plus, Search, Receipt, LayoutList, LayoutGrid, FileText, Loader2 } from "lucide-vue-next";
 import { cn } from "~/lib/utils";
 import { useInvoices, type InvoiceDetail } from "~/composables/useInvoices";
 import { useInvoicePage, type InvoiceData } from "~/composables/useInvoicePage";
 import { InvoiceListView, InvoiceGridView, InvoiceEditModal } from "./components";
 import JobInvoicePreview from "~/components/operational/JobInvoicePreview.vue";
 import { toast } from "vue-sonner";
+import { buildStyledWorkbook, type StyledRow } from "~/lib/excel-styled";
+import { exportStyledPdf, type PdfCol } from "~/lib/pdf-export";
+import { useExportPopup } from "~/composables/useExportPopup";
 
 definePageMeta({
   layout: "dashboard",
@@ -50,6 +53,11 @@ const {
   toggleTax,
   initialize,
 } = useInvoicePage();
+
+const { showExportOptions, triggerX, triggerY, triggerWidth, triggerHeight, openExportPopup } =
+  useExportPopup();
+
+const isExporting = ref(false);
 
 // Client-side: fetch initial data (avoid slow cross-region SSR)
 const {
@@ -141,6 +149,118 @@ const handleInvoiceClick = (id: string) => {
 const handleEdit = (id: string) => {
   openEditModal(id);
 };
+
+const handleExportExcel = () => {
+  if (filteredInvoices.value.length === 0) return;
+  isExporting.value = true;
+
+  try {
+    const colHeaders = ["Date", "Invoice No.", "Customer", "Job No.", "Total", "Balance", "Status"];
+    const filterLabel = `Exported Invoices | Total: ${filteredInvoices.value.length} | Generated: ${new Date().toLocaleDateString("id-ID")}`;
+
+    const rows: StyledRow[] = [
+      { cells: ["NS CONTINENT — INVOICE LIST REPORT", "", "", "", "", "", ""], style: 7 },
+      { cells: [filterLabel, "", "", "", "", "", ""], style: 8 },
+      { cells: colHeaders, style: 0 },
+    ];
+
+    filteredInvoices.value.forEach((inv, i) => {
+      const isEven = i % 2 === 0;
+      rows.push({
+        cells: [
+          formatDate(inv.issuedDate),
+          inv.invoiceNumber || "-",
+          inv.company?.name || "-",
+          inv.job?.jobNumber || "-",
+          Number(inv.total) || 0,
+          Number(inv.balanceDue) || 0,
+          inv.status?.name || "-",
+        ],
+        style: isEven ? 5 : 6,
+        cellStyles: [
+          isEven ? 1 : 2,
+          isEven ? 1 : 2,
+          isEven ? 1 : 2,
+          isEven ? 1 : 2,
+          isEven ? 5 : 6,
+          isEven ? 5 : 6,
+          isEven ? 11 : 11,
+        ],
+      });
+    });
+
+    // Add Grand Total row for Excel
+    const totalAmount = filteredInvoices.value.reduce(
+      (sum, inv) => sum + (Number(inv.total) || 0),
+      0,
+    );
+    const totalBalance = filteredInvoices.value.reduce(
+      (sum, inv) => sum + (Number(inv.balanceDue) || 0),
+      0,
+    );
+
+    rows.push({
+      cells: ["", "", "GRAND TOTALS", "", totalAmount, totalBalance, ""],
+      style: 3,
+      cellStyles: [10, 10, 10, 10, 3, 3, 10],
+    });
+
+    const colWidths = [15, 20, 35, 18, 18, 18, 15];
+    buildStyledWorkbook(
+      "Invoice List",
+      rows,
+      colWidths,
+      `INVOICE_LIST_${new Date().toISOString().split("T")[0]}.xlsx`,
+    );
+  } catch (error) {
+    console.error("Export error:", error);
+    toast.error("Failed to export Excel");
+  } finally {
+    isExporting.value = false;
+  }
+};
+
+const handleExportPdf = async () => {
+  if (filteredInvoices.value.length === 0) return;
+  isExporting.value = true;
+  try {
+    const period = `Total Invoices: ${filteredInvoices.value.length} | Filtered List`;
+
+    const rows: (string | number)[][] = filteredInvoices.value.map((inv) => [
+      formatDate(inv.issuedDate),
+      inv.invoiceNumber || "-",
+      inv.company?.name || "-",
+      inv.job?.jobNumber || "-",
+      Number(inv.total) || 0,
+      Number(inv.balanceDue) || 0,
+      inv.status?.name || "-",
+    ]);
+
+    const cols: PdfCol[] = [
+      { header: "Date", width: 0.12 },
+      { header: "Invoice No.", width: 0.18 },
+      { header: "Customer", width: 0.25 },
+      { header: "Job No.", width: 0.15 },
+      { header: "Total", width: 0.12, align: "right", isCurrency: true },
+      { header: "Balance", width: 0.12, align: "right", isCurrency: true },
+      { header: "Status", width: 0.06, align: "center" },
+    ];
+
+    await exportStyledPdf({
+      title: "INVOICE LIST REPORT",
+      period,
+      cols,
+      rows,
+      totals: [4, 5],
+      filename: `INVOICE_LIST_${new Date().toISOString().split("T")[0]}.pdf`,
+    });
+  } catch (error) {
+    console.error("Export PDF error:", error);
+    toast.error("Failed to export PDF");
+  } finally {
+    isExporting.value = false;
+  }
+};
 </script>
 
 <template>
@@ -162,6 +282,16 @@ const handleEdit = (id: string) => {
             {{ option.label }}
           </option>
         </select>
+
+        <button
+          @click="openExportPopup($event)"
+          :disabled="isExporting || filteredInvoices.length === 0"
+          class="flex items-center gap-2 px-3 py-2 text-sm border border-border bg-white hover:bg-gray-50 rounded-lg shadow-sm transition-all active:scale-95 disabled:opacity-50"
+        >
+          <FileText v-if="!isExporting" class="w-4 h-4 text-green-600" />
+          <Loader2 v-else class="w-4 h-4 animate-spin" />
+          <span class="font-medium text-gray-700">Export</span>
+        </button>
 
         <div class="flex items-center bg-white border border-border rounded-lg p-1 mr-2">
           <button
@@ -294,7 +424,6 @@ const handleEdit = (id: string) => {
       :initial-invoice-id="initialInvoiceId"
     />
 
-    <!-- Hidden invoice preview used only for PDF generation -->
     <div
       v-if="downloadInvoice"
       aria-hidden="true"
@@ -302,5 +431,16 @@ const handleEdit = (id: string) => {
     >
       <JobInvoicePreview ref="previewRef" :invoice="downloadInvoice" />
     </div>
+
+    <UiExportOptionsModal
+      v-model:open="showExportOptions"
+      :trigger-x="triggerX"
+      :trigger-y="triggerY"
+      :trigger-width="triggerWidth"
+      :trigger-height="triggerHeight"
+      title="Export Invoice List"
+      @export-pdf="handleExportPdf"
+      @export-excel="handleExportExcel"
+    />
   </div>
 </template>

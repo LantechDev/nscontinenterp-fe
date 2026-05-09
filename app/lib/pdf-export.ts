@@ -2,12 +2,13 @@ import { jsPDF } from "jspdf";
 import { formatRupiah } from "~/lib/utils";
 
 const C = {
-  primary: [1, 45, 90] as [number, number, number],
+  primary: [6, 44, 88] as [number, number, number], // #062c58
   text: [31, 41, 55] as [number, number, number],
   gray: [107, 114, 128] as [number, number, number],
   lightGray: [249, 250, 251] as [number, number, number],
   white: [255, 255, 255] as [number, number, number],
   lightBlue: [214, 228, 240] as [number, number, number],
+  border: [6, 44, 88] as [number, number, number],
 };
 
 export interface PdfCol {
@@ -25,108 +26,163 @@ export interface PdfExportOptions {
   rows: (string | number)[][];
   totals?: number[];
   filename: string;
+  orientation?: "portrait" | "landscape";
 }
 
-export function exportStyledPdf(opts: PdfExportOptions): void {
-  const { title, companyName = "PT NOVA SYNC", period, cols, rows, totals, filename } = opts;
+export async function exportStyledPdf(opts: PdfExportOptions): Promise<void> {
+  const { title, period, cols, rows, totals, filename, orientation = "portrait" } = opts;
 
-  const doc = new jsPDF({ orientation: "landscape" });
+  // Load Logo
+  const logoUrl = "/images/transparentnscontinenttebal.png";
+  const getLogoBase64 = (): Promise<string | null> => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.addEventListener("load", () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.drawImage(img, 0, 0);
+          resolve(canvas.toDataURL("image/png"));
+        } else {
+          resolve(null);
+        }
+      });
+      img.addEventListener("error", () => resolve(null));
+      img.src = logoUrl;
+    });
+  };
+
+  const logoBase64 = await getLogoBase64();
+
+  const doc = new jsPDF({ orientation, unit: "mm", format: "a4" });
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
-  const margin = 20;
-  const contentWidth = pageWidth - margin * 2;
-  let y = margin;
+  const margin = 10;
+  const contentMargin = 15;
+  const innerWidth = pageWidth - contentMargin * 2;
 
-  const colW = cols.map((c) => contentWidth * c.width);
+  let y = contentMargin;
+
+  const colW = cols.map((c) => innerWidth * c.width);
   const colAligns = cols.map((c) => c.align || "left");
   const colHeaders = cols.map((c) => c.header);
   const rowH = 7;
-  const headerRowH = 10;
+  const headerRowH = 8;
 
-  const drawBorders = (x: number, yPos: number, w: number, h: number) => {
+  const drawPageBorder = () => {
+    doc.setDrawColor(...C.border);
+    doc.setLineWidth(0.5);
+    doc.rect(margin, margin, pageWidth - margin * 2, pageHeight - margin * 2);
+  };
+
+  const addHeader = () => {
+    drawPageBorder();
+
+    // Logo
+    if (logoBase64) {
+      doc.addImage(logoBase64, "PNG", contentMargin, contentMargin, 30, 10);
+    } else {
+      doc.setTextColor(...C.primary);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(14);
+      doc.text("NS CONTINENT", contentMargin, contentMargin + 5);
+    }
+
+    doc.setFontSize(7);
+    doc.setTextColor(...C.primary);
+    doc.setFont("helvetica", "normal");
+    doc.text("OPERATIONAL MANAGEMENT SYSTEM", contentMargin, contentMargin + 13);
+
+    // Title in Middle
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "bold");
+    doc.text(title.toUpperCase(), pageWidth / 2, contentMargin + 7, { align: "center" });
+
+    // Page Info on Right
+    const pageNum = doc.getNumberOfPages();
+    doc.setFontSize(7);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(...C.text);
+    doc.text(`PAGE: ${pageNum}`, pageWidth - contentMargin, contentMargin + 5, { align: "right" });
+    doc.text(
+      `DATE: ${new Date().toLocaleDateString("id-ID")}`,
+      pageWidth - contentMargin,
+      contentMargin + 9,
+      { align: "right" },
+    );
+
+    if (period) {
+      doc.setFontSize(8);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(...C.primary);
+      doc.text(period.toUpperCase(), pageWidth / 2, contentMargin + 12, { align: "center" });
+    }
+
     doc.setDrawColor(...C.primary);
-    doc.setLineWidth(0.3);
-    let cx = x;
-    colW.forEach((cw) => {
-      doc.rect(cx, yPos, cw, h);
-      cx += cw;
-    });
+    doc.setLineWidth(0.2);
+    doc.line(contentMargin, contentMargin + 15, pageWidth - contentMargin, contentMargin + 15);
+
+    return contentMargin + 20;
   };
 
   const addFooter = () => {
     const pageCount = doc.getNumberOfPages();
     for (let i = 1; i <= pageCount; i++) {
       doc.setPage(i);
-      doc.setFillColor(...C.primary);
-      doc.rect(0, pageHeight - 10, pageWidth, 10, "F");
-      doc.setTextColor(...C.white);
-      doc.setFontSize(8);
-      doc.setFont("helvetica", "normal");
-      doc.text(new Date().toLocaleDateString("id-ID"), margin, pageHeight - 3);
-      doc.text(`Page ${i} of ${pageCount}`, pageWidth - margin, pageHeight - 3, { align: "right" });
+      drawPageBorder();
+      doc.setTextColor(...C.gray);
+      doc.setFontSize(7);
+      doc.setFont("helvetica", "italic");
+      doc.text(
+        "This report is generated automatically by NS Continent ERP.",
+        pageWidth / 2,
+        pageHeight - contentMargin + 5,
+        { align: "center" },
+      );
     }
   };
 
   const checkPage = (needed: number) => {
-    if (y + needed > pageHeight - margin - 12) {
-      addFooter();
+    if (y + needed > pageHeight - contentMargin - 10) {
       doc.addPage();
-      y = margin;
+      y = addHeader();
     }
   };
-
-  // Top header bar
-  doc.setFillColor(...C.primary);
-  doc.rect(0, 0, pageWidth, 40, "F");
-  doc.setTextColor(...C.white);
-  doc.setFontSize(20);
-  doc.setFont("helvetica", "bold");
-  doc.text(companyName, margin, 14);
-  doc.setFontSize(14);
-  doc.text(title, pageWidth / 2, 14, { align: "center" });
-  doc.setFontSize(9);
-  doc.setFont("helvetica", "normal");
-  doc.text(`Generated: ${new Date().toLocaleDateString("id-ID")}`, pageWidth - margin, 14, {
-    align: "right",
-  });
-
-  if (period) {
-    doc.setFillColor(...C.primary);
-    doc.rect(0, 18, pageWidth, 10, "F");
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(9);
-    doc.text(period, margin, 25);
-    y = 28;
-  } else {
-    y = 48;
-  }
 
   // Column headers
   checkPage(headerRowH);
   doc.setFillColor(...C.primary);
-  doc.rect(margin, y, contentWidth, headerRowH, "F");
-  drawBorders(margin, y, contentWidth, headerRowH);
+  doc.rect(contentMargin, y, innerWidth, headerRowH, "F");
   doc.setTextColor(...C.white);
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(9);
-  let cx = margin;
+  doc.setFontSize(8);
+  let cx = contentMargin;
   colHeaders.forEach((h, i) => {
-    doc.text(h, cx + 2, y + headerRowH / 2 + 3);
+    const align = colAligns[i] ?? "left";
+    const offset = align === "left" ? 2 : align === "right" ? colW[i]! - 2 : colW[i]! / 2;
+    doc.text(h, cx + offset, y + headerRowH / 2 + 1, { align });
     cx += colW[i]!;
   });
   y += headerRowH;
 
   // Data rows
-  rows.forEach((row) => {
+  rows.forEach((row, idx) => {
     checkPage(rowH);
-    const bg = rows.indexOf(row) % 2 === 0 ? C.lightGray : C.white;
+    const bg = idx % 2 === 0 ? C.white : C.lightGray;
     doc.setFillColor(...bg);
-    doc.rect(margin, y, contentWidth, rowH, "F");
-    drawBorders(margin, y, contentWidth, rowH);
+    doc.rect(contentMargin, y, innerWidth, rowH, "F");
+
+    // Draw horizontal line for each row
+    doc.setDrawColor(230, 230, 230);
+    doc.line(contentMargin, y + rowH, pageWidth - contentMargin, y + rowH);
+
     doc.setTextColor(...C.text);
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
-    cx = margin;
+    doc.setFontSize(8);
+    cx = contentMargin;
     row.forEach((cell, i) => {
       const align = colAligns[i] ?? "left";
       const val =
@@ -136,7 +192,11 @@ export function exportStyledPdf(opts: PdfExportOptions): void {
             : String(cell)
           : String(cell ?? "-");
       const offset = align === "left" ? 2 : align === "right" ? colW[i]! - 2 : colW[i]! / 2;
-      doc.text(val.substring(0, 30), cx + offset, y + rowH / 2 + 3, { align });
+
+      // Handle text overflow
+      const maxW = colW[i]! - 4;
+      const text = doc.splitTextToSize(val, maxW);
+      doc.text(text[0] || "", cx + offset, y + rowH / 2 + 1, { align });
       cx += colW[i]!;
     });
     y += rowH;
@@ -146,20 +206,24 @@ export function exportStyledPdf(opts: PdfExportOptions): void {
   if (totals && totals.length > 0) {
     checkPage(headerRowH);
     doc.setFillColor(...C.lightBlue);
-    doc.rect(margin, y, contentWidth, headerRowH, "F");
-    drawBorders(margin, y, contentWidth, headerRowH);
+    doc.rect(contentMargin, y, innerWidth, headerRowH, "F");
+    doc.setDrawColor(...C.primary);
+    doc.setLineWidth(0.3);
+    doc.line(contentMargin, y, pageWidth - contentMargin, y);
+    doc.line(contentMargin, y + headerRowH, pageWidth - contentMargin, y + headerRowH);
+
     doc.setTextColor(...C.primary);
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(9);
-    cx = margin;
+    doc.setFontSize(8);
+    cx = contentMargin;
     colHeaders.forEach((_, i) => {
       const align = colAligns[i] ?? "left";
       if (i === 0) {
-        doc.text("TOTAL", cx + 2, y + headerRowH / 2 + 3);
+        doc.text("TOTAL", cx + 2, y + headerRowH / 2 + 1);
       } else if (totals.includes(i)) {
         const sum = rows.reduce((s, r) => s + (typeof r[i] === "number" ? (r[i] as number) : 0), 0);
         const offset = align === "left" ? 2 : align === "right" ? colW[i]! - 2 : colW[i]! / 2;
-        doc.text(formatRupiah(sum), cx + offset, y + headerRowH / 2 + 3, { align });
+        doc.text(formatRupiah(sum), cx + offset, y + headerRowH / 2 + 1, { align });
       }
       cx += colW[i]!;
     });

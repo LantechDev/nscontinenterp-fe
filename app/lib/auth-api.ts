@@ -39,6 +39,8 @@ export function getStoredOrgId(): string | null {
 export function setStoredOrgId(orgId: string) {
   if (import.meta.server) return;
   localStorage.setItem(ACTIVE_ORG_KEY, orgId);
+  // Also set cookie for backend use
+  document.cookie = `${ACTIVE_ORG_KEY}=${orgId}; path=/; max-age=31536000; SameSite=Lax`;
 }
 
 async function handleUnauthorized() {
