@@ -215,249 +215,276 @@ const formData = reactive({
 });
 
 onMounted(async () => {
-  if (!jobDetails.value) {
+  if (jobData.value) {
+    populateFormData(jobData.value);
+  } else {
     await fetchJobData();
   }
   await refreshMasterData(formData.pol, formData.pod);
 });
 
+// Watch for data changes to ensure form is populated
+watch(
+  jobData,
+  (newVal) => {
+    if (newVal) {
+      populateFormData(newVal);
+    }
+  },
+  { immediate: true },
+);
+
 async function fetchJobData() {
   const res = await getJob(jobId);
   if (res.success && res.data) {
-    const job = res.data;
-    jobDetails.value = job;
+    populateFormData(res.data);
+  } else {
+    toast.error("Failed to fetch job data: " + res.error);
+    router.push("/operational/jobs");
+  }
+}
 
-    // Map job data to formData
-    formData.tradeTypeId =
-      job.tradeType?.code || (typeof job.tradeTypeId === "string" ? job.tradeTypeId : "EXPORT");
-    formData.pol = job.pol || "";
-    formData.pod = job.pod || "";
-    formData.voyageNumber = job.voyageNumber || "";
-    formData.preCarriageBy = job.preCarriageBy || "";
-    formData.placeOfReceipt = job.placeOfReceipt || "";
-    formData.placeOfDelivery = job.placeOfDelivery || "";
-    formData.finalDestination = job.finalDestination || "";
+function populateFormData(job: JobWithBls) {
+  jobDetails.value = job;
 
-    // Trucking fields
-    formData.serviceType = job.serviceType || "OCEAN";
-    formData.pickupAddress = job.pickupAddress || "";
-    formData.deliveryAddress = job.deliveryAddress || "";
-    formData.pickupDate =
-      job.pickupDate && typeof job.pickupDate === "string"
-        ? (job.pickupDate.split("T")[0] as string)
-        : "";
-    formData.pickupTime = job.pickupTime || "";
-    formData.deliveryDate =
-      job.deliveryDate && typeof job.deliveryDate === "string"
-        ? (job.deliveryDate.split("T")[0] as string)
-        : "";
-    formData.deliveryTime = job.deliveryTime || "";
-    formData.truckType = job.truckType || "";
+  // Map job data to formData
+  formData.tradeTypeId =
+    job.tradeType?.code || (typeof job.tradeTypeId === "string" ? job.tradeTypeId : "EXPORT");
+  formData.pol = job.pol || "";
+  formData.pod = job.pod || "";
+  formData.voyageNumber = job.voyageNumber || "";
+  formData.preCarriageBy = job.preCarriageBy || "";
+  formData.placeOfReceipt = job.placeOfReceipt || "";
+  formData.placeOfDelivery = job.placeOfDelivery || "";
+  formData.finalDestination = job.finalDestination || "";
 
-    // Also try to get route data from BL if not available at job level
-    if (!formData.pol && job.billsOfLading && job.billsOfLading.length > 0) {
-      formData.pol = job.billsOfLading[0]?.pol || "";
-    }
-    if (!formData.pod && job.billsOfLading && job.billsOfLading.length > 0) {
-      formData.pod = job.billsOfLading[0]?.pod || "";
-    }
+  // Trucking fields
+  formData.serviceType = job.serviceType || "OCEAN";
+  formData.pickupAddress = job.pickupAddress || "";
+  formData.deliveryAddress = job.deliveryAddress || "";
+  formData.pickupDate =
+    job.pickupDate && typeof job.pickupDate === "string"
+      ? (job.pickupDate.split("T")[0] as string)
+      : "";
+  formData.pickupTime = job.pickupTime || "";
+  formData.deliveryDate =
+    job.deliveryDate && typeof job.deliveryDate === "string"
+      ? (job.deliveryDate.split("T")[0] as string)
+      : "";
+  formData.deliveryTime = job.deliveryTime || "";
+  formData.truckType = job.truckType || "";
 
-    formData.commodity = job.commodity || "";
-    formData.shippingMark = job.shippingMark || "";
-    formData.grossWeight = job.grossWeight != null ? parseFloat(job.grossWeight) : null;
-    formData.netWeight = job.netWeight != null ? parseFloat(job.netWeight) : null;
-    formData.measurement = job.measurement != null ? parseFloat(job.measurement) : null;
-    formData.customerReference = job.customerReference || "";
-    formData.cargoMovementId =
-      job.cargoMovement?.code ||
-      (typeof job.cargoMovementId === "string" ? job.cargoMovementId : "FCL_FCL");
-    formData.deliveryMovementId =
-      job.deliveryMovement?.code ||
-      (typeof job.deliveryMovementId === "string" ? job.deliveryMovementId : "CY_DOOR");
-    formData.vesselId = job.vesselId || "";
-    formData.vendorId = job.vendorId || "";
-    formData.customerId = job.customerId || "";
-    formData.etd = job.etd && typeof job.etd === "string" ? (job.etd.split("T")[0] as string) : "";
-    formData.eta = job.eta && typeof job.eta === "string" ? (job.eta.split("T")[0] as string) : "";
+  // Also try to get route data from BL if not available at job level
+  if (!formData.pol && job.billsOfLading && job.billsOfLading.length > 0) {
+    formData.pol = job.billsOfLading[0]?.pol || "";
+  }
+  if (!formData.pod && job.billsOfLading && job.billsOfLading.length > 0) {
+    formData.pod = job.billsOfLading[0]?.pod || "";
+  }
 
-    // Map Multi-Vessels
-    if (job.vessels && job.vessels.length > 0) {
-      formData.vessels = job.vessels.map((v, idx) => ({
-        vesselId: v.vesselId || "",
-        vesselName: v.vesselName || "",
-        voyageNumber: v.voyageNumber || "",
-        etd: v.etd && typeof v.etd === "string" ? v.etd.split("T")[0] || "" : "",
-        eta: v.eta && typeof v.eta === "string" ? v.eta.split("T")[0] || "" : "",
-        sequence: v.sequence || 0,
-        vesselType: v.vesselType || (idx === 0 ? "feeder" : "mother"),
-      }));
-    } else {
-      // Fallback to legacy single vessel if no JobVessels exist
-      formData.vessels = [
-        {
-          vesselId: job.vesselId || "",
-          vesselName: job.vessel?.name || "",
-          voyageNumber: job.voyageNumber || "",
-          etd: job.etd && typeof job.etd === "string" ? job.etd.split("T")[0] || "" : "",
-          eta: job.eta && typeof job.eta === "string" ? job.eta.split("T")[0] || "" : "",
-          sequence: 0,
-          vesselType: "feeder",
-        },
-      ];
-    }
+  formData.commodity = job.commodity || "";
+  formData.shippingMark = job.shippingMark || "";
+  formData.grossWeight = job.grossWeight != null ? parseFloat(job.grossWeight) : null;
+  formData.netWeight = job.netWeight != null ? parseFloat(job.netWeight) : null;
+  formData.measurement = job.measurement != null ? parseFloat(job.measurement) : null;
+  formData.customerReference = job.customerReference || "";
+  formData.cargoMovementId =
+    job.cargoMovement?.code ||
+    (typeof job.cargoMovementId === "string" ? job.cargoMovementId : "FCL_FCL");
+  formData.deliveryMovementId =
+    job.deliveryMovement?.code ||
+    (typeof job.deliveryMovementId === "string" ? job.deliveryMovementId : "CY_DOOR");
+  formData.vesselId = job.vesselId || "";
+  formData.vendorId = job.vendorId || "";
+  formData.customerId = job.customerId || "";
+  formData.etd = job.etd && typeof job.etd === "string" ? (job.etd.split("T")[0] as string) : "";
+  formData.eta = job.eta && typeof job.eta === "string" ? (job.eta.split("T")[0] as string) : "";
 
-    // Also try to get route data from BL if not available at job level
-    if (!formData.vesselId && job.billsOfLading && job.billsOfLading.length > 0) {
-      formData.vesselId = job.billsOfLading[0]?.vesselId || "";
-    }
-    if (!formData.etd && job.billsOfLading && job.billsOfLading.length > 0) {
-      const blEtd = job.billsOfLading[0]?.etd;
-      formData.etd = blEtd && typeof blEtd === "string" ? (blEtd.split("T")[0] as string) : "";
-    }
-    if (!formData.eta && job.billsOfLading && job.billsOfLading.length > 0) {
-      const blEta = job.billsOfLading[0]?.eta;
-      formData.eta = blEta && typeof blEta === "string" ? (blEta.split("T")[0] as string) : "";
-    }
+  // Map Multi-Vessels
+  if (job.vessels && job.vessels.length > 0) {
+    formData.vessels = job.vessels.map((v, idx) => ({
+      vesselId: v.vesselId || "",
+      vesselName: v.vesselName || "",
+      voyageNumber: v.voyageNumber || "",
+      etd: v.etd && typeof v.etd === "string" ? v.etd.split("T")[0] || "" : "",
+      eta: v.eta && typeof v.eta === "string" ? v.eta.split("T")[0] || "" : "",
+      sequence: v.sequence || 0,
+      vesselType: v.vesselType || (idx === 0 ? "feeder" : "mother"),
+    }));
+  } else {
+    // Fallback to legacy single vessel if no JobVessels exist
+    formData.vessels = [
+      {
+        vesselId: job.vesselId || "",
+        vesselName: job.vessel?.name || "",
+        voyageNumber: job.voyageNumber || "",
+        etd: job.etd && typeof job.etd === "string" ? job.etd.split("T")[0] || "" : "",
+        eta: job.eta && typeof job.eta === "string" ? job.eta.split("T")[0] || "" : "",
+        sequence: 0,
+        vesselType: "feeder",
+      },
+    ];
+  }
 
-    formData.totalBlCount = job.totalBlCount || 1;
-    formData.hsCode = job.hsCode || "";
-    formData.mainDescription = job.mainDescription || "";
-    formData.isDirectMaster = Boolean(job.isDirectMaster);
+  // Also try to get route data from BL if not available at job level
+  if (!formData.vesselId && job.billsOfLading && job.billsOfLading.length > 0) {
+    formData.vesselId = job.billsOfLading[0]?.vesselId || "";
+  }
+  if (!formData.etd && job.billsOfLading && job.billsOfLading.length > 0) {
+    const blEtd = job.billsOfLading[0]?.etd;
+    formData.etd = blEtd && typeof blEtd === "string" ? (blEtd.split("T")[0] as string) : "";
+  }
+  if (!formData.eta && job.billsOfLading && job.billsOfLading.length > 0) {
+    const blEta = job.billsOfLading[0]?.eta;
+    formData.eta = blEta && typeof blEta === "string" ? (blEta.split("T")[0] as string) : "";
+  }
 
-    // Also try to get cargo data from BL if not available at job level
-    if (!formData.commodity && job.billsOfLading && job.billsOfLading.length > 0) {
-      formData.commodity =
-        job.billsOfLading[0]?.commodity || job.billsOfLading[0]?.mainDescription || "";
-    }
-    if (!formData.shippingMark && job.billsOfLading && job.billsOfLading.length > 0) {
-      formData.shippingMark = job.billsOfLading[0]?.shippingMark || "";
-    }
-    if (!formData.hsCode && job.billsOfLading && job.billsOfLading.length > 0) {
-      formData.hsCode = job.billsOfLading[0]?.hsCode || "";
-    }
-    if (!formData.mainDescription && job.billsOfLading && job.billsOfLading.length > 0) {
-      formData.mainDescription = (job.billsOfLading[0]?.cargoDescription ||
-        job.billsOfLading[0]?.mainDescription ||
-        "") as string;
-    }
+  formData.totalBlCount = job.totalBlCount || 1;
+  formData.hsCode = job.hsCode || "";
+  formData.mainDescription = job.mainDescription || "";
+  formData.isDirectMaster = Boolean(job.isDirectMaster);
 
-    // Map BL Setup from first BL if available
-    if (job.billsOfLading && job.billsOfLading.length > 0) {
-      const firstBl = job.billsOfLading[0];
-      if (firstBl) {
-        formData.freightTerm = firstBl.freightTerm || "PREPAID";
-        formData.blType = firstBl.blType || "ORIGINAL";
-        formData.placeOfIssue = firstBl.placeOfIssue || "";
+  // Sync BL Setup from job level or first BL
+  formData.freightTerm = job.freightTerm || "PREPAID";
+  formData.blType = job.blType || "ORIGINAL";
+  formData.placeOfIssue = job.placeOfIssue || "";
+  formData.dateOfIssue =
+    job.dateOfIssue && typeof job.dateOfIssue === "string"
+      ? (job.dateOfIssue.split("T")[0] as string)
+      : "";
+  formData.isNegotiable = Boolean(job.isNegotiable);
+
+  // Also try to get cargo data from BL if not available at job level
+  if (!formData.commodity && job.billsOfLading && job.billsOfLading.length > 0) {
+    formData.commodity =
+      job.billsOfLading[0]?.commodity || job.billsOfLading[0]?.mainDescription || "";
+  }
+  if (!formData.shippingMark && job.billsOfLading && job.billsOfLading.length > 0) {
+    formData.shippingMark = job.billsOfLading[0]?.shippingMark || "";
+  }
+  if (!formData.hsCode && job.billsOfLading && job.billsOfLading.length > 0) {
+    formData.hsCode = job.billsOfLading[0]?.hsCode || "";
+  }
+  if (!formData.mainDescription && job.billsOfLading && job.billsOfLading.length > 0) {
+    formData.mainDescription = (job.billsOfLading[0]?.cargoDescription ||
+      job.billsOfLading[0]?.mainDescription ||
+      "") as string;
+  }
+
+  // Map BL Setup from first BL if available and NOT already set at job level
+  if (job.billsOfLading && job.billsOfLading.length > 0) {
+    const firstBl = job.billsOfLading[0];
+    if (firstBl) {
+      if (!formData.freightTerm) formData.freightTerm = firstBl.freightTerm || "PREPAID";
+      if (!formData.blType) formData.blType = firstBl.blType || "ORIGINAL";
+      if (!formData.placeOfIssue) formData.placeOfIssue = firstBl.placeOfIssue || "";
+      if (!formData.dateOfIssue)
         formData.dateOfIssue =
           firstBl.dateOfIssue && typeof firstBl.dateOfIssue === "string"
             ? (firstBl.dateOfIssue.split("T")[0] as string)
             : "";
-        formData.isNegotiable = firstBl.isNegotiable || false;
-      }
+      if (!formData.isNegotiable) formData.isNegotiable = firstBl.isNegotiable || false;
     }
+  }
 
-    // Map Parties
-    if (job.jobParties) {
-      const shipper = job.jobParties.find((p) => p.partyRole?.code === "SHIPPER");
-      if (shipper) {
-        formData.shipperId = shipper.companyId || "";
-        formData.shipperAddressId = (shipper.addressBookId as string) || "";
-      }
-      const consignee = job.jobParties.find((p) => p.partyRole?.code === "CONSIGNEE");
-      if (consignee) {
-        formData.consigneeId = consignee.companyId || "";
-        formData.consigneeAddressId = (consignee.addressBookId as string) || "";
-      }
-      const notify = job.jobParties.find((p) => p.partyRole?.code === "NOTIFY_PARTY");
-      if (notify) {
-        formData.notifyPartyId = notify.companyId || "";
-        formData.notifyPartyAddressId = (notify.addressBookId as string) || "";
-        formData.isNotifySameAsConsignee = !!(
-          notify.companyId &&
-          notify.companyId === formData.consigneeId &&
-          notify.addressBookId === formData.consigneeAddressId
-        );
-      }
-      const forwarder = job.jobParties.find((p) => p.partyRole?.code === "FORWARDER");
-      if (forwarder) {
-        formData.forwarderId = forwarder.companyId || "";
-        formData.forwarderAddressId = (forwarder.addressBookId as string) || "";
-      }
+  // Map Parties
+  if (job.jobParties) {
+    const shipper = job.jobParties.find((p) => p.partyRole?.code === "SHIPPER");
+    if (shipper) {
+      formData.shipperId = shipper.companyId || "";
+      formData.shipperAddressId = (shipper.addressBookId as string) || "";
     }
+    const consignee = job.jobParties.find((p) => p.partyRole?.code === "CONSIGNEE");
+    if (consignee) {
+      formData.consigneeId = consignee.companyId || "";
+      formData.consigneeAddressId = (consignee.addressBookId as string) || "";
+    }
+    const notify = job.jobParties.find((p) => p.partyRole?.code === "NOTIFY_PARTY");
+    if (notify) {
+      formData.notifyPartyId = notify.companyId || "";
+      formData.notifyPartyAddressId = (notify.addressBookId as string) || "";
+      formData.isNotifySameAsConsignee = !!(
+        notify.companyId &&
+        notify.companyId === formData.consigneeId &&
+        notify.addressBookId === formData.consigneeAddressId
+      );
+    }
+    const forwarder = job.jobParties.find((p) => p.partyRole?.code === "FORWARDER");
+    if (forwarder) {
+      formData.forwarderId = forwarder.companyId || "";
+      formData.forwarderAddressId = (forwarder.addressBookId as string) || "";
+    }
+  }
 
-    // Map Containers
-    if (job.jobContainers && job.jobContainers.length > 0) {
-      formData.containers = job.jobContainers.map((c) => ({
-        id: Math.random(),
-        containerNumber: c.containerNumber || "",
-        sealNumber: c.sealNumber || "",
-        containerTypeId: c.containerTypeId || "",
-        isHazardous: c.isHazardous || false,
-        items:
-          c.items && c.items.length > 0
-            ? c.items.map((item) => ({
+  // Map Containers
+  if (job.jobContainers && job.jobContainers.length > 0) {
+    formData.containers = job.jobContainers.map((c) => ({
+      id: Math.random(),
+      containerNumber: c.containerNumber || "",
+      sealNumber: c.sealNumber || "",
+      containerTypeId: c.containerTypeId || "",
+      isHazardous: c.isHazardous || false,
+      items:
+        c.items && c.items.length > 0
+          ? c.items.map((item) => ({
+              id: Math.random(),
+              sequenceNo: item.sequenceNo || 1,
+              qty: item.qty || 1,
+              packageTypeCode: item.packageTypeCode || "",
+              grossWeight: item.grossWeight ? parseFloat(item.grossWeight) : null,
+              netWeight: item.netWeight ? parseFloat(item.netWeight) : null,
+              measurementCbm: item.measurementCbm ? parseFloat(item.measurementCbm) : null,
+              description: item.description || "",
+              hsCode: item.hsCode || "",
+            }))
+          : [
+              {
                 id: Math.random(),
-                sequenceNo: item.sequenceNo || 1,
-                qty: item.qty || 1,
-                packageTypeCode: item.packageTypeCode || "",
-                grossWeight: item.grossWeight ? parseFloat(item.grossWeight) : null,
-                netWeight: item.netWeight ? parseFloat(item.netWeight) : null,
-                measurementCbm: item.measurementCbm ? parseFloat(item.measurementCbm) : null,
-                description: item.description || "",
-                hsCode: item.hsCode || "",
-              }))
-            : [
-                {
-                  id: Math.random(),
-                  sequenceNo: 1,
-                  qty: 1,
-                  packageTypeCode: "",
-                  grossWeight: null,
-                  netWeight: null,
-                  measurementCbm: null,
-                  description: "",
-                  hsCode: "",
-                },
-              ],
-      }));
-    } else if (job.billsOfLading && job.billsOfLading.length > 0) {
-      formData.containers = job.billsOfLading.map((bl) => ({
-        id: Math.random(),
-        containerNumber: bl.containerNumber || "",
-        sealNumber: bl.sealNumber || "",
-        containerTypeId: "",
-        isHazardous: false,
-        items:
-          bl.items && bl.items.length > 0
-            ? bl.items.map((item) => ({
+                sequenceNo: 1,
+                qty: 1,
+                packageTypeCode: "",
+                grossWeight: null,
+                netWeight: null,
+                measurementCbm: null,
+                description: "",
+                hsCode: "",
+              },
+            ],
+    }));
+  } else if (job.billsOfLading && job.billsOfLading.length > 0) {
+    formData.containers = job.billsOfLading.map((bl) => ({
+      id: Math.random(),
+      containerNumber: bl.containerNumber || "",
+      sealNumber: bl.sealNumber || "",
+      containerTypeId: "",
+      isHazardous: false,
+      items:
+        bl.items && bl.items.length > 0
+          ? bl.items.map((item) => ({
+              id: Math.random(),
+              sequenceNo: item.sequenceNo || 1,
+              qty: item.qty || 1,
+              packageTypeCode: item.packageTypeCode || "",
+              grossWeight: item.grossWeight ? parseFloat(item.grossWeight) : null,
+              netWeight: item.netWeight ? parseFloat(item.netWeight) : null,
+              measurementCbm: item.measurementCbm ? parseFloat(item.measurementCbm) : null,
+              description: item.description || "",
+              hsCode: item.hsCode || "",
+            }))
+          : [
+              {
                 id: Math.random(),
-                sequenceNo: item.sequenceNo || 1,
-                qty: item.qty || 1,
-                packageTypeCode: item.packageTypeCode || "",
-                grossWeight: item.grossWeight ? parseFloat(item.grossWeight) : null,
-                netWeight: item.netWeight ? parseFloat(item.netWeight) : null,
-                measurementCbm: item.measurementCbm ? parseFloat(item.measurementCbm) : null,
-                description: item.description || "",
-                hsCode: item.hsCode || "",
-              }))
-            : [
-                {
-                  id: Math.random(),
-                  sequenceNo: 1,
-                  qty: 1,
-                  packageTypeCode: "",
-                  grossWeight: null,
-                  netWeight: null,
-                  measurementCbm: null,
-                  description: "",
-                  hsCode: "",
-                },
-              ],
-      }));
-    }
-  } else {
-    toast.error("Failed to fetch job data: " + res.error);
-    router.push("/operational/jobs");
+                sequenceNo: 1,
+                qty: 1,
+                packageTypeCode: "",
+                grossWeight: null,
+                netWeight: null,
+                measurementCbm: null,
+                description: "",
+                hsCode: "",
+              },
+            ],
+    }));
   }
 }
 
@@ -536,6 +563,16 @@ watch(
   (val) => {
     if (formData.isNotifySameAsConsignee) {
       formData.notifyPartyAddressId = val;
+    }
+  },
+);
+
+// Sync commodity from mainDescription (Industrial Standard)
+watch(
+  () => formData.mainDescription,
+  (val) => {
+    if (val && !formData.commodity) {
+      formData.commodity = val.split("\n")[0]?.substring(0, 100) || "";
     }
   },
 );
@@ -628,8 +665,8 @@ watch(
 // Maintain Vessel Roles and Sequence
 watch(
   () => formData.vessels,
-  (vesselList) => {
-    vesselList.forEach((v, idx) => {
+  (vessels) => {
+    vessels.forEach((v, idx) => {
       v.sequence = idx;
       v.vesselType = idx === 0 ? "feeder" : "mother";
     });
@@ -905,8 +942,20 @@ const onVesselCreateSuccess = async (vessel: { id: string; name: string }) => {
 };
 
 async function handleSubmit() {
-  if (!formData.shipperId || !formData.consigneeId) {
-    toast.error("Please fill in Shipper and Consignee.");
+  if (
+    !formData.shipperId ||
+    !formData.consigneeId ||
+    (formData.serviceType === "OCEAN" &&
+      (!formData.blType || !formData.freightTerm || !formData.pol || !formData.pod)) ||
+    (formData.serviceType === "TRUCKING" && (!formData.pickupAddress || !formData.deliveryAddress))
+  ) {
+    let errorMsg = "Please fill in Shipper and Consignee.";
+    if (formData.serviceType === "OCEAN") {
+      errorMsg = "Please fill in Shipper, Consignee, POL, POD, Freight Term, and BL Type.";
+    } else if (formData.serviceType === "TRUCKING") {
+      errorMsg = "Please fill in Shipper, Consignee, Pickup Address, and Delivery Address.";
+    }
+    toast.error(errorMsg);
     return;
   }
 
@@ -1036,7 +1085,7 @@ function addVessel() {
 </script>
 
 <template>
-  <div class="space-y-6 animate-fade-in pb-10">
+  <div class="space-y-6 animate-fade-in p-6 pb-10">
     <!-- Sticky Header -->
     <div
       class="sticky top-16 z-[900] -mx-6 -mt-6 px-6 py-4 bg-background/80 backdrop-blur-md border-b border-border/50 shadow-sm transition-all duration-200"
@@ -1239,13 +1288,13 @@ function addVessel() {
                     class="w-8 h-8 rounded-full bg-[#062c58]/10 text-[#062c58] flex items-center justify-center text-[12px] font-black border border-[#062c58]/10 shadow-sm"
                   >
                     {{
-                      jobDetails?.createdBy
-                        ? jobDetails.createdBy.substring(0, 2).toUpperCase()
+                      jobDetails?.creatorName
+                        ? jobDetails.creatorName.substring(0, 2).toUpperCase()
                         : "AD"
                     }}
                   </div>
                   <span class="text-sm font-semibold text-foreground/80">{{
-                    jobDetails?.createdBy || "Administrator"
+                    jobDetails?.creatorName || "Administrator"
                   }}</span>
                 </div>
               </div>
@@ -1808,12 +1857,11 @@ function addVessel() {
           <!-- Movement & Schedule -->
           <SectionCard id="movement" title="Movement & Schedule" :icon="Clock">
             <template v-if="formData.serviceType !== 'TRUCKING'">
-              <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <!-- Vessels Section -->
-                <div class="md:col-span-2 space-y-4">
-                  <div class="flex items-center justify-between">
-                    <label
-                      class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
+              <div class="space-y-8">
+                <!-- Vessels Section (Full Width) -->
+                <div class="space-y-4">
+                  <div class="flex items-center justify-between border-b border-border/50 pb-2">
+                    <label class="text-xs font-bold text-muted-foreground tracking-widest uppercase"
                       >VESSEL SCHEDULE (MULTI-VESSEL)</label
                     >
                     <button
@@ -1829,38 +1877,38 @@ function addVessel() {
                           vesselType: 'mother',
                         })
                       "
-                      class="text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1"
+                      class="text-[11px] bg-blue-50 text-[#062c58] px-3 py-1 rounded-full hover:bg-blue-100 font-bold flex items-center gap-1.5 transition-all shadow-sm"
                     >
-                      <Plus class="w-3.5 h-3.5" /> Add Vessel
+                      <Plus class="w-3 h-3" /> ADD VESSEL
                     </button>
                   </div>
 
-                  <div class="space-y-4">
+                  <div class="grid grid-cols-1 gap-4">
                     <div
                       v-for="(vessel, index) in formData.vessels"
                       :key="index"
-                      class="p-4 bg-muted/5 border border-border/50 rounded-xl relative group animate-fade-in"
+                      class="p-5 bg-muted/5 border border-border/50 rounded-2xl relative group animate-fade-in transition-all hover:bg-muted/10 hover:border-border"
                     >
                       <button
                         v-if="formData.vessels.length > 1"
                         type="button"
                         @click="formData.vessels.splice(index, 1)"
-                        class="absolute -top-2 -right-2 w-6 h-6 bg-white border border-border text-muted-foreground hover:text-destructive rounded-full flex items-center justify-center shadow-sm opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                        class="absolute -top-2 -right-2 w-7 h-7 bg-white border border-border text-muted-foreground hover:text-destructive hover:border-destructive/30 rounded-full flex items-center justify-center shadow-md opacity-0 group-hover:opacity-100 transition-all z-10"
                       >
-                        <Trash2 class="w-3.5 h-3.5" />
+                        <Trash2 class="w-4 h-4" />
                       </button>
 
-                      <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
+                      <div class="grid grid-cols-1 md:grid-cols-12 gap-6">
                         <div class="md:col-span-1 flex items-center justify-center">
                           <div
-                            class="w-8 h-8 rounded-full bg-blue-50 text-[#062c58] flex items-center justify-center text-xs font-bold border border-blue-100"
+                            class="w-10 h-10 rounded-xl bg-[#062c58] text-white flex items-center justify-center text-sm font-black shadow-lg shadow-blue-900/10"
                           >
                             {{ index + 1 }}
                           </div>
                         </div>
                         <div class="md:col-span-4 self-end">
                           <label
-                            class="text-[10px] font-bold text-muted-foreground uppercase mb-1 block"
+                            class="text-[10px] font-bold text-muted-foreground uppercase mb-1.5 block opacity-70"
                             >{{ getVesselLabels(index).header }}</label
                           >
                           <Combobox
@@ -1875,7 +1923,7 @@ function addVessel() {
                         </div>
                         <div class="md:col-span-3 self-end">
                           <label
-                            class="text-[10px] font-bold text-muted-foreground uppercase mb-1 block"
+                            class="text-[10px] font-bold text-muted-foreground uppercase mb-1.5 block opacity-70"
                             >Voyage Number</label
                           >
                           <input
@@ -1887,7 +1935,7 @@ function addVessel() {
                         </div>
                         <div class="md:col-span-2 self-end">
                           <label
-                            class="text-[10px] font-bold text-muted-foreground uppercase mb-1 block"
+                            class="text-[10px] font-bold text-muted-foreground uppercase mb-1.5 block opacity-70"
                             :class="{ 'text-primary': getVesselLabels(index).etd.includes('T/S') }"
                           >
                             {{ getVesselLabels(index).etd }}
@@ -1896,7 +1944,7 @@ function addVessel() {
                         </div>
                         <div class="md:col-span-2 self-end">
                           <label
-                            class="text-[10px] font-bold text-muted-foreground uppercase mb-1 block flex items-center gap-1"
+                            class="text-[10px] font-bold text-muted-foreground uppercase mb-1.5 block flex items-center gap-1 opacity-70"
                             :class="{ 'text-primary': getVesselLabels(index).eta.includes('T/S') }"
                           >
                             {{ getVesselLabels(index).eta }}
@@ -1914,44 +1962,44 @@ function addVessel() {
                   </div>
                 </div>
 
-                <div class="space-y-2 self-end">
-                  <label
-                    class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
-                    >SHIPPING LINE</label
-                  >
-                  <Combobox
-                    v-model="formData.vendorId"
-                    :options="companies"
-                    label-key="name"
-                    value-key="id"
-                    placeholder="Select Shipping Line..."
-                  />
-                </div>
-                <div class="space-y-2">
-                  <label
-                    class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
-                    >ETD</label
-                  >
-                  <DatePicker v-model="formData.etd" />
-                </div>
-                <div class="space-y-2">
-                  <label
-                    class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
-                    >ETA</label
-                  >
-                  <DatePicker
-                    v-model="formData.eta"
-                    :class="{
-                      '[&_button]:border-destructive [&_button]:ring-destructive/20':
-                        scheduleErrors.eta,
-                    }"
-                  />
-                  <p
-                    v-if="scheduleErrors.eta"
-                    class="text-[10px] text-destructive mt-1 font-medium"
-                  >
-                    {{ scheduleErrors.eta }}
-                  </p>
+                <!-- Shipping Line & Schedule Dates (Sejajar) -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-8 pt-4 border-t border-border/40">
+                  <div class="space-y-2">
+                    <label class="text-xs font-bold text-muted-foreground tracking-widest uppercase"
+                      >SHIPPING LINE</label
+                    >
+                    <Combobox
+                      v-model="formData.vendorId"
+                      :options="companies"
+                      label-key="name"
+                      value-key="id"
+                      placeholder="Select Shipping Line..."
+                    />
+                  </div>
+                  <div class="space-y-2">
+                    <label class="text-xs font-bold text-muted-foreground tracking-widest uppercase"
+                      >ETD</label
+                    >
+                    <DatePicker v-model="formData.etd" />
+                  </div>
+                  <div class="space-y-2">
+                    <label class="text-xs font-bold text-muted-foreground tracking-widest uppercase"
+                      >ETA</label
+                    >
+                    <DatePicker
+                      v-model="formData.eta"
+                      :class="{
+                        '[&_button]:border-destructive [&_button]:ring-destructive/20':
+                          scheduleErrors.eta,
+                      }"
+                    />
+                    <p
+                      v-if="scheduleErrors.eta"
+                      class="text-[10px] text-destructive mt-1 font-medium"
+                    >
+                      {{ scheduleErrors.eta }}
+                    </p>
+                  </div>
                 </div>
               </div>
             </template>

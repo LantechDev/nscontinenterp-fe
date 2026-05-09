@@ -82,6 +82,7 @@ export interface Job {
   totalBlCount: number;
   statusId?: string | null;
   createdBy?: string | null;
+  creatorName?: string | null;
   freightTerm?: "PREPAID" | "COLLECT" | null;
   hsCode?: string | null;
   blType?: "DRAFT" | "ORIGINAL" | "SEAWAYBILL" | null;
@@ -222,6 +223,8 @@ export interface CreateJob {
   forwarderAddressId?: string;
   commodity: string;
   customerId?: string;
+  vendorId?: string;
+  serviceId?: string;
   containerTypeId?: string;
   serviceType?: string;
   pol?: string | null;

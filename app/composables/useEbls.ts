@@ -8,21 +8,28 @@ interface EblContainerType {
   name: string;
 }
 
-interface EblJob {
-  jobNumber: string;
-}
-
 export interface EblData {
   id: string;
   blNumber: string;
   jobId: string;
-  job?: EblJob;
+  job?: {
+    id: string;
+    jobNumber: string;
+    jobParties?: {
+      partyRole: { code: string; name: string };
+      company?: { id: string; name: string } | null;
+    }[];
+  };
   statusId: string | null;
   status?: EblStatus | null;
   containerTypeId: string | null;
   containerType?: EblContainerType | null;
   grossWeight: string | null;
   measurement: string | null;
+  statusRaw: string | null;
+  rejectReason: string | null;
+  polName?: string | null;
+  podName?: string | null;
   createdAt: string;
 }
 

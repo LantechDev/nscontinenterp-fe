@@ -67,6 +67,7 @@ const {
 
   // Data
   transactions,
+  financeCloseStats,
   closedPeriods,
   arApItems,
   arApStats,
@@ -469,39 +470,74 @@ function handleAssetsExportExcel() {
 }
 
 function handleFinanceCloseExportExcel() {
-  const list = closedPeriods.value || [];
-  if (list.length === 0) {
+  const history = closedPeriods.value || [];
+  const current = financeCloseStats.value;
+
+  if (history.length === 0 && !current) {
     toast.error("No finance close data to export");
     return;
   }
+
   const periodLabel = `Year: ${financeCloseYear.value || "All"} | Generated: ${new Date().toLocaleDateString("id-ID")}`;
   const rows: StyledRow[] = [
     { cells: ["PT NOVA SYNC — FINANCE CLOSE REPORT", "", "", "", "", ""], style: 7 },
     { cells: [periodLabel, "", "", "", "", ""], style: 8 },
-    { cells: ["Period", "Revenue", "COGS", "Nett P&L", "Closed Date", "Status"], style: 0 },
   ];
-  list.forEach((period, i) => {
-    const isEven = i % 2 === 0;
+
+  // 1. Current Period
+  if (current) {
+    rows.push({ cells: ["CURRENT PERIOD", "", "", "", "", ""], style: 0 });
+    rows.push({
+      cells: ["Period", "Revenue", "COGS", "Nett P&L", "Readiness", "Status"],
+      style: 0,
+    });
     rows.push({
       cells: [
-        period.period,
-        period.revenue || "Rp 0",
-        period.cogs || "Rp 0",
-        period.nettPL || "Rp 0",
-        period.periodEnd ? new Date(period.periodEnd).toLocaleDateString("id-ID") : "-",
-        "Closed",
+        current.period || "Open",
+        current.revenue || "Rp 0",
+        current.cogs || "Rp 0",
+        current.nettPL || "Rp 0",
+        `${current.readinessScore || 0}%`,
+        "OPEN",
       ],
-      style: isEven ? 1 : 2,
-      cellStyles: [
-        isEven ? 1 : 2,
-        isEven ? 5 : 6,
-        isEven ? 5 : 6,
-        isEven ? 5 : 6,
-        isEven ? 1 : 2,
-        isEven ? 1 : 2,
-      ],
+      style: 1,
+      cellStyles: [1, 5, 5, 5, 1, 1],
     });
-  });
+    rows.push({ cells: ["", "", "", "", "", ""], style: 1 }); // Spacer
+  }
+
+  // 2. History
+  if (history.length > 0) {
+    rows.push({ cells: ["CLOSED PERIODS HISTORY", "", "", "", "", ""], style: 0 });
+    rows.push({
+      cells: ["Period", "Revenue", "COGS", "Nett P&L", "Closed Date", "Status"],
+      style: 0,
+    });
+
+    history.forEach((period, i) => {
+      const isEven = i % 2 === 0;
+      rows.push({
+        cells: [
+          period.period,
+          period.revenue || "Rp 0",
+          period.cogs || "Rp 0",
+          period.nettPL || "Rp 0",
+          period.periodEnd ? new Date(period.periodEnd).toLocaleDateString("id-ID") : "-",
+          "Closed",
+        ],
+        style: isEven ? 1 : 2,
+        cellStyles: [
+          isEven ? 1 : 2,
+          isEven ? 5 : 6,
+          isEven ? 5 : 6,
+          isEven ? 5 : 6,
+          isEven ? 1 : 2,
+          isEven ? 1 : 2,
+        ],
+      });
+    });
+  }
+
   const colWidths = [20, 20, 20, 20, 18, 12];
   buildStyledWorkbook(
     "Finance Close",
@@ -567,6 +603,8 @@ function dispatchExportPdf() {
     handleFinanceCloseExport();
   } else if (activeTab.value === "Tax Report") {
     handleTaxReportExport();
+  } else if (activeTab.value === "Accounts Receivable") {
+    handleArApExport();
   }
 }
 
@@ -579,29 +617,151 @@ function dispatchExportExcel() {
     handleFinanceCloseExportExcel();
   } else if (activeTab.value === "Tax Report") {
     handleTaxReportExportExcel();
+  } else if (activeTab.value === "Accounts Receivable") {
+    handleArApExportExcel();
   }
+}
+
+function handleArApExport() {
+  const list = arApItems.value || [];
+  if (list.length === 0) {
+    toast.error("No data to export");
+    return;
+  }
+  const typeLabel = arApToggle.value === "ar" ? "ACCOUNTS RECEIVABLE" : "ACCOUNTS PAYABLE";
+  const period = `Generated: ${new Date().toLocaleDateString("id-ID")}`;
+
+  const rows: (string | number)[][] = list.map((item) => [
+    item.invoiceNumber || "-",
+    item.company || "-",
+    Number(item.total) || 0,
+    Number(item.paid) || 0,
+    Number(item.remaining) || 0,
+    item.dueDate ? new Date(item.dueDate).toLocaleDateString("id-ID") : "-",
+    item.status.toUpperCase(),
+  ]);
+
+  const cols: PdfCol[] = [
+    { header: "Inv No.", width: 0.18 },
+    { header: "Company", width: 0.22 },
+    { header: "Total", width: 0.14, align: "right", isCurrency: true },
+    { header: "Paid", width: 0.14, align: "right", isCurrency: true },
+    { header: "Remaining", width: 0.14, align: "right", isCurrency: true },
+    { header: "Due Date", width: 0.12, align: "center" },
+    { header: "Status", width: 0.06, align: "center" },
+  ];
+
+  exportStyledPdf({
+    title: typeLabel,
+    period,
+    cols,
+    rows,
+    totals: [2, 3, 4],
+    filename: `${typeLabel.replace(" ", "_")}_Report_${new Date().toISOString().split("T")[0]}.pdf`,
+  });
+}
+
+function handleArApExportExcel() {
+  const list = arApItems.value || [];
+  if (list.length === 0) {
+    toast.error("No data to export");
+    return;
+  }
+  const typeLabel = arApToggle.value === "ar" ? "ACCOUNTS RECEIVABLE" : "ACCOUNTS PAYABLE";
+  const periodLabel = `Generated: ${new Date().toLocaleDateString("id-ID")}`;
+
+  const rows: StyledRow[] = [
+    { cells: [`PT NOVA SYNC — ${typeLabel}`, "", "", "", "", "", ""], style: 7 },
+    { cells: [periodLabel, "", "", "", "", "", ""], style: 8 },
+    { cells: ["Inv No.", "Company", "Total", "Paid", "Remaining", "Due Date", "Status"], style: 0 },
+  ];
+
+  list.forEach((item, i) => {
+    const isEven = i % 2 === 0;
+    rows.push({
+      cells: [
+        item.invoiceNumber,
+        item.company,
+        item.total,
+        item.paid,
+        item.remaining,
+        item.dueDate,
+        item.status,
+      ],
+      style: isEven ? 1 : 2,
+      cellStyles: [
+        isEven ? 1 : 2,
+        isEven ? 1 : 2,
+        isEven ? 5 : 6,
+        isEven ? 5 : 6,
+        isEven ? 5 : 6,
+        isEven ? 1 : 2,
+        isEven ? 1 : 2,
+      ],
+    });
+  });
+
+  const colWidths = [18, 25, 18, 18, 18, 15, 12];
+  buildStyledWorkbook(
+    "AR_AP",
+    rows,
+    colWidths,
+    `${typeLabel.replace(" ", "_")}_REPORT_${new Date().toISOString().split("T")[0]}.xlsx`,
+  );
 }
 
 // Finance Close PDF export (minimal placeholder)
 function handleFinanceCloseExport() {
-  const list = closedPeriods.value || [];
-  if (list.length === 0) {
+  const history = closedPeriods.value || [];
+  const current = financeCloseStats.value;
+
+  if (history.length === 0 && !current) {
     toast.error("No finance close data to export");
     return;
   }
+
   const period = financeCloseYear.value ? `Year: ${financeCloseYear.value}` : "All Years";
-  const rows: (string | number)[][] = list.map((p) => [
-    p.period || "-",
-    typeof p.revenue === "number"
-      ? p.revenue
-      : Number(String(p.revenue || "0").replace(/[^\d-]/g, "")),
-    typeof p.cogs === "number" ? p.cogs : Number(String(p.cogs || "0").replace(/[^\d-]/g, "")),
-    typeof p.nettPL === "number"
-      ? p.nettPL
-      : Number(String(p.nettPL || "0").replace(/[^\d-]/g, "")),
-    p.periodEnd || "-",
-    "Closed",
-  ]);
+  const rows: (string | number)[][] = [];
+
+  // 1. Current Period Summary (if exists)
+  if (current) {
+    rows.push(["CURRENT PERIOD (" + (current.period || "Open") + ")", "", "", "", "", "Open"]);
+    rows.push([
+      "Current",
+      typeof current.revenue === "number"
+        ? current.revenue
+        : Number(String(current.revenue || "0").replace(/[^\d-]/g, "")),
+      typeof current.cogs === "number"
+        ? current.cogs
+        : Number(String(current.cogs || "0").replace(/[^\d-]/g, "")),
+      typeof current.nettPL === "number"
+        ? current.nettPL
+        : Number(String(current.nettPL || "0").replace(/[^\d-]/g, "")),
+      "-",
+      "OPEN",
+    ]);
+    rows.push(["", "", "", "", "", ""]); // Spacer
+  }
+
+  // 2. History
+  if (history.length > 0) {
+    rows.push(["CLOSED PERIODS HISTORY", "", "", "", "", ""]);
+    history.forEach((p) => {
+      rows.push([
+        p.period || "-",
+        typeof p.revenue === "number"
+          ? p.revenue
+          : Number(String(p.revenue || "0").replace(/[^\d-]/g, "")),
+        typeof p.cogs === "number" ? p.cogs : Number(String(p.cogs || "0").replace(/[^\d-]/g, "")),
+        typeof p.nettPL === "number"
+          ? p.nettPL
+          : Number(String(p.nettPL || "0").replace(/[^\d-]/g, "")),
+        p.periodEnd || "-",
+        "CLOSED",
+      ]);
+    });
+  }
+
   const cols: PdfCol[] = [
     { header: "Period", width: 0.22 },
     { header: "Revenue", width: 0.18, align: "right", isCurrency: true },
@@ -610,6 +770,7 @@ function handleFinanceCloseExport() {
     { header: "Closed Date", width: 0.14, align: "center" },
     { header: "Status", width: 0.1, align: "center" },
   ];
+
   exportStyledPdf({
     title: "FINANCE CLOSE REPORT",
     period,
@@ -654,6 +815,7 @@ function handleTaxReportExport() {
     rows,
     totals: [4, 5],
     filename: `Laporan_Pajak_Detail_${selectedYear.value || new Date().getFullYear()}.pdf`,
+    orientation: "landscape",
   });
 }
 

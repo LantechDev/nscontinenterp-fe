@@ -8,6 +8,7 @@ import {
   MoreVertical,
   ChevronLeft,
   ChevronRight,
+  Briefcase,
 } from "lucide-vue-next";
 import { cn } from "~/lib/utils";
 
@@ -20,13 +21,22 @@ interface EblItem {
   blNumber: string;
   jobId: string;
   job?: {
+    id?: string;
     jobNumber: string;
+    jobParties?: {
+      partyRole: { code: string; name: string };
+      company?: { id: string; name: string } | null;
+    }[];
   };
   statusId: string | null;
   status?: {
     code: string | null;
     name: string | null;
   } | null;
+  statusRaw: string | null;
+  rejectReason: string | null;
+  polName?: string | null;
+  podName?: string | null;
   containerTypeId: string | null;
   containerType?: {
     code: string;
@@ -41,25 +51,69 @@ const { ebls, fetchEbls, isLoading } = useEbls();
 
 const { pending } = await useAsyncData("ebls-list", () => fetchEbls(), { server: false });
 
-// Map status code to display format
+// Helper functions for status (sync with JobEblList.vue)
+const getStatusCode = (ebl: EblItem) => {
+  const status = ebl.status;
+  if (!status) return "";
+  const code = status.code?.toLowerCase() || "";
+  if (code === "confirmed" || code === "finalized") return "finalized";
+  if (code === "pending_approval") return "pending_approval";
+  return code;
+};
+
+const getStatusName = (ebl: EblItem) => {
+  const status = ebl.status;
+  if (!status) return "DRAFT";
+  const name = status.name || status.code || "DRAFT";
+  const upper = name.toUpperCase();
+  if (upper === "CONFIRMED") return "FINALIZED";
+  if (upper === "PENDING_APPROVAL") return "PENDING APPROVAL";
+  return upper;
+};
+
 const getStatusInfo = (ebl: EblItem): { label: string; class: string } => {
-  const statusCode = ebl.status?.code || ebl.statusId || "";
-  const statusMap: Record<string, { label: string; class: string }> = {
-    draft: { label: "Draft", class: "bg-gray-100 text-gray-700 border-gray-200" },
-    issued: { label: "Terbit", class: "bg-green-50 text-green-700 border-green-200" },
-    surrendered: {
-      label: "Surrendered",
-      class: "bg-yellow-50 text-yellow-700 border-yellow-200",
-    },
-    DRAFT: { label: "Draft", class: "bg-gray-100 text-gray-700 border-gray-200" },
-    ISSUED: { label: "Terbit", class: "bg-green-50 text-green-700 border-green-200" },
+  const code = getStatusCode(ebl);
+  const isRejected = !!ebl.rejectReason;
+
+  if (code === "finalized") {
+    return {
+      label: "FINALIZED",
+      class: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    };
+  }
+
+  if (code === "pending_approval") {
+    return {
+      label: "PENDING APPROVAL",
+      class: "bg-blue-50 text-blue-700 border-blue-200",
+    };
+  }
+
+  if (code === "draft" && isRejected) {
+    return {
+      label: "REVISION REQUIRED",
+      class: "bg-red-50 text-red-700 border-red-200",
+    };
+  }
+
+  return {
+    label: getStatusName(ebl),
+    class: "bg-amber-50 text-amber-700 border-amber-200",
   };
-  return (
-    statusMap[statusCode] || {
-      label: ebl.status?.name || statusCode || "Unknown",
-      class: "bg-gray-100 text-gray-700",
-    }
-  );
+};
+
+const getShipperName = (ebl: EblItem) => {
+  const shipper = ebl.job?.jobParties?.find((p) => p.partyRole.code === "SHIPPER");
+  return shipper?.company?.name || "-";
+};
+
+const formatDate = (dateStr: string) => {
+  if (!dateStr) return "-";
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(new Date(dateStr));
 };
 
 type ViewMode = "list" | "grid";
@@ -103,11 +157,11 @@ const groupedEbls = computed(() => {
     <div class="flex items-center justify-between">
       <div>
         <h1 class="text-2xl font-bold">eBL (Electronic Bill of Lading)</h1>
-        <p class="text-muted-foreground mt-1">Kelola dokumen eBL</p>
+        <p class="text-muted-foreground mt-1">Kelola dan pantau dokumen eBL Anda secara terpusat</p>
       </div>
 
       <div class="flex items-center gap-2">
-        <div class="flex items-center bg-white border border-border rounded-lg p-1 mr-2">
+        <div class="flex items-center bg-white border border-border rounded-lg p-1 shadow-sm">
           <button
             @click="viewMode = 'list'"
             :class="
@@ -139,49 +193,85 @@ const groupedEbls = computed(() => {
     </div>
 
     <!-- Filters -->
-    <div class="flex items-center justify-between gap-4">
+    <div
+      class="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white p-4 rounded-xl border border-border shadow-sm"
+    >
       <div class="relative w-full max-w-sm">
         <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
         <input
           type="text"
-          placeholder="Cari eBL..."
-          class="w-full pl-10 pr-4 py-2 text-sm border border-border rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground"
+          placeholder="Cari berdasarkan No. eBL atau Job..."
+          class="w-full pl-10 pr-4 py-2 text-sm border border-border rounded-lg bg-gray-50/50 focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground"
         />
       </div>
 
-      <div class="flex items-center gap-3"></div>
+      <div class="flex items-center gap-3">
+        <span class="text-xs text-muted-foreground font-medium uppercase tracking-wider"
+          >Total: {{ ebls.length }} eBL</span
+        >
+      </div>
     </div>
 
     <!-- Loading State -->
-    <div v-if="isLoading" class="p-8 text-center text-muted-foreground">Loading EBLs...</div>
+    <div v-if="isLoading" class="flex flex-col items-center justify-center py-20 gap-4">
+      <div
+        class="w-8 h-8 border-4 border-[#012D5A] border-t-transparent rounded-full animate-spin"
+      ></div>
+      <p class="text-muted-foreground animate-pulse text-sm">Memuat data eBL...</p>
+    </div>
 
     <!-- List View -->
     <div
       v-else-if="viewMode === 'list'"
-      class="border border-border rounded-xl bg-white overflow-hidden"
+      class="border border-border rounded-xl bg-white overflow-hidden shadow-sm"
     >
       <div class="overflow-x-auto">
         <table class="w-full">
           <thead>
-            <tr class="border-b border-border bg-white text-left">
-              <th class="py-3 px-4 text-sm font-medium text-foreground">No. eBL</th>
-              <th class="py-3 px-4 text-sm font-medium text-foreground">No. Job</th>
-              <th class="py-3 px-4 text-sm font-medium text-foreground">Status</th>
+            <tr class="border-b border-border bg-gray-50/50 text-left">
+              <th
+                class="py-3 px-4 text-[11px] font-bold text-muted-foreground uppercase tracking-widest pl-10"
+              >
+                No. eBL
+              </th>
+              <th
+                class="py-3 px-4 text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
+              >
+                Shipper
+              </th>
+              <th
+                class="py-3 px-4 text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
+              >
+                Route
+              </th>
+              <th
+                class="py-3 px-4 text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
+              >
+                Date
+              </th>
+              <th
+                class="py-3 px-4 text-[11px] font-bold text-muted-foreground uppercase tracking-widest text-center"
+              >
+                Status
+              </th>
             </tr>
           </thead>
           <tbody>
             <template v-for="group in groupedEbls" :key="group.jobId">
               <!-- Job Header Row -->
-              <tr class="bg-gray-50 border-b border-border">
-                <td colspan="3" class="py-2.5 px-4">
+              <tr class="bg-gray-50/80 border-b border-border group">
+                <td colspan="5" class="py-2.5 px-4">
                   <div class="flex items-center gap-2">
+                    <div class="p-1 rounded bg-[#012D5A]/5 text-[#012D5A]">
+                      <Briefcase class="w-3.5 h-3.5" />
+                    </div>
                     <span
                       class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest"
                       >Job:</span
                     >
                     <span class="text-sm font-bold text-[#012D5A]">{{ group.jobNumber }}</span>
                     <span
-                      class="text-[10px] px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded-full font-black ml-2"
+                      class="text-[10px] px-2 py-0.5 bg-[#012D5A]/10 text-[#012D5A] rounded-full font-bold ml-2 border border-[#012D5A]/20"
                     >
                       {{ group.ebls.length }} BL{{ group.ebls.length > 1 ? "S" : "" }}
                     </span>
@@ -192,24 +282,46 @@ const groupedEbls = computed(() => {
               <tr
                 v-for="ebl in group.ebls"
                 :key="ebl.id"
-                class="border-b border-border last:border-b hover:bg-muted/30 transition-colors cursor-pointer"
+                class="border-b border-border last:border-b-0 hover:bg-muted/30 transition-all cursor-pointer group/row"
                 @click="openBlDetail(ebl.id)"
               >
-                <td class="py-3 px-4 pl-8">
-                  <div class="flex items-center gap-2">
-                    <div class="p-1.5 rounded bg-blue-50 text-[#012D5A]">
+                <td class="py-3.5 px-4 pl-10">
+                  <div class="flex items-center gap-3">
+                    <div
+                      class="p-2 rounded-lg bg-blue-50 text-[#012D5A] group-hover/row:bg-[#012D5A] group-hover/row:text-white transition-colors shadow-sm"
+                    >
                       <FileText class="w-4 h-4" />
                     </div>
-                    <span class="text-sm font-medium">{{ ebl.blNumber }}</span>
+                    <div>
+                      <span
+                        class="text-sm font-bold text-foreground group-hover/row:text-[#012D5A] transition-colors"
+                        >{{ ebl.blNumber }}</span
+                      >
+                    </div>
                   </div>
                 </td>
-                <td class="py-3 px-4 text-sm text-muted-foreground">
-                  {{ ebl.job?.jobNumber || "-" }}
+                <td class="py-3.5 px-4">
+                  <span class="text-sm font-medium text-foreground">{{ getShipperName(ebl) }}</span>
                 </td>
-                <td class="py-3 px-4">
+                <td class="py-3.5 px-4">
+                  <div class="flex items-center gap-1.5 text-sm text-muted-foreground">
+                    <span class="font-bold text-foreground">{{ ebl.polName || "-" }}</span>
+                    <span class="opacity-50">→</span>
+                    <span class="font-bold text-foreground">{{ ebl.podName || "-" }}</span>
+                  </div>
+                </td>
+                <td class="py-3.5 px-4">
+                  <span class="text-xs text-muted-foreground font-medium">{{
+                    formatDate(ebl.createdAt)
+                  }}</span>
+                </td>
+                <td class="py-3.5 px-4 text-center">
                   <span
                     :class="
-                      cn('px-2 py-0.5 rounded border text-xs font-medium', getStatusInfo(ebl).class)
+                      cn(
+                        'px-2.5 py-1 rounded-md border text-[10px] font-bold uppercase tracking-wider',
+                        getStatusInfo(ebl).class,
+                      )
                     "
                   >
                     {{ getStatusInfo(ebl).label }}
@@ -218,7 +330,15 @@ const groupedEbls = computed(() => {
               </tr>
             </template>
             <tr v-if="ebls.length === 0">
-              <td colspan="3" class="p-8 text-center text-muted-foreground">Belum ada data eBL.</td>
+              <td colspan="5" class="p-20 text-center text-muted-foreground">
+                <div class="flex flex-col items-center gap-2">
+                  <FileText class="w-10 h-10 opacity-20 mb-2" />
+                  <p class="font-medium">Belum ada data eBL.</p>
+                  <p class="text-xs opacity-70">
+                    eBL akan muncul di sini setelah Anda membuat job baru.
+                  </p>
+                </div>
+              </td>
             </tr>
           </tbody>
         </table>
@@ -226,41 +346,88 @@ const groupedEbls = computed(() => {
     </div>
 
     <!-- Grid View -->
-    <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       <div
         v-for="ebl in ebls"
         :key="ebl.id"
-        class="border border-border rounded-xl bg-white p-5 hover:shadow-sm transition-shadow cursor-pointer"
+        class="group border border-border rounded-2xl bg-white p-6 hover:shadow-xl hover:border-[#012D5A]/20 transition-all cursor-pointer relative overflow-hidden"
         @click="openBlDetail(ebl.id)"
       >
-        <div class="flex items-start justify-between mb-4">
+        <!-- Card Accent -->
+        <div
+          class="absolute top-0 left-0 w-1 h-full bg-[#012D5A] opacity-0 group-hover:opacity-100 transition-opacity"
+        ></div>
+
+        <div class="flex items-start justify-between mb-6">
           <div class="flex items-start gap-4">
             <div
-              class="w-12 h-12 rounded-lg bg-blue-50 text-[#012D5A] flex items-center justify-center shrink-0"
+              class="w-12 h-12 rounded-xl bg-blue-50 text-[#012D5A] flex items-center justify-center shrink-0 shadow-inner group-hover:bg-[#012D5A] group-hover:text-white transition-all duration-300"
             >
               <FileText class="w-6 h-6" />
             </div>
             <div>
-              <h3 class="font-bold text-base text-foreground">{{ ebl.blNumber }}</h3>
-              <p class="text-xs text-muted-foreground">
-                {{ ebl.job?.jobNumber || "-" }}
-              </p>
+              <h3
+                class="font-bold text-lg text-foreground group-hover:text-[#012D5A] transition-colors"
+              >
+                {{ ebl.blNumber }}
+              </h3>
+              <div class="flex items-center gap-1.5 mt-0.5">
+                <Briefcase class="w-3 h-3 text-muted-foreground" />
+                <p class="text-xs font-bold text-muted-foreground">
+                  {{ ebl.job?.jobNumber || "-" }}
+                </p>
+              </div>
             </div>
           </div>
-          <button class="text-muted-foreground hover:text-foreground" @click.stop>
+          <button
+            class="p-2 hover:bg-gray-100 rounded-full text-muted-foreground transition-colors"
+            @click.stop
+          >
             <MoreVertical class="w-4 h-4" />
           </button>
         </div>
 
-        <div class="flex items-center justify-between pt-4 border-t border-border">
+        <div class="space-y-4 mb-6">
+          <div class="p-3 bg-gray-50 rounded-xl space-y-1.5 border border-gray-100">
+            <p class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+              Shipper
+            </p>
+            <p class="text-sm font-semibold text-foreground truncate">{{ getShipperName(ebl) }}</p>
+          </div>
+
+          <div class="grid grid-cols-2 gap-4">
+            <div class="space-y-1">
+              <p class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                POL
+              </p>
+              <p class="text-xs font-bold text-foreground truncate">{{ ebl.polName || "-" }}</p>
+            </div>
+            <div class="space-y-1 border-l border-border pl-4">
+              <p class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                POD
+              </p>
+              <p class="text-xs font-bold text-foreground truncate">{{ ebl.podName || "-" }}</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between pt-5 border-t border-border mt-auto">
+          <p class="text-[10px] text-muted-foreground font-medium">
+            {{ formatDate(ebl.createdAt) }}
+          </p>
           <span
-            :class="cn('px-2 py-0.5 rounded border text-xs font-medium', getStatusInfo(ebl).class)"
+            :class="
+              cn(
+                'px-2.5 py-1 rounded-md border text-[10px] font-bold uppercase tracking-wider shadow-sm',
+                getStatusInfo(ebl).class,
+              )
+            "
           >
             {{ getStatusInfo(ebl).label }}
           </span>
         </div>
       </div>
-      <div v-if="ebls.length === 0" class="col-span-full p-8 text-center text-muted-foreground">
+      <div v-if="ebls.length === 0" class="col-span-full py-20 text-center text-muted-foreground">
         Belum ada data eBL.
       </div>
     </div>
@@ -268,21 +435,27 @@ const groupedEbls = computed(() => {
     <!-- Pagination -->
     <div
       v-if="ebls.length > 0"
-      class="flex items-center justify-between text-sm text-muted-foreground"
+      class="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 text-sm text-muted-foreground border-t border-border"
     >
-      <p>{{ ebls.length }} data found.</p>
+      <p class="font-medium">
+        Menampilkan <span class="text-foreground font-bold">{{ ebls.length }}</span> data eBL.
+      </p>
       <div class="flex items-center gap-2">
-        <button class="p-1 hover:text-foreground disabled:opacity-50">
+        <button
+          class="p-2 hover:bg-muted rounded-lg hover:text-foreground disabled:opacity-30 transition-all"
+          disabled
+        >
           <ChevronLeft class="w-4 h-4" />
-          <span class="sr-only">Previous</span>
         </button>
         <button
-          class="w-8 h-8 flex items-center justify-center rounded border border-border bg-white text-foreground font-medium"
+          class="w-9 h-9 flex items-center justify-center rounded-lg border border-border bg-[#012D5A] text-white font-bold shadow-sm"
         >
           1
         </button>
-        <span class="px-1">...</span>
-        <button class="flex items-center gap-1 hover:text-foreground">
+        <span class="px-2 opacity-30 font-bold">...</span>
+        <button
+          class="flex items-center gap-2 py-2 px-4 hover:bg-muted rounded-lg hover:text-foreground transition-all font-bold"
+        >
           Next
           <ChevronRight class="w-4 h-4" />
         </button>

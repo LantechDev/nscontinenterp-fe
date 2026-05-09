@@ -241,6 +241,7 @@ const formData = reactive({
   notifyPartyAddressId: "",
   forwarderId: "",
   forwarderAddressId: "",
+  vendorId: "",
 });
 
 // Sync Notify Party if checkbox is checked
@@ -253,6 +254,17 @@ watch(
     } else {
       formData.notifyPartyId = "";
       formData.notifyPartyAddressId = "";
+    }
+  },
+);
+
+// Sync commodity from mainDescription (Industrial Standard: ensures data integrity for manifests)
+watch(
+  () => formData.mainDescription,
+  (val) => {
+    // If commodity is empty or was previously synced, update it
+    if (val && !formData.commodity) {
+      formData.commodity = val.split("\n")[0]?.substring(0, 100) || "";
     }
   },
 );
@@ -359,8 +371,8 @@ watch(
 // Maintain Vessel Roles and Sequence
 watch(
   () => formData.vessels,
-  (vesselList) => {
-    vesselList.forEach((v, idx) => {
+  (vessels) => {
+    vessels.forEach((v, idx) => {
       v.sequence = idx;
       v.vesselType = idx === 0 ? "feeder" : "mother";
     });
@@ -630,10 +642,19 @@ async function handleSubmit(isDraft: boolean = false) {
     !formData.shipperId ||
     !formData.consigneeId ||
     !formData.customerId ||
-    !formData.blType ||
-    !formData.freightTerm
+    (formData.serviceType === "OCEAN" &&
+      (!formData.blType || !formData.freightTerm || !formData.pol || !formData.pod)) ||
+    (formData.serviceType === "TRUCKING" && (!formData.pickupAddress || !formData.deliveryAddress))
   ) {
-    toast.error("Please fill in Shipper, Consignee, Job Customer, Freight Term, and BL Type.");
+    let errorMsg = "Please fill in Shipper, Consignee, and Job Customer.";
+    if (formData.serviceType === "OCEAN") {
+      errorMsg =
+        "Please fill in Shipper, Consignee, Customer, POL, POD, Freight Term, and BL Type.";
+    } else if (formData.serviceType === "TRUCKING") {
+      errorMsg =
+        "Please fill in Shipper, Consignee, Customer, Pickup Address, and Delivery Address.";
+    }
+    toast.error(errorMsg);
     return;
   }
 
@@ -701,6 +722,7 @@ async function handleSubmit(isDraft: boolean = false) {
     netWeight: formData.netWeight ?? null,
     measurement: formData.measurement ?? null,
     shippingMark: formData.shippingMark || undefined,
+    vendorId: formData.vendorId || undefined,
     isDirectMaster: formData.isDirectMaster,
   };
 
@@ -903,7 +925,7 @@ function addVessel() {
 
     <div class="flex gap-8 relative items-start">
       <!-- Sidebar Navigation -->
-      <aside class="w-60 shrink-0 hidden lg:block sticky top-[165px] h-fit">
+      <aside class="w-60 shrink-0 hidden lg:block sticky top-36 h-fit">
         <nav class="space-y-2">
           <button
             v-for="section in SECTIONS"
@@ -1680,35 +1702,42 @@ function addVessel() {
                   </div>
                 </div>
 
-                <!-- Multi-Vessel List -->
-                <div class="space-y-4">
-                  <div class="flex items-center justify-between">
+                <!-- Vessel Schedule (Full Width) -->
+                <div class="space-y-6">
+                  <div class="flex items-center justify-between border-b border-border/50 pb-3">
                     <h4
                       class="text-sm font-bold text-foreground/80 uppercase tracking-widest flex items-center gap-2"
                     >
-                      <div class="w-1.5 h-4 bg-primary rounded-full"></div>
-                      Vessel Schedule
+                      <div class="w-1.5 h-4 bg-[#062c58] rounded-full"></div>
+                      Vessel Schedule (Multi-Vessel)
                     </h4>
                     <button
                       type="button"
                       @click="addVessel()"
-                      class="btn-secondary py-1.5 px-3 text-[11px] font-bold uppercase tracking-widest flex items-center gap-2 transition-all hover:ring-2 hover:ring-primary/20"
+                      class="text-[11px] bg-blue-50 text-[#062c58] px-4 py-1.5 rounded-full hover:bg-blue-100 font-bold flex items-center gap-2 transition-all shadow-sm"
                     >
-                      <Plus class="w-3.5 h-3.5" /> Add Vessel
+                      <Plus class="w-3.5 h-3.5" /> ADD VESSEL
                     </button>
                   </div>
 
-                  <div class="space-y-4">
+                  <div class="grid grid-cols-1 gap-5">
                     <div
                       v-for="(vessel, vIndex) in formData.vessels"
                       :key="vessel.id"
-                      class="p-5 bg-muted/30 border border-border/40 rounded-2xl relative group/vessel transition-all hover:bg-white hover:shadow-md hover:border-primary/20"
+                      class="p-6 bg-muted/20 border border-border/40 rounded-2xl relative group/vessel transition-all hover:bg-white hover:shadow-lg hover:border-blue-200/50"
                     >
-                      <div class="grid grid-cols-1 md:grid-cols-12 gap-5 items-end">
+                      <div class="grid grid-cols-1 md:grid-cols-12 gap-6 items-end">
+                        <div class="md:col-span-1 flex items-center justify-center">
+                          <div
+                            class="w-10 h-10 rounded-xl bg-[#062c58] text-white flex items-center justify-center text-sm font-black shadow-lg shadow-blue-900/10"
+                          >
+                            {{ vIndex + 1 }}
+                          </div>
+                        </div>
                         <!-- Vessel Selection -->
-                        <div class="md:col-span-5 space-y-2">
+                        <div class="md:col-span-4 space-y-2">
                           <label
-                            class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1"
+                            class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1 opacity-70"
                           >
                             {{ getVesselLabels(vIndex).header }}
                           </label>
@@ -1725,9 +1754,9 @@ function addVessel() {
                         </div>
 
                         <!-- Voyage Number -->
-                        <div class="md:col-span-3 space-y-2">
+                        <div class="md:col-span-2 space-y-2">
                           <label
-                            class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1"
+                            class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1 opacity-70"
                             >Voyage No</label
                           >
                           <input
@@ -1741,31 +1770,30 @@ function addVessel() {
                         <!-- ETD -->
                         <div class="md:col-span-2 space-y-2">
                           <label
-                            class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1"
+                            class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1 opacity-70"
                             >{{ getVesselLabels(vIndex).etd }}</label
                           >
                           <DatePicker
                             v-model="vessel.etd"
                             placeholder="Select ETD..."
-                            class="h-10"
+                            class="h-10 shadow-none"
                           />
                         </div>
 
                         <!-- ETA -->
                         <div class="md:col-span-2 space-y-2 relative">
                           <label
-                            class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1"
+                            class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1 opacity-70"
                             >{{ getVesselLabels(vIndex).eta }}</label
                           >
                           <DatePicker
                             v-model="vessel.eta"
                             placeholder="Select ETA..."
-                            class="h-10"
+                            class="h-10 shadow-none"
                           />
-                          <!-- Micro hint for transit -->
                           <div
                             v-if="vIndex === 0 && getVesselLabels(vIndex).hasTransit"
-                            class="absolute -bottom-4 left-1 text-[9px] text-primary font-bold animate-pulse"
+                            class="absolute -bottom-5 left-1 text-[9px] text-primary font-bold animate-pulse"
                           >
                             Transit detected → T/S Port
                           </div>
@@ -1773,13 +1801,13 @@ function addVessel() {
 
                         <!-- Remove Button -->
                         <div
-                          class="md:col-span-1 flex justify-end pb-1"
+                          class="md:col-span-1 flex justify-end pb-0.5"
                           v-if="formData.vessels.length > 1"
                         >
                           <button
                             type="button"
                             @click="formData.vessels.splice(vIndex, 1)"
-                            class="w-10 h-10 rounded-xl bg-white border border-destructive/10 text-destructive flex items-center justify-center hover:bg-destructive hover:text-white transition-all shadow-sm"
+                            class="w-10 h-10 rounded-xl bg-white border border-destructive/10 text-destructive flex items-center justify-center hover:bg-destructive hover:text-white transition-all shadow-md"
                           >
                             <Trash2 class="w-4 h-4" />
                           </button>
@@ -1787,29 +1815,48 @@ function addVessel() {
                       </div>
                     </div>
                   </div>
+                </div>
 
-                  <!-- ETA (Usually for the last vessel, but keeping it at section level for now) -->
-                  <div class="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4">
-                    <div class="space-y-2">
-                      <label
-                        class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
-                        >Final ETA</label
-                      >
-                      <DatePicker
-                        v-model="formData.eta"
-                        placeholder="Select Final ETA..."
-                        :class="{
-                          '[&_button]:border-destructive [&_button]:ring-destructive/20':
-                            scheduleErrors.eta,
-                        }"
-                      />
-                      <p
-                        v-if="scheduleErrors.eta"
-                        class="text-[10px] text-destructive mt-1 font-medium"
-                      >
-                        {{ scheduleErrors.eta }}
-                      </p>
-                    </div>
+                <!-- Shipping Line & Schedule Dates (Sejajar) -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-8 pt-6 border-t border-border/40">
+                  <div class="space-y-2">
+                    <label class="text-xs font-bold text-muted-foreground tracking-widest uppercase"
+                      >SHIPPING LINE</label
+                    >
+                    <Combobox
+                      v-model="formData.vendorId"
+                      :options="companies"
+                      label-key="name"
+                      value-key="id"
+                      placeholder="Select Shipping Line..."
+                      class="h-10"
+                    />
+                  </div>
+                  <div class="space-y-2">
+                    <label class="text-xs font-bold text-muted-foreground tracking-widest uppercase"
+                      >ETD</label
+                    >
+                    <DatePicker v-model="formData.etd" placeholder="Select ETD..." class="h-10" />
+                  </div>
+                  <div class="space-y-2">
+                    <label class="text-xs font-bold text-muted-foreground tracking-widest uppercase"
+                      >Final ETA</label
+                    >
+                    <DatePicker
+                      v-model="formData.eta"
+                      placeholder="Select Final ETA..."
+                      class="h-10"
+                      :class="{
+                        '[&_button]:border-destructive [&_button]:ring-destructive/20':
+                          scheduleErrors.eta,
+                      }"
+                    />
+                    <p
+                      v-if="scheduleErrors.eta"
+                      class="text-[10px] text-destructive mt-1 font-medium"
+                    >
+                      {{ scheduleErrors.eta }}
+                    </p>
                   </div>
                 </div>
               </template>

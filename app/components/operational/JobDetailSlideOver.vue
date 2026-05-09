@@ -196,12 +196,14 @@ const getServiceName = computed(
 );
 const getVendorName = computed(() => job.value?.vendor?.name || "PT Nova Sync Continent");
 const getPol = computed(() => {
+  if (job.value?.serviceType === "TRUCKING") return job.value.pickupAddress || "-";
   if (!job.value?.pol) return "-";
   if (job.value.polName) return `${job.value.polName} (${job.value.pol})`;
   return job.value.pol;
 });
 
 const getPod = computed(() => {
+  if (job.value?.serviceType === "TRUCKING") return job.value.deliveryAddress || "-";
   if (!job.value?.pod) return "-";
   if (job.value.podName) return `${job.value.podName} (${job.value.pod})`;
   return job.value.pod;
@@ -435,7 +437,6 @@ watch(
 
               <!-- Tab Content -->
               <div class="p-8">
-                <!-- Overview Tab -->
                 <div v-if="activeTab === 'overview'" class="space-y-8 animate-fade-in">
                   <section>
                     <h3 class="text-base font-bold">Shipments Details</h3>
@@ -444,10 +445,18 @@ watch(
                         <div
                           class="w-10 h-10 rounded-full bg-blue-50/80 flex items-center justify-center text-[#012D5A] shrink-0 border border-blue-100"
                         >
-                          <Building2 class="w-5 h-5 text-[#012D5A]/80" />
+                          <MapPin
+                            v-if="job.serviceType === 'TRUCKING'"
+                            class="w-5 h-5 text-[#012D5A]/80"
+                          />
+                          <Building2 v-else class="w-5 h-5 text-[#012D5A]/80" />
                         </div>
                         <div>
-                          <p class="text-xs text-muted-foreground mb-0.5">Port of Landing</p>
+                          <p class="text-xs text-muted-foreground mb-0.5">
+                            {{
+                              job.serviceType === "TRUCKING" ? "Pickup Address" : "Port of Landing"
+                            }}
+                          </p>
                           <p class="font-bold text-sm text-foreground">{{ getPol }}</p>
                         </div>
                       </div>
@@ -456,15 +465,29 @@ watch(
                         <div
                           class="w-10 h-10 rounded-full bg-blue-50/80 flex items-center justify-center text-[#012D5A] shrink-0 border border-blue-100"
                         >
-                          <Building2 class="w-5 h-5 text-[#012D5A]/80" />
+                          <MapPin
+                            v-if="job.serviceType === 'TRUCKING'"
+                            class="w-5 h-5 text-[#012D5A]/80"
+                          />
+                          <Building2 v-else class="w-5 h-5 text-[#012D5A]/80" />
                         </div>
                         <div>
-                          <p class="text-xs text-muted-foreground mb-0.5">Port of Discharge</p>
+                          <p class="text-xs text-muted-foreground mb-0.5">
+                            {{
+                              job.serviceType === "TRUCKING"
+                                ? "Delivery Address"
+                                : "Port of Discharge"
+                            }}
+                          </p>
                           <p class="font-bold text-sm text-foreground">{{ getPod }}</p>
                         </div>
                       </div>
 
-                      <div class="flex gap-4 items-start col-span-2">
+                      <!-- Vessel Schedule (Ocean Only) -->
+                      <div
+                        v-if="job.serviceType !== 'TRUCKING'"
+                        class="flex gap-4 items-start col-span-2"
+                      >
                         <div
                           class="w-10 h-10 rounded-full bg-blue-50/80 flex items-center justify-center text-[#012D5A] shrink-0 border border-blue-100"
                         >
@@ -663,14 +686,31 @@ watch(
                         </div>
                       </div>
 
+                      <!-- Truck Details (Trucking Only) -->
+                      <div v-if="job.serviceType === 'TRUCKING'" class="flex gap-4 items-center">
+                        <div
+                          class="w-10 h-10 rounded-full bg-blue-50/80 flex items-center justify-center text-[#012D5A] shrink-0 border border-blue-100"
+                        >
+                          <Box class="w-5 h-5 text-[#012D5A]/80" />
+                        </div>
+                        <div>
+                          <p class="text-xs text-muted-foreground mb-0.5">Truck Type</p>
+                          <p class="font-bold text-sm text-foreground uppercase">
+                            {{ job.truckType || "Standard Truck" }}
+                          </p>
+                        </div>
+                      </div>
+
                       <div class="flex gap-4 items-center">
                         <div
                           class="w-10 h-10 rounded-full bg-blue-50/80 flex items-center justify-center text-[#012D5A] shrink-0 border border-blue-100"
                         >
-                          <Mail class="w-5 h-5 text-[#012D5A]/80" />
+                          <Building2 class="w-5 h-5 text-[#012D5A]/80" />
                         </div>
                         <div>
-                          <p class="text-xs text-muted-foreground mb-0.5">Shipping Line</p>
+                          <p class="text-xs text-muted-foreground mb-0.5">
+                            {{ job.serviceType === "TRUCKING" ? "Vendor" : "Shipping Line" }}
+                          </p>
                           <p class="font-bold text-sm text-foreground">{{ getVendorName }}</p>
                         </div>
                       </div>
