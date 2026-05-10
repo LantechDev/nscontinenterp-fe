@@ -212,8 +212,8 @@ const handleExportExcel = () => {
       colWidths,
       `INVOICE_LIST_${new Date().toISOString().split("T")[0]}.xlsx`,
     );
-  } catch (error) {
-    console.error("Export error:", error);
+  } catch (err) {
+    console.error("Export error:", err);
     toast.error("Failed to export Excel");
   } finally {
     isExporting.value = false;
@@ -254,8 +254,8 @@ const handleExportPdf = async () => {
       totals: [4, 5],
       filename: `INVOICE_LIST_${new Date().toISOString().split("T")[0]}.pdf`,
     });
-  } catch (error) {
-    console.error("Export PDF error:", error);
+  } catch (err) {
+    console.error("Export PDF error:", err);
     toast.error("Failed to export PDF");
   } finally {
     isExporting.value = false;
