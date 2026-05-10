@@ -5,12 +5,9 @@ export default defineNuxtRouteMiddleware(async (to, _from) => {
   const publicRoutes = ["/login", "/"];
   const isPublicRoute = publicRoutes.includes(to.path);
 
-  if (process.server) {
+  // Always fetch session on server, or if user is not yet loaded on client
+  if (process.server || !user.value) {
     await fetchSession();
-  } else {
-    if (!user.value) {
-      await fetchSession();
-    }
   }
 
   // Store last visited path for protected routes
