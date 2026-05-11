@@ -28,7 +28,9 @@ const HOP_BY_HOP_HEADERS = new Set([
 export default defineEventHandler(async (event): Promise<unknown> => {
   const config = useRuntimeConfig();
   const method = String(event.method || "GET").toUpperCase();
-  const target = String(config.public.apiTarget || "http://localhost:9999").replace(/\/$/, "");
+  const target = String(config.public.apiTarget || "http://localhost:9999")
+    .replace(/\/$/, "")
+    .replace(/\/api$/, "");
   const requestUrl = getRequestURL(event);
   const path = requestUrl.pathname.replace(/^\/api\//, "");
   const url = new URL(`${target}/api/${path}`);

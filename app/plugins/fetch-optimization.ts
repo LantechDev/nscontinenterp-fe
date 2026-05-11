@@ -18,12 +18,8 @@ function getClientToken(): string | null {
 
 export default defineNuxtPlugin(() => {
   const config = useRuntimeConfig();
-
-  if (config.public.useApiProxy) {
-    return;
-  }
-
   const normalizedApiBase = String(config.public.apiBase || "/api").replace(/\/$/, "");
+  let redirectInProgress = false;
 
   const optimizedFetch = $fetch.create({
     retry: 2,
@@ -34,10 +30,16 @@ export default defineNuxtPlugin(() => {
       const headers = new Headers(options.headers as HeadersInit | undefined);
       const requestUrl =
         typeof context.request === "string" ? context.request : context.request.toString();
-      const isApiRequest = requestUrl.startsWith("/api/");
+      const isApiPath = requestUrl.startsWith("/api/");
+      const isAbsoluteApiRequest =
+        normalizedApiBase.startsWith("http") &&
+        (requestUrl === normalizedApiBase || requestUrl.startsWith(`${normalizedApiBase}/`));
+      const isApiRequest = isApiPath || isAbsoluteApiRequest;
 
       if (isApiRequest) {
-        context.request = `${normalizedApiBase}${requestUrl.slice(4)}`;
+        if (!config.public.useApiProxy && isApiPath) {
+          context.request = `${normalizedApiBase}${requestUrl.slice(4)}`;
+        }
         if (options.credentials == null) {
           options.credentials = "include";
         }
@@ -74,7 +76,17 @@ export default defineNuxtPlugin(() => {
       options.headers = headers;
     },
     async onResponseError(context) {
-      if (import.meta.client && context.response.status === 401) {
+      if (import.meta.client && context.response.status === 401 && !redirectInProgress) {
+        const requestUrl =
+          typeof context.request === "string" ? context.request : context.request.toString();
+        if (
+          requestUrl.includes("/api/auth/login") ||
+          requestUrl.includes("/api/auth/get-session") ||
+          requestUrl.includes("/api/auth/logout")
+        ) {
+          return;
+        }
+        redirectInProgress = true;
         await handleUnauthorized();
       }
     },

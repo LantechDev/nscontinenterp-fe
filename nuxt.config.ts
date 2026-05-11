@@ -1,7 +1,13 @@
-const apiTarget = process.env.NUXT_PUBLIC_API_TARGET || "http://localhost:9999";
-const useApiProxy = process.env.NUXT_PUBLIC_USE_API_PROXY !== "false";
+const rawApiTarget = process.env.NUXT_PUBLIC_API_TARGET || "http://localhost:9999";
+const normalizedApiTarget = rawApiTarget.replace(/\/$/, "").replace(/\/api$/, "");
+const rawUseApiProxy = process.env.NUXT_PUBLIC_USE_API_PROXY;
+const useApiProxy = rawUseApiProxy ? rawUseApiProxy !== "false" : true;
 const configuredApiBase = process.env.NUXT_PUBLIC_API_BASE;
-const apiBase = useApiProxy ? configuredApiBase || "/api" : `${apiTarget.replace(/\/$/, "")}/api`;
+
+// If explicitly configured, prefer it as-is (supports "/api" or "https://host/api")
+const apiBase = (
+  configuredApiBase || (useApiProxy ? "/api" : `${normalizedApiTarget}/api`)
+).replace(/\/$/, "");
 
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
@@ -78,7 +84,7 @@ export default defineNuxtConfig({
   runtimeConfig: {
     public: {
       apiBase,
-      apiTarget,
+      apiTarget: normalizedApiTarget,
       useApiProxy,
     },
   },
