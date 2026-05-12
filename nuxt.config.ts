@@ -21,10 +21,10 @@ export default defineNuxtConfig({
     "/_nuxt/**": { headers: { "Cache-Control": "public, max-age=31536000, immutable" } },
     "/images/**": { isr: 3600 },
     "/fonts/**": { headers: { "Cache-Control": "public, max-age=31536000, immutable" } },
-    "/dashboard": { isr: false },
-    "/master/**": { isr: false },
-    "/": { isr: false },
-    "/operational/**": { isr: false },
+    // Disable SSR for all app routes — this app requires authentication and makes
+    // cross-origin API calls to Cloudflare Workers. SSR + cookie forwarding across
+    // domains (Vercel → Cloudflare) is unreliable, so we render client-side only.
+    "/**": { ssr: false, isr: false },
   },
   vite: {
     optimizeDeps: {
