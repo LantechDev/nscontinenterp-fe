@@ -146,11 +146,11 @@ export function useFinanceCharts() {
   const financialChartSeries = computed(() => [
     {
       name: "Income",
-      data: chartData.value?.incomeData || [25, 28, 35, 40, 42, 45, 48, 52, 55, 58, 62, 65],
+      data: chartData.value?.incomeData || [],
     },
     {
       name: "Outcome",
-      data: chartData.value?.expenseData || [20, 25, 30, 35, 38, 42, 45, 48, 50, 52, 55, 58],
+      data: chartData.value?.expenseData || [],
     },
   ]);
 
@@ -213,7 +213,7 @@ export function useFinanceCharts() {
   const marginTrendChartSeries = computed(() => [
     {
       name: "Margin",
-      data: chartData.value?.marginData || [25, 28, 32, 35, 38, 40, 42, 45, 48, 50, 52, 55],
+      data: chartData.value?.marginData || [],
     },
   ]);
 
@@ -228,7 +228,7 @@ export function useFinanceCharts() {
     labels:
       chartData.value?.top5 && chartData.value.top5.length > 0
         ? chartData.value.top5.map((t) => t.name)
-        : ["Lorem Ipsum", "Dolor Sit", "Amet Consect", "Elit Sed", "Tempor Inc"],
+        : [],
     dataLabels: { enabled: false },
     legend: { show: false },
     plotOptions: {
@@ -267,7 +267,7 @@ export function useFinanceCharts() {
   // Top 5 Series - uses real data or fallback
   const top5ChartSeries = computed(() => {
     const data = chartData.value?.top5;
-    return data && data.length > 0 ? data.map((t) => t.value) : [40, 30, 22, 10, 8];
+    return data && data.length > 0 ? data.map((t) => t.value) : [];
   });
 
   return {

@@ -7,6 +7,7 @@ export interface User {
   createdAt?: string;
   updatedAt?: string;
   role?: string;
+  organizationRole?: string | null;
   banned?: boolean;
   banReason?: string;
   banExpires?: string;

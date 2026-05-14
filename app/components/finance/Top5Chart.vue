@@ -20,13 +20,7 @@ const dynamicTop5Items = computed(() => {
   const data = props.chartData?.top5 || [];
 
   if (data.length === 0) {
-    return [
-      { name: "Lorem Ipsum", value: 40, color: colors[0] },
-      { name: "Dolor Sit", value: 30, color: colors[1] },
-      { name: "Amet Consect", value: 22, color: colors[2] },
-      { name: "Elit Sed", value: 10, color: colors[3] },
-      { name: "Tempor Inc", value: 8, color: colors[4] },
-    ];
+    return [];
   }
 
   // Sort by value descending
@@ -62,12 +56,18 @@ const selectedType = ref("Income");
     <!-- Donut Chart -->
     <div class="flex-1 flex items-center justify-center min-h-[200px]">
       <ClientOnly>
-        <apexchart type="donut" height="220" :options="options" :series="series" />
+        <template v-if="dynamicTop5Items.length > 0">
+          <apexchart type="donut" height="220" :options="options" :series="series" />
+        </template>
+        <div v-else class="flex flex-col items-center justify-center text-gray-400">
+          <Icon name="ph:chart-pie-slice" class="w-12 h-12 opacity-20 mb-2" />
+          <span class="text-xs">No data available</span>
+        </div>
       </ClientOnly>
     </div>
 
     <!-- Legend List (Vertical) -->
-    <div class="flex flex-col gap-3 mt-2">
+    <div v-if="dynamicTop5Items.length > 0" class="flex flex-col gap-3 mt-2">
       <div
         v-for="item in dynamicTop5Items"
         :key="item.name"

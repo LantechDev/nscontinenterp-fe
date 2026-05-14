@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { ref, onMounted, watch } from "vue";
 import { ArrowUpRight, ArrowDownLeft } from "lucide-vue-next";
 import JobInvoiceTab from "./JobInvoiceTab.vue";
 import JobVendorInvoiceTab from "./JobVendorInvoiceTab.vue";
@@ -35,10 +35,23 @@ const emit = defineEmits<{
 const subTab = ref("ar"); // ar = Customer Invoices, ap = Vendor Invoices, profit = Profit Analysis
 
 onMounted(async () => {
-  if (!currentJob.value && props.jobId) {
+  if (props.jobId) {
     await getJob(props.jobId);
   }
 });
+
+watch(subTab, async (newVal) => {
+  if (newVal === "profit" && props.jobId) {
+    await getJob(props.jobId);
+  }
+});
+
+const handleRefresh = async () => {
+  if (props.jobId) {
+    await getJob(props.jobId);
+  }
+  emit("refresh-job");
+};
 </script>
 
 <template>
@@ -104,7 +117,7 @@ onMounted(async () => {
           :job-parties="jobParties"
           :initial-invoice-id="initialInvoiceId"
           :is-completed="isCompleted"
-          @refresh-job="emit('refresh-job')"
+          @refresh-job="handleRefresh"
         />
       </div>
 
@@ -115,7 +128,7 @@ onMounted(async () => {
           :job-number="jobNumber"
           :job-parties="jobParties"
           :is-completed="isCompleted"
-          @refresh-job="emit('refresh-job')"
+          @refresh-job="handleRefresh"
         />
       </div>
 

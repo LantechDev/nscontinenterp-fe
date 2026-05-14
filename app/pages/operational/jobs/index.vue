@@ -163,11 +163,36 @@ watch(
         <table class="w-full">
           <thead>
             <tr class="border-b border-border bg-white text-left">
-              <th class="py-3 px-4 text-sm font-medium text-foreground">No. Job</th>
-              <th class="py-3 px-4 text-sm font-medium text-foreground">Komoditas</th>
-              <th class="py-3 px-4 text-sm font-medium text-foreground">Rute</th>
-              <th class="py-3 px-4 text-sm font-medium text-foreground">ETA</th>
-              <th class="py-3 px-4 text-sm font-medium text-foreground">Status</th>
+              <th
+                class="py-3 px-4 text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
+              >
+                No. Job
+              </th>
+              <th
+                class="py-3 px-4 text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
+              >
+                Customer
+              </th>
+              <th
+                class="py-3 px-4 text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
+              >
+                Shipper References
+              </th>
+              <th
+                class="py-3 px-4 text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
+              >
+                Route
+              </th>
+              <th
+                class="py-3 px-4 text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
+              >
+                Schedule
+              </th>
+              <th
+                class="py-3 px-4 text-[11px] font-bold text-muted-foreground uppercase tracking-widest text-center"
+              >
+                Status
+              </th>
               <th class="py-3 px-4 w-10"></th>
             </tr>
           </thead>
@@ -183,34 +208,86 @@ watch(
                   <div class="p-1.5 rounded bg-blue-50 text-[#012D5A]">
                     <Ship class="w-4 h-4" />
                   </div>
-                  <span class="text-sm font-medium">{{ job.jobNumber }}</span>
-                </div>
-              </td>
-              <td class="py-3 px-4 text-sm max-w-xs truncate" :title="job.commodity">
-                {{ job.commodity }}
-              </td>
-              <td class="py-3 px-4">
-                <div class="flex flex-col text-sm">
-                  <span class="flex items-center gap-1 font-medium">
-                    {{ job.polName }}
-                  </span>
-                  <span class="flex items-center gap-1 text-muted-foreground text-xs">
-                    <ArrowRight class="w-3 h-3" /> {{ job.podName }}
-                  </span>
+                  <div class="flex flex-col">
+                    <span class="text-sm font-semibold text-[#012D5A]">{{ job.jobNumber }}</span>
+                    <span
+                      class="text-[10px] text-muted-foreground font-medium uppercase tracking-tighter"
+                      >{{ job.serviceType }}</span
+                    >
+                  </div>
                 </div>
               </td>
               <td class="py-3 px-4">
-                <div class="flex items-center gap-2 text-sm text-gray-600">
-                  <Calendar class="w-3 h-3" />
-                  {{ formatDate(job.eta as string) || "-" }}
+                <div
+                  class="text-sm text-foreground max-w-[200px] truncate"
+                  :title="job.customer?.name || 'No Customer'"
+                >
+                  {{ job.customer?.name || "-" }}
                 </div>
               </td>
               <td class="py-3 px-4">
-                <div class="flex flex-col gap-1 items-start">
+                <div class="flex flex-wrap gap-1 max-w-[200px]">
+                  <template v-if="job.shipperReferences && job.shipperReferences.length > 0">
+                    <span
+                      v-for="(ref, idx) in job.shipperReferences.slice(0, 2)"
+                      :key="idx"
+                      class="px-1.5 py-0.5 rounded bg-muted text-[10px] text-muted-foreground border border-border"
+                    >
+                      {{ ref }}
+                    </span>
+                    <span
+                      v-if="job.shipperReferences.length > 2"
+                      class="text-[10px] text-muted-foreground"
+                    >
+                      +{{ job.shipperReferences.length - 2 }}
+                    </span>
+                  </template>
+                  <span v-else class="text-xs text-muted-foreground italic">-</span>
+                </div>
+              </td>
+              <td class="py-3 px-4">
+                <div class="flex flex-col max-w-[200px]">
+                  <div class="flex items-center gap-2 text-sm">
+                    <span
+                      class="text-foreground truncate font-medium"
+                      :title="job.polName || undefined"
+                      >{{ job.polName || job.pol }}</span
+                    >
+                  </div>
+                  <div class="flex items-center gap-2 text-xs text-muted-foreground">
+                    <ArrowRight class="w-3 h-3" />
+                    <span class="truncate" :title="job.podName || undefined">{{
+                      job.podName || job.pod
+                    }}</span>
+                  </div>
+                </div>
+              </td>
+              <td class="py-3 px-4">
+                <div class="flex flex-col gap-1">
+                  <div
+                    v-if="job.tradeType?.code === 'EXPORT'"
+                    class="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-orange-50/50 border border-orange-100 text-[#c2410c] text-[11px] font-semibold w-fit"
+                  >
+                    <Calendar class="w-3 h-3 opacity-70" />
+                    <span class="opacity-70 uppercase tracking-tighter mr-0.5 text-[9px]">ETD</span>
+                    {{ formatDate(job.etd || "") || "-" }}
+                  </div>
+                  <div
+                    v-else
+                    class="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-blue-50/50 border border-blue-100 text-[#1d4ed8] text-[11px] font-semibold w-fit"
+                  >
+                    <Calendar class="w-3 h-3 opacity-70" />
+                    <span class="opacity-70 uppercase tracking-tighter mr-0.5 text-[9px]">ETA</span>
+                    {{ formatDate(job.eta || "") || "-" }}
+                  </div>
+                </div>
+              </td>
+              <td class="py-3 px-4">
+                <div class="flex flex-col gap-1 items-center">
                   <span
                     :class="
                       cn(
-                        'px-2 py-0.5 rounded border text-xs font-medium',
+                        'px-2 py-0.5 rounded border text-[10px] font-bold uppercase tracking-wider',
                         getStatusClass(job.status?.code),
                       )
                     "
@@ -218,10 +295,16 @@ watch(
                     {{ job.status?.name || "Active" }}
                   </span>
                   <span
-                    v-if="job.billsOfLading?.some((bl) => bl.status?.code === 'PENDING_APPROVAL')"
-                    class="px-2 py-0.5 rounded border border-amber-200 bg-amber-50 text-amber-700 text-[10px] font-bold flex items-center gap-1 shadow-sm"
+                    v-if="
+                      job.billsOfLading?.some(
+                        (bl) =>
+                          (typeof bl.status === 'object' ? bl.status?.code : null) ===
+                          'PENDING_APPROVAL',
+                      )
+                    "
+                    class="px-2 py-0.5 rounded border border-amber-200 bg-amber-50 text-amber-700 text-[10px] font-bold flex items-center gap-1 shadow-sm whitespace-nowrap"
                   >
-                    <div class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                    <div class="w-1 h-1 rounded-full bg-amber-500 animate-pulse" />
                     PENDING BL APPROVAL
                   </span>
                 </div>
@@ -334,27 +417,65 @@ watch(
 
         <div class="space-y-3 mb-4">
           <div class="flex items-center gap-2 text-sm">
-            <MapPin class="w-4 h-4 text-muted-foreground" />
-            <span class="font-medium">{{ job.pol }}</span>
-            <ArrowRight class="w-3 h-3 text-muted-foreground" />
-            <span class="font-medium">{{ job.pod }}</span>
+            <span class="text-muted-foreground text-xs uppercase font-bold tracking-tighter"
+              >Customer:</span
+            >
+            <span class="font-semibold truncate">{{ job.customer?.name || "-" }}</span>
           </div>
-          <div class="flex items-center gap-2 text-sm text-gray-600">
-            <Calendar class="w-4 h-4 text-muted-foreground" />
-            <span>ETA: {{ job.eta || "-" }}</span>
+          <div class="space-y-1 pt-1">
+            <div class="flex items-center gap-2 text-sm">
+              <MapPin class="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+              <span class="font-bold text-[#012D5A] truncate">{{ job.polName || job.pol }}</span>
+            </div>
+            <div class="flex items-center gap-2 text-xs pl-5 text-muted-foreground">
+              <ArrowRight class="w-3 h-3 shrink-0" />
+              <span class="truncate">{{ job.podName || job.pod }}</span>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 text-sm pt-1">
+            <Calendar class="w-4 h-4 text-muted-foreground opacity-50" />
+            <div
+              v-if="job.tradeType?.code === 'EXPORT'"
+              class="px-2 py-0.5 rounded bg-orange-50/80 border border-orange-100 text-[#c2410c] text-[10px] font-bold"
+            >
+              ETD: {{ formatDate(job.etd || "") || "-" }}
+            </div>
+            <div
+              v-else
+              class="px-2 py-0.5 rounded bg-blue-50/80 border border-blue-100 text-[#1d4ed8] text-[10px] font-bold"
+            >
+              ETA: {{ formatDate(job.eta || "") || "-" }}
+            </div>
+          </div>
+          <div
+            v-if="job.shipperReferences && job.shipperReferences.length > 0"
+            class="flex flex-wrap gap-1 mt-1"
+          >
+            <span
+              v-for="(ref, idx) in job.shipperReferences.slice(0, 3)"
+              :key="idx"
+              class="px-1.5 py-0.5 rounded bg-muted text-[9px] font-bold text-muted-foreground border border-border"
+            >
+              {{ ref }}
+            </span>
           </div>
         </div>
 
         <div class="flex items-center justify-between pt-4 border-t border-border">
           <span
             :class="
-              cn('px-2 py-0.5 rounded border text-xs font-medium', getStatusClass(job.status?.code))
+              cn('px-2 py-0.5 rounded border text-xs font-bold', getStatusClass(job.status?.code))
             "
           >
             {{ job.status?.name || "Active" }}
           </span>
           <span
-            v-if="job.billsOfLading?.some((bl) => bl.status?.code === 'PENDING_APPROVAL')"
+            v-if="
+              job.billsOfLading?.some(
+                (bl) =>
+                  (typeof bl.status === 'object' ? bl.status?.code : null) === 'PENDING_APPROVAL',
+              )
+            "
             class="px-2 py-0.5 rounded border border-amber-200 bg-amber-50 text-amber-700 text-[10px] font-bold flex items-center gap-1"
           >
             <div class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />

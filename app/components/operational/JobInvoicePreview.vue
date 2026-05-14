@@ -418,26 +418,28 @@ defineExpose({
           <div
             class="flex border-b border-[#062c58] bg-[#062c58]/5 font-bold text-[0.6rem] h-[35px]"
           >
-            <div class="w-[8%] border-r border-[#062c58] flex items-center justify-center">NO</div>
+            <div class="w-[5%] border-r border-[#062c58] flex items-center justify-center">NO</div>
             <div class="flex-1 border-r border-[#062c58] flex items-center px-3">DESCRIPTION</div>
-            <div class="w-[10%] border-r border-[#062c58] flex items-center justify-center">
-              QTY
-            </div>
+            <div class="w-[7%] border-r border-[#062c58] flex items-center justify-center">QTY</div>
             <div class="w-[18%] border-r border-[#062c58] flex items-center justify-end px-3">
               UNIT PRICE
             </div>
-            <div class="w-[20%] flex items-center justify-end px-3">TOTAL AMOUNT</div>
+            <div class="w-[12%] border-r border-[#062c58] flex items-center justify-center">
+              TAX
+            </div>
+            <div class="w-[18%] flex items-center justify-end px-3">TOTAL AMOUNT</div>
           </div>
 
           <!-- Items List Container -->
           <div class="flex-1 relative">
             <!-- Vertical Grid Lines Background -->
             <div class="absolute inset-0 flex pointer-events-none">
-              <div class="w-[8%] border-r border-[#062c58]/30"></div>
+              <div class="w-[5%] border-r border-[#062c58]/30"></div>
               <div class="flex-1 border-r border-[#062c58]/30"></div>
-              <div class="w-[10%] border-r border-[#062c58]/30"></div>
+              <div class="w-[7%] border-r border-[#062c58]/30"></div>
               <div class="w-[18%] border-r border-[#062c58]/30"></div>
-              <div class="w-[20%]"></div>
+              <div class="w-[12%] border-r border-[#062c58]/30"></div>
+              <div class="w-[18%]"></div>
             </div>
 
             <!-- Scrollable Items Area -->
@@ -447,15 +449,18 @@ defineExpose({
                 :key="idx"
                 class="flex border-b border-[#062c58]/10 min-h-[35px] items-start py-2"
               >
-                <div class="w-[8%] text-center text-[0.7rem]">{{ idx + 1 }}</div>
+                <div class="w-[5%] text-center text-[0.7rem]">{{ idx + 1 }}</div>
                 <div class="flex-1 px-3 text-[0.7rem] font-medium uppercase leading-tight">
                   {{ item.description }}
                 </div>
-                <div class="w-[10%] text-center text-[0.7rem]">{{ item.quantity }}</div>
+                <div class="w-[7%] text-center text-[0.7rem]">{{ item.quantity }}</div>
                 <div class="w-[18%] text-right px-3 text-[0.7rem] text-black">
                   {{ formatCurrency(item.unitPrice) }}
                 </div>
-                <div class="w-[20%] text-right px-3 text-[0.7rem] font-medium text-black">
+                <div class="w-[12%] text-center text-[0.7rem] text-[#062c58]/80">
+                  {{ item.tax?.rate ? Number(item.tax.rate) + "%" : "-" }}
+                </div>
+                <div class="w-[18%] text-right px-3 text-[0.7rem] font-medium text-black">
                   {{ formatCurrency(item.amount) }}
                 </div>
               </div>
@@ -467,11 +472,12 @@ defineExpose({
                 :key="'spacer-' + i"
                 class="flex min-h-[35px] border-b border-[#062c58]/5"
               >
-                <div class="w-[8%]"></div>
+                <div class="w-[5%]"></div>
                 <div class="flex-1"></div>
-                <div class="w-[10%]"></div>
+                <div class="w-[7%]"></div>
                 <div class="w-[18%]"></div>
-                <div class="w-[20%]"></div>
+                <div class="w-[12%]"></div>
+                <div class="w-[18%]"></div>
               </div>
             </div>
           </div>
@@ -532,8 +538,12 @@ defineExpose({
                   <div class="flex border-b border-[#062c58]/20 h-[35px] items-center shrink-0">
                     <div class="w-1/2 px-3 font-bold text-[0.65rem] text-[#062c58]">
                       VAT / TAX ({{
-                        Math.round(((invoice?.taxAmount || 0) / (invoice?.subTotal || 1)) * 100)
-                      }}%)
+                        invoice?.invoiceTaxes?.length
+                          ? Array.from(new Set(invoice.invoiceTaxes.map((t) => Number(t.rate))))
+                              .map((r) => r + "%")
+                              .join(", ")
+                          : "0%"
+                      }})
                     </div>
                     <div
                       class="flex-1 px-3 text-right font-mono text-[0.75rem] font-medium text-black"

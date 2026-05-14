@@ -3,6 +3,8 @@ import type {
   ActiveBlData,
   ActiveJobData,
   EblContainer,
+  ProfitInvoice,
+  ProfitExpense,
 } from "../components/operational/ebl/types";
 import type { JobCostBreakdownResponse } from "~/types/finance-dashboard";
 
@@ -13,9 +15,12 @@ export interface JobVessel {
   voyageNumber: string | null;
   etd: string | null;
   eta: string | null;
+  tsPortId: string | null;
   sequence: number;
   vesselType?: string;
   vessel?: { name: string; imoNumber?: string | null } | null;
+  polName?: string | null;
+  podName?: string | null;
 }
 
 export interface BlVessel {
@@ -25,6 +30,7 @@ export interface BlVessel {
   voyageNumber: string | null;
   etd: string | null;
   eta: string | null;
+  tsPortId: string | null;
   sequence: number;
   vessel?: { name: string; imoNumber?: string | null } | null;
 }
@@ -46,6 +52,7 @@ export interface Job {
   jobNumber: string;
   organizationId: string;
   serviceType: string;
+  shipmentType?: string | null;
   pol?: string | null;
   pod?: string | null;
   polName?: string | null;
@@ -70,6 +77,7 @@ export interface Job {
   vesselId?: string | null;
   etd?: string | null;
   eta?: string | null;
+  tsPortId?: string | null;
   pickupDate?: string | null;
   pickupTime?: string | null;
   deliveryDate?: string | null;
@@ -90,10 +98,15 @@ export interface Job {
   placeOfIssue?: string | null;
   dateOfIssue?: string | null;
   customerReference?: string | null;
+  shipperReferences?: string[] | null;
   isDirectMaster: boolean;
   createdAt: string;
   updatedAt: string;
   vessels?: JobVessel[];
+  invoices?: ProfitInvoice[];
+  expenses?: ProfitExpense[];
+  customerAddressId?: string | null;
+  showShipperReferencesOnBl?: boolean;
   // Relations
   vessel?: { name: string; imoNumber?: string | null } | null;
   containerType?: { name: string; code: string } | null;
@@ -174,7 +187,7 @@ export interface BillOfLading {
   shippingMark?: string | null;
   hsCode?: string | null;
   dateCargoReceived?: string | null;
-  status?: { name: string; code?: string } | null;
+  status?: { name: string; code?: string } | string | null;
   blParties?: BlParty[];
   vessels?: BlVessel[];
   // Mapping for frontend UI / edit.vue
@@ -227,6 +240,7 @@ export interface CreateJob {
   serviceId?: string;
   containerTypeId?: string;
   serviceType?: string;
+  shipmentType?: string;
   pol?: string | null;
   pod?: string | null;
   vesselId?: string;
@@ -237,12 +251,15 @@ export interface CreateJob {
   finalDestination?: string | null;
   etd?: string;
   eta?: string;
+  shipperReferences?: string[];
+  showShipperReferencesOnBl?: boolean;
   vessels?: {
     vesselId?: string | null;
     vesselName?: string | null;
     voyageNumber?: string | null;
     etd?: string | null;
     eta?: string | null;
+    tsPortId?: string | null;
     sequence?: number;
   }[];
   totalBlCount: number;
@@ -255,6 +272,7 @@ export interface CreateJob {
   shippingMark?: string;
   mainDescription?: string;
   isDirectMaster?: boolean;
+  status?: string;
 
   freightTerm?: "PREPAID" | "COLLECT";
   hsCode?: string;
@@ -330,6 +348,7 @@ export interface UpdateBlDraft {
     voyageNumber?: string | null;
     etd?: string | null;
     eta?: string | null;
+    tsPortId?: string | null;
     sequence?: number;
   }[];
   tradeTypeId?: string;

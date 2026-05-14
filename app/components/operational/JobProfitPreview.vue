@@ -3,47 +3,8 @@ import { ref, computed, nextTick, onMounted } from "vue";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import { toast } from "vue-sonner";
-import { formatCurrency } from "~/lib/utils";
-import type { ActiveJobData } from "./ebl/types";
-
-interface ProfitInvoice {
-  id: string;
-  issuedDate?: string | null;
-  createdAt?: string | null;
-  invoiceNumber: string | null;
-  notes?: string | null;
-  total: number | string | null;
-}
-
-interface ProfitExpense {
-  id: string;
-  date?: string | null;
-  createdAt?: string | null;
-  vendor?: { name: string | null } | null;
-  description?: string | null;
-  amount: number | string | null;
-}
-
-interface ProfitJob {
-  id?: string | null;
-  jobNumber?: string | null;
-  revenue?: number | string | null;
-  cogs?: number | string | null;
-  cost?: number | string | null;
-  profit?: number | string | null;
-  margin?: number | string | null;
-  customer?: string | { name: string } | null;
-  polName?: string | null;
-  pol?: string | null;
-  podName?: string | null;
-  pod?: string | null;
-  createdAt?: string | null;
-  invoices?: ProfitInvoice[] | null;
-  expenses?: ProfitExpense[] | null;
-  vessels?: { vesselName?: string | null }[] | null;
-  vessel?: { name: string } | null;
-  status?: { name: string } | null;
-}
+import { cn, toNumber } from "~/lib/utils";
+import type { ActiveJobData, ProfitInvoice, ProfitExpense, ProfitJob } from "./ebl/types";
 
 const props = defineProps<{
   job: ProfitJob | null;
@@ -62,6 +23,22 @@ const printContainerRef = ref<HTMLElement | null>(null);
 
 const getVal = (val: unknown, fallback: unknown = "") =>
   val ? String(val) : fallback ? String(fallback) : "";
+
+const formatCurrency = (val: number | string | null | undefined, currency: string = "IDR") => {
+  if (val === null || val === undefined) return `${currency} 0`;
+  const num = typeof val === "string" ? parseFloat(val) : val;
+  if (isNaN(num)) return `${currency} 0`;
+
+  return new Intl.NumberFormat(currency === "IDR" ? "id-ID" : "en-US", {
+    style: "currency",
+    currency: currency,
+    minimumFractionDigits: currency === "IDR" ? 0 : 2,
+    maximumFractionDigits: currency === "IDR" ? 0 : 2,
+  })
+    .format(num)
+    .replace("Rp", "IDR")
+    .replace("US$", "USD");
+};
 
 const formatDate = (dateStr?: string | null) => {
   if (!dateStr) return "";
@@ -84,31 +61,51 @@ const vendorInvoices = computed(() => props.job?.expenses || []);
 
 const totalRevenue = computed(() => {
   if (invoices.value.length > 0) {
-    return invoices.value.reduce(
-      (sum: number, inv: ProfitInvoice) => sum + (Number(inv.total) || 0),
-      0,
-    );
+    return invoices.value.reduce((sum: number, inv: ProfitInvoice) => {
+      const amount = toNumber(inv.total) || 0;
+      const rate = toNumber(inv.exchangeRate) || 1;
+      return sum + amount * rate;
+    }, 0);
   }
-  return Number(props.job?.revenue) || 0;
+  return toNumber(props.job?.revenue) || 0;
 });
+
+const getItemDescriptions = (items: { description: string | null }[] | null | undefined) => {
+  if (!items || items.length === 0) return "";
+  return items
+    .map((it) => it.description)
+    .filter(Boolean)
+    .join(", ");
+};
 
 const totalCost = computed(() => {
   if (vendorInvoices.value.length > 0) {
-    return vendorInvoices.value.reduce(
-      (sum: number, exp: ProfitExpense) => sum + (Number(exp.amount) || 0),
-      0,
-    );
+    return vendorInvoices.value.reduce((sum: number, exp: ProfitExpense) => {
+      const amount = toNumber(exp.amount) || 0;
+      const rate = toNumber(exp.exchangeRate) || 1;
+      return sum + amount * rate;
+    }, 0);
   }
-  return Number(props.job?.cogs || props.job?.cost) || 0;
+  return toNumber(props.job?.cogs || props.job?.cost) || 0;
 });
 
 const profit = computed(() => {
-  if (props.job?.profit !== undefined) return Number(props.job.profit);
+  // Always prefer calculated profit if we have detailed data
+  if (invoices.value.length > 0 || vendorInvoices.value.length > 0) {
+    return totalRevenue.value - totalCost.value;
+  }
+  if (props.job?.profit !== undefined && props.job?.profit !== null)
+    return toNumber(props.job.profit);
   return totalRevenue.value - totalCost.value;
 });
 
 const margin = computed(() => {
-  if (props.job?.margin !== undefined) return Number(props.job.margin);
+  // Always prefer calculated margin if we have detailed data
+  if ((invoices.value.length > 0 || vendorInvoices.value.length > 0) && totalRevenue.value !== 0) {
+    return (profit.value / totalRevenue.value) * 100;
+  }
+  if (props.job?.margin !== undefined && props.job?.margin !== null)
+    return Number(props.job.margin);
   if (totalRevenue.value === 0) return 0;
   return (profit.value / totalRevenue.value) * 100;
 });
@@ -315,9 +312,25 @@ defineExpose({
                       <td class="px-3 py-2">{{ formatDate(inv.issuedDate || inv.createdAt) }}</td>
                       <td class="px-3 py-2 font-bold">{{ inv.invoiceNumber }}</td>
                       <td class="px-3 py-2 truncate max-w-xs">
-                        {{ inv.notes || "SALES REVENUE" }}
+                        {{ getItemDescriptions(inv.items) || inv.notes || "SALES REVENUE" }}
                       </td>
-                      <td class="px-3 py-2 text-right">{{ formatCurrency(inv.total) }}</td>
+                      <td class="px-3 py-2 text-right">
+                        <div class="flex flex-col items-end">
+                          <span class="font-bold">{{
+                            formatCurrency(inv.total, inv.currency || "IDR")
+                          }}</span>
+                          <span
+                            v-if="inv.currency === 'USD'"
+                            class="text-[0.5rem] text-muted-foreground italic"
+                          >
+                            {{
+                              formatCurrency(
+                                toNumber(inv.total) * (toNumber(inv.exchangeRate) || 1),
+                              )
+                            }}
+                          </span>
+                        </div>
+                      </td>
                     </tr>
                     <tr v-if="invoices.length === 0">
                       <td colspan="4" class="px-3 py-4 text-center text-muted-foreground italic">
@@ -357,8 +370,31 @@ defineExpose({
                     >
                       <td class="px-3 py-2">{{ formatDate(exp.date || exp.createdAt) }}</td>
                       <td class="px-3 py-2 font-bold">{{ exp.vendor?.name || "-" }}</td>
-                      <td class="px-3 py-2 truncate max-w-xs">{{ exp.description }}</td>
-                      <td class="px-3 py-2 text-right">{{ formatCurrency(exp.amount) }}</td>
+                      <td class="px-3 py-2 truncate max-w-xs">
+                        {{
+                          getItemDescriptions(exp.items) ||
+                          exp.description ||
+                          exp.category?.name ||
+                          "VENDOR EXPENSE"
+                        }}
+                      </td>
+                      <td class="px-3 py-2 text-right">
+                        <div class="flex flex-col items-end">
+                          <span class="font-bold">{{
+                            formatCurrency(exp.amount, exp.currency || "IDR")
+                          }}</span>
+                          <span
+                            v-if="exp.currency === 'USD'"
+                            class="text-[0.5rem] text-muted-foreground italic"
+                          >
+                            {{
+                              formatCurrency(
+                                toNumber(exp.amount) * (toNumber(exp.exchangeRate) || 1),
+                              )
+                            }}
+                          </span>
+                        </div>
+                      </td>
                     </tr>
                     <tr v-if="vendorInvoices.length === 0">
                       <td colspan="4" class="px-3 py-4 text-center text-muted-foreground italic">

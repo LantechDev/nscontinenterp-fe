@@ -71,11 +71,12 @@ const handleDelete = async () => {
   }
 };
 
-const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat("id-ID", {
+const formatCurrency = (amount: number, currency: string = "IDR") => {
+  return new Intl.NumberFormat(currency === "IDR" ? "id-ID" : "en-US", {
     style: "currency",
-    currency: "IDR",
-    minimumFractionDigits: 0,
+    currency: currency,
+    minimumFractionDigits: currency === "IDR" ? 0 : 2,
+    maximumFractionDigits: currency === "IDR" ? 0 : 2,
   }).format(amount);
 };
 
@@ -194,7 +195,7 @@ const handleSuccess = () => {
                 Amount
               </p>
               <p class="font-black text-sm text-red-600 whitespace-nowrap">
-                {{ formatCurrency(Number(expense.amount)) }}
+                {{ formatCurrency(Number(expense.amount), expense.currency) }}
               </p>
             </div>
             <div class="flex gap-2">

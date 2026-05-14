@@ -5,6 +5,10 @@ export interface EblVessel {
   voyageNumber?: string | null;
   etd?: string | null;
   eta?: string | null;
+  tsPortId?: string | null;
+  tsPortName?: string | null;
+  polName?: string | null;
+  podName?: string | null;
   sequence?: number;
   vesselType?: string | null;
 }
@@ -93,6 +97,7 @@ export interface ActiveJobData {
   vesselId?: string | null;
   etd?: string | null;
   eta?: string | null;
+  tsPortId?: string | null;
   tradeType?: { code?: string } | null;
   tradeTypeId?: string | null;
   cargoMovement?: { code?: string; name?: string } | null;
@@ -137,6 +142,7 @@ export interface ActiveJobData {
   service?: { id?: string; name?: string } | null;
   serviceId?: string | null;
   createdAt?: string | null;
+  shipperReferences?: string[] | null;
 }
 export interface EditFormType {
   shipperId?: string;
@@ -147,6 +153,8 @@ export interface EditFormType {
   notifyPartyAddressId?: string;
   forwarderId?: string;
   forwarderAddressId?: string;
+  customerId?: string;
+  customerAddressId?: string;
   isNotifySameAsConsignee?: boolean;
   mainDescription?: string;
   commodity?: string;
@@ -173,6 +181,7 @@ export interface EditFormType {
   finalDestination?: string;
   etd?: string;
   eta?: string;
+  tsPortId?: string;
   tradeTypeId?: string;
   cargoMovementId?: string;
   deliveryMovementId?: string;
@@ -180,4 +189,52 @@ export interface EditFormType {
   vessels: EblVessel[];
   shipperReferences: string[];
   showShipperReferencesOnBl: boolean;
+}
+
+export interface ProfitInvoice {
+  id: string;
+  issuedDate?: string | null;
+  createdAt?: string | null;
+  invoiceNumber: string | null;
+  notes?: string | null;
+  total: number | string | null;
+  currency?: string | null;
+  exchangeRate?: number | string | null;
+  items?: { description: string | null }[] | null;
+  status?: string | { code?: string; name?: string } | null;
+}
+
+export interface ProfitExpense {
+  id: string;
+  date?: string | null;
+  createdAt?: string | null;
+  vendor?: { name: string | null } | null;
+  category?: { name: string | null } | null;
+  description?: string | null;
+  amount: number | string | null;
+  currency?: string | null;
+  exchangeRate?: number | string | null;
+  items?: { description: string | null }[] | null;
+  status?: string | { code?: string; name?: string } | null;
+}
+
+export interface ProfitJob {
+  id?: string | null;
+  jobNumber?: string | null;
+  revenue?: number | string | null;
+  cogs?: number | string | null;
+  cost?: number | string | null;
+  profit?: number | string | null;
+  margin?: number | string | null;
+  customer?: string | { name: string } | null;
+  polName?: string | null;
+  pol?: string | null;
+  podName?: string | null;
+  pod?: string | null;
+  createdAt?: string | null;
+  invoices?: ProfitInvoice[] | null;
+  expenses?: ProfitExpense[] | null;
+  vessels?: { vesselName?: string | null }[] | null;
+  vessel?: { name: string } | null;
+  status?: { name: string } | null;
 }

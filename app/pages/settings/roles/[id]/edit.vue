@@ -11,16 +11,18 @@ definePageMeta({
 const route = useRoute();
 const router = useRouter();
 const roleId = route.params.id as string;
-const { updateRole } = useRoles();
+const { updateRole, getRoleById } = useRoles();
 const isLoading = ref(false);
 
-// Fetch role data directly
+// Fetch role data
 const { data: roleData, error: fetchError } = await useAsyncData<Role>(
   `role-${roleId}`,
   async () => {
-    const data = await $fetch<Role>(`/api/admin/roles/${roleId}`);
-    if (!data) throw new Error("Role not found");
-    return data;
+    const result = await getRoleById(roleId);
+    if (!result.success || !result.data) {
+      throw new Error(result.error || "Role not found");
+    }
+    return result.data;
   },
   { server: false },
 );
@@ -69,6 +71,7 @@ const availableResources = [
   { key: "member", label: "Member", description: "Manage team members" },
   { key: "invitation", label: "Invitation", description: "Manage invites" },
   { key: "job", label: "Job", description: "Operational jobs" },
+  { key: "ebl", label: "eBL", description: "Electronic Bill of Lading" },
   { key: "invoice", label: "Invoice", description: "Financial invoices" },
   { key: "payment", label: "Payment", description: "Payment records" },
   { key: "company", label: "Company", description: "Master data companies" },

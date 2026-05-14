@@ -157,10 +157,10 @@ export function useMasterData() {
     }
   }
 
-  async function fetchPorts(query?: string) {
+  async function fetchPorts(query?: string, type?: "ocean" | "air") {
     try {
       const data = await $fetch<Port[]>("/api/master/ports", {
-        params: { search: query },
+        params: { search: query, type },
       });
       return data;
     } catch {

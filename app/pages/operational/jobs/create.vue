@@ -33,6 +33,7 @@ definePageMeta({
   title: "Create Job",
 });
 
+import { useJobs, type CreateJob } from "~/composables/useJobs";
 const { createJob, isLoading } = useJobs();
 const { confirm } = useConfirm();
 const { createVessel } = useMasterData();
@@ -96,7 +97,14 @@ const portsPod = computed(() => searchedPorts.value);
 const isCompanyModalOpen = ref(false);
 const presetCompanyName = ref("");
 const activeCompanyField = ref<
-  "shipperId" | "consigneeId" | "notifyPartyId" | "forwarderId" | "customerId" | null
+  | "shipperId"
+  | "consigneeId"
+  | "notifyPartyId"
+  | "forwarderId"
+  | "customerId"
+  | "customerAddressId"
+  | "vendorId"
+  | null
 >(null);
 
 // Vessel Modal State
@@ -107,34 +115,21 @@ const activeVesselObj = ref<{
   vesselId: string;
   vesselName: string;
   voyageNumber: string;
+  tsPortId: string;
   etd: string;
   eta: string;
   sequence: number;
   vesselType: string;
 } | null>(null);
 
-// Search handlers for ports (client-side only)
-async function handleSearchPol(query: string) {
-  if (!query) {
-    searchedPorts.value = masterData.value?.ports || [];
-    return;
-  }
-  const results = await $fetch<Port[]>(`/api/master/ports?q=${encodeURIComponent(query)}`);
-  searchedPorts.value = results;
-}
-
-const handleSearchPod = handleSearchPol;
-
-// Refresh master data (for after creating new entities)
-const refreshMasterData = async () => {
-  await refresh();
-};
-
 const formData = reactive({
   // Job Info
   serviceType: "OCEAN",
+  shipmentType: "OCEAN",
   tradeTypeId: "EXPORT",
   customerId: "",
+  customerAddressId: "",
+  shipperReferences: [] as string[],
 
   // Route Details
   pol: "",
@@ -193,7 +188,6 @@ const formData = reactive({
       hsCode: string;
     }>;
   }>,
-
   // Movement & Schedule
   cargoMovementId: "FCL_FCL",
   deliveryMovementId: "CY_DOOR",
@@ -203,12 +197,23 @@ const formData = reactive({
       vesselId: "",
       vesselName: "",
       voyageNumber: "",
+      tsPortId: "",
       etd: "",
       eta: "",
       sequence: 0,
       vesselType: "feeder",
     },
-  ],
+  ] as Array<{
+    id: number;
+    vesselId: string;
+    vesselName: string;
+    voyageNumber: string;
+    tsPortId: string;
+    etd: string;
+    eta: string;
+    sequence: number;
+    vesselType: string;
+  }>,
   etd: "",
   eta: "",
   pickupDate: "",
@@ -244,6 +249,48 @@ const formData = reactive({
   vendorId: "",
 });
 
+// Search handlers for ports/airports (client-side only)
+async function handleSearchPol(query: string) {
+  const type = formData.shipmentType === "AIR" ? "air" : "ocean";
+  if (!query) {
+    searchedPorts.value = masterData.value?.ports || [];
+    return;
+  }
+  const results = await $fetch<Port[]>(
+    `/api/master/ports?q=${encodeURIComponent(query)}&type=${type}`,
+  );
+  searchedPorts.value = results;
+}
+
+const handleSearchPod = handleSearchPol;
+
+// Reset ports when shipment type changes
+watch(
+  () => formData.shipmentType,
+  async (newVal) => {
+    const type = newVal === "AIR" ? "air" : "ocean";
+    const results = await $fetch<Port[]>(`/api/master/ports?type=${type}`);
+    searchedPorts.value = results;
+  },
+);
+
+// Refresh master data (for after creating new entities)
+const refreshMasterData = async () => {
+  await refresh();
+};
+
+const newShipperRef = ref("");
+const addShipperRef = () => {
+  if (newShipperRef.value.trim()) {
+    if (!formData.shipperReferences) formData.shipperReferences = [];
+    formData.shipperReferences.push(newShipperRef.value.trim());
+    newShipperRef.value = "";
+  }
+};
+const removeShipperRef = (index: number) => {
+  formData.shipperReferences.splice(index, 1);
+};
+
 // Sync Notify Party if checkbox is checked
 watch(
   () => formData.isNotifySameAsConsignee,
@@ -262,10 +309,7 @@ watch(
 watch(
   () => formData.mainDescription,
   (val) => {
-    // If commodity is empty or was previously synced, update it
-    if (val && !formData.commodity) {
-      formData.commodity = val.split("\n")[0]?.substring(0, 100) || "";
-    }
+    formData.commodity = val?.split("\n")[0]?.substring(0, 100) || "";
   },
 );
 
@@ -288,13 +332,19 @@ watch(
 );
 
 // Auto-select Default Address when a Company is chosen
+watch(
+  () => formData.customerId,
+  (val) => assignDefaultAddress(val || "", "customerAddressId"),
+);
+
 const assignDefaultAddress = (
   companyId: string,
   addressKey:
     | "shipperAddressId"
     | "consigneeAddressId"
     | "notifyPartyAddressId"
-    | "forwarderAddressId",
+    | "forwarderAddressId"
+    | "customerAddressId",
 ) => {
   if (!companyId) {
     formData[addressKey] = "";
@@ -524,6 +574,11 @@ const SERVICE_TYPES = [
   { id: "CUSTOM_CLEARANCE", name: "CUSTOM CLEARANCE" },
 ];
 
+const SHIPMENT_TYPES = [
+  { id: "OCEAN", name: "Ocean Freight" },
+  { id: "AIR", name: "Air Freight" },
+];
+
 const TRUCK_TYPES = [
   "BLIND VAN",
   "CDE",
@@ -587,7 +642,7 @@ let manualScrollTimeout: number | undefined;
 
 function handleCreateCompany(
   name: string,
-  field: "shipperId" | "consigneeId" | "notifyPartyId" | "forwarderId" | "customerId",
+  field: "shipperId" | "consigneeId" | "notifyPartyId" | "forwarderId" | "customerId" | "vendorId",
 ) {
   presetCompanyName.value = name;
   activeCompanyField.value = field;
@@ -612,6 +667,7 @@ async function handleCreateVessel(
     vesselId: string;
     vesselName: string;
     voyageNumber: string;
+    tsPortId: string;
     etd: string;
     eta: string;
     sequence: number;
@@ -681,6 +737,7 @@ async function handleSubmit(isDraft: boolean = false) {
   const payload: CreateJob = {
     shipperId: formData.shipperId,
     customerId: formData.customerId,
+    shipmentType: formData.shipmentType,
     shipperAddressId: formData.shipperAddressId || undefined,
     consigneeId: formData.consigneeId,
     consigneeAddressId: formData.consigneeAddressId || undefined,
@@ -689,6 +746,7 @@ async function handleSubmit(isDraft: boolean = false) {
     forwarderId: formData.forwarderId || undefined,
     forwarderAddressId: formData.forwarderAddressId || undefined,
     commodity: formData.commodity,
+    mainDescription: formData.mainDescription || undefined,
     hsCode: formData.hsCode || undefined,
     freightTerm: (formData.freightTerm as "PREPAID" | "COLLECT") || undefined,
     containers: formData.containers.filter((c) => c.containerNumber),
@@ -698,6 +756,7 @@ async function handleSubmit(isDraft: boolean = false) {
       vesselId: v.vesselId || null,
       vesselName: v.vesselName || null,
       voyageNumber: v.voyageNumber || null,
+      tsPortId: v.tsPortId || null,
       etd: v.etd || null,
       eta: v.eta || null,
       sequence: v.sequence,
@@ -714,6 +773,8 @@ async function handleSubmit(isDraft: boolean = false) {
     isNegotiable: formData.isNegotiable,
     placeOfIssue: formData.placeOfIssue || undefined,
     dateOfIssue: formData.dateOfIssue || undefined,
+    shipperReferences: formData.shipperReferences,
+    showShipperReferencesOnBl: true, // Default to true for new jobs
 
     tradeTypeId: formData.tradeTypeId || undefined,
     cargoMovementId: formData.cargoMovementId || undefined,
@@ -724,9 +785,10 @@ async function handleSubmit(isDraft: boolean = false) {
     shippingMark: formData.shippingMark || undefined,
     vendorId: formData.vendorId || undefined,
     isDirectMaster: formData.isDirectMaster,
+    status: isDraft ? "DRAFT" : "ACTIVE",
   };
 
-  const { success, error } = await createJob(payload);
+  const { success, error } = await createJob(payload as CreateJob);
 
   if (success) {
     toast.success("Job created successfully.");
@@ -845,26 +907,51 @@ function scrollTo(id: string) {
 }
 
 function getVesselLabels(index: number) {
-  const isFeeder = index === 0;
+  const isFirst = index === 0;
   const isLast = index === formData.vessels.length - 1;
-  const hasTransit = formData.vessels.length > 1;
+  const isAir = formData.shipmentType === "AIR";
 
   return {
-    header: isFeeder ? "Feeder Vessel" : `Mother Vessel ${index}`,
-    etd: isFeeder ? "ETD POL" : "ETD T/S PORT",
-    eta: isLast ? "ETA POD" : "ETA T/S PORT",
-    isFeeder,
+    header: isAir
+      ? isFirst
+        ? "Feeder Plane"
+        : isLast
+          ? `Mother Plane ${index} (Last)`
+          : `Mother Plane ${index}`
+      : isFirst
+        ? "Feeder Vessel"
+        : isLast
+          ? `Mother Vessel ${index} (Last)`
+          : `Mother Vessel ${index}`,
+    etd: isFirst ? "ETD POL" : "ETD T/S PORT",
+    eta: isLast ? "ETA POD" : "ETA NEXT PORT",
+    leftPortLabel: isFirst
+      ? isAir
+        ? "Airport POL"
+        : "POL Name"
+      : isAir
+        ? "T/S Airport Name"
+        : "T/S Port Name",
+    rightPortLabel: isLast
+      ? isAir
+        ? "Airport POD"
+        : "POD Name"
+      : isAir
+        ? "Next Airport Name"
+        : "Next Port Name",
+    isFirst,
     isLast,
-    hasTransit,
   };
 }
 
 function addVessel() {
+  const lastVessel = formData.vessels[formData.vessels.length - 1];
   formData.vessels.push({
     id: Date.now(),
     vesselId: "",
     vesselName: "",
     voyageNumber: "",
+    tsPortId: "", // Don't duplicate, keep it clean
     etd: "",
     eta: "",
     sequence: formData.vessels.length,
@@ -975,42 +1062,6 @@ function addVessel() {
               </div>
 
               <!-- Job Customer / Billing Party -->
-              <div class="space-y-2">
-                <div class="h-6 flex items-center justify-between">
-                  <label
-                    class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
-                  >
-                    JOB CUSTOMER <span class="text-destructive">*</span>
-                  </label>
-                  <div class="flex gap-2">
-                    <button
-                      v-if="formData.shipperId"
-                      type="button"
-                      @click="formData.customerId = formData.shipperId"
-                      class="text-[9px] font-bold text-blue-600 hover:underline uppercase"
-                    >
-                      Use Shipper
-                    </button>
-                    <button
-                      v-if="formData.consigneeId"
-                      type="button"
-                      @click="formData.customerId = formData.consigneeId"
-                      class="text-[9px] font-bold text-blue-600 hover:underline uppercase"
-                    >
-                      Use Consignee
-                    </button>
-                  </div>
-                </div>
-                <Combobox
-                  v-model="formData.customerId"
-                  :options="companies"
-                  label-key="name"
-                  value-key="id"
-                  placeholder="Select Main Customer..."
-                  allow-create
-                  @create="(name) => handleCreateCompany(name, 'shipperId')"
-                />
-              </div>
 
               <!-- Trade Type -->
               <div class="space-y-2">
@@ -1021,6 +1072,17 @@ function addVessel() {
                   >
                 </div>
                 <Combobox v-model="formData.tradeTypeId" :options="TRADE_TYPES" />
+              </div>
+
+              <!-- Type of Shipment -->
+              <div v-if="formData.serviceType === 'OCEAN'" class="space-y-2">
+                <div class="h-6 flex items-center">
+                  <label
+                    class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
+                    >TYPE OF SHIPMENT <span class="text-destructive">*</span></label
+                  >
+                </div>
+                <Combobox v-model="formData.shipmentType" :options="SHIPMENT_TYPES" />
               </div>
 
               <!-- Service Type -->
@@ -1082,6 +1144,59 @@ function addVessel() {
                   }}</span>
                 </div>
               </div>
+
+              <!-- Shipper References (PO Numbers) -->
+              <div class="md:col-span-4 mt-2 p-5 bg-muted/20 border border-border/40 rounded-2xl">
+                <div class="flex items-center justify-between mb-4">
+                  <label
+                    class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2"
+                  >
+                    <FileText class="w-3.5 h-3.5 text-primary" />
+                    Shipper References (PO Numbers)
+                  </label>
+                </div>
+                <div class="space-y-4">
+                  <div class="flex gap-2">
+                    <input
+                      v-model="newShipperRef"
+                      v-uppercase
+                      @keyup.enter="addShipperRef"
+                      type="text"
+                      placeholder="Enter PO Number..."
+                      class="input-field flex-1 h-10 text-sm"
+                    />
+                    <button
+                      type="button"
+                      @click="addShipperRef"
+                      class="bg-primary/10 text-primary hover:bg-primary/20 h-10 px-4 rounded-xl text-[11px] font-bold uppercase tracking-wider transition-all flex items-center gap-2 border border-primary/10"
+                    >
+                      <Plus class="w-3.5 h-3.5" /> Add
+                    </button>
+                  </div>
+                  <div
+                    v-if="formData.shipperReferences && formData.shipperReferences.length > 0"
+                    class="flex flex-wrap gap-2 pt-2"
+                  >
+                    <span
+                      v-for="(ref, idx) in formData.shipperReferences"
+                      :key="idx"
+                      class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-border shadow-sm text-foreground text-xs font-bold transition-all hover:border-primary/30"
+                    >
+                      {{ ref }}
+                      <button
+                        type="button"
+                        @click="removeShipperRef(idx)"
+                        class="text-muted-foreground hover:text-destructive transition-colors"
+                      >
+                        <Trash2 class="w-3.5 h-3.5" />
+                      </button>
+                    </span>
+                  </div>
+                  <p v-else class="text-[11px] text-muted-foreground italic pl-1">
+                    No references added yet.
+                  </p>
+                </div>
+              </div>
             </div>
           </SectionCard>
 
@@ -1098,6 +1213,38 @@ function addVessel() {
               </div>
 
               <div class="divide-y divide-border/50">
+                <JobPartyRow
+                  label="Job Customer"
+                  required
+                  :companies="companies"
+                  v-model:companyId="formData.customerId"
+                  v-model:addressId="formData.customerAddressId"
+                  z-index="50"
+                  has-extra-controls
+                  @create="(name) => handleCreateCompany(name, 'customerId')"
+                >
+                  <template #extra-controls>
+                    <div class="flex gap-2 items-center">
+                      <button
+                        v-if="formData.shipperId"
+                        type="button"
+                        @click="formData.customerId = formData.shipperId"
+                        class="text-[9px] font-bold text-blue-600 hover:underline uppercase"
+                      >
+                        Use Shipper
+                      </button>
+                      <button
+                        v-if="formData.consigneeId"
+                        type="button"
+                        @click="formData.customerId = formData.consigneeId"
+                        class="text-[9px] font-bold text-blue-600 hover:underline uppercase"
+                      >
+                        Use Consignee
+                      </button>
+                    </div>
+                  </template>
+                </JobPartyRow>
+
                 <JobPartyRow
                   label="Shipper"
                   required
@@ -1145,7 +1292,7 @@ function addVessel() {
 
                 <JobPartyRow
                   v-if="formData.serviceType === 'OCEAN'"
-                  label="Forwarder"
+                  label="Agent"
                   description="(Optional)"
                   :companies="companies"
                   v-model:companyId="formData.forwarderId"
@@ -1154,169 +1301,6 @@ function addVessel() {
                   @create="(name) => handleCreateCompany(name, 'forwarderId')"
                 />
               </div>
-            </div>
-          </SectionCard>
-
-          <!-- Route Details -->
-          <SectionCard id="route" title="Route Details" :icon="MapPin">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-y-8 gap-x-12 relative items-end pb-4">
-              <template v-if="formData.serviceType !== 'TRUCKING'">
-                <!-- Row 1: Pre-Carriage & Place of Receipt -->
-                <div class="space-y-2">
-                  <label
-                    class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
-                    >PRE-CARRIAGE BY</label
-                  >
-                  <input
-                    v-model="formData.preCarriageBy"
-                    type="text"
-                    placeholder="e.g. TRUCK"
-                    class="input-field"
-                  />
-                </div>
-                <div class="space-y-2">
-                  <label
-                    class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
-                    >PLACE OF RECEIPT</label
-                  >
-                  <input
-                    v-model="formData.placeOfReceipt"
-                    type="text"
-                    placeholder="Defaults to POL if empty"
-                    class="input-field"
-                  />
-                </div>
-
-                <!-- Row 2: POL & POD -->
-                <div class="space-y-2 relative">
-                  <label
-                    class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
-                    >PORT OF LOADING (POL)</label
-                  >
-                  <div class="relative group">
-                    <MapPin
-                      class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/40 group-focus-within:text-primary transition-colors z-10 pointer-events-none"
-                    />
-                    <Combobox
-                      v-model="formData.pol"
-                      :options="portsPol"
-                      label-key="name"
-                      value-key="code"
-                      placeholder="Search port..."
-                      class="[&_button]:pl-10"
-                      :class="{
-                        '[&_button]:border-destructive [&_button]:ring-destructive/20':
-                          routeErrors.polPod,
-                      }"
-                      :filter-local="false"
-                      @search="handleSearchPol"
-                    />
-                  </div>
-                  <p
-                    v-if="routeErrors.polPod"
-                    class="text-[10px] text-destructive font-medium mt-1"
-                  >
-                    {{ routeErrors.polPod }}
-                  </p>
-                </div>
-
-                <!-- Visual connector for POL -> POD -->
-                <div
-                  class="hidden md:flex absolute left-1/2 top-[55%] -translate-x-1/2 -translate-y-1/2 z-20"
-                >
-                  <div
-                    class="w-8 h-8 rounded-full bg-white border border-border shadow-sm flex items-center justify-center text-muted-foreground/40"
-                  >
-                    <ArrowLeft class="w-3.5 h-3.5 rotate-180" />
-                  </div>
-                </div>
-
-                <div class="space-y-2 relative">
-                  <label
-                    class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
-                    >PORT OF DISCHARGE (POD)</label
-                  >
-                  <div class="relative group">
-                    <MapPin
-                      class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/40 group-focus-within:text-primary transition-colors z-10 pointer-events-none"
-                    />
-                    <Combobox
-                      v-model="formData.pod"
-                      :options="portsPod"
-                      label-key="name"
-                      value-key="code"
-                      placeholder="Search port..."
-                      class="[&_button]:pl-10"
-                      :class="{
-                        '[&_button]:border-destructive [&_button]:ring-destructive/20':
-                          routeErrors.polPod,
-                      }"
-                      :filter-local="false"
-                      @search="handleSearchPod"
-                    />
-                  </div>
-                  <p
-                    v-if="routeErrors.polPod"
-                    class="text-[10px] text-destructive font-medium mt-1"
-                  >
-                    {{ routeErrors.polPod }}
-                  </p>
-                </div>
-
-                <!-- Row 3: Place of Delivery & Final Destination -->
-                <div class="space-y-2">
-                  <label
-                    class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
-                    >PLACE OF DELIVERY</label
-                  >
-                  <input
-                    v-model="formData.placeOfDelivery"
-                    type="text"
-                    placeholder="Defaults to POD if empty"
-                    class="input-field"
-                  />
-                </div>
-                <div class="space-y-2">
-                  <label
-                    class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
-                    >FINAL DESTINATION</label
-                  >
-                  <input
-                    v-model="formData.finalDestination"
-                    type="text"
-                    placeholder="Defaults to POD if empty"
-                    class="input-field"
-                  />
-                </div>
-              </template>
-
-              <template v-else>
-                <!-- Trucking specific route: Address to Address -->
-                <div class="space-y-2 md:col-span-2">
-                  <label
-                    class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
-                    >PICKUP ADDRESS <span class="text-destructive">*</span></label
-                  >
-                  <textarea
-                    v-model="formData.pickupAddress"
-                    rows="3"
-                    placeholder="Full pickup address..."
-                    class="input-field py-3 resize-y transition-all duration-200"
-                  ></textarea>
-                </div>
-                <div class="space-y-2 md:col-span-2">
-                  <label
-                    class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
-                    >DELIVERY ADDRESS <span class="text-destructive">*</span></label
-                  >
-                  <textarea
-                    v-model="formData.deliveryAddress"
-                    rows="3"
-                    placeholder="Full delivery destination address..."
-                    class="input-field py-3 resize-y transition-all duration-200"
-                  ></textarea>
-                </div>
-              </template>
             </div>
           </SectionCard>
 
@@ -1679,267 +1663,326 @@ function addVessel() {
           </SectionCard>
 
           <!-- Movement & Schedule -->
-          <SectionCard id="movement" title="Movement & Schedule" :icon="Clock">
+          <!-- Route & Movement Schedule (Centralized Route) -->
+          <SectionCard id="movement" title="Route & Movement Schedule" :icon="Clock">
             <div class="space-y-8">
-              <template v-if="formData.serviceType !== 'TRUCKING'">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pb-6 border-b border-border/40">
-                  <!-- Cargo Movement -->
-                  <div class="space-y-2">
-                    <label
-                      class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
-                      >CARGO MOVEMENT <span class="text-destructive">*</span></label
-                    >
-                    <Combobox v-model="formData.cargoMovementId" :options="CARGO_MOVEMENTS" />
-                  </div>
-
-                  <!-- Delivery Movement -->
-                  <div class="space-y-2">
-                    <label
-                      class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
-                      >DELIVERY MOVEMENT <span class="text-destructive">*</span></label
-                    >
-                    <Combobox v-model="formData.deliveryMovementId" :options="DELIVERY_MOVEMENTS" />
-                  </div>
+              <!-- Integrated Route Details (Common for all service types) -->
+              <div
+                class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-y-8 gap-x-12 pb-8 border-b border-border/40"
+              >
+                <!-- Carrier / Shipping Line -->
+                <div class="space-y-2 lg:col-span-1">
+                  <label
+                    class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest pl-1"
+                  >
+                    {{
+                      formData.serviceType === "TRUCKING"
+                        ? "TRUCKING COMPANY (CARRIER)"
+                        : "SHIPPING LINE (CARRIER)"
+                    }}
+                  </label>
+                  <Combobox
+                    v-model="formData.vendorId"
+                    :options="companies"
+                    label-key="name"
+                    value-key="id"
+                    placeholder="Select Carrier..."
+                    allow-create
+                    @create="(name) => handleCreateCompany(name, 'vendorId')"
+                    class="h-11"
+                  />
                 </div>
 
-                <!-- Vessel Schedule (Full Width) -->
-                <div class="space-y-6">
-                  <div class="flex items-center justify-between border-b border-border/50 pb-3">
-                    <h4
-                      class="text-sm font-bold text-foreground/80 uppercase tracking-widest flex items-center gap-2"
+                <template v-if="formData.serviceType === 'TRUCKING'">
+                  <!-- Trucking specific address fields -->
+                  <div class="space-y-2 md:col-span-2 lg:col-span-2">
+                    <label
+                      class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest pl-1"
+                      >PICKUP ADDRESS <span class="text-destructive">*</span></label
                     >
-                      <div class="w-1.5 h-4 bg-[#062c58] rounded-full"></div>
-                      Vessel Schedule (Multi-Vessel)
-                    </h4>
-                    <button
-                      type="button"
-                      @click="addVessel()"
-                      class="text-[11px] bg-blue-50 text-[#062c58] px-4 py-1.5 rounded-full hover:bg-blue-100 font-bold flex items-center gap-2 transition-all shadow-sm"
-                    >
-                      <Plus class="w-3.5 h-3.5" /> ADD VESSEL
-                    </button>
+                    <textarea
+                      v-model="formData.pickupAddress"
+                      v-uppercase
+                      rows="1"
+                      placeholder="Full pickup address..."
+                      class="input-field py-3 min-h-[44px] h-11 resize-none"
+                    ></textarea>
                   </div>
-
-                  <div class="grid grid-cols-1 gap-5">
-                    <div
-                      v-for="(vessel, vIndex) in formData.vessels"
-                      :key="vessel.id"
-                      class="p-6 bg-muted/20 border border-border/40 rounded-2xl relative group/vessel transition-all hover:bg-white hover:shadow-lg hover:border-blue-200/50"
+                  <div class="space-y-2 md:col-span-3">
+                    <label
+                      class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest pl-1"
+                      >DELIVERY ADDRESS <span class="text-destructive">*</span></label
                     >
-                      <div class="grid grid-cols-1 md:grid-cols-12 gap-6 items-end">
-                        <div class="md:col-span-1 flex items-center justify-center">
-                          <div
-                            class="w-10 h-10 rounded-xl bg-[#062c58] text-white flex items-center justify-center text-sm font-black shadow-lg shadow-blue-900/10"
-                          >
-                            {{ vIndex + 1 }}
-                          </div>
+                    <textarea
+                      v-model="formData.deliveryAddress"
+                      v-uppercase
+                      rows="1"
+                      placeholder="Full delivery destination..."
+                      class="input-field py-3 min-h-[44px] h-11 resize-none"
+                    ></textarea>
+                  </div>
+                </template>
+              </div>
+
+              <!-- Cargo & Delivery Movement Types -->
+              <div
+                v-if="formData.serviceType !== 'TRUCKING'"
+                class="grid grid-cols-1 md:grid-cols-2 gap-8 pb-6 border-b border-border/40"
+              >
+                <div class="space-y-2">
+                  <label
+                    class="text-xs font-semibold text-muted-foreground tracking-wider uppercase pl-1"
+                    >CARGO MOVEMENT <span class="text-destructive">*</span></label
+                  >
+                  <Combobox v-model="formData.cargoMovementId" :options="CARGO_MOVEMENTS" />
+                </div>
+                <div class="space-y-2">
+                  <label
+                    class="text-xs font-semibold text-muted-foreground tracking-wider uppercase pl-1"
+                    >DELIVERY MOVEMENT <span class="text-destructive">*</span></label
+                  >
+                  <Combobox v-model="formData.deliveryMovementId" :options="DELIVERY_MOVEMENTS" />
+                </div>
+              </div>
+
+              <!-- Vessel Schedule (For Ocean/Air) -->
+              <div v-if="formData.serviceType !== 'TRUCKING'" class="space-y-6">
+                <div class="flex items-center justify-between border-b border-border/50 pb-3">
+                  <h4
+                    class="text-sm font-bold text-foreground/80 uppercase tracking-widest flex items-center gap-2"
+                  >
+                    <div class="w-1.5 h-4 bg-primary rounded-full"></div>
+                    {{ formData.shipmentType === "AIR" ? "Plane Schedule" : "Vessel Schedule" }}
+                  </h4>
+                  <button
+                    type="button"
+                    @click="addVessel()"
+                    class="text-[11px] bg-primary/10 text-primary px-4 py-1.5 rounded-full hover:bg-primary/20 font-bold flex items-center gap-2 transition-all"
+                  >
+                    <Plus class="w-3.5 h-3.5" /> ADD
+                    {{ formData.shipmentType === "AIR" ? "PLANE" : "VESSEL" }}
+                  </button>
+                </div>
+
+                <div class="grid grid-cols-1 gap-5">
+                  <div
+                    v-for="(vessel, vIndex) in formData.vessels"
+                    :key="vessel.id"
+                    class="p-6 bg-muted/20 border border-border/40 rounded-2xl relative group/vessel transition-all hover:bg-white hover:shadow-lg hover:border-primary/20"
+                  >
+                    <div class="grid grid-cols-1 md:grid-cols-12 gap-6 items-end">
+                      <div class="md:col-span-1 flex items-center justify-center">
+                        <div
+                          class="w-10 h-10 rounded-xl bg-primary text-white flex items-center justify-center text-sm font-black shadow-lg shadow-primary/10"
+                        >
+                          {{ vIndex + 1 }}
                         </div>
-                        <!-- Vessel Selection -->
-                        <div class="md:col-span-4 space-y-2">
+                      </div>
+                      <div class="md:col-span-4 space-y-2">
+                        <label
+                          class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1 opacity-70"
+                          >{{ getVesselLabels(vIndex).header }}</label
+                        >
+                        <Combobox
+                          v-model="vessel.vesselId"
+                          :options="vessels"
+                          label-key="name"
+                          value-key="id"
+                          placeholder="Vessel..."
+                          allow-create
+                          @create="(name) => handleCreateVessel(name, vessel)"
+                          class="h-10"
+                        />
+                      </div>
+                      <div class="md:col-span-2 space-y-2">
+                        <label
+                          class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1 opacity-70"
+                          >{{ formData.shipmentType === "AIR" ? "Plane No" : "Voyage No" }}</label
+                        >
+                        <input
+                          v-model="vessel.voyageNumber"
+                          v-uppercase
+                          type="text"
+                          class="input-field h-10"
+                          :placeholder="
+                            formData.shipmentType === 'AIR' ? 'Plane No...' : 'Voyage...'
+                          "
+                        />
+                      </div>
+                      <div class="md:col-span-2 space-y-2">
+                        <label
+                          class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1 opacity-70"
+                          >{{ getVesselLabels(vIndex).etd }}</label
+                        >
+                        <DatePicker v-model="vessel.etd" placeholder="ETD" class="h-10" />
+                      </div>
+                      <div class="md:col-span-2 space-y-2 relative">
+                        <label
+                          class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1 opacity-70"
+                          >{{ getVesselLabels(vIndex).eta }}</label
+                        >
+                        <DatePicker v-model="vessel.eta" placeholder="ETA" class="h-10" />
+                      </div>
+                      <div class="md:col-span-1" v-if="formData.vessels.length > 1">
+                        <button
+                          type="button"
+                          @click="formData.vessels.splice(vIndex, 1)"
+                          class="w-10 h-10 rounded-xl bg-white border border-destructive/10 text-destructive flex items-center justify-center hover:bg-destructive hover:text-white transition-all shadow-md"
+                        >
+                          <Trash2 class="w-4 h-4" />
+                        </button>
+                      </div>
+                      <div
+                        class="md:col-span-12 grid grid-cols-1 md:grid-cols-2 gap-6 mt-2 pt-4 border-t border-border/40"
+                      >
+                        <!-- Left Port Picker -->
+                        <div class="space-y-2">
                           <label
                             class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1 opacity-70"
                           >
-                            {{ getVesselLabels(vIndex).header }}
+                            {{ getVesselLabels(vIndex).leftPortLabel }}
                           </label>
                           <Combobox
-                            v-model="vessel.vesselId"
-                            :options="vessels"
+                            v-if="vIndex === 0"
+                            v-model="formData.pol"
+                            :options="portsPol"
                             label-key="name"
-                            value-key="id"
-                            placeholder="Search Vessel..."
-                            allow-create
-                            @create="(name) => handleCreateVessel(name, vessel)"
+                            value-key="code"
+                            placeholder="Select POL..."
                             class="h-10"
+                            :filter-local="false"
+                            @search="handleSearchPol"
+                          />
+                          <Combobox
+                            v-else
+                            v-model="formData.vessels[vIndex - 1]!.tsPortId"
+                            :options="portsPod"
+                            label-key="name"
+                            value-key="code"
+                            placeholder="Select T/S Port..."
+                            class="h-10"
+                            :filter-local="false"
+                            @search="handleSearchPod"
                           />
                         </div>
 
-                        <!-- Voyage Number -->
-                        <div class="md:col-span-2 space-y-2">
+                        <!-- Right Port Picker -->
+                        <div class="space-y-2">
                           <label
                             class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1 opacity-70"
-                            >Voyage No</label
                           >
-                          <input
-                            v-model="vessel.voyageNumber"
-                            type="text"
-                            class="input-field h-10"
-                            placeholder="Voyage..."
+                            {{ getVesselLabels(vIndex).rightPortLabel }}
+                          </label>
+                          <Combobox
+                            v-if="vIndex === formData.vessels.length - 1"
+                            v-model="formData.pod"
+                            :options="portsPod"
+                            label-key="name"
+                            value-key="code"
+                            placeholder="Select POD..."
+                            class="h-10"
+                            :filter-local="false"
+                            @search="handleSearchPod"
+                          />
+                          <Combobox
+                            v-else
+                            v-model="vessel.tsPortId"
+                            :options="portsPod"
+                            label-key="name"
+                            value-key="code"
+                            placeholder="Select Next Port..."
+                            class="h-10"
+                            :filter-local="false"
+                            @search="handleSearchPod"
                           />
                         </div>
-
-                        <!-- ETD -->
-                        <div class="md:col-span-2 space-y-2">
-                          <label
-                            class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1 opacity-70"
-                            >{{ getVesselLabels(vIndex).etd }}</label
-                          >
-                          <DatePicker
-                            v-model="vessel.etd"
-                            placeholder="Select ETD..."
-                            class="h-10 shadow-none"
-                          />
-                        </div>
-
-                        <!-- ETA -->
-                        <div class="md:col-span-2 space-y-2 relative">
-                          <label
-                            class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1 opacity-70"
-                            >{{ getVesselLabels(vIndex).eta }}</label
-                          >
-                          <DatePicker
-                            v-model="vessel.eta"
-                            placeholder="Select ETA..."
-                            class="h-10 shadow-none"
-                          />
-                          <div
-                            v-if="vIndex === 0 && getVesselLabels(vIndex).hasTransit"
-                            class="absolute -bottom-5 left-1 text-[9px] text-primary font-bold animate-pulse"
-                          >
-                            Transit detected → T/S Port
-                          </div>
-                        </div>
-
-                        <!-- Remove Button -->
                         <div
-                          class="md:col-span-1 flex justify-end pb-0.5"
-                          v-if="formData.vessels.length > 1"
+                          class="col-span-1 md:col-span-2"
+                          v-if="
+                            (vIndex === 0
+                              ? formData.pol
+                              : formData.vessels[vIndex - 1]!.tsPortId) ===
+                              (vIndex === formData.vessels.length - 1
+                                ? formData.pod
+                                : vessel.tsPortId) &&
+                            (vIndex === 0 ? formData.pol : formData.vessels[vIndex - 1]!.tsPortId)
+                          "
                         >
-                          <button
-                            type="button"
-                            @click="formData.vessels.splice(vIndex, 1)"
-                            class="w-10 h-10 rounded-xl bg-white border border-destructive/10 text-destructive flex items-center justify-center hover:bg-destructive hover:text-white transition-all shadow-md"
+                          <p
+                            class="text-[10px] text-destructive font-bold animate-pulse flex items-center gap-1 bg-destructive/5 p-2 rounded-lg border border-destructive/10"
                           >
-                            <Trash2 class="w-4 h-4" />
-                          </button>
+                            ⚠️ Left and Right port cannot be the same
+                          </p>
                         </div>
                       </div>
                     </div>
                   </div>
                 </div>
+              </div>
 
-                <!-- Shipping Line & Schedule Dates (Sejajar) -->
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-8 pt-6 border-t border-border/40">
-                  <div class="space-y-2">
-                    <label class="text-xs font-bold text-muted-foreground tracking-widest uppercase"
-                      >SHIPPING LINE</label
-                    >
-                    <Combobox
-                      v-model="formData.vendorId"
-                      :options="companies"
-                      label-key="name"
-                      value-key="id"
-                      placeholder="Select Shipping Line..."
-                      class="h-10"
-                    />
-                  </div>
-                  <div class="space-y-2">
-                    <label class="text-xs font-bold text-muted-foreground tracking-widest uppercase"
-                      >ETD</label
-                    >
-                    <DatePicker v-model="formData.etd" placeholder="Select ETD..." class="h-10" />
-                  </div>
-                  <div class="space-y-2">
-                    <label class="text-xs font-bold text-muted-foreground tracking-widest uppercase"
-                      >Final ETA</label
-                    >
-                    <DatePicker
-                      v-model="formData.eta"
-                      placeholder="Select Final ETA..."
-                      class="h-10"
-                      :class="{
-                        '[&_button]:border-destructive [&_button]:ring-destructive/20':
-                          scheduleErrors.eta,
-                      }"
-                    />
-                    <p
-                      v-if="scheduleErrors.eta"
-                      class="text-[10px] text-destructive mt-1 font-medium"
-                    >
-                      {{ scheduleErrors.eta }}
-                    </p>
-                  </div>
-                </div>
-              </template>
-
-              <!-- Trucking Timeline / Schedule -->
-              <template v-else>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-8 relative items-start">
-                  <!-- Pickup Timeline -->
-                  <div class="space-y-4">
-                    <h4
-                      class="text-sm font-bold text-foreground/80 uppercase tracking-widest flex items-center gap-2"
-                    >
-                      <div class="w-1.5 h-4 bg-primary rounded-full"></div>
-                      Pickup Timeline
-                    </h4>
-                    <div
-                      class="grid grid-cols-1 gap-4 p-5 bg-muted/20 border border-border/40 rounded-xl"
-                    >
-                      <div class="space-y-2">
-                        <label
-                          class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest pl-1"
-                          >Target Pickup Date</label
-                        >
-                        <DatePicker
-                          v-model="formData.pickupDate"
-                          placeholder="Select Date..."
-                          class="h-10 w-full"
-                        />
-                      </div>
-                      <div class="space-y-2">
-                        <label
-                          class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest pl-1"
-                          >Target Pickup Time</label
-                        >
-                        <TimePicker v-model="formData.pickupTime" />
-                      </div>
-                    </div>
-                  </div>
-
-                  <!-- Visual Connector Desktop -->
-                  <div
-                    class="hidden md:flex absolute left-1/2 top-[55%] -translate-x-1/2 -translate-y-1/2 z-20"
+              <!-- Trucking Timeline (Unified UI) -->
+              <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div class="space-y-4">
+                  <h4
+                    class="text-sm font-bold text-foreground/80 uppercase tracking-widest flex items-center gap-2"
                   >
-                    <div
-                      class="w-8 h-8 rounded-full bg-white border border-border shadow-sm flex items-center justify-center text-muted-foreground/40"
-                    >
-                      <ArrowLeft class="w-3.5 h-3.5 rotate-180" />
+                    <div class="w-1.5 h-4 bg-primary rounded-full"></div>
+                    Pickup Timeline
+                  </h4>
+                  <div
+                    class="grid grid-cols-1 gap-4 p-5 bg-muted/20 border border-border/40 rounded-xl"
+                  >
+                    <div class="space-y-2">
+                      <label
+                        class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest pl-1"
+                        >Target Pickup Date</label
+                      >
+                      <DatePicker
+                        v-model="formData.pickupDate"
+                        placeholder="Select Date..."
+                        class="h-10 w-full"
+                      />
                     </div>
-                  </div>
-
-                  <!-- Delivery Timeline -->
-                  <div class="space-y-4">
-                    <h4
-                      class="text-sm font-bold text-foreground/80 uppercase tracking-widest flex items-center gap-2"
-                    >
-                      <div class="w-1.5 h-4 bg-primary rounded-full"></div>
-                      Delivery Timeline
-                    </h4>
-                    <div
-                      class="grid grid-cols-1 gap-4 p-5 bg-muted/20 border border-border/40 rounded-xl"
-                    >
-                      <div class="space-y-2">
-                        <label
-                          class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest pl-1"
-                          >Target Delivery Date</label
-                        >
-                        <DatePicker
-                          v-model="formData.deliveryDate"
-                          placeholder="Select Date..."
-                          class="h-10 w-full"
-                        />
-                      </div>
-                      <div class="space-y-2">
-                        <label
-                          class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest pl-1"
-                          >Target Delivery Time</label
-                        >
-                        <TimePicker v-model="formData.deliveryTime" />
-                      </div>
+                    <div class="space-y-2">
+                      <label
+                        class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest pl-1"
+                        >Target Pickup Time</label
+                      >
+                      <TimePicker v-model="formData.pickupTime" />
                     </div>
                   </div>
                 </div>
-              </template>
+                <div class="space-y-4">
+                  <h4
+                    class="text-sm font-bold text-foreground/80 uppercase tracking-widest flex items-center gap-2"
+                  >
+                    <div class="w-1.5 h-4 bg-primary rounded-full"></div>
+                    Delivery Timeline
+                  </h4>
+                  <div
+                    class="grid grid-cols-1 gap-4 p-5 bg-muted/20 border border-border/40 rounded-xl"
+                  >
+                    <div class="space-y-2">
+                      <label
+                        class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest pl-1"
+                        >Target Delivery Date</label
+                      >
+                      <DatePicker
+                        v-model="formData.deliveryDate"
+                        placeholder="Select Date..."
+                        class="h-10 w-full"
+                      />
+                    </div>
+                    <div class="space-y-2">
+                      <label
+                        class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest pl-1"
+                        >Target Delivery Time</label
+                      >
+                      <TimePicker v-model="formData.deliveryTime" />
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </SectionCard>
 
