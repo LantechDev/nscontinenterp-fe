@@ -11,8 +11,8 @@ definePageMeta({
 const route = useRoute();
 const router = useRouter();
 const userId = route.params.id as string;
-const { adminUpdateUser, deleteUser } = useAuth();
-const { roles } = useRoles();
+const { adminUpdateUser, deleteUser, fetchUserById } = useAuth();
+const { roles, fetchRoles } = useRoles();
 const isLoading = ref(false);
 
 interface UserResponseData {
@@ -42,11 +42,16 @@ const {
 }>(
   `user-edit-${userId}`,
   async () => {
-    const [rolesResponse, userResponse] = await Promise.all([
-      $fetch<Role[]>("/api/admin/roles"),
-      $fetch<UserResponseData>(`/api/auth/users/${userId}`),
-    ]);
-    return { roles: rolesResponse, user: userResponse };
+    const [rolesResponse, userResponse] = await Promise.all([fetchRoles(), fetchUserById(userId)]);
+
+    if (!userResponse.success || !userResponse.data) {
+      throw new Error(userResponse.error || "Gagal mengambil data user");
+    }
+
+    return {
+      roles: rolesResponse.data || [],
+      user: userResponse as UserResponseData,
+    };
   },
   { server: false },
 );

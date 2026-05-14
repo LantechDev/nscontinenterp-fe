@@ -5,20 +5,21 @@ import { useFinanceTax, type Tax } from "~/composables/useFinanceTax";
 import { useCompanies } from "~/composables/useCompanies";
 import { useServices } from "~/composables/useServices";
 import { useJobs } from "~/composables/useJobs";
-import SearchSelect from "~/components/ui/SearchSelect.vue";
+import SearchSelect, { type SearchSelectOption } from "~/components/ui/SearchSelect.vue";
+import Combobox from "~/components/ui/Combobox.vue";
+import CompanyCreateModal from "~/pages/master/company/components/CompanyCreateModal.vue";
 import DatePicker from "~/components/ui/DatePicker.vue";
 import { toast } from "vue-sonner";
 import { z } from "zod";
+import type { Company } from "~/composables/useMasterData";
 
 const vendorInvoiceSchema = z.object({
   vendorId: z.string().min(1, "Please select a vendor"),
-  description: z.string().min(1, "Description is required"),
   amount: z.number().gt(0, "Total amount must be greater than 0"),
   currency: z.enum(["IDR", "USD"]),
   exchangeRate: z.number().gt(0, "Exchange rate must be greater than 0"),
   items: z.array(
     z.object({
-      description: z.string().min(1, "Item description is required"),
       quantity: z.number().gt(0, "Quantity must be greater than 0"),
       unitPrice: z.number().gt(0, "Unit price must be greater than 0"),
     }),
@@ -34,9 +35,18 @@ const emit = defineEmits(["success", "cancel"]);
 
 const { createExpense, updateExpense, isLoading } = useFinanceExpense();
 const { fetchTaxes } = useFinanceTax();
-const { fetchCompanies } = useCompanies();
+const { fetchCompanies, createCompany } = useCompanies();
 const { fetchServices, fetchCategories } = useServices();
 const { getJob } = useJobs();
+
+const taxList = ref<Tax[]>([]);
+const taxOptions = ref<Array<{ id: string; name: string }>>([]);
+const categoryOptions = ref<Array<{ id: string; name: string }>>([]);
+const vendorOptions = ref<Array<{ id: string; name: string }>>([]);
+
+// Company Modal State
+const isCompanyModalOpen = ref(false);
+const presetCompanyName = ref("");
 
 const form = ref({
   number: "",
@@ -64,10 +74,26 @@ const subtotal = computed(() => {
   return form.value.items.reduce((sum, item) => sum + item.amount, 0);
 });
 
-// Watch subtotal to update main amount
-watch(subtotal, (newSubtotal) => {
+// Watch subtotal and tax to update main amount
+const selectedTax = computed(() => {
+  return taxList.value.find((t) => t.id === form.value.taxId);
+});
+
+const taxAmount = computed(() => {
+  const rate = selectedTax.value ? Number(selectedTax.value.rate) : 0;
+  return (subtotal.value * rate) / 100;
+});
+
+const totalAmount = computed(() => {
   if (isBreakdownMode.value) {
-    form.value.amount = newSubtotal;
+    return subtotal.value + taxAmount.value;
+  }
+  return form.value.amount;
+});
+
+watch([subtotal, taxAmount], ([newSubtotal, newTaxAmount]) => {
+  if (isBreakdownMode.value) {
+    form.value.amount = newSubtotal + newTaxAmount;
   }
 });
 
@@ -84,29 +110,28 @@ const removeItem = (index: number) => {
   form.value.items.splice(index, 1);
 };
 
-const updateItemAmount = (index: number) => {
-  const item = form.value.items[index];
-  if (item) {
-    item.amount = (item.quantity || 0) * (item.unitPrice || 0);
-  }
-};
-
-const taxOptions = ref<Array<{ id: string; name: string }>>([]);
-const categoryOptions = ref<Array<{ id: string; name: string }>>([]);
-const vendorOptions = ref<Array<{ id: string; name: string }>>([]);
-
 onMounted(async () => {
   // Load initial data
-  const [taxesResp, servicesResp, categoriesResp] = await Promise.all([
+  const [taxesResp, servicesResp, categoriesResp, vendorsResp] = await Promise.all([
     fetchTaxes({ isActive: true, limit: 100 }),
     fetchServices(),
     fetchCategories(),
+    fetchCompanies({ type: "VENDOR", limit: 500 }),
   ]);
 
-  taxOptions.value = (taxesResp?.items || []).map((t: Tax) => ({
-    id: t.id,
-    name: `${t.name} (${t.rate}%)`,
+  vendorOptions.value = (vendorsResp?.data || []).map((v) => ({
+    id: v.id,
+    name: v.name,
   }));
+
+  taxList.value = taxesResp?.items || [];
+  taxOptions.value = [
+    { id: "", name: "Non PPN (None)" },
+    ...taxList.value.map((t: Tax) => ({
+      id: t.id,
+      name: `${t.name} (${t.rate}%)`,
+    })),
+  ];
 
   categoryOptions.value = (categoriesResp?.data || []).map((c) => ({
     id: c.id,
@@ -164,20 +189,60 @@ onMounted(async () => {
   }
 });
 
-const parseInputCurrency = (val: string) => {
+const formatCurrency = (amount: number) => {
+  return new Intl.NumberFormat(form.value.currency === "IDR" ? "id-ID" : "en-US", {
+    style: "currency",
+    currency: form.value.currency,
+    minimumFractionDigits: form.value.currency === "IDR" ? 0 : 2,
+    maximumFractionDigits: form.value.currency === "IDR" ? 0 : 2,
+  }).format(amount);
+};
+
+const updateItemAmount = (index: number) => {
+  const item = form.value.items[index];
+  if (item) {
+    const rawAmount = (item.quantity || 0) * (item.unitPrice || 0);
+    item.amount = form.value.currency === "IDR" ? Math.round(rawAmount) : rawAmount;
+  }
+};
+
+const parseInputCurrency = (val: string, currency: string = form.value.currency) => {
   if (!val) return 0;
-  // Remove all non-numeric characters except for the first minus sign if present
-  const cleaned = val.replace(/\./g, "").replace(/[^0-9-]/g, "");
-  const numeric = parseInt(cleaned, 10);
+
+  if (currency === "IDR") {
+    // For IDR, dots are thousands separators. Strip all non-numeric except minus.
+    const numeric = Number(val.replace(/[^0-9-]/g, ""));
+    return isNaN(numeric) ? 0 : numeric;
+  }
+
+  let normalized = val;
+  if (currency === "USD") {
+    const hasComma = val.includes(",");
+    const hasDot = val.includes(".");
+
+    if (hasComma && !hasDot) {
+      normalized = val.replace(",", ".");
+    } else if (hasComma && hasDot) {
+      if (val.lastIndexOf(",") > val.lastIndexOf(".")) {
+        normalized = val.replace(/\./g, "").replace(",", ".");
+      } else {
+        normalized = val.replace(/,/g, "");
+      }
+    }
+  }
+
+  const numeric = Number(normalized.replace(/[^0-9.-]+/g, ""));
   return isNaN(numeric) ? 0 : numeric;
 };
 
-const formatInputCurrency = (val: number | string) => {
+const formatInputCurrency = (val: number | string, currency: string = form.value.currency) => {
   if (val === undefined || val === null || val === "") return "";
-  const numericVal = typeof val === "string" ? parseInputCurrency(val) : val;
-  if (numericVal === 0) return "0";
-  return new Intl.NumberFormat("id-ID", {
-    maximumFractionDigits: 0,
+  const numericVal = typeof val === "string" ? parseInputCurrency(val, currency) : val;
+  if (isNaN(numericVal)) return "";
+
+  return new Intl.NumberFormat(currency === "IDR" ? "id-ID" : "en-US", {
+    maximumFractionDigits: currency === "IDR" ? 0 : 2,
+    minimumFractionDigits: 0,
   }).format(numericVal);
 };
 
@@ -211,14 +276,23 @@ async function handleSubmit() {
     toast.error("Failed to save: " + (error as Error).message);
   }
 }
-import type { SearchSelectOption } from "~/components/ui/SearchSelect.vue";
-async function fetchVendorOptions({ query }: { query: string }) {
-  const result = await fetchCompanies({ type: "VENDOR", search: query, limit: 50 });
-  const data: SearchSelectOption[] = (result.data || []).map((c) => ({
-    id: c.id,
-    name: c.name,
+
+async function handleCreateVendor(name: string) {
+  presetCompanyName.value = name;
+  isCompanyModalOpen.value = true;
+}
+
+async function onCompanyCreated(company: Company) {
+  // Refresh vendor list
+  const result = await fetchCompanies({ type: "VENDOR", limit: 500 });
+  vendorOptions.value = (result.data || []).map((v) => ({
+    id: v.id,
+    name: v.name,
   }));
-  return { success: true, data };
+
+  // Select the newly created company
+  form.value.vendorId = company.id;
+  isCompanyModalOpen.value = false;
 }
 </script>
 
@@ -254,19 +328,6 @@ async function fetchVendorOptions({ query }: { query: string }) {
             <DatePicker v-model="form.date" required placeholder="Select date..." />
           </div>
         </div>
-
-        <div class="space-y-1.5">
-          <label class="text-[10px] font-black text-muted-foreground uppercase tracking-widest"
-            >Description</label
-          >
-          <input
-            v-model="form.description"
-            type="text"
-            required
-            class="w-full px-4 py-2.5 text-sm border border-border rounded-xl focus:ring-2 focus:ring-[#012D5A]/10 focus:border-[#012D5A] outline-none transition-all bg-gray-50/30"
-            placeholder="e.g. Trucking Charges, THC, etc."
-          />
-        </div>
       </div>
 
       <!-- Section: Entity & Category -->
@@ -275,11 +336,14 @@ async function fetchVendorOptions({ query }: { query: string }) {
           <label class="text-[10px] font-black text-muted-foreground uppercase tracking-widest"
             >Vendor</label
           >
-          <SearchSelect
+          <Combobox
             v-model="form.vendorId"
-            :fetch-options="fetchVendorOptions"
-            :initial-options="vendorOptions"
+            :options="vendorOptions"
+            label-key="name"
+            value-key="id"
             placeholder="Select Vendor"
+            allow-create
+            @create="handleCreateVendor"
             class="w-full"
           />
         </div>
@@ -349,10 +413,13 @@ async function fetchVendorOptions({ query }: { query: string }) {
             <div class="relative group/rate">
               <input
                 type="text"
-                :value="formatInputCurrency(form.exchangeRate)"
+                :value="formatInputCurrency(form.exchangeRate, 'IDR')"
                 @input="
                   (e) =>
-                    (form.exchangeRate = parseInputCurrency((e.target as HTMLInputElement).value))
+                    (form.exchangeRate = parseInputCurrency(
+                      (e.target as HTMLInputElement).value,
+                      'IDR',
+                    ))
                 "
                 class="w-32 px-3 py-1.5 text-xs font-black text-[#012D5A] border border-[#012D5A]/15 rounded-lg focus:ring-4 focus:ring-[#012D5A]/5 focus:border-[#012D5A] outline-none transition-all bg-white"
                 placeholder="16,000"
@@ -543,13 +610,23 @@ async function fetchVendorOptions({ query }: { query: string }) {
                   >
                 </div>
                 <span class="font-bold text-foreground text-base tabular-nums">
-                  {{
-                    new Intl.NumberFormat(form.currency === "IDR" ? "id-ID" : "en-US", {
-                      style: "currency",
-                      currency: form.currency,
-                      minimumFractionDigits: form.currency === "IDR" ? 0 : 2,
-                    }).format(subtotal)
-                  }}
+                  {{ formatCurrency(subtotal) }}
+                </span>
+              </div>
+
+              <!-- Tax Line -->
+              <div
+                v-if="isBreakdownMode && taxAmount > 0"
+                class="flex justify-between items-center px-1"
+              >
+                <div class="flex flex-col">
+                  <span
+                    class="text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em]"
+                    >Tax ({{ selectedTax?.name }})</span
+                  >
+                </div>
+                <span class="font-bold text-foreground text-base tabular-nums">
+                  {{ formatCurrency(taxAmount) }}
                 </span>
               </div>
 
@@ -599,6 +676,7 @@ async function fetchVendorOptions({ query }: { query: string }) {
                             {{
                               new Intl.NumberFormat(form.currency === "IDR" ? "id-ID" : "en-US", {
                                 minimumFractionDigits: form.currency === "IDR" ? 0 : 2,
+                                maximumFractionDigits: form.currency === "IDR" ? 0 : 2,
                               }).format(form.amount)
                             }}
                           </span>
@@ -627,17 +705,12 @@ async function fetchVendorOptions({ query }: { query: string }) {
                           >
                           <input
                             type="text"
-                            :value="
-                              form.currency === 'IDR'
-                                ? formatInputCurrency(form.amount)
-                                : form.amount
-                            "
+                            :value="formatInputCurrency(form.amount)"
                             @input="
                               (e) =>
-                                (form.amount =
-                                  form.currency === 'IDR'
-                                    ? parseInputCurrency((e.target as HTMLInputElement).value)
-                                    : Number((e.target as HTMLInputElement).value))
+                                (form.amount = parseInputCurrency(
+                                  (e.target as HTMLInputElement).value,
+                                ))
                             "
                             class="w-full pl-14 pr-4 py-3 bg-white border border-[#012D5A]/15 rounded-xl text-xl text-right font-black text-[#012D5A] focus:ring-4 focus:ring-[#012D5A]/5 focus:border-[#012D5A] outline-none transition-all shadow-sm"
                             placeholder="0"
@@ -694,5 +767,12 @@ async function fetchVendorOptions({ query }: { query: string }) {
         </button>
       </div>
     </form>
+    <!-- Company Creation Modal -->
+    <CompanyCreateModal
+      v-model="isCompanyModalOpen"
+      :preset-name="presetCompanyName"
+      preset-type="VENDOR"
+      @success="onCompanyCreated"
+    />
   </div>
 </template>

@@ -74,6 +74,12 @@ export interface InvoiceDetail extends Invoice {
     quantity: number;
     unitPrice: number;
     amount: number;
+    taxId?: string;
+    tax?: {
+      id: string;
+      name: string;
+      rate: number;
+    };
     service?: {
       id: string;
       name: string;
@@ -153,6 +159,18 @@ function getErrorMessage(error: unknown): string {
   return "An error occurred";
 }
 
+async function getNextInvoiceNumber(jobId: string): Promise<string> {
+  try {
+    const data = await $fetch<{ nextNumber: string }>(`/api/finance/invoice/next-number`, {
+      query: { jobId },
+    });
+    return data.nextNumber;
+  } catch (error) {
+    console.error("[Invoices] Failed to get next number:", error);
+    return `INV-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+  }
+}
+
 export function useInvoices() {
   const isLoading = ref(false);
 
@@ -221,6 +239,7 @@ export function useInvoices() {
     balanceDue: number;
     items: Array<{
       serviceId?: string;
+      taxId?: string;
       description: string;
       quantity: number;
       unitPrice: number;
@@ -265,6 +284,7 @@ export function useInvoices() {
       items: Array<{
         id?: string;
         serviceId?: string;
+        taxId?: string;
         description: string;
         quantity: number;
         unitPrice: number;
@@ -311,5 +331,6 @@ export function useInvoices() {
     updateInvoice,
     deleteInvoice,
     voidInvoice,
+    getNextInvoiceNumber,
   };
 }

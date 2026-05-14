@@ -108,6 +108,18 @@ export function useRoles() {
     }
   }
 
+  async function getRoleById(id: string): Promise<AuthResponse<Role>> {
+    isLoading.value = true;
+    try {
+      const data = await $fetch<Role>(`/api/admin/roles/${id}`);
+      return { success: true, data };
+    } catch (error) {
+      return handleApiError<Role>(error);
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
   return {
     roles,
     isLoading,
@@ -115,5 +127,6 @@ export function useRoles() {
     createRole,
     updateRole,
     deleteRole,
+    getRoleById,
   };
 }

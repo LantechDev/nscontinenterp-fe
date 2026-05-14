@@ -27,14 +27,15 @@ definePageMeta({
 const route = useRoute();
 const userId = route.params.id as string;
 
+const { fetchUserById } = useAuth();
 const { data: rawUser, error: fetchError } = await useAsyncData<DisplayUser>(
   `user-${userId}`,
   async () => {
-    const response = await $fetch<UserResponse>(`/api/auth/users/${userId}`);
-    if (!response.success || !response.data?.user) {
-      throw new Error(response.error || "Failed to fetch user");
+    const result = await fetchUserById(userId);
+    if (!result.success || !result.data?.user) {
+      throw new Error(result.error || "Failed to fetch user");
     }
-    const u = response.data.user;
+    const u = result.data.user;
     return {
       id: u.id,
       name: u.name,

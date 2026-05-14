@@ -70,7 +70,11 @@ const formatDate = (dateString?: string | null) => {
   }
 };
 
-const getStatusName = computed(() => bl.value?.status?.name || "Draft");
+const getStatusName = computed(() => {
+  const status = bl.value?.status;
+  if (typeof status === "object" && status !== null) return status.name;
+  return status || "Draft";
+});
 const getContainerNumber = computed(() => bl.value?.containerNumber || "MSKU9081234");
 const getSealNumber = computed(() => bl.value?.sealNumber || "ML-882211");
 const getGrossWeight = computed(() => bl.value?.grossWeight || "18,500");

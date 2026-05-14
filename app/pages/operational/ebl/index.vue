@@ -9,6 +9,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Briefcase,
+  ArrowRight,
+  MapPin,
 } from "lucide-vue-next";
 import { cn } from "~/lib/utils";
 
@@ -304,10 +306,20 @@ const groupedEbls = computed(() => {
                   <span class="text-sm font-medium text-foreground">{{ getShipperName(ebl) }}</span>
                 </td>
                 <td class="py-3.5 px-4">
-                  <div class="flex items-center gap-1.5 text-sm text-muted-foreground">
-                    <span class="font-bold text-foreground">{{ ebl.polName || "-" }}</span>
-                    <span class="opacity-50">→</span>
-                    <span class="font-bold text-foreground">{{ ebl.podName || "-" }}</span>
+                  <div class="flex flex-col max-w-[200px]">
+                    <div class="flex items-center gap-2 text-sm">
+                      <span
+                        class="text-foreground truncate font-medium"
+                        :title="ebl.polName || ''"
+                        >{{ ebl.polName || "-" }}</span
+                      >
+                    </div>
+                    <div class="flex items-center gap-2 text-xs text-muted-foreground">
+                      <ArrowRight class="w-3 h-3" />
+                      <span class="truncate" :title="ebl.podName || ''">{{
+                        ebl.podName || "-"
+                      }}</span>
+                    </div>
                   </div>
                 </td>
                 <td class="py-3.5 px-4">
@@ -395,18 +407,14 @@ const groupedEbls = computed(() => {
             <p class="text-sm font-semibold text-foreground truncate">{{ getShipperName(ebl) }}</p>
           </div>
 
-          <div class="grid grid-cols-2 gap-4">
-            <div class="space-y-1">
-              <p class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-                POL
-              </p>
-              <p class="text-xs font-bold text-foreground truncate">{{ ebl.polName || "-" }}</p>
+          <div class="space-y-1 pt-1">
+            <div class="flex items-center gap-2 text-sm">
+              <MapPin class="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+              <span class="font-bold text-[#012D5A] truncate">{{ ebl.polName || "-" }}</span>
             </div>
-            <div class="space-y-1 border-l border-border pl-4">
-              <p class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-                POD
-              </p>
-              <p class="text-xs font-bold text-foreground truncate">{{ ebl.podName || "-" }}</p>
+            <div class="flex items-center gap-2 text-xs pl-5 text-muted-foreground">
+              <ArrowRight class="w-3 h-3 shrink-0" />
+              <span class="truncate">{{ ebl.podName || "-" }}</span>
             </div>
           </div>
         </div>

@@ -57,16 +57,23 @@ const tabs = [
   { id: "document", label: "Upload Document" },
 ];
 
-const { fetchVessels, createVessel } = useMasterData();
+const { fetchVessels, createVessel, fetchPorts } = useMasterData();
+const masterPorts = ref<Port[]>([]);
+const refreshPorts = async (query?: string) => {
+  masterPorts.value = await fetchPorts(query);
+};
 const { confirm } = useConfirm();
 
 const isEditingVessels = ref(false);
 const editableVessels = ref<EblVessel[]>([]);
 const activeVesselObj = ref<EblVessel | null>(null);
 const masterVessels = ref<Vessel[]>([]);
+const editablePol = ref("");
+const editablePod = ref("");
 
 const refreshMasterData = async () => {
   masterVessels.value = await fetchVessels();
+  masterPorts.value = await fetchPorts();
 };
 
 // Vessel Modal State
@@ -93,6 +100,8 @@ const onVesselCreateSuccess = async (vessel: { id: string; name: string }) => {
 
 const startEditVessels = () => {
   editableVessels.value = JSON.parse(JSON.stringify(job.value?.vessels || []));
+  editablePol.value = job.value?.pol || "";
+  editablePod.value = job.value?.pod || "";
   isEditingVessels.value = true;
 };
 
@@ -101,9 +110,12 @@ const cancelEditVessels = () => {
 };
 
 const addVessel = () => {
+  const lastVessel = editableVessels.value[editableVessels.value.length - 1];
   editableVessels.value.push({
+    vesselId: "",
     vesselName: "",
     voyageNumber: "",
+    tsPortId: lastVessel?.tsPortId || "", // Auto carry
     etd: new Date().toISOString().split("T")[0],
     eta: "",
     sequence: editableVessels.value.length + 1,
@@ -117,7 +129,11 @@ const removeVessel = (idx: number) => {
 
 const saveVessels = async () => {
   if (!props.jobId) return;
-  const res = await updateJob(props.jobId, { vessels: editableVessels.value });
+  const res = await updateJob(props.jobId, {
+    vessels: editableVessels.value,
+    pol: editablePol.value,
+    pod: editablePod.value,
+  });
   if (res.success) {
     isEditingVessels.value = false;
     await getJob(props.jobId);
@@ -128,16 +144,44 @@ const job = computed(() => currentJob.value);
 const isCompleting = ref(false);
 const isCancelingComplete = ref(false);
 const isCompleted = computed(() => {
-  const code = (job.value?.status?.code || "").trim().toUpperCase();
+  const status = job.value?.status;
+  if (!status) return false;
+  const code = (typeof status === "string" ? status : status.code || "").trim().toUpperCase();
   return ["COMPLETED", "CLOSED", "DONE"].includes(code);
 });
 
 const hasUnfinalizedEbl = computed(() => {
   if (!job.value?.billsOfLading?.length) return false;
   return job.value.billsOfLading.some((bl) => {
-    const code = bl.status?.code?.toLowerCase() || "";
-    if (code === "confirmed") return false;
-    if (code === "finalized") return false;
+    const s = bl.status;
+    if (!s) return true;
+
+    let code = "";
+    if (typeof s === "string") {
+      code = s.toLowerCase();
+    } else {
+      code = s.code?.toLowerCase() || "";
+    }
+
+    if (code === "confirmed" || code === "finalized") return false;
+    return true;
+  });
+});
+
+const hasUnpaidInvoice = computed(() => {
+  if (!job.value?.invoices?.length) return false;
+  return job.value.invoices.some((inv) => {
+    const s = inv.status;
+    if (!s) return true;
+
+    let code = "";
+    if (typeof s === "string") {
+      code = s.toUpperCase();
+    } else {
+      code = s.code?.toUpperCase() || "";
+    }
+
+    if (code === "PAID" || code === "VOID") return false;
     return true;
   });
 });
@@ -218,10 +262,8 @@ const getPartyAddress = (roleCode: string) => {
     return party.addressBook.fullAddress;
   }
 
-  if (roleCode === "SHIPPER")
-    return "No. 88 Jinxiu Road, Pudong new District\nShanghai China 200120";
-  if (roleCode === "CONSIGNEE")
-    return "No. 88 Jinxiu Road, Pudong new District\nLos Angeles US 200120";
+  if (roleCode === "SHIPPER") return "";
+  if (roleCode === "CONSIGNEE") return "";
 
   return "-";
 };
@@ -238,18 +280,32 @@ const toggleItem = (itemId: string | number) => {
 
 const handleCompleteJob = async () => {
   if (!job.value?.id) return;
-  if (hasUnfinalizedEbl.value) {
-    toast.error("Tidak bisa complete job. Masih ada eBL yang belum final.");
-    return;
-  }
 
-  const confirmed = await confirm({
-    title: "Complete Job",
-    message: `Apakah Anda yakin ingin menyelesaikan job ${job.value.jobNumber}?`,
-    confirmText: "Complete",
-    type: "info",
-  });
-  if (!confirmed) return;
+  // Instead of blocking, we let the user click and show warning if needed
+  if (hasUnfinalizedEbl.value || hasUnpaidInvoice.value) {
+    const warningMsg =
+      hasUnfinalizedEbl.value && hasUnpaidInvoice.value
+        ? "Ada eBL yang belum final dan Invoice yang belum lunas."
+        : hasUnfinalizedEbl.value
+          ? "Masih ada eBL yang belum final."
+          : "Masih ada Invoice yang belum lunas.";
+
+    const proceed = await confirm({
+      title: "Peringatan Syarat Belum Lengkap",
+      message: `${warningMsg} Apakah Anda yakin ingin mencoba menyelesaikan job ini anyway? (Backend tetap akan memvalidasi)`,
+      confirmText: "Coba Selesaikan",
+      type: "warning",
+    });
+    if (!proceed) return;
+  } else {
+    const confirmed = await confirm({
+      title: "Complete Job",
+      message: `Apakah Anda yakin ingin menyelesaikan job ${job.value.jobNumber}?`,
+      confirmText: "Complete",
+      type: "info",
+    });
+    if (!confirmed) return;
+  }
 
   isCompleting.value = true;
   const result = await completeJob(job.value.id);
@@ -282,17 +338,24 @@ const handleCancelCompleteJob = async () => {
 };
 
 function getVesselLabels(index: number, list: (EblVessel | JobVessel)[]) {
-  const isFeeder = index === 0;
+  const isFirst = index === 0;
   const isLast = index === list.length - 1;
-  const hasTransit = list.length > 1;
+  const isIntermediate = !isFirst && !isLast;
 
   return {
-    header: isFeeder ? "Feeder Vessel" : `Mother Vessel ${index}`,
-    etd: isFeeder ? "ETD POL" : "ETD T/S PORT",
-    eta: isLast ? "ETA POD" : "ETA T/S PORT",
-    isFeeder,
+    header: isFirst
+      ? "Feeder Vessel"
+      : isLast
+        ? `Mother Vessel ${index} (Last)`
+        : `Mother Vessel ${index + 1}`,
+    etd: isFirst ? "ETD POL" : "ETD T/S PORT",
+    eta: isLast ? "ETA POD" : "ETA NEXT PORT",
+    leftPortLabel: isFirst ? "POL Name" : "T/S Port Name",
+    rightPortLabel: isLast ? "POD Name" : "Next Port Name",
+    isFirst,
     isLast,
-    hasTransit,
+    isIntermediate,
+    hasTransit: list.length > 1,
   };
 }
 
@@ -331,8 +394,13 @@ watch(
             <div class="flex items-center gap-2">
               <button
                 @click="isCompleted ? handleCancelCompleteJob() : handleCompleteJob()"
-                :disabled="
-                  isCompleting || isCancelingComplete || (!isCompleted && hasUnfinalizedEbl)
+                :disabled="isCompleting || isCancelingComplete || !canApproveJobs"
+                :title="
+                  !canApproveJobs
+                    ? 'Anda tidak memiliki akses untuk menutup job'
+                    : hasUnfinalizedEbl || hasUnpaidInvoice
+                      ? 'Syarat eBL atau Invoice mungkin belum lengkap'
+                      : ''
                 "
                 :class="
                   cn(
@@ -340,13 +408,14 @@ watch(
                     isCompleted
                       ? 'border border-red-200 text-red-600 hover:bg-red-50'
                       : 'bg-[#012D5A] text-white hover:bg-[#012D5A]/90',
+                    !canApproveJobs && 'opacity-50 cursor-not-allowed',
                   )
                 "
               >
                 <Loader2 v-if="isCompleting || isCancelingComplete" class="w-4 h-4 animate-spin" />
                 <Check v-else-if="!isCompleted" class="w-4 h-4" />
                 <X v-else class="w-4 h-4" />
-                <span>{{ isCompleted ? "Batalkan Complete" : "Complete Job" }}</span>
+                <span>{{ isCompleted ? "Batalkan Close Job" : "Close Job" }}</span>
               </button>
               <button
                 @click="$emit('update:modelValue', false)"
@@ -414,13 +483,13 @@ watch(
 
               <!-- Tabs -->
               <div
-                class="px-8 mt-6 pt-4 border-b border-border flex gap-6 sticky top-0 bg-white z-10"
+                class="px-8 mt-6 pt-4 border-b border-border flex gap-8 sticky top-0 bg-white z-10"
               >
                 <button
                   v-for="tab in tabs"
                   :key="tab.id"
                   @click="activeTab = tab.id"
-                  class="pb-3 text-sm font-medium transition-colors relative"
+                  class="pb-3 text-base font-bold transition-colors relative tracking-tight"
                   :class="
                     activeTab === tab.id
                       ? 'text-[#012D5A]'
@@ -517,7 +586,7 @@ watch(
                                 @click="addVessel"
                                 class="flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors text-[10px] font-bold uppercase tracking-wider"
                               >
-                                <Plus class="w-3 h-3" /> Add
+                                <Plus class="w-3 h-3" /> ADD VESSEL
                               </button>
                               <button
                                 @click="saveVessels"
@@ -539,7 +608,7 @@ watch(
                           <!-- View Mode -->
                           <div v-if="!isEditingVessels" class="space-y-3">
                             <div
-                              v-for="(vessel, idx) in job.vessels"
+                              v-for="(vessel, idx) in job.vessels || []"
                               :key="idx"
                               class="flex items-center justify-between group"
                             >
@@ -564,6 +633,42 @@ watch(
                                     <p class="text-[11px] text-muted-foreground">
                                       Voyage: {{ vessel.voyageNumber || "-" }}
                                     </p>
+                                    <span
+                                      class="text-[10px] px-1.5 py-0.5 bg-emerald-50 rounded font-bold text-emerald-600 uppercase tracking-tighter"
+                                      :title="
+                                        vessel.polName ||
+                                        (idx === 0
+                                          ? job.pol
+                                          : job.vessels?.[idx - 1]?.tsPortId || '-') ||
+                                        undefined
+                                      "
+                                    >
+                                      {{ idx === 0 ? "POL" : "T/S" }}:
+                                      {{
+                                        vessel.polName ||
+                                        (idx === 0
+                                          ? job.pol
+                                          : job.vessels?.[idx - 1]?.tsPortId || "-")
+                                      }}
+                                    </span>
+                                    <span
+                                      class="text-[10px] px-1.5 py-0.5 bg-blue-50 rounded font-bold text-blue-600 uppercase tracking-tighter"
+                                      :title="
+                                        vessel.podName ||
+                                        (idx === (job.vessels?.length || 0) - 1
+                                          ? job.pod
+                                          : vessel.tsPortId || '-') ||
+                                        undefined
+                                      "
+                                    >
+                                      {{ idx === (job.vessels?.length || 0) - 1 ? "POD" : "T/S" }}:
+                                      {{
+                                        vessel.podName ||
+                                        (idx === (job.vessels?.length || 0) - 1
+                                          ? job.pod
+                                          : vessel.tsPortId || "-")
+                                      }}
+                                    </span>
                                   </div>
                                 </div>
                               </div>
@@ -666,12 +771,89 @@ watch(
                                     />
                                   </div>
                                   <div
-                                    v-if="
-                                      idx === 0 && getVesselLabels(idx, editableVessels).hasTransit
-                                    "
-                                    class="col-span-2 text-[9px] text-primary font-bold animate-pulse mt-[-4px]"
+                                    class="col-span-2 grid grid-cols-2 gap-3 mt-1 pt-3 border-t border-border/40"
                                   >
-                                    Transit detected → T/S Port
+                                    <!-- Left Port Picker -->
+                                    <div>
+                                      <label
+                                        class="text-[9px] font-bold text-muted-foreground uppercase mb-1 block"
+                                      >
+                                        {{ getVesselLabels(idx, editableVessels).leftPortLabel }}
+                                      </label>
+                                      <Combobox
+                                        v-if="idx === 0"
+                                        v-model="editablePol"
+                                        :options="masterPorts"
+                                        label-key="name"
+                                        value-key="code"
+                                        placeholder="Search POL..."
+                                        class="h-8"
+                                        :filter-local="false"
+                                        @search="refreshPorts"
+                                      />
+                                      <Combobox
+                                        v-else
+                                        v-model="editableVessels[idx - 1]!.tsPortId"
+                                        :options="masterPorts"
+                                        label-key="name"
+                                        value-key="code"
+                                        placeholder="Search T/S Port..."
+                                        class="h-8"
+                                        :filter-local="false"
+                                        @search="refreshPorts"
+                                      />
+                                    </div>
+
+                                    <!-- Right Port Picker -->
+                                    <div>
+                                      <label
+                                        class="text-[9px] font-bold text-muted-foreground uppercase mb-1 block"
+                                      >
+                                        {{ getVesselLabels(idx, editableVessels).rightPortLabel }}
+                                      </label>
+                                      <Combobox
+                                        v-if="idx === editableVessels.length - 1"
+                                        v-model="editablePod"
+                                        :options="masterPorts"
+                                        label-key="name"
+                                        value-key="code"
+                                        placeholder="Search POD..."
+                                        class="h-8"
+                                        :filter-local="false"
+                                        @search="refreshPorts"
+                                      />
+                                      <Combobox
+                                        v-else
+                                        v-model="vessel.tsPortId"
+                                        :options="masterPorts"
+                                        label-key="name"
+                                        value-key="code"
+                                        placeholder="Search Next Port..."
+                                        class="h-8"
+                                        :filter-local="false"
+                                        @search="refreshPorts"
+                                      />
+                                    </div>
+                                    <div
+                                      class="col-span-2"
+                                      v-if="
+                                        (idx === 0
+                                          ? editablePol
+                                          : editableVessels[idx - 1]?.tsPortId) ===
+                                          (idx === editableVessels.length - 1
+                                            ? editablePod
+                                            : vessel.tsPortId) &&
+                                        (idx === 0
+                                          ? editablePol
+                                          : editableVessels[idx - 1]?.tsPortId)
+                                      "
+                                    >
+                                      <p
+                                        class="text-[9px] text-destructive font-bold animate-pulse flex items-center gap-1 bg-destructive/5 p-1.5 rounded border border-destructive/10"
+                                      >
+                                        ⚠️ Left and Right port cannot be the same
+                                      </p>
+                                    </div>
                                   </div>
                                 </div>
                               </div>
@@ -985,8 +1167,10 @@ watch(
                     <h3 class="text-base font-bold mb-4 border-b pb-2">Cargo Information</h3>
                     <div class="grid grid-cols-1 gap-6 text-sm">
                       <div>
-                        <p class="text-muted-foreground">Commodity</p>
-                        <p class="font-medium">{{ job.commodity || "-" }}</p>
+                        <p class="text-muted-foreground">Main Description</p>
+                        <p class="font-medium whitespace-pre-wrap">
+                          {{ job.mainDescription || "-" }}
+                        </p>
                       </div>
                       <div>
                         <p class="text-muted-foreground">Shipping Mark</p>

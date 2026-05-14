@@ -191,9 +191,17 @@ export function useAuth() {
   }
 
   const isLoggedIn = computed(() => !!user.value);
-  const isOwner = computed(() => user.value?.role === "owner" || user.value?.role === "OWNER");
-  const isAdmin = computed(() => user.value?.role === "admin" || user.value?.role === "ADMIN");
-  const canApproveJobs = computed(() => isOwner.value);
+  const isOwner = computed(() => {
+    const role = user.value?.role?.toLowerCase();
+    const orgRole = user.value?.organizationRole?.toLowerCase();
+    return role === "owner" || orgRole === "owner" || role === "director" || orgRole === "director";
+  });
+  const isAdmin = computed(() => {
+    const role = user.value?.role?.toLowerCase();
+    const orgRole = user.value?.organizationRole?.toLowerCase();
+    return role === "admin" || orgRole === "admin";
+  });
+  const canApproveJobs = computed(() => isOwner.value || isAdmin.value);
 
   return {
     user,

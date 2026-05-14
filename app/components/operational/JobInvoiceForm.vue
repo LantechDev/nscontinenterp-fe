@@ -3,7 +3,7 @@ import { Plus, Trash2, X, Building2 } from "lucide-vue-next";
 import { useInvoices } from "~/composables/useInvoices";
 import { useServices } from "~/composables/useServices";
 import { useCompanies } from "~/composables/useCompanies";
-import { useFinanceTax } from "~/composables/useFinanceTax";
+import { useFinanceTax, type Tax } from "~/composables/useFinanceTax";
 import { useJobs } from "~/composables/useJobs";
 import Combobox from "~/components/ui/Combobox.vue";
 import Modal from "~/components/ui/Modal.vue";
@@ -27,7 +27,9 @@ const invoiceSchema = z.object({
     .min(1, "At least one service item is required"),
 });
 
-const TAX_OPTIONS = ref([{ name: "0%", value: "0" }]);
+const TAX_OPTIONS = ref<Array<{ name: string; value: string; rate: number }>>([
+  { name: "0%", value: "", rate: 0 },
+]);
 
 const jobBillsOfLading = ref<Array<{ blNumber: string }>>([]);
 
@@ -40,7 +42,7 @@ const props = defineProps<{
 
 const emit = defineEmits(["success", "cancel"]);
 
-const { createInvoice, updateInvoice, isLoading: isSaving } = useInvoices();
+const { createInvoice, updateInvoice, getNextInvoiceNumber, isLoading: isSaving } = useInvoices();
 const { services, fetchServices, createService, isLoading: isFetchingServices } = useServices();
 const { companies, fetchCompanies, isLoading: isFetchingCompanies } = useCompanies();
 const { fetchTaxes } = useFinanceTax();
@@ -52,13 +54,11 @@ interface FormItem {
   description: string;
   quantity: number;
   unitPrice: number;
-  taxRate: number;
+  taxId: string;
 }
 
 const form = ref({
-  invoiceNumber:
-    props.invoice?.invoiceNumber ||
-    `INV-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
+  invoiceNumber: props.invoice?.invoiceNumber || "",
   issuedDate: props.invoice?.issuedDate
     ? new Date(props.invoice.issuedDate).toISOString().split("T")[0]
     : new Date().toISOString().split("T")[0],
@@ -74,10 +74,10 @@ const form = ref({
     id: item.id,
     serviceId: item.service?.id || "",
     description: item.description,
-    quantity: item.quantity,
-    unitPrice: item.unitPrice,
-    taxRate: 0,
-  })) || [{ serviceId: "", description: "", quantity: 1, unitPrice: 0, taxRate: 0 }]) as FormItem[],
+    quantity: Number(item.quantity),
+    unitPrice: Number(item.unitPrice),
+    taxId: item.taxId || "",
+  })) || [{ serviceId: "", description: "", quantity: 1, unitPrice: 0, taxId: "" }]) as FormItem[],
 });
 
 // Service Modal State
@@ -102,6 +102,11 @@ onMounted(async () => {
     }
   }
 
+  if (!props.invoice?.id && props.jobId) {
+    const nextNumber = await getNextInvoiceNumber(props.jobId);
+    form.value.invoiceNumber = nextNumber;
+  }
+
   const [taxesRes] = await Promise.all([
     fetchTaxes({ isActive: true }),
     fetchServices(),
@@ -109,26 +114,22 @@ onMounted(async () => {
   ]);
 
   if (taxesRes?.items) {
-    const uniqueRates = new Set<number>();
-    const dynamicTaxes = taxesRes.items
-      .filter((t) => {
-        const rate = Number(t.rate);
-        if ((rate === 1.1 || rate === 11) && !uniqueRates.has(rate)) {
-          uniqueRates.add(rate);
-          return true;
-        }
-        return false;
-      })
-      .map((t) => ({
-        name: `${t.name} (${Number(t.rate)}%)`,
-        value: String(Number(t.rate)),
-      }));
-    TAX_OPTIONS.value = [{ name: "0%", value: "0" }, ...dynamicTaxes];
+    const uniqueTaxes = new Map<string, Tax>();
+    taxesRes.items.forEach((t) => {
+      // Allow any active tax to be selected
+      uniqueTaxes.set(t.id, t);
+    });
+    const dynamicTaxes = Array.from(uniqueTaxes.values()).map((t) => ({
+      name: `${t.name} (${Number(t.rate)}%)`,
+      value: t.id,
+      rate: Number(t.rate),
+    }));
+    TAX_OPTIONS.value = [{ name: "0%", value: "", rate: 0 }, ...dynamicTaxes];
   }
 });
 
 const addItem = () => {
-  form.value.items.push({ serviceId: "", description: "", quantity: 1, unitPrice: 0, taxRate: 0 });
+  form.value.items.push({ serviceId: "", description: "", quantity: 1, unitPrice: 0, taxId: "" });
 };
 
 const removeItem = (index: number) => {
@@ -144,7 +145,7 @@ const onServiceChange = (index: number) => {
   if (service) {
     item.description = service.name;
     item.unitPrice = 0;
-    item.taxRate = 0;
+    item.taxId = "";
   }
 };
 
@@ -190,22 +191,25 @@ async function submitServiceForm() {
 }
 
 const subTotal = computed(() => {
-  return form.value.items.reduce(
+  const sum = form.value.items.reduce(
     (sum, item) => sum + Number(item.quantity) * Number(item.unitPrice),
     0,
   );
+  return form.value.currency === "IDR" ? Math.round(sum) : sum;
 });
 
 const taxAmount = computed(() => {
-  return form.value.items.reduce(
-    (sum, item) =>
-      sum + Number(item.quantity) * Number(item.unitPrice) * (Number(item.taxRate) / 100),
-    0,
-  );
+  const sum = form.value.items.reduce((sum, item) => {
+    const tax = TAX_OPTIONS.value.find((t) => t.value === item.taxId);
+    const rate = tax ? tax.rate : 0;
+    return sum + Number(item.quantity) * Number(item.unitPrice) * (rate / 100);
+  }, 0);
+  return form.value.currency === "IDR" ? Math.round(sum) : sum;
 });
 
 const total = computed(() => {
-  return subTotal.value + taxAmount.value;
+  const sum = subTotal.value + taxAmount.value;
+  return form.value.currency === "IDR" ? Math.round(sum) : sum;
 });
 
 const handleSubmit = async () => {
@@ -217,6 +221,19 @@ const handleSubmit = async () => {
     return;
   }
 
+  const taxesMap = new Map<string, number>();
+  form.value.items.forEach((item) => {
+    if (item.taxId) {
+      const baseAmount = Number(item.quantity) * Number(item.unitPrice);
+      taxesMap.set(item.taxId, (taxesMap.get(item.taxId) || 0) + baseAmount);
+    }
+  });
+
+  const taxesPayload = Array.from(taxesMap.entries()).map(([taxId, baseAmount]) => ({
+    taxId,
+    baseAmount,
+  }));
+
   const payload = {
     jobId: props.jobId,
     invoiceNumber: form.value.invoiceNumber,
@@ -227,6 +244,7 @@ const handleSubmit = async () => {
     dueDate: (form.value.dueDate || new Date().toISOString().split("T")[0]) as string,
     subTotal: subTotal.value,
     taxAmount: taxAmount.value,
+    taxes: taxesPayload,
     total: total.value,
     balanceDue: total.value,
     notes: form.value.notes,
@@ -234,6 +252,7 @@ const handleSubmit = async () => {
     items: form.value.items.map((item) => ({
       id: item.id, // Include id for updates
       serviceId: item.serviceId || undefined,
+      taxId: item.taxId || undefined,
       description: item.description,
       quantity: Number(item.quantity),
       unitPrice: Number(item.unitPrice),
@@ -257,20 +276,48 @@ const formatCurrency = (amount: number) => {
     style: "currency",
     currency: form.value.currency,
     minimumFractionDigits: form.value.currency === "IDR" ? 0 : 2,
+    maximumFractionDigits: form.value.currency === "IDR" ? 0 : 2,
   }).format(amount);
 };
 
-const parseInputCurrency = (val: string) => {
-  const numeric = Number(val.replace(/[^0-9.-]+/g, ""));
+const parseInputCurrency = (val: string, currency: string = form.value.currency) => {
+  if (!val) return 0;
+
+  if (currency === "IDR") {
+    // For IDR, dots are thousands separators. Strip all non-numeric except minus.
+    const numeric = Number(val.replace(/[^0-9-]/g, ""));
+    return isNaN(numeric) ? 0 : numeric;
+  }
+
+  let normalized = val;
+  if (currency === "USD") {
+    // For USD, handle comma/dot as decimal separators
+    const hasComma = val.includes(",");
+    const hasDot = val.includes(".");
+
+    if (hasComma && !hasDot) {
+      normalized = val.replace(",", ".");
+    } else if (hasComma && hasDot) {
+      if (val.lastIndexOf(",") > val.lastIndexOf(".")) {
+        normalized = val.replace(/\./g, "").replace(",", ".");
+      } else {
+        normalized = val.replace(/,/g, "");
+      }
+    }
+  }
+
+  const numeric = Number(normalized.replace(/[^0-9.-]+/g, ""));
   return isNaN(numeric) ? 0 : numeric;
 };
 
-const formatInputCurrency = (val: number | string) => {
-  if (!val && val !== 0) return "";
-  const numericVal = typeof val === "string" ? parseInputCurrency(val) : val;
+const formatInputCurrency = (val: number | string, currency: string = form.value.currency) => {
+  if (val === undefined || val === null || val === "") return "";
+  const numericVal = typeof val === "string" ? parseInputCurrency(val, currency) : val;
   if (isNaN(numericVal)) return "";
-  return new Intl.NumberFormat("en-US", {
-    maximumFractionDigits: 2,
+
+  return new Intl.NumberFormat(currency === "IDR" ? "id-ID" : "en-US", {
+    maximumFractionDigits: currency === "IDR" ? 0 : 2,
+    minimumFractionDigits: 0,
   }).format(numericVal);
 };
 </script>
@@ -328,10 +375,13 @@ const formatInputCurrency = (val: number | string) => {
           <div class="relative group/rate">
             <input
               type="text"
-              :value="formatInputCurrency(form.exchangeRate)"
+              :value="formatInputCurrency(form.exchangeRate, 'IDR')"
               @input="
                 (e) =>
-                  (form.exchangeRate = parseInputCurrency((e.target as HTMLInputElement).value))
+                  (form.exchangeRate = parseInputCurrency(
+                    (e.target as HTMLInputElement).value,
+                    'IDR',
+                  ))
               "
               class="w-28 px-3 py-1 text-xs font-bold text-[#012D5A] border border-border rounded-lg focus:ring-2 focus:ring-[#012D5A]/10 focus:border-[#012D5A] outline-none transition-all bg-white"
               placeholder="16,000"
@@ -504,19 +554,21 @@ const formatInputCurrency = (val: number | string) => {
               </div>
               <div class="col-span-3 px-2 flex flex-col items-end mr-4">
                 <Combobox
-                  :model-value="String(item.taxRate)"
+                  :model-value="item.taxId"
                   :options="TAX_OPTIONS"
                   label-key="name"
                   value-key="value"
                   placeholder="Tax..."
                   class="w-[180px] h-9 [&_button]:h-9 [&_button]:text-xs [&_button]:font-bold"
-                  @update:model-value="(val) => (item.taxRate = Number(val))"
+                  @update:model-value="(val) => (item.taxId = String(val))"
                 />
                 <p class="text-[9px] text-right mt-1.5 font-bold text-slate-400">
                   Tax:
                   {{
                     formatCurrency(
-                      Number(item.quantity) * Number(item.unitPrice) * (Number(item.taxRate) / 100),
+                      Number(item.quantity) *
+                        Number(item.unitPrice) *
+                        ((TAX_OPTIONS.find((t) => t.value === item.taxId)?.rate || 0) / 100),
                     )
                   }}
                 </p>

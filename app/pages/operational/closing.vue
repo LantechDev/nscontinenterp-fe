@@ -49,8 +49,8 @@ const handleDownloadProfit = async (job: JobCostItem) => {
     // Fetch full job data including financial details from correct endpoints
     const [jobDetail, invoicesRes, expensesRes] = await Promise.all([
       $fetch<Record<string, unknown>>(`/api/operational/jobs/${job.id}`),
-      $fetch<unknown[]>(`/api/finance/invoice`, { params: { jobId: job.id } }),
-      $fetch<{ items: unknown[] }>(`/api/finance/expense`, { params: { jobId: job.id } }),
+      $fetch<unknown[]>(`/api/finance/invoice`, { query: { jobId: job.id } }),
+      $fetch<{ items: unknown[] }>(`/api/finance/expense`, { query: { jobId: job.id } }),
     ]);
 
     // Combine them for the preview

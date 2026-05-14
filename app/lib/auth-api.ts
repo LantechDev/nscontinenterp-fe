@@ -239,9 +239,9 @@ export const authApi = {
     },
   ): Promise<AuthResponse<{ user: User }>> {
     try {
-      const responseData = await getApiFetch()<{ user: User }>("/api/auth/admin/update-user", {
-        method: "POST",
-        body: { userId, data },
+      const responseData = await getApiFetch()<{ user: User }>(`/api/admin/users/${userId}`, {
+        method: "PUT",
+        body: data,
       });
       return { success: true, data: responseData };
     } catch (error) {
@@ -251,9 +251,8 @@ export const authApi = {
 
   async deleteUser(userId: string): Promise<AuthResponse> {
     try {
-      await getApiFetch()("/api/auth/admin/delete-user", {
-        method: "POST",
-        body: { userId },
+      await getApiFetch()(`/api/admin/users/${userId}`, {
+        method: "DELETE",
       });
       return { success: true };
     } catch (error) {

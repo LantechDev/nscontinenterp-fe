@@ -95,7 +95,7 @@ const handleSubmit = async () => {
             />
           </div>
           <div>
-            <h1 class="text-3xl font-bold text-white">NSContinent</h1>
+            <h1 class="text-3xl font-bold text-white">NS Continent</h1>
             <p class="text-white/70 text-sm">E-Report Finance</p>
           </div>
         </div>
@@ -169,6 +169,7 @@ const handleSubmit = async () => {
               placeholder="nama@perusahaan.com"
               class="input-field"
               required
+              autocapitalize="none"
             />
           </div>
 
@@ -189,6 +190,7 @@ const handleSubmit = async () => {
                 placeholder="••••••••"
                 class="input-field pr-12"
                 required
+                autocapitalize="none"
               />
               <button
                 type="button"

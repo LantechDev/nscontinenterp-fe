@@ -45,7 +45,9 @@ function openBlEditor(blId: string) {
               >
                 {{ bl.blNumber }}
               </h3>
-              <span class="badge-secondary">{{ bl.status?.name || "DRAFT" }}</span>
+              <span class="badge-secondary">{{
+                (typeof bl.status === "object" ? bl.status?.name : bl.status) || "DRAFT"
+              }}</span>
             </div>
             <div class="flex gap-6 text-sm text-muted-foreground mb-3">
               <span class="flex items-center gap-1">

@@ -54,6 +54,7 @@ const availableResources = [
   { key: "member", label: "Member", description: "Manage team members" },
   { key: "invitation", label: "Invitation", description: "Manage invites" },
   { key: "job", label: "Job", description: "Operational jobs" },
+  { key: "ebl", label: "eBL", description: "Electronic Bill of Lading" },
   { key: "invoice", label: "Invoice", description: "Financial invoices" },
   { key: "payment", label: "Payment", description: "Payment records" },
   { key: "company", label: "Company", description: "Master data companies" },

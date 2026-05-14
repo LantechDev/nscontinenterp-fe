@@ -68,24 +68,20 @@ onMounted(async () => {
 
   if (editForm.value.pol) portsPol.value = await fetchPorts(editForm.value.pol);
   if (editForm.value.pod) portsPod.value = await fetchPorts(editForm.value.pod);
+
+  // Sync Shipper References from Job if empty in eBL
+  if (
+    props.jobData?.shipperReferences &&
+    (!editForm.value.shipperReferences || editForm.value.shipperReferences.length === 0)
+  ) {
+    editForm.value.shipperReferences = [...props.jobData.shipperReferences];
+  }
 });
 
 // Vessel Modal State
 const isVesselModalOpen = ref(false);
 const presetVesselName = ref("");
 const activeVesselObj = ref<EblVessel | null>(null);
-
-const newShipperRef = ref("");
-const addShipperRef = () => {
-  if (newShipperRef.value.trim()) {
-    if (!editForm.value.shipperReferences) editForm.value.shipperReferences = [];
-    editForm.value.shipperReferences.push(newShipperRef.value.trim());
-    newShipperRef.value = "";
-  }
-};
-const removeShipperRef = (index: number) => {
-  editForm.value.shipperReferences.splice(index, 1);
-};
 
 watch(
   () => editForm.value.isNotifySameAsConsignee,
@@ -124,7 +120,8 @@ const assignDefaultAddress = (
     | "shipperAddressId"
     | "consigneeAddressId"
     | "notifyPartyAddressId"
-    | "forwarderAddressId",
+    | "forwarderAddressId"
+    | "customerAddressId",
 ) => {
   if (!companyId) {
     editForm.value[addressKey] = "";
@@ -158,6 +155,10 @@ watch(
 watch(
   () => editForm.value.forwarderId,
   (val) => assignDefaultAddress(val || "", "forwarderAddressId"),
+);
+watch(
+  () => editForm.value.customerId,
+  (val) => assignDefaultAddress(val || "", "customerAddressId"),
 );
 
 watch(
@@ -289,17 +290,23 @@ const addContainer = () => {
 const removeContainer = (idx: number) => editForm.value.containers.splice(idx, 1);
 
 function getVesselLabels(index: number) {
-  const isFeeder = index === 0;
-  const isLast = index === editForm.value.vessels?.length - 1;
-  const hasTransit = (editForm.value.vessels?.length || 0) > 1;
+  const vesselsCount = editForm.value.vessels?.length || 0;
+  const isFirst = index === 0;
+  const isLast = index === vesselsCount - 1;
 
   return {
-    header: isFeeder ? "Feeder Vessel" : `Mother Vessel ${index}`,
-    etd: isFeeder ? "ETD POL" : "ETD T/S PORT",
-    eta: isLast ? "ETA POD" : "ETA T/S PORT",
-    isFeeder,
+    header: isFirst
+      ? "Feeder Vessel"
+      : isLast
+        ? `Mother Vessel ${index} (Last)`
+        : `Mother Vessel ${index}`,
+    etd: isFirst ? "ETD POL" : "ETD T/S PORT",
+    eta: isLast ? "ETA POD" : "ETA NEXT PORT",
+    leftPortLabel: isFirst ? "POL Name" : "T/S Port Name",
+    rightPortLabel: isLast ? "POD Name" : "Next Port Name",
+    isFirst,
     isLast,
-    hasTransit,
+    hasTransit: vesselsCount > 1,
   };
 }
 
@@ -329,6 +336,18 @@ watch(
   },
   { deep: true },
 );
+
+const newShipperRef = ref("");
+const addShipperRef = () => {
+  if (newShipperRef.value.trim()) {
+    if (!editForm.value.shipperReferences) editForm.value.shipperReferences = [];
+    editForm.value.shipperReferences.push(newShipperRef.value.trim());
+    newShipperRef.value = "";
+  }
+};
+const removeShipperRef = (index: number) => {
+  editForm.value.shipperReferences.splice(index, 1);
+};
 </script>
 
 <template>
@@ -336,68 +355,20 @@ watch(
     <SectionCard id="parties" title="Involved Parties" :icon="Users" no-padding>
       <div class="w-full">
         <JobPartyRow
+          label="Job Customer"
+          required
+          :companies="companies"
+          v-model:companyId="editForm.customerId"
+          v-model:addressId="editForm.customerAddressId"
+        />
+
+        <JobPartyRow
           label="Shipper"
           required
           :companies="companies"
           v-model:companyId="editForm.shipperId"
           v-model:addressId="editForm.shipperAddressId"
         />
-
-        <!-- Shipper References -->
-        <div class="mt-4 mb-2 p-4 bg-muted/5 rounded-xl border border-border/50">
-          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
-            <label class="text-xs font-bold text-muted-foreground tracking-wider uppercase"
-              >Shipper References (PO Numbers)</label
-            >
-            <label
-              class="flex items-center gap-2 text-xs font-medium cursor-pointer hover:text-foreground transition-colors group select-none"
-              @click="editForm.showShipperReferencesOnBl = !editForm.showShipperReferencesOnBl"
-            >
-              <Checkbox v-model="editForm.showShipperReferencesOnBl" class="pointer-events-none" />
-              <span class="group-hover:underline">Show on printed BL</span>
-            </label>
-          </div>
-          <div class="space-y-3">
-            <div class="flex gap-2">
-              <input
-                v-model="newShipperRef"
-                @keyup.enter="addShipperRef"
-                type="text"
-                placeholder="Enter PO Number..."
-                class="input-field flex-1 max-w-sm h-9 text-sm"
-              />
-              <button
-                type="button"
-                @click="addShipperRef"
-                class="btn-outline h-9 px-4 text-xs font-semibold gap-1.5 flex items-center shadow-sm"
-              >
-                <Plus class="w-4 h-4" /> Add Reference
-              </button>
-            </div>
-            <div
-              v-if="editForm.shipperReferences && editForm.shipperReferences.length > 0"
-              class="flex flex-wrap gap-2 mt-3 p-3 bg-white border border-border/40 rounded-lg shadow-sm"
-            >
-              <span
-                v-for="(ref, idx) in editForm.shipperReferences"
-                :key="idx"
-                class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-blue-50/50 border border-blue-100 text-blue-900 text-xs font-semibold"
-              >
-                {{ ref }}
-                <button
-                  type="button"
-                  @click="removeShipperRef(idx)"
-                  class="hover:text-red-500 text-blue-400 hover:bg-red-50 rounded-sm p-0.5 transition-colors"
-                >
-                  <Trash2 class="w-3.5 h-3.5" />
-                </button>
-              </span>
-            </div>
-            <p v-else class="text-xs text-muted-foreground italic mt-2">
-              No shipper references added yet.
-            </p>
-          </div>
-        </div>
 
         <JobPartyRow
           label="Consignee"
@@ -433,109 +404,78 @@ watch(
           v-model:companyId="editForm.forwarderId"
           v-model:addressId="editForm.forwarderAddressId"
         />
+
+        <!-- Shipper References (PO Numbers) -->
+        <div class="px-6 py-5 bg-muted/10 border-t border-border/50">
+          <div class="flex items-center justify-between mb-4">
+            <div class="flex flex-col">
+              <label
+                class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2"
+              >
+                <FileText class="w-3.5 h-3.5 text-primary" />
+                Shipper References (PO Numbers)
+              </label>
+              <p class="text-[10px] text-muted-foreground mt-0.5">
+                References to be printed on the Bill of Lading
+              </p>
+            </div>
+            <div class="flex items-center gap-2">
+              <Checkbox v-model="editForm.showShipperReferencesOnBl" />
+              <span class="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider"
+                >Show on BL</span
+              >
+            </div>
+          </div>
+
+          <div class="space-y-3">
+            <div class="flex gap-2">
+              <input
+                v-model="newShipperRef"
+                v-uppercase
+                type="text"
+                placeholder="Enter reference number (e.g. PO-12345)..."
+                class="input-field h-9 text-sm"
+                @keyup.enter="addShipperRef"
+              />
+              <button
+                type="button"
+                @click="addShipperRef"
+                class="btn-primary h-9 px-4 text-xs font-bold uppercase bg-[#062c58] hover:bg-[#062c58]/90"
+              >
+                Add
+              </button>
+            </div>
+
+            <div v-if="editForm.shipperReferences?.length" class="flex flex-wrap gap-2 pt-1">
+              <div
+                v-for="(ref, index) in editForm.shipperReferences"
+                :key="index"
+                class="inline-flex items-center gap-2 px-3 py-1.5 bg-white border border-border/60 rounded-xl text-[12px] font-semibold text-foreground shadow-sm group hover:border-primary/30 transition-all"
+              >
+                <span>{{ ref }}</span>
+                <button
+                  type="button"
+                  @click="removeShipperRef(index)"
+                  class="text-muted-foreground hover:text-destructive transition-colors"
+                >
+                  <Trash2 class="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+            <div
+              v-else
+              class="text-center py-4 px-4 bg-white/40 border border-dashed border-border/60 rounded-xl"
+            >
+              <p class="text-[11px] text-muted-foreground italic uppercase tracking-wider">
+                No references added
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
     </SectionCard>
 
-    <SectionCard id="route" title="Route Details" :icon="MapPin">
-      <div
-        class="grid grid-cols-1 md:grid-cols-2 gap-y-6 gap-x-8 relative items-end border-b border-border/50 pb-6 mb-6"
-      >
-        <!-- Row 1: Pre-Carriage & Place of Receipt -->
-        <div class="space-y-2">
-          <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
-            >PRE-CARRIAGE BY</label
-          >
-          <input
-            v-model="editForm.preCarriageBy"
-            type="text"
-            placeholder="e.g. TRUCK"
-            class="input-field"
-          />
-        </div>
-        <div class="space-y-2">
-          <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
-            >PLACE OF RECEIPT</label
-          >
-          <input
-            v-model="editForm.placeOfReceipt"
-            type="text"
-            placeholder="Defaults to POL if empty"
-            class="input-field"
-          />
-        </div>
-
-        <!-- Row 2: POL & POD -->
-        <div class="space-y-2">
-          <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
-            >PORT OF LOADING (POL)</label
-          >
-          <div class="relative">
-            <MapPin
-              class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/70 z-10 pointer-events-none"
-            />
-            <Combobox
-              v-model="editForm.pol"
-              :options="portsPol"
-              label-key="name"
-              value-key="code"
-              placeholder="Search port..."
-              class="[&_button]:pl-9"
-              :filter-local="false"
-              @search="handleSearchPol"
-            />
-          </div>
-        </div>
-        <div
-          class="hidden md:flex absolute left-1/2 top-[50%] -translate-x-1/2 -translate-y-1/2 text-muted-foreground/40"
-        >
-          <MapPin class="w-5 h-5 opacity-0" />
-        </div>
-        <div class="space-y-2">
-          <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
-            >PORT OF DISCHARGE (POD)</label
-          >
-          <div class="relative">
-            <MapPin
-              class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/70 z-10 pointer-events-none"
-            />
-            <Combobox
-              v-model="editForm.pod"
-              :options="portsPod"
-              label-key="name"
-              value-key="code"
-              placeholder="Search port..."
-              class="[&_button]:pl-9"
-              :filter-local="false"
-              @search="handleSearchPod"
-            />
-          </div>
-        </div>
-
-        <!-- Row 3: Place of Delivery & Final Destination -->
-        <div class="space-y-2">
-          <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
-            >PLACE OF DELIVERY</label
-          >
-          <input
-            v-model="editForm.placeOfDelivery"
-            type="text"
-            placeholder="Defaults to POD if empty"
-            class="input-field"
-          />
-        </div>
-        <div class="space-y-2">
-          <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
-            >FINAL DESTINATION</label
-          >
-          <input
-            v-model="editForm.finalDestination"
-            type="text"
-            placeholder="Defaults to POD if empty"
-            class="input-field"
-          />
-        </div>
-      </div>
-    </SectionCard>
+    <!-- Route Details Integrated into Movement -->
 
     <SectionCard id="cargo" title="Cargo Information" :icon="Box">
       <div class="space-y-6">
@@ -545,6 +485,7 @@ watch(
           >
           <textarea
             v-model.trim="editForm.mainDescription"
+            v-uppercase
             rows="10"
             placeholder="Description of goods to appear on BL..."
             class="input-field min-h-[250px] py-3 resize-y transition-all duration-200"
@@ -557,6 +498,7 @@ watch(
           >
           <textarea
             v-model.trim="editForm.shippingMark"
+            v-uppercase
             rows="6"
             placeholder="Enter marks and numbers..."
             class="input-field min-h-[120px] py-3 resize-y transition-all duration-200"
@@ -565,8 +507,10 @@ watch(
       </div>
     </SectionCard>
 
-    <SectionCard id="movement" title="Movement & Schedule" :icon="Clock">
+    <SectionCard id="movement" title="Route & Movement Schedule" :icon="Clock">
       <div class="space-y-8">
+        <!-- Integrated Route Details -->
+
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pb-6 border-b border-border/50">
           <div class="space-y-2">
             <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
@@ -634,6 +578,7 @@ watch(
                   >
                   <input
                     v-model="vessel.voyageNumber"
+                    v-uppercase
                     type="text"
                     class="input-field h-10"
                     placeholder="Voyage..."
@@ -662,6 +607,88 @@ watch(
                     class="absolute -bottom-4 left-1 text-[9px] text-primary font-bold animate-pulse"
                   >
                     Transit detected → T/S Port
+                  </div>
+                </div>
+
+                <div
+                  class="md:col-span-12 grid grid-cols-1 md:grid-cols-2 gap-6 mt-2 pt-4 border-t border-border/40"
+                >
+                  <!-- Left Port Picker -->
+                  <div class="space-y-2">
+                    <label
+                      class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1 opacity-70"
+                    >
+                      {{ getVesselLabels(vIndex).leftPortLabel }}
+                    </label>
+                    <Combobox
+                      v-if="vIndex === 0"
+                      v-model="editForm.pol"
+                      :options="portsPol"
+                      label-key="name"
+                      value-key="code"
+                      placeholder="Select POL..."
+                      class="h-10"
+                      :filter-local="false"
+                      @search="handleSearchPol"
+                    />
+                    <Combobox
+                      v-else
+                      v-model="editForm.vessels[vIndex - 1]!.tsPortId"
+                      :options="portsPod"
+                      label-key="name"
+                      value-key="code"
+                      placeholder="Select T/S Port..."
+                      class="h-10"
+                      :filter-local="false"
+                      @search="handleSearchPod"
+                    />
+                  </div>
+
+                  <!-- Right Port Picker -->
+                  <div class="space-y-2">
+                    <label
+                      class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1 opacity-70"
+                    >
+                      {{ getVesselLabels(vIndex).rightPortLabel }}
+                    </label>
+                    <Combobox
+                      v-if="vIndex === editForm.vessels.length - 1"
+                      v-model="editForm.pod"
+                      :options="portsPod"
+                      label-key="name"
+                      value-key="code"
+                      placeholder="Select POD..."
+                      class="h-10"
+                      :filter-local="false"
+                      @search="handleSearchPod"
+                    />
+                    <Combobox
+                      v-else
+                      v-model="vessel.tsPortId"
+                      :options="portsPod"
+                      label-key="name"
+                      value-key="code"
+                      placeholder="Select Next Port..."
+                      class="h-10"
+                      :filter-local="false"
+                      @search="handleSearchPod"
+                    />
+                  </div>
+
+                  <!-- Port Collision Warning -->
+                  <div
+                    class="col-span-1 md:col-span-2"
+                    v-if="
+                      (vIndex === 0 ? editForm.pol : editForm.vessels[vIndex - 1]!.tsPortId) ===
+                        (vIndex === editForm.vessels.length - 1 ? editForm.pod : vessel.tsPortId) &&
+                      (vIndex === 0 ? editForm.pol : editForm.vessels[vIndex - 1]!.tsPortId)
+                    "
+                  >
+                    <p
+                      class="text-[10px] text-destructive font-bold animate-pulse flex items-center gap-1 bg-destructive/5 p-2 rounded-lg border border-destructive/10"
+                    >
+                      ⚠️ Left and Right port cannot be the same
+                    </p>
                   </div>
                 </div>
 
@@ -767,9 +794,10 @@ watch(
                   >
                   <input
                     v-model="container.containerNumber"
+                    v-uppercase
                     type="text"
                     placeholder="e.g. TEMU1234567"
-                    class="input-field uppercase"
+                    class="input-field"
                   />
                 </div>
                 <div class="md:col-span-4 space-y-2">
@@ -779,9 +807,10 @@ watch(
                   >
                   <input
                     v-model="container.sealNumber"
+                    v-uppercase
                     type="text"
                     placeholder="e.g. SN123456"
-                    class="input-field uppercase"
+                    class="input-field"
                   />
                 </div>
                 <div class="md:col-span-1 flex flex-col items-center justify-center pb-2">
@@ -917,6 +946,7 @@ watch(
                       <input
                         type="text"
                         v-model="item.hsCode"
+                        v-uppercase
                         class="input-field h-8 text-sm placeholder:opacity-50"
                         placeholder="e.g. 1902..."
                       />
@@ -927,6 +957,7 @@ watch(
                       >
                       <textarea
                         v-model="item.description"
+                        v-uppercase
                         rows="6"
                         class="input-field text-sm placeholder:opacity-50 resize-y min-h-[100px] py-2 transition-all duration-200"
                         placeholder="Description of goods in this container..."
