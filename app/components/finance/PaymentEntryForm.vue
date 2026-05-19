@@ -105,22 +105,86 @@ const loadOutstandingItems = async (companyId: string) => {
   isFetchingItems.value = false;
 };
 
-// Formatting helpers
-const formatThousand = (val: number | string) => {
-  if (!val && val !== 0) return "";
-  const num = typeof val === "string" ? parseInt(val.replace(/\D/g, "")) : val;
-  if (isNaN(num)) return "";
-  return new Intl.NumberFormat("id-ID").format(num);
+// Currency detection logic
+const paymentCurrency = computed(() => {
+  if (form.value.allocations.length > 0) {
+    const firstAlloc = form.value.allocations[0];
+    if (firstAlloc) {
+      const itemId = firstAlloc.invoiceId || firstAlloc.expenseId;
+      const item = outstandingItems.value.find((i) => i.id === itemId);
+      if (item && item.currency) return item.currency;
+    }
+  }
+  const targetId = props.invoiceId || props.expenseId;
+  if (targetId) {
+    const target = outstandingItems.value.find((i) => i.id === targetId);
+    if (target && target.currency) return target.currency;
+  }
+  if (outstandingItems.value.length > 0) {
+    const firstItem = outstandingItems.value[0];
+    if (firstItem && firstItem.currency) {
+      return firstItem.currency;
+    }
+  }
+  return "IDR";
+});
+
+const getCurrencySymbol = (currency?: string) => {
+  return currency === "USD" ? "$" : "Rp";
 };
 
-const parseThousand = (val: string) => {
-  const num = parseInt(val.replace(/\D/g, ""));
-  return isNaN(num) ? 0 : num;
+const formatCurrency = (amount: number, currency: string = paymentCurrency.value) => {
+  return new Intl.NumberFormat(currency === "IDR" ? "id-ID" : "en-US", {
+    style: "currency",
+    currency: currency,
+    minimumFractionDigits: currency === "IDR" ? 0 : 2,
+    maximumFractionDigits: currency === "IDR" ? 0 : 2,
+  }).format(amount);
+};
+
+const parseInputCurrency = (val: string, currency: string = paymentCurrency.value) => {
+  if (!val) return 0;
+
+  if (currency === "IDR") {
+    const numeric = Number(val.replace(/[^0-9-]/g, ""));
+    return isNaN(numeric) ? 0 : numeric;
+  }
+
+  let normalized = val;
+  if (currency === "USD") {
+    const hasComma = val.includes(",");
+    const hasDot = val.includes(".");
+
+    if (hasComma && !hasDot) {
+      normalized = val.replace(",", ".");
+    } else if (hasComma && hasDot) {
+      if (val.lastIndexOf(",") > val.lastIndexOf(".")) {
+        normalized = val.replace(/\./g, "").replace(",", ".");
+      } else {
+        normalized = val.replace(/,/g, "");
+      }
+    }
+  }
+
+  const numeric = Number(normalized.replace(/[^0-9.-]+/g, ""));
+  return isNaN(numeric) ? 0 : numeric;
+};
+
+const formatInputCurrency = (val: number | string, currency: string = paymentCurrency.value) => {
+  if (val === undefined || val === null || val === "") return "";
+  const numericVal = typeof val === "string" ? parseInputCurrency(val, currency) : val;
+  if (isNaN(numericVal)) return "";
+
+  return new Intl.NumberFormat(currency === "IDR" ? "id-ID" : "en-US", {
+    maximumFractionDigits: currency === "IDR" ? 0 : 2,
+    minimumFractionDigits: 0,
+  }).format(numericVal);
 };
 
 const handleInputFormatted = (e: Event, targetId: string) => {
   const rawValue = (e.target as HTMLInputElement).value;
-  const numericValue = parseThousand(rawValue);
+  const curr = paymentCurrency.value;
+  const numericValue = parseInputCurrency(rawValue, curr);
 
   if (targetId === "main") {
     form.value.amount = numericValue;
@@ -134,8 +198,14 @@ const handleInputFormatted = (e: Event, targetId: string) => {
     }
   }
 
-  // Force re-format on the input display
-  (e.target as HTMLInputElement).value = formatThousand(numericValue);
+  if (
+    curr === "USD" &&
+    (rawValue.endsWith(".") || rawValue.endsWith(".0") || rawValue.endsWith(".00"))
+  ) {
+    return;
+  }
+
+  (e.target as HTMLInputElement).value = formatInputCurrency(numericValue, curr);
 };
 
 // Calculations for Summary
@@ -232,14 +302,6 @@ onMounted(async () => {
     })(),
   ]);
 });
-
-const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat("id-ID", {
-    style: "currency",
-    currency: "IDR",
-    minimumFractionDigits: 0,
-  }).format(amount);
-};
 
 const getItemNumber = (item: Invoice | Expense): string => {
   return isOut.value ? (item as Expense).number : (item as Invoice).invoiceNumber;
@@ -355,10 +417,12 @@ const getItemNumber = (item: Invoice | Expense): string => {
             <div
               class="absolute left-4 top-1/2 -translate-y-1/2 flex items-center gap-2 pr-4 border-r border-border/50"
             >
-              <span class="text-[10px] font-black text-muted-foreground">IDR</span>
+              <span class="text-[10px] font-black text-muted-foreground">{{
+                paymentCurrency
+              }}</span>
             </div>
             <input
-              :value="formatThousand(form.amount)"
+              :value="formatInputCurrency(form.amount, paymentCurrency)"
               @input="(e) => handleInputFormatted(e, 'main')"
               type="text"
               placeholder="Enter amount..."
@@ -428,7 +492,7 @@ const getItemNumber = (item: Invoice | Expense): string => {
                 <div class="flex items-center gap-1.5 opacity-60">
                   <Clock class="w-3.5 h-3.5" />
                   <span class="text-[10px] font-bold"
-                    >Balance: {{ formatCurrency(item.balanceDue) }}</span
+                    >Balance: {{ formatCurrency(item.balanceDue, item.currency) }}</span
                   >
                 </div>
               </div>
@@ -441,14 +505,15 @@ const getItemNumber = (item: Invoice | Expense): string => {
                 >
                   <span
                     class="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-black text-muted-foreground opacity-50"
-                    >Rp</span
+                    >{{ getCurrencySymbol(item.currency) }}</span
                   >
                   <input
                     :value="
-                      formatThousand(
+                      formatInputCurrency(
                         form.allocations.find(
                           (a) => (isOut ? a.expenseId : a.invoiceId) === item.id,
                         )!.amount,
+                        item.currency,
                       )
                     "
                     @input="(e) => handleInputFormatted(e, item.id)"
@@ -487,7 +552,7 @@ const getItemNumber = (item: Invoice | Expense): string => {
           Selected Total
         </div>
         <span class="text-foreground -tracking-tight font-black">{{
-          formatCurrency(totalOutstandingSelected)
+          formatCurrency(totalOutstandingSelected, paymentCurrency)
         }}</span>
       </div>
       <div
@@ -498,7 +563,7 @@ const getItemNumber = (item: Invoice | Expense): string => {
           Payment {{ isOut ? "Paid" : "Received" }}
         </div>
         <span class="text-[#012D5A] font-black -tracking-tight">{{
-          formatCurrency(form.amount)
+          formatCurrency(form.amount, paymentCurrency)
         }}</span>
       </div>
       <div class="flex items-center justify-between pt-1">
@@ -511,7 +576,7 @@ const getItemNumber = (item: Invoice | Expense): string => {
             remainingBalance > 0 ? 'text-red-600' : 'text-emerald-600',
           ]"
         >
-          {{ formatCurrency(remainingBalance) }}
+          {{ formatCurrency(remainingBalance, paymentCurrency) }}
         </span>
       </div>
     </div>

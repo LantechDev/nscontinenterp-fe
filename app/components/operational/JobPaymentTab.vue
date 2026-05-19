@@ -28,6 +28,9 @@ interface JobPaymentInfo {
   amount: number;
   referenceNumber: string;
   referenceId: string;
+  currency?: string;
+  exchangeRate?: number;
+  amountInIdr?: number;
 }
 
 const props = withDefaults(
@@ -92,6 +95,10 @@ const allPayments = computed(() => {
     if (item.paymentAllocations && item.paymentAllocations.length > 0) {
       item.paymentAllocations.forEach((alloc) => {
         if (alloc.payment) {
+          const rate = Number(item.exchangeRate || 1);
+          const amt = Number(alloc.amount);
+          const amountInIdr = item.currency === "USD" ? amt * rate : amt;
+
           payments.push({
             id: alloc.payment.id,
             paymentNumber: alloc.payment.paymentNumber,
@@ -99,10 +106,13 @@ const allPayments = computed(() => {
             status: alloc.payment.status,
             paymentMethod: alloc.payment.paymentMethod,
             reference: alloc.payment.reference,
-            amount: alloc.amount, // Use the allocated amount for this item
+            amount: amt, // Use the allocated amount for this item
             referenceNumber:
               props.mode === "out" ? (item as Expense).number : (item as Invoice).invoiceNumber,
             referenceId: item.id,
+            currency: item.currency,
+            exchangeRate: rate,
+            amountInIdr,
           });
         }
       });
@@ -115,15 +125,29 @@ const allPayments = computed(() => {
   );
 });
 
-const totalPaid = computed(() => {
-  return allPayments.value.reduce((sum, p) => sum + Number(p.amount), 0);
+const totalPaidInIdr = computed(() => {
+  return allPayments.value.reduce((sum, p) => sum + (p.amountInIdr || 0), 0);
 });
 
-const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat("id-ID", {
+const totalPaidByCurrency = computed(() => {
+  const totals: Record<string, number> = {};
+  allPayments.value.forEach((p) => {
+    const cur = p.currency || "IDR";
+    totals[cur] = (totals[cur] || 0) + Number(p.amount);
+  });
+  return totals;
+});
+
+const hasForeignCurrency = computed(() => {
+  return allPayments.value.some((p) => p.currency && p.currency !== "IDR");
+});
+
+const formatCurrency = (amount: number, currency: string = "IDR") => {
+  return new Intl.NumberFormat(currency === "IDR" ? "id-ID" : "en-US", {
     style: "currency",
-    currency: "IDR",
-    minimumFractionDigits: 0,
+    currency: currency,
+    minimumFractionDigits: currency === "IDR" ? 0 : 2,
+    maximumFractionDigits: currency === "IDR" ? 0 : 2,
   }).format(amount);
 };
 
@@ -210,7 +234,20 @@ defineExpose({
           <p class="text-xs font-bold uppercase tracking-widest opacity-70 mb-1">
             {{ mode === "out" ? "Total Payments Out" : "Total Payments Received" }}
           </p>
-          <h3 class="text-3xl font-black">{{ formatCurrency(totalPaid) }}</h3>
+          <h3 class="text-3xl font-black">{{ formatCurrency(totalPaidInIdr, "IDR") }}</h3>
+          <div
+            v-if="hasForeignCurrency"
+            class="mt-1.5 flex flex-wrap items-center gap-1.5 text-[10px] font-bold text-white/80"
+          >
+            <span class="uppercase tracking-wider opacity-60">Breakdown:</span>
+            <span
+              v-for="(amount, cur) in totalPaidByCurrency"
+              :key="cur"
+              class="bg-white/10 px-1.5 py-0.5 rounded"
+            >
+              {{ formatCurrency(amount, cur) }}
+            </span>
+          </div>
           <div
             class="mt-4 flex items-center gap-2 text-xs font-medium bg-white/10 w-fit px-3 py-1.5 rounded-full border border-white/10"
           >
@@ -259,7 +296,16 @@ defineExpose({
                         : 'text-foreground',
                     ]"
                   >
-                    {{ formatCurrency(payment.amount) }}
+                    {{ formatCurrency(payment.amount, payment.currency) }}
+                  </p>
+                  <p
+                    v-if="payment.currency && payment.currency !== 'IDR'"
+                    :class="[
+                      'text-[10px] font-semibold text-muted-foreground',
+                      (payment.status || '').toUpperCase() === 'VOIDED' ? 'line-through' : '',
+                    ]"
+                  >
+                    ≈ {{ formatCurrency(payment.amountInIdr || 0, "IDR") }}
                   </p>
                   <div
                     class="flex items-center gap-2 text-[10px] text-muted-foreground font-medium"
