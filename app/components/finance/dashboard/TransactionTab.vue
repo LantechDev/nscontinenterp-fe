@@ -1,17 +1,8 @@
 <script setup lang="ts">
-import {
-  ArrowUpDown,
-  Download,
-  Filter,
-  Search,
-  ChevronDown,
-  Lock,
-  Pencil,
-  Trash2,
-  Plus,
-} from "lucide-vue-next";
+import { ArrowUpDown, Download, Search, ChevronDown, Plus } from "lucide-vue-next";
 import { cn, formatRupiah } from "~/lib/utils";
 import type { StatCardData, TransactionItem } from "~/types/finance";
+import Combobox from "~/components/ui/Combobox.vue";
 
 const props = defineProps<{
   statsCards: StatCardData[];
@@ -76,16 +67,6 @@ function formatForeignCurrency(amount: number, currency: string) {
   return `${currency} ${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-// Helper to check if transaction is auto-created (from invoice or payment)
-function isAutoCreated(transaction: TransactionItem): boolean {
-  return transaction.referenceType === "INVOICE" || transaction.referenceType === "PAYMENT";
-}
-
-// Helper to check if transaction is manual
-function isManualTransaction(transaction: TransactionItem): boolean {
-  return transaction.referenceType === "MANUAL" || !transaction.referenceType;
-}
-
 // Local refs for v-model binding
 const localSearchQuery = computed({
   get: () => props.searchQuery,
@@ -110,6 +91,48 @@ const localCustomerId = computed({
 const localShowSortDropdown = computed({
   get: () => props.showSortDropdown,
   set: (val) => emit("update:showSortDropdown", val),
+});
+
+const customerOptions = computed(() => {
+  const uniqueNames = new Set<string>();
+  props.transactions.forEach((t) => {
+    if (t.customer) {
+      uniqueNames.add(t.customer);
+    }
+  });
+
+  if (props.customerId) {
+    const selectedCompany = props.companies.find((c) => c.id === props.customerId);
+    if (selectedCompany) {
+      uniqueNames.add(selectedCompany.name);
+    } else {
+      uniqueNames.add(props.customerId);
+    }
+  }
+
+  const options = [{ id: "", name: "All Customers" }];
+  uniqueNames.forEach((name) => {
+    const matched = props.companies.find((c) => c.name.toLowerCase() === name.toLowerCase());
+    if (matched) {
+      options.push({ id: matched.id, name: matched.name });
+    } else {
+      options.push({ id: name, name: name });
+    }
+  });
+
+  return options;
+});
+
+const yearOptions = computed(() => [
+  { id: "", name: "All Years" },
+  ...props.availableYears.map((year) => ({ id: year, name: year })),
+]);
+
+const mappedTypeOptions = computed(() => {
+  return props.typeOptions.map((t) => ({
+    id: t.value,
+    name: t.label,
+  }));
 });
 </script>
 
@@ -200,45 +223,34 @@ const localShowSortDropdown = computed({
       <!-- Second Row: Year/Type/Customer Filters -->
       <div class="flex items-center gap-2 p-5 border-b border-border bg-gray-50/30">
         <!-- Year Filter -->
-        <div class="relative">
-          <select
+        <div class="flex-1 min-w-[150px]">
+          <Combobox
             v-model="localSelectedYear"
-            @change="emit('yearChange', ($event.target as HTMLSelectElement).value)"
-            class="w-full flex-1 px-3 py-2 pr-8 text-sm border border-border rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
-          >
-            <option value="">All Years</option>
-            <option v-for="year in availableYears" :key="year" :value="year">
-              {{ year }}
-            </option>
-          </select>
-          <Filter
-            class="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none"
+            :options="yearOptions"
+            placeholder="All Years"
+            @update:model-value="emit('yearChange', $event || '')"
           />
         </div>
 
         <!-- Type Filter -->
-        <select
-          v-model="localTransactionType"
-          @change="emit('typeChange', localTransactionType)"
-          class="px-3 py-2 flex-1 text-sm border border-border rounded-lg bg-white"
-        >
-          <option v-for="type in typeOptions" :key="type.value" :value="type.value">
-            {{ type.label }}
-          </option>
-        </select>
+        <div class="flex-1 min-w-[150px]">
+          <Combobox
+            v-model="localTransactionType"
+            :options="mappedTypeOptions"
+            placeholder="All Types"
+            @update:model-value="emit('typeChange', $event || '')"
+          />
+        </div>
 
         <!-- Customer Filter -->
-        <select
-          v-model="localCustomerId"
-          @change="emit('customerChange', ($event.target as HTMLSelectElement).value)"
-          class="px-3 py-2 flex-1 text-sm border border-border rounded-lg bg-white"
-          :disabled="isLoadingCustomers"
-        >
-          <option value="">All Customers</option>
-          <option v-for="customer in companies" :key="customer.id" :value="customer.id">
-            {{ customer.name }}
-          </option>
-        </select>
+        <div class="flex-1 min-w-[200px]">
+          <Combobox
+            v-model="localCustomerId"
+            :options="customerOptions"
+            placeholder="All Customers"
+            @update:model-value="emit('customerChange', $event || '')"
+          />
+        </div>
       </div>
       <div class="overflow-x-auto">
         <table class="w-full">
@@ -250,12 +262,11 @@ const localShowSortDropdown = computed({
               <th class="py-3 px-4 text-left text-sm font-medium text-gray-500">Type</th>
               <th class="py-3 px-4 text-left text-sm font-medium text-gray-500">Payment Method</th>
               <th class="py-3 px-4 text-right text-sm font-medium text-gray-500">Total</th>
-              <th class="py-3 px-4 text-center text-sm font-medium text-gray-500">Actions</th>
             </tr>
           </thead>
           <tbody>
             <tr v-if="!transactions.length && !isLoading">
-              <td colspan="7" class="py-8 text-center text-muted-foreground">No data available</td>
+              <td colspan="6" class="py-8 text-center text-muted-foreground">No data available</td>
             </tr>
             <tr
               v-for="t in transactions"
@@ -311,29 +322,6 @@ const localShowSortDropdown = computed({
                   >
                     {{ formatCurrency(t.total) }}
                   </span>
-                </div>
-              </td>
-              <td class="py-3 px-4 text-center">
-                <!-- Auto-created indicator (lock icon) -->
-                <div v-if="isAutoCreated(t)" class="flex items-center justify-center gap-1">
-                  <Lock class="w-4 h-4 text-gray-400" title="Auto-created from invoice" />
-                </div>
-                <!-- Manual transaction actions -->
-                <div v-else class="flex items-center justify-center gap-1">
-                  <button
-                    class="p-1.5 text-gray-500 hover:text-[#012D5A] hover:bg-gray-100 rounded transition-colors"
-                    title="Edit transaction"
-                    @click="emit('edit', t)"
-                  >
-                    <Pencil class="w-4 h-4" />
-                  </button>
-                  <button
-                    class="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                    title="Delete transaction"
-                    @click="emit('delete', t)"
-                  >
-                    <Trash2 class="w-4 h-4" />
-                  </button>
                 </div>
               </td>
             </tr>

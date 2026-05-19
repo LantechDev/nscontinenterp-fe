@@ -34,25 +34,20 @@ export async function exportStyledPdf(opts: PdfExportOptions): Promise<void> {
 
   // Load Logo
   const logoUrl = "/images/transparentnscontinenttebal.png";
-  const getLogoBase64 = (): Promise<string | null> => {
-    return new Promise((resolve) => {
-      const img = new Image();
-      img.crossOrigin = "anonymous";
-      img.addEventListener("load", () => {
-        const canvas = document.createElement("canvas");
-        canvas.width = img.width;
-        canvas.height = img.height;
-        const ctx = canvas.getContext("2d");
-        if (ctx) {
-          ctx.drawImage(img, 0, 0);
-          resolve(canvas.toDataURL("image/png"));
-        } else {
-          resolve(null);
-        }
+  const getLogoBase64 = async (): Promise<string | null> => {
+    try {
+      const response = await fetch(logoUrl);
+      const blob = await response.blob();
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.addEventListener("loadend", () => resolve(reader.result as string));
+        reader.addEventListener("error", () => resolve(null));
+        reader.readAsDataURL(blob);
       });
-      img.addEventListener("error", () => resolve(null));
-      img.src = logoUrl;
-    });
+    } catch (e) {
+      console.error("Failed to load logo", e);
+      return null;
+    }
   };
 
   const logoBase64 = await getLogoBase64();
@@ -151,6 +146,8 @@ export async function exportStyledPdf(opts: PdfExportOptions): Promise<void> {
       y = addHeader();
     }
   };
+
+  y = addHeader();
 
   // Column headers
   checkPage(headerRowH);
