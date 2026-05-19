@@ -356,6 +356,15 @@ const getStatusColor = (code?: string) => {
                 <p class="text-sm font-bold text-foreground">
                   {{ formatCurrency(alloc.amount, activeExpense.currency) }}
                 </p>
+                <p
+                  v-if="activeExpense.currency && activeExpense.currency !== 'IDR'"
+                  class="text-[10px] text-muted-foreground font-semibold"
+                >
+                  ≈
+                  {{
+                    formatCurrency(Number(alloc.amount) * Number(activeExpense.exchangeRate || 1))
+                  }}
+                </p>
                 <p class="text-[10px] text-muted-foreground uppercase tracking-wider">
                   {{ alloc.payment.paymentMethod?.name || "-" }} •
                   {{ formatDate(alloc.payment.paymentDate) }}
@@ -468,6 +477,12 @@ const getStatusColor = (code?: string) => {
               </p>
               <p class="font-black text-sm text-red-600 whitespace-nowrap">
                 {{ formatCurrency(Number(expense.amount), expense.currency) }}
+              </p>
+              <p
+                v-if="expense.currency && expense.currency !== 'IDR'"
+                class="text-[10px] text-muted-foreground font-semibold mt-0.5"
+              >
+                ≈ {{ formatCurrency(Number(expense.amount) * Number(expense.exchangeRate || 1)) }}
               </p>
             </div>
           </div>
