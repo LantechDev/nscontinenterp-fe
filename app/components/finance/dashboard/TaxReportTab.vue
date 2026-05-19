@@ -3,6 +3,7 @@ import { Download, Search, FileText, ChevronRight } from "lucide-vue-next";
 import { formatRupiah, cn } from "~/lib/utils";
 import type { StatCardData } from "~/types/finance";
 import JobDetailSlideOver from "~/components/operational/JobDetailSlideOver.vue";
+import Combobox from "~/components/ui/Combobox.vue";
 
 export interface DetailedTaxReportItem {
   invoiceId: string;
@@ -15,7 +16,36 @@ export interface DetailedTaxReportItem {
   baseAmount: number;
   taxAmount: number;
   type: "SALES" | "PURCHASE";
+  currency?: string;
+  exchangeRate?: number;
 }
+
+const formatFullRupiah = (value: unknown): string => {
+  const num = Number(value);
+  if (isNaN(num)) return "Rp 0";
+  return new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(num);
+};
+
+const formatCurrency = (amount: unknown, currency?: string): string => {
+  if (amount === undefined || amount === null) return "-";
+  const num = Number(amount);
+  const curr = currency || "IDR";
+  if (curr === "USD") {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(num);
+  } else {
+    return formatFullRupiah(num);
+  }
+};
 
 interface Props {
   isLoading: boolean;
@@ -30,17 +60,52 @@ const emit = defineEmits<{
 }>();
 
 const searchQuery = ref("");
+const selectedType = ref("all");
+const selectedTaxName = ref("all");
+
+const taxTypeOptions = [
+  { id: "all", name: "Semua Tipe" },
+  { id: "SALES", name: "Customer (Sales)" },
+  { id: "PURCHASE", name: "Vendor (Purchase)" },
+];
+
+const taxNameOptions = computed(() => {
+  const names = new Set<string>();
+  props.taxReportData.forEach((item) => {
+    if (item.taxName) names.add(item.taxName);
+  });
+  return [
+    { id: "all", name: "Semua Pajak" },
+    ...Array.from(names).map((name) => ({ id: name, name })),
+  ];
+});
 
 const filteredTaxReportData = computed(() => {
-  if (!searchQuery.value) return props.taxReportData;
-  const lowerQuery = searchQuery.value.toLowerCase();
-  return props.taxReportData.filter(
-    (item) =>
-      item.taxName?.toLowerCase().includes(lowerQuery) ||
-      item.invoiceNumber?.toLowerCase().includes(lowerQuery) ||
-      item.companyName?.toLowerCase().includes(lowerQuery) ||
-      item.type?.toLowerCase().includes(lowerQuery),
-  );
+  let list = props.taxReportData;
+
+  // Type Filter
+  if (selectedType.value !== "all") {
+    list = list.filter((item) => item.type === selectedType.value);
+  }
+
+  // Tax Name Filter
+  if (selectedTaxName.value !== "all") {
+    list = list.filter((item) => item.taxName === selectedTaxName.value);
+  }
+
+  // Search Query
+  if (searchQuery.value) {
+    const lowerQuery = searchQuery.value.toLowerCase();
+    list = list.filter(
+      (item) =>
+        item.taxName?.toLowerCase().includes(lowerQuery) ||
+        item.invoiceNumber?.toLowerCase().includes(lowerQuery) ||
+        item.companyName?.toLowerCase().includes(lowerQuery) ||
+        item.type?.toLowerCase().includes(lowerQuery),
+    );
+  }
+
+  return list;
 });
 
 const isJobDetailOpen = ref(false);
@@ -103,6 +168,19 @@ watch(isJobDetailOpen, (isOpen) => {
           >
             <Download class="w-4 h-4" /><span>Export</span>
           </button>
+        </div>
+      </div>
+
+      <!-- Filters Row -->
+      <div class="flex flex-wrap items-center gap-2 p-5 border-b border-border bg-gray-50/30">
+        <!-- Type Filter -->
+        <div class="w-48">
+          <Combobox v-model="selectedType" :options="taxTypeOptions" placeholder="Semua Tipe" />
+        </div>
+
+        <!-- Tax Name Filter -->
+        <div class="w-48">
+          <Combobox v-model="selectedTaxName" :options="taxNameOptions" placeholder="Semua Pajak" />
         </div>
       </div>
 
@@ -170,10 +248,22 @@ watch(isJobDetailOpen, (isOpen) => {
               </td>
               <td class="py-4 px-6 text-sm">{{ item.taxName }} ({{ item.rate }}%)</td>
               <td class="py-4 px-6 text-right text-sm font-mono text-gray-700">
-                {{ formatRupiah(item.baseAmount) }}
+                <div>{{ formatCurrency(item.baseAmount, item.currency) }}</div>
+                <div
+                  v-if="item.currency && item.currency !== 'IDR'"
+                  class="text-[10px] text-gray-400 mt-0.5 font-normal"
+                >
+                  ≈ {{ formatCurrency(item.baseAmount * (item.exchangeRate || 1)) }}
+                </div>
               </td>
               <td class="py-4 px-6 text-right text-sm font-bold text-primary font-mono">
-                {{ formatRupiah(item.taxAmount) }}
+                <div>{{ formatCurrency(item.taxAmount, item.currency) }}</div>
+                <div
+                  v-if="item.currency && item.currency !== 'IDR'"
+                  class="text-[10px] text-gray-400 mt-0.5 font-normal"
+                >
+                  ≈ {{ formatCurrency(item.taxAmount * (item.exchangeRate || 1)) }}
+                </div>
               </td>
               <td class="py-4 px-4 text-center">
                 <button

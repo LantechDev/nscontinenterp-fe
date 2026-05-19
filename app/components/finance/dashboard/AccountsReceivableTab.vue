@@ -7,6 +7,7 @@ import {
   Printer,
   Loader2,
   ArrowRight,
+  Download,
 } from "lucide-vue-next";
 import { cn, formatRupiah } from "~/lib/utils";
 import type { StatCardData } from "~/types/finance";
@@ -15,6 +16,7 @@ import { useInvoices, type InvoiceDetail } from "~/composables/useInvoices";
 import { useFinanceTax } from "~/composables/useFinanceTax";
 import SearchSelect from "~/components/ui/SearchSelect.vue";
 import JobInvoicePreview from "~/components/operational/JobInvoicePreview.vue";
+import Combobox from "~/components/ui/Combobox.vue";
 
 export interface ArApItem {
   id: string;
@@ -29,6 +31,8 @@ export interface ArApItem {
   status: "paid" | "partial" | "payment_out";
   expenseType?: "general" | "job";
   jobId?: string | null;
+  currency?: string;
+  exchangeRate?: number;
 }
 
 export interface ArApStats {
@@ -68,9 +72,35 @@ const emit = defineEmits<{
   (e: "pageChange", page: number): void;
   (e: "statusFilterChange", status: string): void;
   (e: "refresh"): void;
+  (e: "export", event: MouseEvent): void;
 }>();
 
-const formatCurrency = formatRupiah;
+const formatFullRupiah = (value: unknown): string => {
+  const num = Number(value);
+  if (isNaN(num)) return "Rp 0";
+  return new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(num);
+};
+
+const formatCurrency = (amount: unknown, currency?: string): string => {
+  if (amount === undefined || amount === null) return "-";
+  const num = Number(amount);
+  const curr = currency || "IDR";
+  if (curr === "USD") {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(num);
+  } else {
+    return formatFullRupiah(num);
+  }
+};
 
 const formatDate = (dateStr: string): string => {
   return new Date(dateStr).toLocaleDateString("id-ID", {
@@ -141,11 +171,45 @@ watch(
 );
 
 const expenseTypeFilter = ref<string>("all");
+const companyFilter = ref<string>("all");
+const yearFilter = ref<string>("all");
+
+const uniqueCompanies = computed(() => {
+  const cos = new Set<string>();
+  props.items.forEach((item) => {
+    if (item.company) cos.add(item.company);
+  });
+  const arr = Array.from(cos);
+  arr.sort();
+  return [{ id: "all", name: "All Companies" }, ...arr.map((c) => ({ id: c, name: c }))];
+});
+
+const uniqueYears = computed(() => {
+  const yrs = new Set<string>();
+  props.items.forEach((item) => {
+    if (item.dueDate) {
+      const yr = new Date(item.dueDate).getFullYear().toString();
+      yrs.add(yr);
+    }
+  });
+  const arr = Array.from(yrs);
+  arr.sort();
+  return [{ id: "all", name: "All Years" }, ...arr.map((y) => ({ id: y, name: y }))];
+});
 
 const filteredItems = computed(() => {
   let list = props.items;
   if (props.arApToggle === "ap" && expenseTypeFilter.value !== "all") {
     list = list.filter((item) => item.expenseType === expenseTypeFilter.value);
+  }
+  if (companyFilter.value !== "all") {
+    list = list.filter((item) => item.company === companyFilter.value);
+  }
+  if (yearFilter.value !== "all") {
+    list = list.filter((item) => {
+      if (!item.dueDate) return false;
+      return new Date(item.dueDate).getFullYear().toString() === yearFilter.value;
+    });
   }
   return list;
 });
@@ -154,6 +218,8 @@ watch(
   () => props.arApToggle,
   () => {
     expenseTypeFilter.value = "all";
+    companyFilter.value = "all";
+    yearFilter.value = "all";
   },
 );
 
@@ -380,6 +446,19 @@ onMounted(async () => {
     taxOptions.value = [];
   }
 });
+
+const mappedStatusOptions = computed(() => {
+  return props.statusOptions.map((s) => ({
+    id: s.value,
+    name: s.label,
+  }));
+});
+
+const expenseTypeOptions = [
+  { id: "all", name: "Semua Tipe Biaya" },
+  { id: "general", name: "General Expense" },
+  { id: "job", name: "Job Expense" },
+];
 </script>
 
 <template>
@@ -483,31 +562,51 @@ onMounted(async () => {
               </button>
             </div>
           </div>
+
+          <!-- Export Button -->
+          <button
+            class="flex items-center gap-2 px-3 py-2 text-sm border border-border bg-white hover:bg-gray-50 rounded-lg"
+            @click="emit('export', $event)"
+          >
+            <Download class="w-4 h-4" /><span>Export</span>
+          </button>
         </div>
       </div>
 
       <!-- Second Row: Status Filter -->
       <div class="flex flex-wrap items-center gap-2 p-5 border-b border-border bg-gray-50/30">
         <!-- Status Filter -->
-        <select
-          v-model="localStatusFilter"
-          class="px-3 py-2 text-sm border border-border rounded-lg bg-white"
-        >
-          <option v-for="status in statusOptions" :key="status.value" :value="status.value">
-            {{ status.label }}
-          </option>
-        </select>
+        <div class="w-48">
+          <Combobox
+            v-model="localStatusFilter"
+            :options="mappedStatusOptions"
+            placeholder="Pilih Status"
+            @update:model-value="emit('statusFilterChange', $event || '')"
+          />
+        </div>
+
+        <!-- Company Filter -->
+        <div class="w-48">
+          <Combobox
+            v-model="companyFilter"
+            :options="uniqueCompanies"
+            placeholder="All Companies"
+          />
+        </div>
+
+        <!-- Year Filter -->
+        <div class="w-48">
+          <Combobox v-model="yearFilter" :options="uniqueYears" placeholder="All Years" />
+        </div>
 
         <!-- Expense Type Filter (Only for AP) -->
-        <select
-          v-if="arApToggle === 'ap'"
-          v-model="expenseTypeFilter"
-          class="px-3 py-2 text-sm border border-border rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-primary"
-        >
-          <option value="all">Semua Tipe Biaya</option>
-          <option value="general">General Expense</option>
-          <option value="job">Job Expense</option>
-        </select>
+        <div v-if="arApToggle === 'ap'" class="w-48">
+          <Combobox
+            v-model="expenseTypeFilter"
+            :options="expenseTypeOptions"
+            placeholder="Pilih Tipe Biaya"
+          />
+        </div>
       </div>
 
       <!-- Table -->
@@ -555,16 +654,34 @@ onMounted(async () => {
               </td>
               <td class="py-3 px-4 text-sm">{{ item.company }}</td>
               <td class="py-3 px-4 text-sm text-right font-medium">
-                {{ formatCurrency(item.total) }}
+                <div>{{ formatCurrency(item.total, item.currency) }}</div>
+                <div
+                  v-if="item.currency && item.currency !== 'IDR'"
+                  class="text-[10px] text-gray-400 mt-0.5 font-normal"
+                >
+                  ≈ {{ formatCurrency(item.total * (item.exchangeRate || 1)) }}
+                </div>
               </td>
               <td class="py-3 px-4 text-sm text-right text-green-600">
-                {{ formatCurrency(item.paid) }}
+                <div>{{ formatCurrency(item.paid, item.currency) }}</div>
+                <div
+                  v-if="item.currency && item.currency !== 'IDR'"
+                  class="text-[10px] text-gray-400 mt-0.5 font-normal"
+                >
+                  ≈ {{ formatCurrency(item.paid * (item.exchangeRate || 1)) }}
+                </div>
               </td>
               <td
                 class="py-3 px-4 text-sm text-right font-medium"
                 :class="item.remaining > 0 ? 'text-red-600' : ''"
               >
-                {{ formatCurrency(item.remaining) }}
+                <div>{{ formatCurrency(item.remaining, item.currency) }}</div>
+                <div
+                  v-if="item.currency && item.currency !== 'IDR'"
+                  class="text-[10px] text-gray-400 mt-0.5 font-normal"
+                >
+                  ≈ {{ formatCurrency(item.remaining * (item.exchangeRate || 1)) }}
+                </div>
               </td>
               <td class="py-3 px-4 text-sm">{{ formatDate(item.dueDate) }}</td>
               <td class="py-3 px-4 text-center">
@@ -657,11 +774,22 @@ onMounted(async () => {
             <span class="text-sm text-muted-foreground">Company</span>
             <span class="text-sm font-medium">{{ selectedInvoice.company }}</span>
           </div>
-          <div class="flex justify-between items-center">
+          <div class="flex justify-between items-start">
             <span class="text-sm text-muted-foreground">Sisa</span>
-            <span class="text-sm font-medium text-red-600">{{
-              formatCurrency(selectedInvoice.remaining)
-            }}</span>
+            <div class="text-right">
+              <span class="text-sm font-medium text-red-600">{{
+                formatCurrency(selectedInvoice.remaining, selectedInvoice.currency)
+              }}</span>
+              <div
+                v-if="selectedInvoice.currency && selectedInvoice.currency !== 'IDR'"
+                class="text-[10px] text-gray-400 mt-0.5 font-normal"
+              >
+                ≈
+                {{
+                  formatCurrency(selectedInvoice.remaining * (selectedInvoice.exchangeRate || 1))
+                }}
+              </div>
+            </div>
           </div>
         </div>
 

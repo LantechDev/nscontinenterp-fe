@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ArrowUpDown, Download, Filter, Search, ChevronDown } from "lucide-vue-next";
+import { ArrowUpDown, Download, Search, ChevronDown } from "lucide-vue-next";
 import { cn, formatRupiah } from "~/lib/utils";
 import type { TransactionItem } from "~/types/finance";
+import Combobox from "~/components/ui/Combobox.vue";
 
 const props = defineProps<{
   transactions: TransactionItem[];
@@ -64,6 +65,49 @@ const localCustomerId = computed({
 const localShowSortDropdown = computed({
   get: () => props.showSortDropdown,
   set: (val) => emit("update:showSortDropdown", val),
+});
+
+const yearOptions = computed(() => [
+  { id: "", name: "All Years" },
+  ...props.availableYears.map((year) => ({ id: year, name: year })),
+]);
+
+const mappedTypeOptions = computed(() => {
+  return props.typeOptions.map((t) => ({
+    id: t.value,
+    name: t.label,
+  }));
+});
+
+const customerOptions = computed(() => {
+  const uniqueNames = new Set<string>();
+  props.transactions.forEach((t) => {
+    if (t.customer) {
+      uniqueNames.add(t.customer);
+    }
+  });
+
+  // Keep selected customer in list
+  if (props.customerId) {
+    const selectedCompany = props.companies.find((c) => c.id === props.customerId);
+    if (selectedCompany) {
+      uniqueNames.add(selectedCompany.name);
+    } else {
+      uniqueNames.add(props.customerId);
+    }
+  }
+
+  const options = [{ id: "", name: "All Customers" }];
+  uniqueNames.forEach((name) => {
+    const matched = props.companies.find((c) => c.name.toLowerCase() === name.toLowerCase());
+    if (matched) {
+      options.push({ id: matched.id, name: matched.name });
+    } else {
+      options.push({ id: name, name: name });
+    }
+  });
+
+  return options;
 });
 </script>
 
@@ -134,45 +178,34 @@ const localShowSortDropdown = computed({
     <!-- Second Row: Year/Type/Customer Filters -->
     <div class="flex flex-wrap items-center gap-2 p-5 border-b border-border bg-gray-50/30">
       <!-- Year Filter -->
-      <div class="relative">
-        <select
+      <div class="w-36">
+        <Combobox
           v-model="localSelectedYear"
-          @change="emit('yearChange', ($event.target as HTMLSelectElement).value)"
-          class="appearance-none px-3 py-2 pr-8 text-sm border border-border rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
-        >
-          <option value="">All Years</option>
-          <option v-for="year in availableYears" :key="year" :value="year">
-            {{ year }}
-          </option>
-        </select>
-        <Filter
-          class="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none"
+          :options="yearOptions"
+          placeholder="All Years"
+          @update:model-value="emit('yearChange', $event || '')"
         />
       </div>
 
       <!-- Type Filter -->
-      <select
-        v-model="localTransactionType"
-        @change="emit('typeChange', localTransactionType)"
-        class="px-3 py-2 text-sm border border-border rounded-lg bg-white"
-      >
-        <option v-for="type in typeOptions" :key="type.value" :value="type.value">
-          {{ type.label }}
-        </option>
-      </select>
+      <div class="w-48">
+        <Combobox
+          v-model="localTransactionType"
+          :options="mappedTypeOptions"
+          placeholder="All Types"
+          @update:model-value="emit('typeChange', $event || '')"
+        />
+      </div>
 
       <!-- Customer Filter -->
-      <select
-        v-model="localCustomerId"
-        @change="emit('customerChange', ($event.target as HTMLSelectElement).value)"
-        class="px-3 py-2 text-sm border border-border rounded-lg bg-white"
-        :disabled="isLoadingCustomers"
-      >
-        <option value="">All Customers</option>
-        <option v-for="customer in companies" :key="customer.id" :value="customer.id">
-          {{ customer.name }}
-        </option>
-      </select>
+      <div class="w-64">
+        <Combobox
+          v-model="localCustomerId"
+          :options="customerOptions"
+          placeholder="All Customers"
+          @update:model-value="emit('customerChange', $event || '')"
+        />
+      </div>
     </div>
     <div class="overflow-x-auto">
       <table class="w-full">

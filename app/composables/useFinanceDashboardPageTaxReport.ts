@@ -12,6 +12,8 @@ export interface DetailedTaxReportItem {
   baseAmount: number;
   taxAmount: number;
   type: "SALES" | "PURCHASE";
+  currency?: string;
+  exchangeRate?: number;
 }
 
 export function useFinanceDashboardPageTaxReport() {
@@ -36,8 +38,14 @@ export function useFinanceDashboardPageTaxReport() {
   }
 
   const taxStatsCards = computed(() => {
-    const totalTax = taxReportData.value.reduce((sum, item) => sum + Number(item.taxAmount), 0);
-    const totalBase = taxReportData.value.reduce((sum, item) => sum + Number(item.baseAmount), 0);
+    const totalTax = taxReportData.value.reduce(
+      (sum, item) => sum + Number(item.taxAmount) * Number(item.exchangeRate || 1),
+      0,
+    );
+    const totalBase = taxReportData.value.reduce(
+      (sum, item) => sum + Number(item.baseAmount) * Number(item.exchangeRate || 1),
+      0,
+    );
     const uniqueInvoices = new Set(taxReportData.value.map((item) => item.invoiceId));
 
     return [

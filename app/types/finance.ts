@@ -9,6 +9,9 @@ export interface StatCardData {
   changeLabel?: string;
   suffix?: string;
   isPrimary?: boolean;
+  tooltip?: string;
+  color?: "green" | "red" | "purple" | "blue" | "neutral";
+  subtitle?: string;
 }
 
 export interface TableColumn {

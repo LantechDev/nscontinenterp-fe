@@ -42,37 +42,78 @@ export function useFinanceDashboardPageTransactions() {
 
     if (!t) {
       return [
-        { title: "Journal", value: "Rp0", isPrimary: true },
-        { title: "Total Income", value: "Rp0", change: 0, changeLabel: "vs Last Period" },
-        { title: "Total Outcome", value: "Rp0", change: 0, changeLabel: "vs Last Period" },
-        { title: "Today Transaction", value: "0", changeLabel: "", suffix: "" },
+        {
+          title: "Total Revenue",
+          value: "Rp0",
+          subtitle: "Semua customer invoice / earned revenue",
+          tooltip: "Total revenue from customer invoices.",
+          color: "green",
+          changeLabel: "vs Last Period",
+        },
+        {
+          title: "Total Expense",
+          value: "Rp0",
+          subtitle: "Semua vendor invoice + operational expense",
+          tooltip: "Total operational and vendor expenses.",
+          color: "red",
+          changeLabel: "vs Last Period",
+        },
+        {
+          title: "Gross Profit",
+          value: "Rp0",
+          subtitle: "Formula: Revenue - Expense",
+          tooltip: "Gross profit before tax and adjustments.",
+          color: "blue",
+          changeLabel: "vs Last Period",
+        },
+        {
+          title: "Journal Volume",
+          value: "Rp0",
+          subtitle: "Formula: Revenue + Expense",
+          tooltip: "Total financial movement recorded in journals.",
+          color: "neutral",
+          changeLabel: "vs Last Period",
+        },
       ];
     }
 
+    const revenueVal = t.totalIncome;
+    const expenseVal = t.totalOutcome;
+    const grossProfitVal = revenueVal - expenseVal;
+    const journalVolumeVal = t.totalJournal;
+
     return [
       {
+        title: "Total Revenue",
+        value: formatFullRupiah(revenueVal),
+        subtitle: "Semua customer invoice / earned revenue",
+        tooltip: "Total revenue from customer invoices.",
+        color: "green",
+        changeLabel: "vs Last Period",
+      },
+      {
+        title: "Total Expense",
+        value: formatFullRupiah(expenseVal),
+        subtitle: "Semua vendor invoice + operational expense",
+        tooltip: "Total operational and vendor expenses.",
+        color: "red",
+        changeLabel: "vs Last Period",
+      },
+      {
+        title: "Gross Profit",
+        value: formatFullRupiah(grossProfitVal),
+        subtitle: "Formula: Revenue - Expense",
+        tooltip: "Gross profit before tax and adjustments.",
+        color: "blue",
+        changeLabel: "vs Last Period",
+      },
+      {
         title: "Journal Volume",
-        value: formatFullRupiah(t.totalJournal),
-        isPrimary: true,
+        value: formatFullRupiah(journalVolumeVal),
+        subtitle: "Formula: Revenue + Expense",
+        tooltip: "Total financial movement recorded in journals.",
+        color: "neutral",
         changeLabel: "vs Last Period",
-      },
-      {
-        title: "Total Transaction",
-        value: formatFullRupiah(t.totalIncome),
-        change: 0,
-        changeLabel: "vs Last Period",
-      },
-      {
-        title: "Today Transaction",
-        value: `${t.todayTransactions}`,
-        changeLabel: "Items today",
-        suffix: " items",
-      },
-      {
-        title: "All Transactions",
-        value: `${pagination.value.total}`,
-        changeLabel: "Total count",
-        suffix: " items",
       },
     ];
   });

@@ -622,6 +622,23 @@ function dispatchExportExcel() {
   }
 }
 
+function formatExportCurrency(val: number, currency?: string) {
+  const curr = currency || "IDR";
+  if (curr === "USD") {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+    }).format(val);
+  } else {
+    return new Intl.NumberFormat("id-ID", {
+      style: "currency",
+      currency: "IDR",
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(val);
+  }
+}
+
 function handleArApExport() {
   const list = arApItems.value || [];
   if (list.length === 0) {
@@ -634,19 +651,43 @@ function handleArApExport() {
   const rows: (string | number)[][] = list.map((item) => [
     item.invoiceNumber || "-",
     item.company || "-",
-    Number(item.total) || 0,
-    Number(item.paid) || 0,
-    Number(item.remaining) || 0,
+    formatExportCurrency(Number(item.total) || 0, item.currency),
+    formatExportCurrency(Number(item.paid) || 0, item.currency),
+    formatExportCurrency(Number(item.remaining) || 0, item.currency),
     item.dueDate ? new Date(item.dueDate).toLocaleDateString("id-ID") : "-",
     item.status.toUpperCase(),
+  ]);
+
+  // Compute Totals in IDR Equivalent
+  const totalConverted = list.reduce(
+    (s, item) => s + Number(item.total || 0) * Number(item.exchangeRate || 1),
+    0,
+  );
+  const totalPaidConverted = list.reduce(
+    (s, item) => s + Number(item.paid || 0) * Number(item.exchangeRate || 1),
+    0,
+  );
+  const totalRemainingConverted = list.reduce(
+    (s, item) => s + Number(item.remaining || 0) * Number(item.exchangeRate || 1),
+    0,
+  );
+
+  rows.push([
+    "TOTAL (IDR Equivalent)",
+    "",
+    formatExportCurrency(totalConverted, "IDR"),
+    formatExportCurrency(totalPaidConverted, "IDR"),
+    formatExportCurrency(totalRemainingConverted, "IDR"),
+    "",
+    "",
   ]);
 
   const cols: PdfCol[] = [
     { header: "Inv No.", width: 0.18 },
     { header: "Company", width: 0.22 },
-    { header: "Total", width: 0.14, align: "right", isCurrency: true },
-    { header: "Paid", width: 0.14, align: "right", isCurrency: true },
-    { header: "Remaining", width: 0.14, align: "right", isCurrency: true },
+    { header: "Total", width: 0.14, align: "right" },
+    { header: "Paid", width: 0.14, align: "right" },
+    { header: "Remaining", width: 0.14, align: "right" },
     { header: "Due Date", width: 0.12, align: "center" },
     { header: "Status", width: 0.06, align: "center" },
   ];
@@ -656,7 +697,6 @@ function handleArApExport() {
     period,
     cols,
     rows,
-    totals: [2, 3, 4],
     filename: `${typeLabel.replace(" ", "_")}_Report_${new Date().toISOString().split("T")[0]}.pdf`,
   });
 }
@@ -682,10 +722,10 @@ function handleArApExportExcel() {
       cells: [
         item.invoiceNumber,
         item.company,
-        item.total,
-        item.paid,
-        item.remaining,
-        item.dueDate,
+        formatExportCurrency(Number(item.total) || 0, item.currency),
+        formatExportCurrency(Number(item.paid) || 0, item.currency),
+        formatExportCurrency(Number(item.remaining) || 0, item.currency),
+        item.dueDate ? new Date(item.dueDate).toLocaleDateString("id-ID") : "-",
         item.status,
       ],
       style: isEven ? 1 : 2,
@@ -701,7 +741,35 @@ function handleArApExportExcel() {
     });
   });
 
-  const colWidths = [18, 25, 18, 18, 18, 15, 12];
+  // Add Grand Total row for Excel
+  const totalConverted = list.reduce(
+    (s, item) => s + Number(item.total || 0) * Number(item.exchangeRate || 1),
+    0,
+  );
+  const totalPaidConverted = list.reduce(
+    (s, item) => s + Number(item.paid || 0) * Number(item.exchangeRate || 1),
+    0,
+  );
+  const totalRemainingConverted = list.reduce(
+    (s, item) => s + Number(item.remaining || 0) * Number(item.exchangeRate || 1),
+    0,
+  );
+
+  rows.push({
+    cells: [
+      "TOTAL (IDR Equivalent)",
+      "",
+      formatExportCurrency(totalConverted, "IDR"),
+      formatExportCurrency(totalPaidConverted, "IDR"),
+      formatExportCurrency(totalRemainingConverted, "IDR"),
+      "",
+      "",
+    ],
+    style: 3,
+    cellStyles: [3, 3, 3, 3, 3, 3, 3],
+  });
+
+  const colWidths = [18, 25, 22, 22, 22, 15, 12];
   buildStyledWorkbook(
     "AR_AP",
     rows,
@@ -795,8 +863,27 @@ function handleTaxReportExport() {
     item.issuedDate ? new Date(item.issuedDate).toLocaleDateString("id-ID") : "-",
     item.companyName || "-",
     `${item.taxName} (${item.rate}%)`,
-    Number(item.baseAmount) || 0,
-    Number(item.taxAmount) || 0,
+    formatExportCurrency(Number(item.baseAmount) || 0, item.currency),
+    formatExportCurrency(Number(item.taxAmount) || 0, item.currency),
+  ]);
+
+  // Compute Totals in IDR Equivalent
+  const totalBaseConverted = list.reduce(
+    (s, item) => s + Number(item.baseAmount || 0) * Number(item.exchangeRate || 1),
+    0,
+  );
+  const totalTaxConverted = list.reduce(
+    (s, item) => s + Number(item.taxAmount || 0) * Number(item.exchangeRate || 1),
+    0,
+  );
+
+  rows.push([
+    "TOTAL (IDR Equivalent)",
+    "",
+    "",
+    "",
+    formatExportCurrency(totalBaseConverted, "IDR"),
+    formatExportCurrency(totalTaxConverted, "IDR"),
   ]);
 
   const cols: PdfCol[] = [
@@ -804,8 +891,8 @@ function handleTaxReportExport() {
     { header: "Tanggal", width: 0.12 },
     { header: "Customer", width: 0.2 },
     { header: "Pajak", width: 0.18 },
-    { header: "Dasar Pengenaan", width: 0.15, align: "right", isCurrency: true },
-    { header: "Total Pajak", width: 0.15, align: "right", isCurrency: true },
+    { header: "Dasar Pengenaan", width: 0.15, align: "right" },
+    { header: "Total Pajak", width: 0.15, align: "right" },
   ];
 
   exportStyledPdf({
@@ -813,7 +900,6 @@ function handleTaxReportExport() {
     period,
     cols,
     rows,
-    totals: [4, 5],
     filename: `Laporan_Pajak_Detail_${selectedYear.value || new Date().getFullYear()}.pdf`,
     orientation: "landscape",
   });
@@ -844,8 +930,8 @@ function handleTaxReportExportExcel() {
         item.issuedDate ? new Date(item.issuedDate).toLocaleDateString("id-ID") : "-",
         item.companyName || "-",
         `${item.taxName} (${item.rate}%)`,
-        Number(item.baseAmount) || 0,
-        Number(item.taxAmount) || 0,
+        formatExportCurrency(Number(item.baseAmount) || 0, item.currency),
+        formatExportCurrency(Number(item.taxAmount) || 0, item.currency),
       ],
       style: isEven ? 1 : 2,
       cellStyles: [
@@ -859,16 +945,29 @@ function handleTaxReportExportExcel() {
     });
   });
 
-  const totalBase = list.reduce((s, item) => s + (Number(item.baseAmount) || 0), 0);
-  const totalTax = list.reduce((s, item) => s + (Number(item.taxAmount) || 0), 0);
+  const totalBaseConverted = list.reduce(
+    (s, item) => s + Number(item.baseAmount || 0) * Number(item.exchangeRate || 1),
+    0,
+  );
+  const totalTaxConverted = list.reduce(
+    (s, item) => s + Number(item.taxAmount || 0) * Number(item.exchangeRate || 1),
+    0,
+  );
 
   rows.push({
-    cells: ["", "", "", "TOTAL", totalBase, totalTax],
+    cells: [
+      "TOTAL (IDR Equivalent)",
+      "",
+      "",
+      "",
+      formatExportCurrency(totalBaseConverted, "IDR"),
+      formatExportCurrency(totalTaxConverted, "IDR"),
+    ],
     style: 3,
-    cellStyles: [10, 10, 10, 9, 3, 3],
+    cellStyles: [3, 3, 3, 3, 3, 3],
   });
 
-  const colWidths = [20, 15, 25, 20, 20, 20];
+  const colWidths = [20, 15, 25, 20, 22, 22];
 
   buildStyledWorkbook(
     "Tax Report",
@@ -1063,6 +1162,7 @@ function handleTaxReportExportExcel() {
           @status-filter-change="handleArApStatusFilterChange"
           @page-change="handlePageChange"
           @refresh="handleArApRefresh"
+          @export="openExportPopup($event)"
         />
 
         <AssetsTab

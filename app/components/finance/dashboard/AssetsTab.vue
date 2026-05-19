@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ArrowUpDown, Download, Filter, Search, ChevronDown, Plus } from "lucide-vue-next";
+import { ArrowUpDown, Download, Search, ChevronDown, Plus } from "lucide-vue-next";
 import { cn, formatRupiah } from "~/lib/utils";
 import type { StatCardData } from "~/types/finance";
+import Combobox from "~/components/ui/Combobox.vue";
 
 export interface AssetItem {
   id: string;
@@ -88,6 +89,53 @@ const localCompanyId = computed({
 const localShowSortDropdown = computed({
   get: () => props.showSortDropdown,
   set: (val) => emit("update:showSortDropdown", val),
+});
+
+const yearOptions = computed(() => [
+  { id: "", name: "All Years" },
+  ...props.availableYears.map((year) => ({ id: year, name: year })),
+]);
+
+const serviceOptions = computed(() => {
+  const uniqueNames = new Set<string>();
+  props.assets.forEach((a) => {
+    if (a.service) uniqueNames.add(a.service);
+  });
+  if (props.serviceId) {
+    const selectedService = props.services.find((s) => s.id === props.serviceId);
+    if (selectedService) uniqueNames.add(selectedService.name);
+  }
+  const options = [{ id: "", name: "All Services" }];
+  uniqueNames.forEach((name) => {
+    const matched = props.services.find((s) => s.name.toLowerCase() === name.toLowerCase());
+    if (matched) {
+      options.push({ id: matched.id, name: matched.name });
+    } else {
+      options.push({ id: name, name: name });
+    }
+  });
+  return options;
+});
+
+const companyOptions = computed(() => {
+  const uniqueNames = new Set<string>();
+  props.assets.forEach((a) => {
+    if (a.company) uniqueNames.add(a.company);
+  });
+  if (props.companyId) {
+    const selectedCompany = props.companies.find((c) => c.id === props.companyId);
+    if (selectedCompany) uniqueNames.add(selectedCompany.name);
+  }
+  const options = [{ id: "", name: "All Companies" }];
+  uniqueNames.forEach((name) => {
+    const matched = props.companies.find((c) => c.name.toLowerCase() === name.toLowerCase());
+    if (matched) {
+      options.push({ id: matched.id, name: matched.name });
+    } else {
+      options.push({ id: name, name: name });
+    }
+  });
+  return options;
 });
 </script>
 
@@ -180,47 +228,34 @@ const localShowSortDropdown = computed({
       <!-- Second Row: Year/Service/Company Filters (full width) -->
       <div class="flex items-center gap-2 p-5 border-b border-border bg-gray-50/30">
         <!-- Year Filter -->
-        <div class="relative flex-1">
-          <select
+        <div class="flex-1 min-w-[150px]">
+          <Combobox
             v-model="localSelectedYear"
-            @change="emit('yearChange', ($event.target as HTMLSelectElement).value)"
-            class="w-full px-3 py-2 pr-8 text-sm border border-border rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
-          >
-            <option value="">All Years</option>
-            <option v-for="year in availableYears" :key="year" :value="year">
-              {{ year }}
-            </option>
-          </select>
-          <Filter
-            class="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none"
+            :options="yearOptions"
+            placeholder="All Years"
+            @update:model-value="emit('yearChange', $event || '')"
           />
         </div>
 
         <!-- Service Filter -->
-        <select
-          v-model="localServiceId"
-          @change="emit('serviceChange', localServiceId)"
-          class="flex-1 px-3 py-2 text-sm border border-border rounded-lg bg-white"
-          :disabled="isLoadingServices"
-        >
-          <option value="">All Services</option>
-          <option v-for="service in services" :key="service.id" :value="service.id">
-            {{ service.name }}
-          </option>
-        </select>
+        <div class="flex-1 min-w-[180px]">
+          <Combobox
+            v-model="localServiceId"
+            :options="serviceOptions"
+            placeholder="All Services"
+            @update:model-value="emit('serviceChange', $event || '')"
+          />
+        </div>
 
         <!-- Company Filter (full width) -->
-        <select
-          v-model="localCompanyId"
-          @change="emit('companyChange', ($event.target as HTMLSelectElement).value)"
-          class="w-full flex-1 px-3 py-2 text-sm border border-border rounded-lg bg-white"
-          :disabled="isLoadingCompanies"
-        >
-          <option value="">All Companies</option>
-          <option v-for="company in companies" :key="company.id" :value="company.id">
-            {{ company.name }}
-          </option>
-        </select>
+        <div class="flex-1 min-w-[200px]">
+          <Combobox
+            v-model="localCompanyId"
+            :options="companyOptions"
+            placeholder="All Companies"
+            @update:model-value="emit('companyChange', $event || '')"
+          />
+        </div>
       </div>
 
       <!-- Table -->

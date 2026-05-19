@@ -15,6 +15,8 @@ export interface ArApItem {
   status: "paid" | "partial" | "payment_out";
   expenseType?: "general" | "job";
   jobId?: string | null;
+  currency?: string;
+  exchangeRate?: number;
 }
 
 export interface ArApStats {

@@ -110,7 +110,7 @@ function buildSheetXml(rows: StyledRow[], colWidths?: number[]): string {
     const cells: string[] = [];
     row.cells.forEach((val, ci) => {
       const ref = cellRef(ci, ri);
-      const s = row.style;
+      const s = row.cellStyles && row.cellStyles[ci] !== undefined ? row.cellStyles[ci] : row.style;
       if (typeof val === "number") {
         cells.push(`<c r="${ref}" s="${s}"><v>${val}</v></c>`);
       } else if (val != null && val !== "") {
