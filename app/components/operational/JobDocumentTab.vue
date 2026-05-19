@@ -17,6 +17,8 @@ const isUploading = ref(false);
 const uploadingFileName = ref<string | null>(null);
 const isDragging = ref(false);
 const previewDoc = ref<JobDocumentItem | null>(null);
+const isPdfLoading = ref(false);
+const pdfBlobUrl = ref<string | null>(null);
 
 const loadDocuments = async () => {
   isLoading.value = true;
@@ -113,6 +115,34 @@ const downloadFile = async (fileUrl: string, fileName: string) => {
     console.error("Download failed", error);
     toast.error("Failed to download file directly.");
   }
+};
+
+const openPreview = async (file: JobDocumentItem) => {
+  previewDoc.value = file;
+  if (file.fileType === "application/pdf") {
+    isPdfLoading.value = true;
+    pdfBlobUrl.value = null;
+    try {
+      const response = await fetch(file.fileUrl);
+      if (!response.ok) throw new Error("Failed to fetch PDF");
+      const blob = await response.blob();
+      const pdfBlob = new Blob([blob], { type: "application/pdf" });
+      pdfBlobUrl.value = window.URL.createObjectURL(pdfBlob);
+    } catch (err) {
+      console.error("Failed to load PDF preview", err);
+      toast.error("Failed to load PDF preview.");
+    } finally {
+      isPdfLoading.value = false;
+    }
+  }
+};
+
+const closePreview = () => {
+  if (pdfBlobUrl.value) {
+    window.URL.revokeObjectURL(pdfBlobUrl.value);
+    pdfBlobUrl.value = null;
+  }
+  previewDoc.value = null;
 };
 </script>
 
@@ -247,7 +277,7 @@ const downloadFile = async (fileUrl: string, fileName: string) => {
           </div>
           <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
             <button
-              @click="previewDoc = file"
+              @click="openPreview(file)"
               class="p-2 text-muted-foreground hover:text-[#012D5A] transition-colors rounded-lg hover:bg-blue-50"
               title="Preview"
             >
@@ -357,9 +387,11 @@ const downloadFile = async (fileUrl: string, fileName: string) => {
   0% {
     transform: translateX(-100%);
   }
+
   50% {
     transform: translateX(100%);
   }
+
   100% {
     transform: translateX(300%);
   }
@@ -373,6 +405,7 @@ const downloadFile = async (fileUrl: string, fileName: string) => {
   from {
     opacity: 0;
   }
+
   to {
     opacity: 1;
   }
