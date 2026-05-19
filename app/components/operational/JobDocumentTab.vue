@@ -318,7 +318,7 @@ const closePreview = () => {
       <div
         v-if="previewDoc"
         class="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
-        @click.self="previewDoc = null"
+        @click.self="closePreview"
       >
         <div
           class="bg-white rounded-xl shadow-xl w-[90vw] max-w-[1400px] max-h-[95vh] h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200"
@@ -336,7 +336,7 @@ const closePreview = () => {
                 <Download class="w-5 h-5 text-muted-foreground" />
               </button>
               <button
-                @click="previewDoc = null"
+                @click="closePreview"
                 class="p-2 hover:bg-red-50 hover:text-red-600 rounded-lg shrink-0 transition-colors"
                 title="Close"
               >
@@ -355,11 +355,25 @@ const closePreview = () => {
               class="max-w-full max-h-full object-contain rounded-lg shadow-sm"
             />
             <!-- PDF Preview -->
-            <iframe
+            <div
               v-else-if="previewDoc.fileType === 'application/pdf'"
-              :src="previewDoc.fileUrl"
-              class="w-full h-full min-h-[70vh] border border-border rounded-lg shadow-sm bg-white"
-            ></iframe>
+              class="w-full h-full min-h-[70vh] flex flex-col relative"
+            >
+              <div
+                v-if="isPdfLoading"
+                class="absolute inset-0 flex flex-col items-center justify-center bg-white/80 gap-3 z-10"
+              >
+                <Loader2 class="w-8 h-8 animate-spin text-[#012D5A]" />
+                <p class="text-sm font-semibold text-[#012D5A] animate-pulse">
+                  Loading PDF preview...
+                </p>
+              </div>
+              <iframe
+                v-if="pdfBlobUrl || !isPdfLoading"
+                :src="pdfBlobUrl || previewDoc.fileUrl"
+                class="w-full h-full flex-1 border border-border rounded-lg shadow-sm bg-white"
+              ></iframe>
+            </div>
             <!-- Unrecognized / Fallback -->
             <div v-else class="text-center p-8 bg-white border border-border rounded-xl shadow-sm">
               <FileText class="w-16 h-16 text-muted-foreground opacity-50 mx-auto mb-4" />
