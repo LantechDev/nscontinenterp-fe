@@ -38,6 +38,19 @@ const props = defineProps<{
   jobNumber: string;
   customerId: string | null;
   invoice?: InvoiceDetail | null;
+  prefillData?: {
+    quotationId?: string | null;
+    currency?: string;
+    exchangeRate?: number;
+    notes?: string | null;
+    items?: Array<{
+      serviceId?: string | null;
+      description: string;
+      quantity: number;
+      unitPrice: number;
+      taxId?: string | null;
+    }>;
+  } | null;
 }>();
 
 const emit = defineEmits(["success", "cancel"]);
@@ -65,11 +78,12 @@ const form = ref({
   dueDate: props.invoice?.dueDate
     ? new Date(props.invoice.dueDate).toISOString().split("T")[0]
     : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
-  currency: props.invoice?.currency || "IDR",
-  exchangeRate: Number(props.invoice?.exchangeRate || 1),
+  currency: props.invoice?.currency || props.prefillData?.currency || "IDR",
+  exchangeRate: Number(props.invoice?.exchangeRate || props.prefillData?.exchangeRate || 1),
   customerId: props.invoice?.company?.id || props.customerId || "",
-  notes: props.invoice?.notes || "",
+  notes: props.invoice?.notes || props.prefillData?.notes || "",
   blNumber: props.invoice?.blNumber || props.invoice?.job?.billsOfLading?.[0]?.blNumber || "",
+  quotationId: props.invoice?.quotationId || props.prefillData?.quotationId || null,
   items: (props.invoice?.items?.map((item) => ({
     id: item.id,
     serviceId: item.service?.id || "",
@@ -77,7 +91,16 @@ const form = ref({
     quantity: Number(item.quantity),
     unitPrice: Number(item.unitPrice),
     taxId: item.taxId || "",
-  })) || [{ serviceId: "", description: "", quantity: 1, unitPrice: 0, taxId: "" }]) as FormItem[],
+  })) ||
+    props.prefillData?.items?.map((item) => ({
+      serviceId: item.serviceId || "",
+      description: item.description,
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+      taxId: item.taxId || "",
+    })) || [
+      { serviceId: "", description: "", quantity: 1, unitPrice: 0, taxId: "" },
+    ]) as FormItem[],
 });
 
 // Service Modal State
@@ -249,6 +272,7 @@ const handleSubmit = async () => {
     balanceDue: total.value,
     notes: form.value.notes,
     blNumber: form.value.blNumber,
+    quotationId: form.value.quotationId,
     items: form.value.items.map((item) => ({
       id: item.id, // Include id for updates
       serviceId: item.serviceId || undefined,
@@ -495,7 +519,7 @@ const formatInputCurrency = (val: number | string, currency: string = form.value
             <div class="col-span-4">Service / Description</div>
             <div class="col-span-1">Qty</div>
             <div class="col-span-3 text-right">Unit Price</div>
-            <div class="col-span-3 px-2">Tax</div>
+            <div class="col-span-3 text-right pr-4">Tax</div>
             <div class="col-span-1"></div>
           </div>
 
@@ -552,14 +576,14 @@ const formatInputCurrency = (val: number | string, currency: string = form.value
                   Sub: {{ formatCurrency(Number(item.quantity) * Number(item.unitPrice)) }}
                 </p>
               </div>
-              <div class="col-span-3 px-2 flex flex-col items-end mr-4">
+              <div class="col-span-3 flex flex-col items-end pr-4">
                 <Combobox
                   :model-value="item.taxId"
                   :options="TAX_OPTIONS"
                   label-key="name"
                   value-key="value"
                   placeholder="Tax..."
-                  class="w-[180px] h-9 [&_button]:h-9 [&_button]:text-xs [&_button]:font-bold"
+                  class="w-full h-9 [&_button]:h-9 [&_button]:text-xs [&_button]:font-bold"
                   @update:model-value="(val) => (item.taxId = String(val))"
                 />
                 <p class="text-[9px] text-right mt-1.5 font-bold text-slate-400">

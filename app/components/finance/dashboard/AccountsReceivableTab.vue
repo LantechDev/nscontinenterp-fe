@@ -1,10 +1,20 @@
 <script setup lang="ts">
-import { ArrowUpDown, Search, ChevronDown, CheckCircle } from "lucide-vue-next";
+import {
+  ArrowUpDown,
+  Search,
+  ChevronDown,
+  CheckCircle,
+  Printer,
+  Loader2,
+  ArrowRight,
+} from "lucide-vue-next";
 import { cn, formatRupiah } from "~/lib/utils";
 import type { StatCardData } from "~/types/finance";
 import { usePayments } from "~/composables/usePayments";
+import { useInvoices, type InvoiceDetail } from "~/composables/useInvoices";
 import { useFinanceTax } from "~/composables/useFinanceTax";
 import SearchSelect from "~/components/ui/SearchSelect.vue";
+import JobInvoicePreview from "~/components/operational/JobInvoicePreview.vue";
 
 export interface ArApItem {
   id: string;
@@ -17,6 +27,8 @@ export interface ArApItem {
   dueDate: string;
   aging: number | null;
   status: "paid" | "partial" | "payment_out";
+  expenseType?: "general" | "job";
+  jobId?: string | null;
 }
 
 export interface ArApStats {
@@ -128,6 +140,54 @@ watch(
   },
 );
 
+const expenseTypeFilter = ref<string>("all");
+
+const filteredItems = computed(() => {
+  let list = props.items;
+  if (props.arApToggle === "ap" && expenseTypeFilter.value !== "all") {
+    list = list.filter((item) => item.expenseType === expenseTypeFilter.value);
+  }
+  return list;
+});
+
+watch(
+  () => props.arApToggle,
+  () => {
+    expenseTypeFilter.value = "all";
+  },
+);
+
+// Invoices
+const { fetchInvoiceById } = useInvoices();
+const previewRef = ref<InstanceType<typeof JobInvoicePreview> | null>(null);
+const isPrinting = ref<string | null>(null);
+const activeInvoiceDetail = ref<InvoiceDetail | null>(null);
+
+const handlePrint = async (item: ArApItem) => {
+  if (isPrinting.value) return;
+
+  isPrinting.value = item.id;
+  try {
+    const res = await fetchInvoiceById(item.id);
+    if (res.success && res.data) {
+      activeInvoiceDetail.value = res.data;
+      // Wait for next tick AND a small delay to ensure bank accounts are loaded and component is rendered
+      await nextTick();
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      if (previewRef.value) {
+        await previewRef.value.generatePDF();
+      }
+    } else {
+      paymentError.value = res.error || "Gagal memuat detail invoice";
+    }
+  } catch (error) {
+    console.error("Print error:", error);
+    paymentError.value = "Terjadi kesalahan saat mencetak invoice";
+  } finally {
+    isPrinting.value = null;
+  }
+};
+
 const getStatusBadgeClass = (status: ArApItem["status"]): string => {
   switch (status) {
     case "paid":
@@ -167,6 +227,17 @@ const getAgingLabel = (aging: number | null): string => {
   }
   return `+${aging}d`;
 };
+
+// Job Detail Slide-Over state
+const selectedJobId = ref("");
+const selectedInvoiceId = ref("");
+const isDetailOpen = ref(false);
+
+function openJobDetail(jobId: string, invoiceId: string) {
+  selectedJobId.value = jobId;
+  selectedInvoiceId.value = invoiceId;
+  isDetailOpen.value = true;
+}
 
 // Payment modal state
 const { createPayment, isLoading: isPaymentLoading } = usePayments();
@@ -426,6 +497,17 @@ onMounted(async () => {
             {{ status.label }}
           </option>
         </select>
+
+        <!-- Expense Type Filter (Only for AP) -->
+        <select
+          v-if="arApToggle === 'ap'"
+          v-model="expenseTypeFilter"
+          class="px-3 py-2 text-sm border border-border rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-primary"
+        >
+          <option value="all">Semua Tipe Biaya</option>
+          <option value="general">General Expense</option>
+          <option value="job">Job Expense</option>
+        </select>
       </div>
 
       <!-- Table -->
@@ -445,16 +527,31 @@ onMounted(async () => {
             </tr>
           </thead>
           <tbody>
-            <tr v-if="!items.length && !isLoading">
+            <tr v-if="!filteredItems.length && !isLoading">
               <td colspan="9" class="py-8 text-center text-muted-foreground">No data available</td>
             </tr>
             <tr
-              v-for="item in items"
+              v-for="item in filteredItems"
               :key="item.id"
               class="border-b border-gray-100 hover:bg-gray-50/50"
             >
               <td class="py-3 px-4">
-                <span class="text-sm font-medium text-[#012D5A]">{{ item.invoiceNumber }}</span>
+                <div class="flex flex-col">
+                  <span class="text-sm font-medium text-[#012D5A]">{{ item.invoiceNumber }}</span>
+                  <span
+                    v-if="arApToggle === 'ap' && item.expenseType"
+                    :class="
+                      cn(
+                        'w-fit px-1.5 py-0.5 mt-1 rounded-[4px] text-[9px] font-bold uppercase tracking-wider border',
+                        item.expenseType === 'general'
+                          ? 'bg-purple-50 text-purple-700 border-purple-200'
+                          : 'bg-sky-50 text-sky-700 border-sky-200',
+                      )
+                    "
+                  >
+                    {{ item.expenseType === "general" ? "General" : "Job Expense" }}
+                  </span>
+                </div>
               </td>
               <td class="py-3 px-4 text-sm">{{ item.company }}</td>
               <td class="py-3 px-4 text-sm text-right font-medium">
@@ -492,17 +589,29 @@ onMounted(async () => {
                 </span>
               </td>
               <td class="py-3 px-4 text-center">
-                <button
-                  v-if="!isFullyPaid(item)"
-                  @click="openPaymentModal(item)"
-                  class="px-3 py-1.5 text-xs font-medium bg-[#012D5A] text-white rounded-md hover:bg-[#012D5A]/90 transition-colors focus:outline-none focus:ring-2 focus:ring-[#012D5A] focus:ring-offset-2"
-                >
-                  Lunasi
-                </button>
-                <span v-else class="text-xs text-green-600 flex items-center justify-center gap-1">
-                  <CheckCircle class="w-3 h-3" />
-                  Lunas
-                </span>
+                <div class="flex items-center justify-center gap-2">
+                  <!-- Print Action (AR ONLY) -->
+                  <button
+                    v-if="arApToggle === 'ar'"
+                    @click="handlePrint(item)"
+                    :disabled="isPrinting === item.id"
+                    class="p-1.5 text-muted-foreground hover:text-[#012D5A] hover:bg-muted rounded-md transition-colors disabled:opacity-50"
+                    title="Cetak Invoice"
+                  >
+                    <Loader2 v-if="isPrinting === item.id" class="w-4 h-4 animate-spin" />
+                    <Printer v-else class="w-4 h-4" />
+                  </button>
+
+                  <!-- Link to Job Detail Slide-Over (AP Job Expenses only) -->
+                  <button
+                    v-if="arApToggle === 'ap' && item.expenseType === 'job' && item.jobId"
+                    @click="openJobDetail(item.jobId, item.id)"
+                    class="p-1.5 text-muted-foreground hover:text-[#012D5A] hover:bg-blue-50 rounded-md transition-colors"
+                    title="Buka Detail Job Shipment"
+                  >
+                    <ArrowRight class="w-4 h-4" />
+                  </button>
+                </div>
               </td>
             </tr>
           </tbody>
@@ -685,5 +794,23 @@ onMounted(async () => {
         </button>
       </template>
     </UiModal>
+
+    <!-- Hidden Preview Component (Using absolute positioning instead of hidden so html2canvas can render it) -->
+    <div class="absolute -left-[9999px] top-0 opacity-0 pointer-events-none">
+      <JobInvoicePreview
+        v-if="activeInvoiceDetail"
+        ref="previewRef"
+        :invoice="activeInvoiceDetail"
+      />
+    </div>
+
+    <!-- Job Details Slide-over -->
+    <OperationalJobDetailSlideOver
+      v-model="isDetailOpen"
+      :job-id="selectedJobId"
+      :initial-tab="'finance'"
+      :initial-sub-tab="'ap'"
+      :initial-invoice-id="selectedInvoiceId"
+    />
   </div>
 </template>

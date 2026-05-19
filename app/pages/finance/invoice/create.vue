@@ -18,7 +18,7 @@ const {
   refresh: refreshTaxes,
 } = await useAsyncData<{ items: Tax[] }>(
   "invoice-create-taxes",
-  async () => await $fetch<{ items: Tax[] }>("/api/finance/taxes?isActive=true&limit=100"),
+  async () => await $fetch<{ items: Tax[] }>("/api/finance/tax?isActive=true&limit=100"),
   { server: false },
 );
 

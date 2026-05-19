@@ -13,6 +13,8 @@ export interface ArApItem {
   dueDate: string;
   aging: number | null;
   status: "paid" | "partial" | "payment_out";
+  expenseType?: "general" | "job";
+  jobId?: string | null;
 }
 
 export interface ArApStats {

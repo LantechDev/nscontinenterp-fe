@@ -14,6 +14,7 @@ export interface DetailedTaxReportItem {
   rate: number;
   baseAmount: number;
   taxAmount: number;
+  type: "SALES" | "PURCHASE";
 }
 
 interface Props {
@@ -37,21 +38,32 @@ const filteredTaxReportData = computed(() => {
     (item) =>
       item.taxName?.toLowerCase().includes(lowerQuery) ||
       item.invoiceNumber?.toLowerCase().includes(lowerQuery) ||
-      item.companyName?.toLowerCase().includes(lowerQuery),
+      item.companyName?.toLowerCase().includes(lowerQuery) ||
+      item.type?.toLowerCase().includes(lowerQuery),
   );
 });
 
 const isJobDetailOpen = ref(false);
 const selectedJobId = ref("");
 const initialInvoiceId = ref("");
+const initialSubTab = ref("ar");
 
 const handleRowClick = (item: DetailedTaxReportItem) => {
   if (item.jobId) {
     selectedJobId.value = item.jobId;
     initialInvoiceId.value = item.invoiceId;
+    initialSubTab.value = item.type === "PURCHASE" ? "ap" : "ar";
     isJobDetailOpen.value = true;
   }
 };
+
+watch(isJobDetailOpen, (isOpen) => {
+  if (!isOpen) {
+    selectedJobId.value = "";
+    initialInvoiceId.value = "";
+    initialSubTab.value = "ar";
+  }
+});
 </script>
 
 <template>
@@ -99,8 +111,9 @@ const handleRowClick = (item: DetailedTaxReportItem) => {
           <thead>
             <tr class="border-b border-border bg-gray-50/50">
               <th class="py-3 px-6 text-left text-sm font-medium text-gray-500">No. Invoice</th>
+              <th class="py-3 px-6 text-left text-sm font-medium text-gray-500">Tipe</th>
               <th class="py-3 px-6 text-left text-sm font-medium text-gray-500">Tanggal</th>
-              <th class="py-3 px-6 text-left text-sm font-medium text-gray-500">Customer</th>
+              <th class="py-3 px-6 text-left text-sm font-medium text-gray-500">Customer/Vendor</th>
               <th class="py-3 px-6 text-left text-sm font-medium text-gray-500">Nama Pajak</th>
               <th class="py-3 px-6 text-right text-sm font-medium text-gray-500">
                 Dasar Pengenaan
@@ -111,12 +124,12 @@ const handleRowClick = (item: DetailedTaxReportItem) => {
           </thead>
           <tbody class="divide-y divide-gray-100">
             <tr v-if="!filteredTaxReportData.length && !isLoading">
-              <td colspan="7" class="py-12 text-center text-muted-foreground italic">
+              <td colspan="8" class="py-12 text-center text-muted-foreground italic">
                 Tidak ada data pajak untuk periode ini
               </td>
             </tr>
             <tr v-if="isLoading" class="animate-pulse">
-              <td colspan="7" class="py-8 text-center text-muted-foreground">
+              <td colspan="8" class="py-8 text-center text-muted-foreground">
                 <div class="flex items-center justify-center gap-2">
                   <div
                     class="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin"
@@ -134,6 +147,20 @@ const handleRowClick = (item: DetailedTaxReportItem) => {
                 <span class="text-sm font-semibold text-[#012D5A] hover:underline">{{
                   item.invoiceNumber
                 }}</span>
+              </td>
+              <td class="py-4 px-6">
+                <span
+                  v-if="item.type === 'SALES'"
+                  class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-700"
+                >
+                  CUSTOMER
+                </span>
+                <span
+                  v-else
+                  class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-700"
+                >
+                  VENDOR
+                </span>
               </td>
               <td class="py-4 px-6 text-sm text-gray-600">
                 {{ item.issuedDate ? new Date(item.issuedDate).toLocaleDateString("id-ID") : "-" }}
@@ -167,6 +194,7 @@ const handleRowClick = (item: DetailedTaxReportItem) => {
       v-model="isJobDetailOpen"
       :job-id="selectedJobId"
       :initial-invoice-id="initialInvoiceId"
+      :initial-sub-tab="initialSubTab"
       initial-tab="finance"
     />
   </div>

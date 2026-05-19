@@ -8,7 +8,176 @@ import { useBankAccounts, type BankAccount } from "~/composables/useBankAccounts
 
 const props = defineProps<{
   invoice: InvoiceDetail | null;
+  organizationName?: string;
+  mode?: "invoice" | "receipt";
+  receiptAmount?: number;
+  receiptDate?: string;
 }>();
+
+const mode = computed(() => props.mode || "invoice");
+
+const headerTitle = computed(() => {
+  if (mode.value === "receipt") return "";
+  return props.invoice?.status?.code === "draft" ? "PROFORMA INVOICE" : "COMMERCIAL INVOICE";
+});
+
+// Helper for "Sum in Words" (Robust Indonesian Terbilang)
+const terbilang = (n: number): string => {
+  if (n === 0) return "";
+  const words = [
+    "",
+    "Satu",
+    "Dua",
+    "Tiga",
+    "Empat",
+    "Lima",
+    "Enam",
+    "Tujuh",
+    "Delapan",
+    "Sembilan",
+    "Sepuluh",
+    "Sebelas",
+  ];
+
+  if (n < 12) return words[n] || "";
+  if (n < 20) return terbilang(n - 10) + " Belas";
+  if (n < 100) {
+    const utama = Math.floor(n / 10);
+    const sisa = n % 10;
+    return (
+      (utama === 1 ? "Sepuluh" : words[utama] + " Puluh") + (sisa > 0 ? " " + terbilang(sisa) : "")
+    );
+  }
+  if (n < 1000) {
+    const utama = Math.floor(n / 100);
+    const sisa = n % 100;
+    return (
+      (utama === 1 ? "Seratus" : words[utama] + " Ratus") + (sisa > 0 ? " " + terbilang(sisa) : "")
+    );
+  }
+  if (n < 1000000) {
+    const utama = Math.floor(n / 1000);
+    const sisa = n % 1000;
+    return (
+      (utama === 1 ? "Seribu" : terbilang(utama) + " Ribu") +
+      (sisa > 0 ? " " + terbilang(sisa) : "")
+    );
+  }
+  if (n < 1000000000) {
+    const utama = Math.floor(n / 1000000);
+    const sisa = n % 1000000;
+    return terbilang(utama) + " Juta" + (sisa > 0 ? " " + terbilang(sisa) : "");
+  }
+  if (n < 1000000000000) {
+    const utama = Math.floor(n / 1000000000);
+    const sisa = n % 1000000000;
+    return terbilang(utama) + " Miliar" + (sisa > 0 ? " " + terbilang(sisa) : "");
+  }
+  return "";
+};
+
+// Helper for English number spelling
+const numberToEnglish = (num: number): string => {
+  if (num === 0) return "Zero";
+
+  const ones = [
+    "",
+    "One",
+    "Two",
+    "Three",
+    "Four",
+    "Five",
+    "Six",
+    "Seven",
+    "Eight",
+    "Nine",
+    "Ten",
+    "Eleven",
+    "Twelve",
+    "Thirteen",
+    "Fourteen",
+    "Fifteen",
+    "Sixteen",
+    "Seventeen",
+    "Eighteen",
+    "Nineteen",
+  ];
+  const tens = [
+    "",
+    "",
+    "Twenty",
+    "Thirty",
+    "Forty",
+    "Fifty",
+    "Sixty",
+    "Seventy",
+    "Eighty",
+    "Ninety",
+  ];
+  const scales = ["", "Thousand", "Million", "Billion", "Trillion"];
+
+  const convertLessThanThousand = (n: number): string => {
+    let str = "";
+    if (n >= 100) {
+      str += ones[Math.floor(n / 100)] + " Hundred ";
+      n %= 100;
+    }
+    if (n >= 20) {
+      str += tens[Math.floor(n / 10)] + " ";
+      n %= 10;
+    }
+    if (n > 0) {
+      str += ones[n] + " ";
+    }
+    return str.trim();
+  };
+
+  let words = "";
+  let scaleIndex = 0;
+  let tempNum = num;
+
+  while (tempNum > 0) {
+    const chunk = tempNum % 1000;
+    if (chunk > 0) {
+      const chunkWords = convertLessThanThousand(chunk);
+      words = chunkWords + (scales[scaleIndex] ? " " + scales[scaleIndex] : "") + " " + words;
+    }
+    tempNum = Math.floor(tempNum / 1000);
+    scaleIndex++;
+  }
+
+  return words.trim();
+};
+
+const amountInWords = computed(() => {
+  const total =
+    props.receiptAmount !== undefined ? props.receiptAmount : Number(props.invoice?.total || 0);
+  if (!total) return "";
+  const currency = props.invoice?.currency || "IDR";
+
+  if (currency === "IDR") {
+    const rupiahSpelling = terbilang(Math.floor(total)) + " Rupiah";
+    const engSpelling = numberToEnglish(Math.floor(total)) + " Rupiahs";
+    return `${rupiahSpelling} / ${engSpelling}`;
+  } else {
+    const integerPart = Math.floor(total);
+    const decimalPart = Math.round((total - integerPart) * 100);
+
+    let spelling = numberToEnglish(integerPart);
+    if (currency === "USD") {
+      spelling += " US Dollars";
+      if (decimalPart > 0) {
+        spelling += " and " + numberToEnglish(decimalPart) + " Cents";
+      }
+    } else {
+      spelling += ` ${currency}`;
+      if (decimalPart > 0) {
+        spelling += ` and ${decimalPart}/100`;
+      }
+    }
+    return spelling;
+  }
+});
 
 const logoUrl = ref("/images/transparentnscontinenttebal.png");
 const bankAccounts = ref<BankAccount[]>([]);
@@ -191,7 +360,11 @@ const generatePDF = async () => {
       pdf.addImage(imgData, "JPEG", 0, 0, 210, 297, undefined, "FAST");
     }
 
-    pdf.save(`INVOICE_${props.invoice.invoiceNumber || "DRAFT"}.pdf`);
+    const filename =
+      mode.value === "receipt"
+        ? `RECEIPT_${props.invoice.invoiceNumber || "DRAFT"}.pdf`
+        : `INVOICE_${props.invoice.invoiceNumber || "DRAFT"}.pdf`;
+    pdf.save(filename);
     return true;
   } catch (error) {
     console.error(error);
@@ -237,24 +410,168 @@ defineExpose({
             />
           </div>
           <div class="w-[30%] text-center pb-2 flex flex-col justify-end h-full">
-            <span
-              class="text-xs font-bold tracking-[0.2em] uppercase block leading-none text-[#062c58]"
-            >
-              {{ invoice?.status?.code === "draft" ? "PROFORMA INVOICE" : "COMMERCIAL INVOICE" }}
-            </span>
+            <!-- <span class="text-xs font-bold tracking-[0.2em] uppercase block leading-none text-[#062c58]">
+              {{ headerTitle }}
+            </span> -->
           </div>
           <div class="w-[35%] text-right pb-1 flex flex-col items-end justify-end h-full">
             <div class="text-[0.6rem] font-mono mb-1 text-black">PAGE: 1 OF 1</div>
-            <h1 class="text-xl font-bold tracking-widest uppercase leading-none">INVOICE</h1>
+            <h1 class="text-xl font-bold tracking-widest uppercase leading-none text-[#062c58]">
+              {{ mode === "receipt" ? "OFFICIAL RECEIPT" : "INVOICE" }}
+            </h1>
           </div>
+        </div>
+
+        <!-- Receipt Mode Labels (Subtitle) -->
+        <div
+          v-if="mode === 'receipt'"
+          class="text-center py-2 bg-[#062c58] text-white text-[10px] font-bold tracking-[0.4em] uppercase"
+        >
+          Kwitansi Pembayaran
         </div>
 
         <!-- Main Content Bordered Container -->
         <div
           class="main-border-container border border-[#062c58] flex-1 flex flex-col text-[0.7rem] relative overflow-hidden h-full"
         >
-          <!-- Parties & Invoice Info -->
-          <div class="flex border-b border-[#062c58]" style="min-height: 100px">
+          <!-- Receipt Header / Metadata (Matches Invoice Info Grid Style!) -->
+          <div
+            v-if="mode === 'receipt'"
+            class="flex border-b border-[#062c58]"
+            style="min-height: 100px"
+          >
+            <div class="w-1/2 border-r border-[#062c58] pt-2 px-4 pb-2">
+              <span
+                class="font-bold mb-1 text-[0.6rem] leading-none block uppercase text-[#062c58]/80"
+                >RECEIPT TO (PAYER):</span
+              >
+              <div class="font-medium text-xs text-black uppercase leading-tight">
+                {{ getVal(invoice?.companyName, invoice?.company?.name) }}
+              </div>
+              <div
+                class="whitespace-pre-wrap font-mono uppercase text-[0.65rem] leading-tight text-black/80 mt-1"
+              >
+                {{ displayAddress }}
+              </div>
+            </div>
+            <div class="w-1/2 flex flex-col justify-between">
+              <div class="flex border-b border-[#062c58] flex-1">
+                <div class="w-1/2 border-r border-[#062c58] pt-2 px-4">
+                  <span
+                    class="font-bold text-[0.6rem] leading-none mb-1 block uppercase text-[#062c58]/80"
+                    >RECEIPT NO.</span
+                  >
+                  <span class="font-mono text-[0.8rem] text-black font-semibold"
+                    >REC-{{ getVal(invoice?.invoiceNumber, "DRAFT") }}</span
+                  >
+                </div>
+                <div class="w-1/2 pt-2 px-4">
+                  <span
+                    class="font-bold text-[0.6rem] leading-none mb-1 block uppercase text-[#062c58]/80"
+                    >DATE</span
+                  >
+                  <span class="font-mono text-[0.8rem] text-black">{{
+                    formatDate(invoice?.issuedDate)
+                  }}</span>
+                </div>
+              </div>
+              <div class="flex flex-1">
+                <div class="w-1/2 border-r border-[#062c58] pt-2 px-4">
+                  <span
+                    class="font-bold text-[0.6rem] leading-none mb-1 block uppercase text-[#062c58]/80"
+                    >REF INVOICE NO.</span
+                  >
+                  <span class="font-mono text-[0.75rem] text-black font-semibold">{{
+                    getVal(invoice?.invoiceNumber, "DRAFT")
+                  }}</span>
+                </div>
+                <div class="w-1/2 pt-2 px-4">
+                  <span
+                    class="font-bold text-[0.6rem] leading-none mb-1 block uppercase text-[#062c58]/80"
+                    >JOB NO.</span
+                  >
+                  <span class="font-mono text-[0.75rem] text-black">{{
+                    getVal(invoice?.job?.jobNumber, "-")
+                  }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Receipt Body (Only in Receipt Mode) -->
+          <div
+            v-if="mode === 'receipt'"
+            class="p-8 flex-1 flex flex-col justify-between"
+            style="min-height: 400px"
+          >
+            <div class="space-y-6">
+              <!-- Received From Row -->
+              <div
+                class="grid grid-cols-[150px_1fr] items-center border-b border-[#062c58]/20 pb-2"
+              >
+                <span class="text-[0.65rem] font-bold text-[#062c58] uppercase tracking-wider"
+                  >Received From:</span
+                >
+                <span class="text-sm font-bold text-black uppercase">{{
+                  getVal(invoice?.companyName, invoice?.company?.name)
+                }}</span>
+              </div>
+
+              <!-- Amount in Words Row (Say In Words / Terbilang) -->
+              <div class="grid grid-cols-[150px_1fr] items-start border-b border-[#062c58]/20 pb-2">
+                <span
+                  class="text-[0.65rem] font-bold text-[#062c58] uppercase tracking-wider pt-0.5"
+                  >The Sum Of:</span
+                >
+                <div
+                  class="bg-gray-50 border border-dashed border-[#062c58]/30 rounded p-3 font-mono text-[0.75rem] leading-normal text-[#062c58] uppercase italic font-bold"
+                >
+                  # {{ amountInWords }} #
+                </div>
+              </div>
+
+              <!-- Payment For Row -->
+              <div
+                class="grid grid-cols-[150px_1fr] items-center border-b border-[#062c58]/20 pb-2"
+              >
+                <span class="text-[0.65rem] font-bold text-[#062c58] uppercase tracking-wider"
+                  >Payment For:</span
+                >
+                <span class="text-[0.7rem] font-medium text-black uppercase leading-tight">
+                  Payment for Invoice #{{ invoice?.invoiceNumber }} -
+                  {{ invoice?.notes || "Services Rendered" }}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Bottom Full-Width Amount Paid Bar (Only in Receipt Mode) -->
+          <div
+            v-if="mode === 'receipt'"
+            class="border-t border-[#062c58] bg-[#062c58] text-white flex items-stretch mt-auto min-h-[60px]"
+          >
+            <div class="w-[30%] px-6 py-3 flex flex-col justify-center border-r border-white/20">
+              <span
+                class="text-[0.55rem] font-bold tracking-[0.2em] uppercase opacity-75 leading-none"
+                >AMOUNT PAID</span
+              >
+              <span class="text-xs font-black tracking-wider uppercase mt-1">{{
+                invoice?.currency || "IDR"
+              }}</span>
+            </div>
+            <div
+              class="flex-1 px-8 py-3 flex items-center justify-end font-mono text-xl font-black tracking-tight"
+            >
+              {{ formatCurrency(receiptAmount !== undefined ? receiptAmount : invoice?.total) }}
+            </div>
+          </div>
+
+          <!-- Parties & Invoice Info (Hide Items Table in Receipt mode for cleaner look) -->
+          <div
+            v-if="mode === 'invoice'"
+            class="flex border-b border-[#062c58]"
+            style="min-height: 100px"
+          >
             <div class="w-1/2 border-r border-[#062c58] pt-1 px-2 pb-2">
               <span class="font-bold mb-1 text-[0.6rem] leading-none block uppercase"
                 >BILL TO:</span
@@ -309,7 +626,11 @@ defineExpose({
           </div>
 
           <!-- Shipment Operational Info Row 1 -->
-          <div class="flex border-b border-[#062c58]" style="min-height: 45px">
+          <div
+            v-if="mode === 'invoice'"
+            class="flex border-b border-[#062c58]"
+            style="min-height: 45px"
+          >
             <div class="w-1/2 border-r border-[#062c58] pt-1 px-2 pb-1">
               <span class="font-bold text-[0.6rem] block leading-none mb-1">VESSEL / VOYAGE</span>
               <span class="font-mono text-[0.75rem] uppercase text-black font-medium">
@@ -336,7 +657,11 @@ defineExpose({
           </div>
 
           <!-- Shipment Operational Info Row 2 -->
-          <div class="flex border-b border-[#062c58]" style="min-height: 45px">
+          <div
+            v-if="mode === 'invoice'"
+            class="flex border-b border-[#062c58]"
+            style="min-height: 45px"
+          >
             <div class="w-1/4 border-r border-[#062c58] pt-1 px-2 pb-1">
               <span class="font-bold text-[0.6rem] block leading-none mb-1">DEPARTURE DATE</span>
               <span class="font-mono text-[0.75rem] uppercase text-black font-medium">
@@ -364,7 +689,11 @@ defineExpose({
           </div>
 
           <!-- Terms & Reference Row 3 -->
-          <div class="flex border-b border-[#062c58]" style="min-height: 45px">
+          <div
+            v-if="mode === 'invoice'"
+            class="flex border-b border-[#062c58]"
+            style="min-height: 45px"
+          >
             <div class="w-[15%] border-r border-[#062c58] pt-1 px-2">
               <span class="font-bold text-[0.6rem] block leading-none mb-1">CURRENCY</span>
               <span class="font-mono text-[0.75rem] uppercase text-black font-medium">{{
@@ -391,7 +720,11 @@ defineExpose({
           </div>
 
           <!-- Container Info Section -->
-          <div class="flex border-b border-[#062c58] bg-gray-50/10" style="min-height: 40px">
+          <div
+            v-if="mode === 'invoice'"
+            class="flex border-b border-[#062c58] bg-gray-50/10"
+            style="min-height: 40px"
+          >
             <div
               class="w-[70%] border-r border-[#062c58] pt-1 px-2 pb-1 flex flex-col justify-center"
             >
@@ -416,6 +749,7 @@ defineExpose({
 
           <!-- Items Table Header -->
           <div
+            v-if="mode === 'invoice'"
             class="flex border-b border-[#062c58] bg-[#062c58]/5 font-bold text-[0.6rem] h-[35px]"
           >
             <div class="w-[5%] border-r border-[#062c58] flex items-center justify-center">NO</div>
@@ -431,7 +765,7 @@ defineExpose({
           </div>
 
           <!-- Items List Container -->
-          <div class="flex-1 relative">
+          <div v-if="mode === 'invoice'" class="flex-1 relative">
             <!-- Vertical Grid Lines Background -->
             <div class="absolute inset-0 flex pointer-events-none">
               <div class="w-[5%] border-r border-[#062c58]/30"></div>
@@ -443,7 +777,7 @@ defineExpose({
             </div>
 
             <!-- Scrollable Items Area -->
-            <div class="relative z-[1] p-0 font-mono text-black">
+            <div v-if="mode === 'invoice'" class="relative z-[1] p-0 font-mono text-black">
               <div
                 v-for="(item, idx) in invoice?.items || []"
                 :key="idx"
@@ -483,7 +817,7 @@ defineExpose({
           </div>
 
           <!-- Bank & Totals Footer Area -->
-          <div class="border-t border-[#062c58] mt-auto">
+          <div v-if="mode === 'invoice'" class="border-t border-[#062c58] mt-auto">
             <div class="flex items-stretch min-h-[140px]">
               <!-- Left: Bank Information -->
               <div class="w-[58%] border-r border-[#062c58] p-3">
@@ -573,11 +907,19 @@ defineExpose({
         <div class="mt-4 flex justify-between items-end">
           <div class="w-2/3">
             <p
+              v-if="mode === 'invoice'"
               class="text-[0.5rem] italic text-[#062c58]/60 uppercase leading-tight font-medium max-w-[400px]"
             >
               Computer generated invoice. No signature required unless specifically requested by the
               recipient for legal compliance. All business transacted is subject to the standard
               trading conditions of the carrier.
+            </p>
+            <p
+              v-else
+              class="text-[0.5rem] italic text-[#062c58]/60 uppercase leading-tight font-medium max-w-[400px]"
+            >
+              This is an official receipt of payment. All transactions are subject to the standard
+              trading conditions of the company.
             </p>
           </div>
           <div class="text-center min-w-[200px]">

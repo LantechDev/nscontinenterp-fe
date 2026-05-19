@@ -631,7 +631,7 @@ onClickOutside(periodDropdownRef as Ref<HTMLElement>, () => {
     <!-- Stats grid -->
     <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
       <DashboardStatCard
-        title="Total Income"
+        title="Total Revenue"
         :value="dashboardData?.stats?.totalIncome || 'Rp0'"
         :change="dashboardData?.stats?.totalIncomeChange ?? 0"
         icon-name="Wallet"

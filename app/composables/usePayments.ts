@@ -2,10 +2,14 @@ import { toast } from "vue-sonner";
 
 export interface PaymentAllocation {
   id: string;
-  invoiceId: string;
+  invoiceId?: string;
+  expenseId?: string;
   amount: number;
   invoice?: {
     invoiceNumber: string;
+  };
+  expense?: {
+    number: string;
   };
 }
 
@@ -60,7 +64,7 @@ export interface CreatePaymentPayload {
   reference?: string;
   notes?: string;
   useFifo?: boolean;
-  allocations?: { invoiceId: string; amount: number }[];
+  allocations?: { invoiceId?: string; expenseId?: string; amount: number }[];
 }
 
 export const usePayments = () => {

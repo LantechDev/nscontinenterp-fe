@@ -22,6 +22,7 @@ export interface Invoice {
     name: string;
   };
   blNumber?: string | null;
+  quotationId?: string | null;
   job?: {
     id: string;
     jobNumber: string;
@@ -44,6 +45,7 @@ export interface Invoice {
       id: string;
       paymentNumber?: string;
       paymentDate: string;
+      createdAt?: string;
       status: string;
       paymentMethod?: {
         name: string;
@@ -248,6 +250,7 @@ export function useInvoices() {
     notes?: string;
     blNumber?: string;
     taxes?: Array<{ taxId: string; baseAmount?: number }>;
+    quotationId?: string | null;
   }): Promise<{ success: boolean; data?: Invoice; error?: string }> {
     isLoading.value = true;
     try {
