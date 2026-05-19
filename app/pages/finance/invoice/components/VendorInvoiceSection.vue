@@ -59,6 +59,21 @@ filters.value.type = "JOB";
 
 const { fetchExpenseById } = useFinanceExpense();
 
+const formatExpenseAmount = (amount: number, currency?: string) => {
+  const curr = currency || "IDR";
+  if (curr === "IDR") {
+    return formatCurrency(amount);
+  }
+  try {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: curr,
+    }).format(amount);
+  } catch {
+    return `${curr} ${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
+};
+
 // Handle download PDF
 const handleDownloadPdf = async (id: string) => {
   await generateExpensePdf(id, fetchExpenseById);
@@ -317,7 +332,18 @@ const handleInvoiceClick = (expense: Expense) => {
                     {{ formatDate(expense.date) }}
                   </td>
                   <td class="py-3 px-4 text-sm font-medium text-destructive">
-                    {{ formatCurrency(Number(expense.amount)) }}
+                    <div>{{ formatExpenseAmount(Number(expense.amount), expense.currency) }}</div>
+                    <div
+                      v-if="expense.currency && expense.currency !== 'IDR'"
+                      class="text-[10px] text-muted-foreground font-mono font-normal mt-0.5 whitespace-nowrap"
+                    >
+                      Rp
+                      {{
+                        (Number(expense.amount) * Number(expense.exchangeRate || 1)).toLocaleString(
+                          "id-ID",
+                        )
+                      }}
+                    </div>
                   </td>
                   <td class="py-3 px-4">
                     <span
@@ -409,7 +435,18 @@ const handleInvoiceClick = (expense: Expense) => {
             <div>
               <p class="text-xs text-muted-foreground mb-1">Amount</p>
               <p class="text-lg font-bold text-destructive">
-                {{ formatCurrency(Number(expense.amount)) }}
+                {{ formatExpenseAmount(Number(expense.amount), expense.currency) }}
+              </p>
+              <p
+                v-if="expense.currency && expense.currency !== 'IDR'"
+                class="text-xs text-muted-foreground font-mono mt-0.5"
+              >
+                Rp
+                {{
+                  (Number(expense.amount) * Number(expense.exchangeRate || 1)).toLocaleString(
+                    "id-ID",
+                  )
+                }}
               </p>
             </div>
           </div>

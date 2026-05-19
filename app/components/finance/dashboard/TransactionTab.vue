@@ -55,7 +55,26 @@ const emit = defineEmits<{
   (e: "delete", transaction: TransactionItem): void;
 }>();
 
-const formatCurrency = formatRupiah;
+function formatCurrency(value: unknown): string {
+  const num = typeof value === "number" ? value : Number(value || 0);
+  if (isNaN(num)) return "Rp0";
+  return new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(num);
+}
+
+function formatForeignCurrency(amount: number, currency: string) {
+  if (currency === "USD") {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+    }).format(amount);
+  }
+  return `${currency} ${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
 
 // Helper to check if transaction is auto-created (from invoice or payment)
 function isAutoCreated(transaction: TransactionItem): boolean {
@@ -278,9 +297,21 @@ const localShowSortDropdown = computed({
                 <span v-else class="text-muted-foreground">-</span>
               </td>
               <td class="py-3 px-4 text-sm text-right font-semibold">
-                <span :class="t.isIncome ? 'text-green-700' : 'text-red-600'">{{
-                  formatCurrency(t.total)
-                }}</span>
+                <div class="flex flex-col items-end">
+                  <span :class="t.isIncome ? 'text-green-700' : 'text-red-600'">
+                    {{
+                      t.currency && t.currency !== "IDR" && t.originalTotal !== undefined
+                        ? formatForeignCurrency(t.originalTotal, t.currency)
+                        : formatCurrency(t.total)
+                    }}
+                  </span>
+                  <span
+                    v-if="t.currency && t.currency !== 'IDR'"
+                    class="text-[10px] text-gray-500 font-normal block mt-0.5"
+                  >
+                    {{ formatCurrency(t.total) }}
+                  </span>
+                </div>
               </td>
               <td class="py-3 px-4 text-center">
                 <!-- Auto-created indicator (lock icon) -->

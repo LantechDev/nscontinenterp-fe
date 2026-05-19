@@ -1,5 +1,15 @@
 import type { StatCardData } from "~/types/finance";
-import { formatRupiah } from "~/lib/utils";
+
+function formatFullRupiah(value: unknown): string {
+  const num = typeof value === "number" ? value : Number(value || 0);
+  if (isNaN(num)) return "Rp0";
+  return new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(num);
+}
 
 /**
  * Finance Dashboard Page Transactions Composable
@@ -42,13 +52,13 @@ export function useFinanceDashboardPageTransactions() {
     return [
       {
         title: "Journal Volume",
-        value: formatRupiah(t.totalJournal),
+        value: formatFullRupiah(t.totalJournal),
         isPrimary: true,
         changeLabel: "vs Last Period",
       },
       {
         title: "Total Transaction",
-        value: formatRupiah(t.totalIncome),
+        value: formatFullRupiah(t.totalIncome),
         change: 0,
         changeLabel: "vs Last Period",
       },

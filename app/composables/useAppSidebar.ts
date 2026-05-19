@@ -1,10 +1,35 @@
 import type { Component } from "vue";
-import { LayoutDashboard, Package, Ship, Wallet, Settings } from "lucide-vue-next";
+import {
+  LayoutDashboard,
+  Package,
+  Ship,
+  Wallet,
+  Settings,
+  Building2,
+  Wrench,
+  Anchor,
+  Landmark,
+  Percent,
+  FileText,
+  Calculator,
+  ClipboardList,
+  FileCheck,
+  FolderClosed,
+  BarChart3,
+  Receipt,
+  TrendingDown,
+  Coins,
+  Users,
+  Shield,
+  History,
+  Globe,
+} from "lucide-vue-next";
 import type { Organization } from "~/types/auth";
 
 export interface NavChild {
   title: string;
   href: string;
+  icon?: Component;
 }
 
 export interface NavItem {
@@ -20,32 +45,32 @@ export const NAV_ITEMS: NavItem[] = [
     title: "Master Data",
     icon: Package,
     children: [
-      { title: "Company", href: "/master/company" },
-      { title: "Service", href: "/master/services" },
-      { title: "Vessel", href: "/master/vessel" },
-      { title: "Bank Account", href: "/master/bank-account" },
-      { title: "Pajak", href: "/master/tax" },
-      { title: "B/L Conditions", href: "/master/bl-conditions" },
+      { title: "Company", href: "/master/company", icon: Building2 },
+      { title: "Service", href: "/master/services", icon: Wrench },
+      { title: "Vessel", href: "/master/vessel", icon: Anchor },
+      { title: "Bank Account", href: "/master/bank-account", icon: Landmark },
+      { title: "Pajak", href: "/master/tax", icon: Percent },
+      { title: "B/L Conditions", href: "/master/bl-conditions", icon: FileText },
     ],
   },
   {
     title: "Operational",
     icon: Ship,
     children: [
-      { title: "Quotation & Pricing", href: "/operational/quotations" },
-      { title: "Job", href: "/operational/jobs" },
-      { title: "eBL", href: "/operational/ebl" },
-      { title: "Closing Job", href: "/operational/closing" },
+      { title: "Quotation & Pricing", href: "/operational/quotations", icon: Calculator },
+      { title: "Job", href: "/operational/jobs", icon: ClipboardList },
+      { title: "eBL", href: "/operational/ebl", icon: FileCheck },
+      { title: "Closing Job", href: "/operational/closing", icon: FolderClosed },
     ],
   },
   {
     title: "Finance",
     icon: Wallet,
     children: [
-      { title: "Dashboard", href: "/finance/dashboard" },
-      { title: "Invoice", href: "/finance/invoice" },
-      { title: "Outstanding Report", href: "/finance/report/outstanding" },
-      { title: "Biaya Operasional", href: "/finance/expenses" },
+      { title: "Dashboard", href: "/finance/dashboard", icon: BarChart3 },
+      { title: "Invoice", href: "/finance/invoice", icon: Receipt },
+      { title: "Outstanding Report", href: "/finance/report/outstanding", icon: TrendingDown },
+      { title: "Biaya Operasional", href: "/finance/expenses", icon: Coins },
     ],
   },
   // Backlog for now - Rafael, 25/03/2026
@@ -58,10 +83,10 @@ export const NAV_ITEMS: NavItem[] = [
     title: "Settings",
     icon: Settings,
     children: [
-      { title: "Users", href: "/settings/users" },
-      { title: "Roles", href: "/settings/roles" },
-      { title: "Activity Logs", href: "/settings/activity-logs" },
-      { title: "Tenant", href: "/settings/tenant" },
+      { title: "Users", href: "/settings/users", icon: Users },
+      { title: "Roles", href: "/settings/roles", icon: Shield },
+      { title: "Activity Logs", href: "/settings/activity-logs", icon: History },
+      { title: "Tenant", href: "/settings/tenant", icon: Globe },
     ],
   },
 ];
@@ -135,10 +160,13 @@ export function useAppSidebar() {
     }
   };
 
-  const isActive = (href: string): boolean => route.path === href;
+  const isActive = (href: string): boolean => {
+    if (route.path === href) return true;
+    return route.path.startsWith(href + "/");
+  };
 
   const isChildActive = (children?: NavChild[]): boolean =>
-    children?.some((child) => route.path === child.href) ?? false;
+    children?.some((child) => isActive(child.href)) ?? false;
 
   // Lifecycle
   onMounted(async () => {
