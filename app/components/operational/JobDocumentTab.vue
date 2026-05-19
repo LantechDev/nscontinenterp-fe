@@ -14,6 +14,7 @@ const { confirm: confirmDialog } = useConfirm();
 const uploadedDocuments = ref<JobDocumentItem[]>([]);
 const isLoading = ref(true);
 const isUploading = ref(false);
+const uploadingFileName = ref<string | null>(null);
 const isDragging = ref(false);
 const previewDoc = ref<JobDocumentItem | null>(null);
 
@@ -51,6 +52,7 @@ const handleFileInput = async (e: Event) => {
 
 const uploadFileToApi = async (file: File) => {
   isUploading.value = true;
+  uploadingFileName.value = file.name;
   const res = await uploadJobDocument(props.jobId, file);
   if (res.success && res.data) {
     uploadedDocuments.value.unshift(res.data);
@@ -59,6 +61,7 @@ const uploadFileToApi = async (file: File) => {
     toast.error(`Failed to upload ${file.name}`);
   }
   isUploading.value = false;
+  uploadingFileName.value = null;
 };
 
 const removeFile = async (idx: number, docId: string) => {
@@ -126,38 +129,68 @@ const downloadFile = async (fileUrl: string, fileName: string) => {
 
     <!-- Upload Area -->
     <div
-      class="border-2 border-dashed rounded-xl p-10 text-center transition-all duration-200 flex flex-col items-center justify-center gap-4"
-      :class="
+      class="border-2 border-dashed rounded-xl p-10 text-center transition-all duration-200 flex flex-col items-center justify-center gap-4 relative overflow-hidden"
+      :class="[
         isDragging
           ? 'border-[#012D5A] bg-[#012D5A]/5 scale-[1.02]'
-          : 'border-border bg-gray-50/50 hover:bg-gray-50'
-      "
-      @dragover.prevent="isDragging = true"
+          : 'border-border bg-gray-50/50 hover:bg-gray-50',
+        isUploading ? 'pointer-events-none' : '',
+      ]"
+      @dragover.prevent="!isUploading && (isDragging = true)"
       @dragleave.prevent="isDragging = false"
-      @drop.prevent="handleDrop"
+      @drop.prevent="!isUploading && handleDrop($event)"
     >
+      <!-- Uploading Overlay / Animation -->
       <div
-        class="w-16 h-16 rounded-full bg-blue-50 flex items-center justify-center mb-2 shadow-sm border border-blue-100"
+        v-if="isUploading"
+        class="absolute inset-0 bg-white/95 flex flex-col items-center justify-center gap-3 backdrop-blur-[2px] animate-fade-in z-10"
       >
-        <UploadCloud class="w-8 h-8 text-[#012D5A]" />
+        <div class="relative flex items-center justify-center">
+          <div class="absolute w-20 h-20 bg-blue-100/75 rounded-full animate-ping opacity-75"></div>
+          <div class="absolute w-16 h-16 bg-blue-50/80 rounded-full animate-pulse"></div>
+
+          <div
+            class="relative w-12 h-12 rounded-full bg-white flex items-center justify-center shadow-md border border-blue-100"
+          >
+            <Loader2 class="w-6 h-6 animate-spin text-[#012D5A]" />
+          </div>
+        </div>
+        <div class="mt-2 space-y-1">
+          <p class="text-sm font-bold text-foreground animate-pulse">Uploading document...</p>
+          <p class="text-[11px] text-muted-foreground">
+            Please wait while the file is being processed
+          </p>
+        </div>
       </div>
-      <div>
-        <p class="text-base font-bold text-foreground mb-1">Drag & drop files here</p>
-        <p class="text-sm text-muted-foreground">or click to browse from your computer</p>
-      </div>
-      <label
-        class="px-5 py-2.5 bg-[#012D5A] text-white text-sm font-semibold rounded-lg hover:bg-[#012D5A]/90 cursor-pointer transition-colors shadow-sm mt-4 inline-flex items-center gap-2"
+
+      <!-- Normal Upload Area Content -->
+      <div
+        class="flex flex-col items-center justify-center gap-4 transition-opacity duration-200"
+        :class="{ 'opacity-0 pointer-events-none': isUploading }"
       >
-        Browse Files
-        <input type="file" multiple class="hidden" @change="handleFileInput" />
-      </label>
+        <div
+          class="w-16 h-16 rounded-full bg-blue-50 flex items-center justify-center mb-2 shadow-sm border border-blue-100 transition-transform group-hover:scale-105 duration-200"
+        >
+          <UploadCloud class="w-8 h-8 text-[#012D5A]" />
+        </div>
+        <div>
+          <p class="text-base font-bold text-foreground mb-1">Drag & drop files here</p>
+          <p class="text-sm text-muted-foreground">or click to browse from your computer</p>
+        </div>
+        <label
+          class="px-5 py-2.5 bg-[#012D5A] text-white text-sm font-semibold rounded-lg hover:bg-[#012D5A]/90 cursor-pointer transition-colors shadow-sm mt-4 inline-flex items-center gap-2"
+        >
+          Browse Files
+          <input type="file" multiple class="hidden" @change="handleFileInput" />
+        </label>
+      </div>
     </div>
 
     <!-- File List -->
     <div v-if="isLoading" class="flex justify-center p-8">
       <Loader2 class="w-6 h-6 animate-spin text-[#012D5A]" />
     </div>
-    <div v-else-if="uploadedDocuments.length > 0" class="space-y-4 mt-8">
+    <div v-else-if="uploadedDocuments.length > 0 || isUploading" class="space-y-4 mt-8">
       <div class="flex items-center justify-between">
         <h4 class="text-sm font-bold text-foreground uppercase tracking-wider">
           Uploaded Files
@@ -168,6 +201,30 @@ const downloadFile = async (fileUrl: string, fileName: string) => {
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <!-- Uploading Placeholder (Virtual Item) -->
+        <div
+          v-if="isUploading"
+          class="flex items-center justify-between p-4 bg-[#012D5A]/5 border border-[#012D5A]/20 border-dashed rounded-xl shadow-sm animate-pulse"
+        >
+          <div class="flex items-center gap-4 min-w-0 w-full">
+            <div
+              class="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center shrink-0 border border-blue-100"
+            >
+              <Loader2 class="w-5 h-5 animate-spin text-[#012D5A]" />
+            </div>
+            <div class="min-w-0 flex-1">
+              <p class="text-sm font-bold text-foreground truncate">
+                Uploading: {{ uploadingFileName || "file..." }}
+              </p>
+              <div class="w-full bg-gray-200/80 h-1.5 rounded-full mt-2 overflow-hidden relative">
+                <div
+                  class="absolute inset-y-0 left-0 bg-[#012D5A] w-1/3 rounded-full animate-loading-bar"
+                ></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div
           v-for="(file, idx) in uploadedDocuments"
           :key="file.id"
@@ -294,3 +351,34 @@ const downloadFile = async (fileUrl: string, fileName: string) => {
     </Teleport>
   </div>
 </template>
+
+<style scoped>
+@keyframes loading-bar {
+  0% {
+    transform: translateX(-100%);
+  }
+  50% {
+    transform: translateX(100%);
+  }
+  100% {
+    transform: translateX(300%);
+  }
+}
+
+.animate-loading-bar {
+  animation: loading-bar 2s infinite linear;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.25s ease-out forwards;
+}
+</style>
