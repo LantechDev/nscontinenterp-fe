@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ChevronDown, ChevronRight, User } from "lucide-vue-next";
+import { ChevronDown, ChevronRight, User, LayoutDashboard } from "lucide-vue-next";
 import { cn } from "~/lib/utils";
 
 const {
@@ -88,6 +88,7 @@ const { isOwner, isAdmin, canApproveJobs } = useAuth();
           )
         "
       >
+        <LayoutDashboard class="w-4 h-4 shrink-0 text-white/70" />
         <span>Dashboard</span>
       </NuxtLink>
 
@@ -106,6 +107,7 @@ const { isOwner, isAdmin, canApproveJobs } = useAuth();
               "
             >
               <div class="flex items-center gap-3">
+                <component :is="item.icon" class="w-4 h-4 shrink-0 text-white/70" />
                 <span>{{ item.title }}</span>
               </div>
               <ChevronDown
@@ -121,14 +123,19 @@ const { isOwner, isAdmin, canApproveJobs } = useAuth();
                 :to="child.href"
                 :class="
                   cn(
-                    'block w-full text-left px-3 py-2 rounded-lg text-sm transition-colors',
+                    'flex items-center gap-2.5 w-full text-left px-3 py-2 rounded-lg text-sm transition-colors',
                     isActive(child.href)
                       ? 'bg-[#1e4a7a] text-white font-medium'
                       : 'text-white/70 hover:text-white hover:bg-white/5',
                   )
                 "
               >
-                {{ child.title }}
+                <component
+                  v-if="child.icon"
+                  :is="child.icon"
+                  class="w-3.5 h-3.5 shrink-0 opacity-60"
+                />
+                <span>{{ child.title }}</span>
               </NuxtLink>
             </div>
           </div>
@@ -146,6 +153,7 @@ const { isOwner, isAdmin, canApproveJobs } = useAuth();
             "
           >
             <div class="flex items-center gap-3">
+              <component :is="item.icon" class="w-4 h-4 shrink-0 text-white/70" />
               <span>{{ item.title }}</span>
             </div>
             <ChevronRight class="w-4 h-4 text-white/50" />

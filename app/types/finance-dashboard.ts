@@ -78,6 +78,9 @@ export interface TransactionItem {
   // Reference info for identifying auto-created transactions
   referenceType?: string | null;
   referenceId?: string | null;
+  currency?: string;
+  exchangeRate?: number;
+  originalTotal?: number;
 }
 
 export interface TransactionStats {

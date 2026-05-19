@@ -12,6 +12,8 @@ interface InvoiceData {
   status: { code: string; name: string };
   company: { name: string };
   job?: { jobNumber: string };
+  currency?: string;
+  exchangeRate?: number | string;
 }
 
 interface Props {
@@ -21,7 +23,22 @@ interface Props {
   formatDate: (dateStr: string) => string;
 }
 
-defineProps<Props>();
+const props = defineProps<Props>();
+
+const formatInvoiceTotal = (amount: number, currency?: string) => {
+  const curr = currency || "IDR";
+  if (curr === "IDR") {
+    return props.formatCurrency(amount);
+  }
+  try {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: curr,
+    }).format(amount);
+  } catch {
+    return `${curr} ${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
+};
 
 const emit = defineEmits<{
   (e: "row-click", id: string): void;
@@ -98,7 +115,18 @@ const handleDownloadPdf = (id: string) => {
         </div>
         <div>
           <p class="text-xs text-muted-foreground mb-1">Total Amount</p>
-          <p class="text-lg font-bold text-[#012D5A]">{{ formatCurrency(invoice.total) }}</p>
+          <p class="text-lg font-bold text-[#012D5A]">
+            {{ formatInvoiceTotal(invoice.total, invoice.currency) }}
+          </p>
+          <p
+            v-if="invoice.currency && invoice.currency !== 'IDR'"
+            class="text-xs text-muted-foreground font-mono mt-0.5"
+          >
+            Rp
+            {{
+              (Number(invoice.total) * Number(invoice.exchangeRate || 1)).toLocaleString("id-ID")
+            }}
+          </p>
         </div>
         <div>
           <p class="text-xs text-muted-foreground mb-1">Due Date</p>

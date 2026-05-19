@@ -53,6 +53,8 @@ export interface InvoiceData {
   status: { code: string; name: string };
   company: { name: string };
   job?: { id: string; jobNumber: string };
+  currency?: string;
+  exchangeRate?: number | string;
 }
 
 export interface InvoiceItemForm {
