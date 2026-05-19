@@ -25,6 +25,7 @@ const props = defineProps<{
   customerId?: string;
   jobParties?: EblParty[];
   initialInvoiceId?: string;
+  initialSubTab?: string;
   isCompleted?: boolean;
 }>();
 
@@ -32,13 +33,28 @@ const emit = defineEmits<{
   (e: "refresh-job"): void;
 }>();
 
-const subTab = ref("ar"); // ar = Customer Invoices, ap = Vendor Invoices, profit = Profit Analysis
+const subTab = ref(props.initialSubTab || "ar"); // ar = Customer Invoices, ap = Vendor Invoices, profit = Profit Analysis
 
 onMounted(async () => {
   if (props.jobId) {
     await getJob(props.jobId);
   }
+  if (props.initialSubTab) {
+    subTab.value = props.initialSubTab;
+  }
 });
+
+watch(
+  [() => props.jobId, () => props.initialSubTab],
+  ([newJobId, newSubTab]) => {
+    if (newSubTab) {
+      subTab.value = newSubTab;
+    } else {
+      subTab.value = "ar";
+    }
+  },
+  { immediate: true },
+);
 
 watch(subTab, async (newVal) => {
   if (newVal === "profit" && props.jobId) {
@@ -127,6 +143,7 @@ const handleRefresh = async () => {
           :job-id="jobId"
           :job-number="jobNumber"
           :job-parties="jobParties"
+          :initial-invoice-id="initialInvoiceId"
           :is-completed="isCompleted"
           @refresh-job="handleRefresh"
         />

@@ -20,22 +20,27 @@ import { usePayments } from "~/composables/usePayments";
 import { useInvoices, type Invoice } from "~/composables/useInvoices";
 import { useCompanies } from "~/composables/useCompanies";
 import { useMasterData } from "~/composables/useMasterData";
+import { useFinanceExpense, type Expense } from "~/composables/useFinanceExpense";
 import Combobox from "~/components/ui/Combobox.vue";
 import DatePicker from "~/components/ui/DatePicker.vue";
 
 const props = defineProps<{
   jobId?: string;
   invoiceId?: string;
+  expenseId?: string;
   companyId?: string;
+  mode?: "in" | "out"; // 'in' = Receiving (from Customer), 'out' = Paying (to Vendor)
 }>();
 
 const emit = defineEmits(["success", "cancel"]);
 
 const { createPayment, isSaving } = usePayments();
 const { fetchInvoices } = useInvoices();
+const { fetchExpenses } = useFinanceExpense();
 const { companies, fetchCompanies, isLoading: isFetchingCompanies } = useCompanies();
 const { fetchPaymentMethods } = useMasterData();
 
+const isOut = computed(() => props.mode === "out");
 const paymentMethods = ref<{ id: string; name: string; code: string }[]>([]);
 const form = ref({
   companyId: props.companyId || "",
@@ -46,37 +51,58 @@ const form = ref({
   notes: "",
   useFifo: false,
   allocations: [] as Array<{
-    invoiceId: string;
-    invoiceNumber: string;
+    invoiceId?: string;
+    expenseId?: string;
+    number: string;
     balanceDue: number;
     amount: number;
   }>,
 });
 
-const outstandingInvoices = ref<Invoice[]>([]);
-const isFetchingInvoices = ref(false);
+const outstandingItems = ref<Array<Invoice | Expense>>([]);
+const isFetchingItems = ref(false);
 
-const loadOutstandingInvoices = async (companyId: string) => {
+const loadOutstandingItems = async (companyId: string) => {
   if (!companyId) return;
-  isFetchingInvoices.value = true;
-  const result = await fetchInvoices(undefined, { companyId });
-  if (result.success && result.data) {
-    outstandingInvoices.value = result.data.filter((inv) => Number(inv.balanceDue) > 0);
+  isFetchingItems.value = true;
 
-    if (props.invoiceId) {
-      const target = outstandingInvoices.value.find((inv) => inv.id === props.invoiceId);
-      if (target && !form.value.allocations.some((a) => a.invoiceId === target.id)) {
+  if (isOut.value) {
+    const result = await fetchExpenses({ vendorId: companyId });
+    // Assuming balanceDue > 0 filter on expenses
+    outstandingItems.value = (result.items || []).filter((exp) => Number(exp.balanceDue) > 0);
+
+    if (props.expenseId) {
+      const target = outstandingItems.value.find((exp) => exp.id === props.expenseId);
+      if (target && !form.value.allocations.some((a) => a.expenseId === target.id)) {
         form.value.allocations.push({
-          invoiceId: target.id,
-          invoiceNumber: target.invoiceNumber,
+          expenseId: target.id,
+          number: (target as Expense).number,
           balanceDue: Number(target.balanceDue),
           amount: Number(target.balanceDue),
         });
         updateTotalFromAllocations();
       }
     }
+  } else {
+    const result = await fetchInvoices(undefined, { companyId });
+    if (result.success && result.data) {
+      outstandingItems.value = result.data.filter((inv) => Number(inv.balanceDue) > 0);
+
+      if (props.invoiceId) {
+        const target = outstandingItems.value.find((inv) => inv.id === props.invoiceId);
+        if (target && !form.value.allocations.some((a) => a.invoiceId === target.id)) {
+          form.value.allocations.push({
+            invoiceId: target.id,
+            number: (target as Invoice).invoiceNumber,
+            balanceDue: Number(target.balanceDue),
+            amount: Number(target.balanceDue),
+          });
+          updateTotalFromAllocations();
+        }
+      }
+    }
   }
-  isFetchingInvoices.value = false;
+  isFetchingItems.value = false;
 };
 
 // Formatting helpers
@@ -92,14 +118,16 @@ const parseThousand = (val: string) => {
   return isNaN(num) ? 0 : num;
 };
 
-const handleInputFormatted = (e: Event, target: "main" | string) => {
+const handleInputFormatted = (e: Event, targetId: string) => {
   const rawValue = (e.target as HTMLInputElement).value;
   const numericValue = parseThousand(rawValue);
 
-  if (target === "main") {
+  if (targetId === "main") {
     form.value.amount = numericValue;
   } else {
-    const alloc = form.value.allocations.find((a) => a.invoiceId === target);
+    const alloc = form.value.allocations.find(
+      (a) => (isOut.value ? a.expenseId : a.invoiceId) === targetId,
+    );
     if (alloc) {
       alloc.amount = numericValue;
       updateTotalFromAllocations();
@@ -113,7 +141,7 @@ const handleInputFormatted = (e: Event, target: "main" | string) => {
 // Calculations for Summary
 const totalOutstandingSelected = computed(() => {
   if (form.value.useFifo) {
-    return outstandingInvoices.value.reduce((sum: number, inv) => sum + Number(inv.balanceDue), 0);
+    return outstandingItems.value.reduce((sum: number, item) => sum + Number(item.balanceDue), 0);
   }
   return form.value.allocations.reduce((sum, a) => sum + a.balanceDue, 0);
 });
@@ -134,8 +162,8 @@ watch(
 watch(
   () => form.value.companyId,
   (newId) => {
-    if (newId) loadOutstandingInvoices(newId);
-    else outstandingInvoices.value = [];
+    if (newId) loadOutstandingItems(newId);
+    else outstandingItems.value = [];
   },
   { immediate: true },
 );
@@ -146,17 +174,26 @@ const updateTotalFromAllocations = () => {
   }
 };
 
-const toggleAllocation = (invoice: { id: string; invoiceNumber: string; balanceDue: number }) => {
-  const index = form.value.allocations.findIndex((a) => a.invoiceId === invoice.id);
+const toggleAllocation = (item: Invoice | Expense) => {
+  const id = item.id;
+  const number = isOut.value ? (item as Expense).number : (item as Invoice).invoiceNumber;
+  const balanceDue = Number(item.balanceDue);
+
+  const index = form.value.allocations.findIndex(
+    (a) => (isOut.value ? a.expenseId : a.invoiceId) === id,
+  );
   if (index > -1) {
     form.value.allocations.splice(index, 1);
   } else {
-    form.value.allocations.push({
-      invoiceId: invoice.id,
-      invoiceNumber: invoice.invoiceNumber,
-      balanceDue: Number(invoice.balanceDue),
-      amount: Number(invoice.balanceDue),
-    });
+    const newAlloc = {
+      invoiceId: isOut.value ? undefined : id,
+      expenseId: isOut.value ? id : undefined,
+      number,
+      balanceDue,
+      amount: balanceDue,
+    };
+
+    form.value.allocations.push(newAlloc);
   }
   updateTotalFromAllocations();
 };
@@ -176,6 +213,7 @@ const handleSave = async () => {
       ? []
       : form.value.allocations.map((a) => ({
           invoiceId: a.invoiceId,
+          expenseId: a.expenseId,
           amount: a.amount,
         })),
   };
@@ -185,9 +223,10 @@ const handleSave = async () => {
     emit("success");
   }
 };
+
 onMounted(async () => {
   await Promise.all([
-    fetchCompanies({ type: "CUSTOMER" }),
+    fetchCompanies({ type: isOut.value ? "VENDOR" : "CUSTOMER" }),
     (async () => {
       paymentMethods.value = await fetchPaymentMethods();
     })(),
@@ -201,6 +240,10 @@ const formatCurrency = (amount: number) => {
     minimumFractionDigits: 0,
   }).format(amount);
 };
+
+const getItemNumber = (item: Invoice | Expense): string => {
+  return isOut.value ? (item as Expense).number : (item as Invoice).invoiceNumber;
+};
 </script>
 
 <template>
@@ -212,14 +255,14 @@ const formatCurrency = (amount: number) => {
           class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1.5 ml-0.5"
         >
           <Building2 class="w-4 h-4" />
-          Customer / Payer <span class="text-red-500">*</span>
+          {{ isOut ? "Vendor / Payee" : "Customer / Payer" }} <span class="text-red-500">*</span>
         </label>
         <Combobox
           v-model="form.companyId"
           :options="companies"
           label-key="name"
           value-key="id"
-          placeholder="Search customer..."
+          :placeholder="isOut ? 'Search vendor...' : 'Search customer...'"
           :loading="isFetchingCompanies"
           class="bg-white"
         />
@@ -231,7 +274,7 @@ const formatCurrency = (amount: number) => {
             class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1.5 ml-0.5"
           >
             <Calendar class="w-4 h-4" />
-            Date Received <span class="text-red-500">*</span>
+            {{ isOut ? "Date Paid" : "Date Received" }} <span class="text-red-500">*</span>
           </label>
           <DatePicker v-model="form.paymentDate" placeholder="Select date" />
         </div>
@@ -306,7 +349,7 @@ const formatCurrency = (amount: number) => {
         <div class="w-full max-w-[360px] space-y-3">
           <label
             class="text-[10px] font-black text-muted-foreground uppercase tracking-widest text-center block"
-            >Total Received Amount</label
+            >Total {{ isOut ? "Paid" : "Received" }} Amount</label
           >
           <div class="relative group">
             <div
@@ -334,7 +377,7 @@ const formatCurrency = (amount: number) => {
           <p
             class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest opacity-35"
           >
-            Select customer to view invoices
+            Select {{ isOut ? "vendor" : "customer" }} to view items
           </p>
         </div>
         <div v-else class="border rounded-xl border-border overflow-hidden bg-white shadow-md">
@@ -342,18 +385,20 @@ const formatCurrency = (amount: number) => {
             class="grid grid-cols-12 gap-3 px-6 py-3 border-b border-border bg-gray-50/80 text-[10px] font-black text-muted-foreground uppercase tracking-widest"
           >
             <div class="col-span-1"></div>
-            <div class="col-span-6">Invoice details</div>
+            <div class="col-span-6">
+              {{ isOut ? "Vendor Invoice" : "Customer Invoice" }} details
+            </div>
             <div class="col-span-5 text-right">Apply Amount</div>
           </div>
 
           <div class="divide-y divide-border/50 max-h-[380px] overflow-y-auto custom-scrollbar">
             <div
-              v-for="inv in outstandingInvoices"
-              :key="inv.id"
-              @click="toggleAllocation(inv)"
+              v-for="item in outstandingItems"
+              :key="item.id"
+              @click="toggleAllocation(item)"
               :class="[
                 'grid grid-cols-12 gap-3 px-6 py-4 items-center group cursor-pointer transition-all',
-                form.allocations.some((a) => a.invoiceId === inv.id)
+                form.allocations.some((a) => (isOut ? a.expenseId : a.invoiceId) === item.id)
                   ? 'bg-[#012D5A]/5'
                   : 'hover:bg-gray-50/80',
               ]"
@@ -362,13 +407,15 @@ const formatCurrency = (amount: number) => {
                 <div
                   :class="[
                     'w-4 h-4 rounded border flex items-center justify-center transition-all',
-                    form.allocations.some((a) => a.invoiceId === inv.id)
+                    form.allocations.some((a) => (isOut ? a.expenseId : a.invoiceId) === item.id)
                       ? 'bg-[#012D5A] border-[#012D5A] text-white shadow-sm scale-110'
                       : 'bg-white border-border group-hover:border-[#012D5A]/30',
                   ]"
                 >
                   <Check
-                    v-if="form.allocations.some((a) => a.invoiceId === inv.id)"
+                    v-if="
+                      form.allocations.some((a) => (isOut ? a.expenseId : a.invoiceId) === item.id)
+                    "
                     class="w-2.5 h-2.5"
                     stroke-width="6"
                   />
@@ -376,18 +423,20 @@ const formatCurrency = (amount: number) => {
               </div>
               <div class="col-span-6 space-y-1">
                 <span class="text-xs font-black text-foreground block">{{
-                  inv.invoiceNumber
+                  getItemNumber(item)
                 }}</span>
                 <div class="flex items-center gap-1.5 opacity-60">
                   <Clock class="w-3.5 h-3.5" />
                   <span class="text-[10px] font-bold"
-                    >Balance: {{ formatCurrency(inv.balanceDue) }}</span
+                    >Balance: {{ formatCurrency(item.balanceDue) }}</span
                   >
                 </div>
               </div>
               <div class="col-span-5 flex justify-end" @click.stop>
                 <div
-                  v-if="form.allocations.some((a) => a.invoiceId === inv.id)"
+                  v-if="
+                    form.allocations.some((a) => (isOut ? a.expenseId : a.invoiceId) === item.id)
+                  "
                   class="relative w-full max-w-[220px]"
                 >
                   <span
@@ -396,9 +445,13 @@ const formatCurrency = (amount: number) => {
                   >
                   <input
                     :value="
-                      formatThousand(form.allocations.find((a) => a.invoiceId === inv.id)!.amount)
+                      formatThousand(
+                        form.allocations.find(
+                          (a) => (isOut ? a.expenseId : a.invoiceId) === item.id,
+                        )!.amount,
+                      )
                     "
-                    @input="(e) => handleInputFormatted(e, inv.id)"
+                    @input="(e) => handleInputFormatted(e, item.id)"
                     type="text"
                     class="w-full pl-8 pr-3 py-2 bg-white border border-[#012D5A]/20 rounded-lg text-right font-black text-[#012D5A] focus:ring-2 focus:ring-[#012D5A]/10 focus:border-[#012D5A] outline-none shadow-sm text-sm"
                   />
@@ -411,7 +464,7 @@ const formatCurrency = (amount: number) => {
               </div>
             </div>
             <div
-              v-if="outstandingInvoices.length === 0"
+              v-if="outstandingItems.length === 0"
               class="py-16 text-center text-[10px] font-bold text-muted-foreground uppercase opacity-25 italic"
             >
               No unpaid items found
@@ -442,7 +495,7 @@ const formatCurrency = (amount: number) => {
       >
         <div class="flex items-center gap-2">
           <Wallet class="w-3.5 h-3.5" />
-          Payment Received
+          Payment {{ isOut ? "Paid" : "Received" }}
         </div>
         <span class="text-[#012D5A] font-black -tracking-tight">{{
           formatCurrency(form.amount)

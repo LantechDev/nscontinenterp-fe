@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Receipt, Download } from "lucide-vue-next";
+import { Receipt, Download, ArrowRight } from "lucide-vue-next";
 import { cn } from "~/lib/utils";
 
 interface InvoiceData {
@@ -158,8 +158,17 @@ const groupedInvoices = computed(() => {
                   <button
                     class="p-1.5 rounded hover:bg-muted transition-colors"
                     @click.stop="handleDownloadPdf(invoice.id)"
+                    title="Download PDF"
                   >
                     <Download class="w-4 h-4 text-muted-foreground" />
+                  </button>
+                  <button
+                    v-if="invoice.job?.id"
+                    class="p-1.5 rounded hover:bg-blue-50 transition-colors"
+                    @click.stop="handleClick(invoice.id)"
+                    title="Buka Detail Job Shipment"
+                  >
+                    <ArrowRight class="w-4 h-4 text-[#012D5A]" />
                   </button>
                 </div>
               </td>

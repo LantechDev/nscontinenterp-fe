@@ -191,6 +191,7 @@ onMounted(() => {
     :companies="companies"
     :jobs="jobs"
     :tax-options="taxOptions"
+    :hide-job="true"
     @close="closeEditModal"
     @submit="handleUpdate"
   />

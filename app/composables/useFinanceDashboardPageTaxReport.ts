@@ -11,6 +11,7 @@ export interface DetailedTaxReportItem {
   rate: number;
   baseAmount: number;
   taxAmount: number;
+  type: "SALES" | "PURCHASE";
 }
 
 export function useFinanceDashboardPageTaxReport() {

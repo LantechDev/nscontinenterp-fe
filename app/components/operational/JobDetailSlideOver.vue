@@ -39,6 +39,7 @@ interface Props {
   initialTab?: string;
   initialBlId?: string;
   initialInvoiceId?: string;
+  initialSubTab?: string;
 }
 
 const props = defineProps<Props>();
@@ -186,6 +187,11 @@ const hasUnpaidInvoice = computed(() => {
   });
 });
 
+const isDraft = computed(() => {
+  const code = job.value?.status?.code?.toUpperCase();
+  return code === "DRAFT";
+});
+
 watch(
   () => props.modelValue,
   async (isOpen) => {
@@ -317,6 +323,29 @@ const handleCompleteJob = async () => {
   isCompleting.value = false;
 };
 
+const isActivating = ref(false);
+const handleActivateJob = async () => {
+  if (!job.value?.id) return;
+
+  const confirmed = await confirm({
+    title: "Activate Job",
+    message: `Apakah Anda yakin ingin mengaktifkan job ${job.value.jobNumber}? Setelah aktif, menu Finance dan eBL akan terbuka.`,
+    confirmText: "Aktifkan",
+    type: "info",
+  });
+  if (!confirmed) return;
+
+  isActivating.value = true;
+  const result = await updateJob(job.value.id, { status: "CONFIRMED" });
+  if (result.success) {
+    toast.success("Job berhasil diaktifkan.");
+    await getJob(job.value.id);
+  } else {
+    toast.error(result.error || "Gagal mengaktifkan job.");
+  }
+  isActivating.value = false;
+};
+
 const handleCancelCompleteJob = async () => {
   if (!job.value?.id) return;
   const confirmed = await confirm({
@@ -393,6 +422,17 @@ watch(
             </div>
             <div class="flex items-center gap-2">
               <button
+                v-if="isDraft"
+                @click="handleActivateJob"
+                :disabled="isActivating"
+                class="px-3 py-2 rounded-md text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-700 transition-colors flex items-center gap-2"
+              >
+                <Loader2 v-if="isActivating" class="w-4 h-4 animate-spin" />
+                <CheckCircle2 v-else class="w-4 h-4" />
+                <span>Aktifkan Job</span>
+              </button>
+              <button
+                v-else
                 @click="isCompleted ? handleCancelCompleteJob() : handleCompleteJob()"
                 :disabled="isCompleting || isCancelingComplete || !canApproveJobs"
                 :title="
@@ -488,8 +528,9 @@ watch(
                 <button
                   v-for="tab in tabs"
                   :key="tab.id"
-                  @click="activeTab = tab.id"
-                  class="pb-3 text-base font-bold transition-colors relative tracking-tight"
+                  @click="!(isDraft && tab.id !== 'overview') && (activeTab = tab.id)"
+                  :disabled="isDraft && tab.id !== 'overview'"
+                  class="pb-3 text-base font-bold transition-colors relative tracking-tight disabled:opacity-50 disabled:cursor-not-allowed"
                   :class="
                     activeTab === tab.id
                       ? 'text-[#012D5A]'
@@ -1208,6 +1249,29 @@ watch(
                   </section>
                 </div>
 
+                <div
+                  v-else-if="isDraft"
+                  class="flex flex-col items-center justify-center py-20 text-center"
+                >
+                  <div
+                    class="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mb-4"
+                  >
+                    <Settings class="w-8 h-8 text-blue-400" />
+                  </div>
+                  <h3 class="text-lg font-bold text-foreground">Menu Terkunci</h3>
+                  <p class="text-sm text-muted-foreground max-w-sm mt-1">
+                    Silakan aktifkan job terlebih dahulu untuk mengakses menu ini.
+                  </p>
+                  <button
+                    @click="handleActivateJob"
+                    :disabled="isActivating"
+                    class="mt-6 px-4 py-2 bg-[#012D5A] text-white rounded-md text-sm font-semibold hover:bg-[#012D5A]/90 transition-colors flex items-center gap-2"
+                  >
+                    <Loader2 v-if="isActivating" class="w-4 h-4 animate-spin" />
+                    Aktifkan Sekarang
+                  </button>
+                </div>
+
                 <!-- Finance Tab (AR & AP) -->
                 <div
                   v-else-if="activeTab === 'finance'"
@@ -1219,6 +1283,7 @@ watch(
                     :customer-id="job.customerId || undefined"
                     :job-parties="job.jobParties"
                     :initial-invoice-id="initialInvoiceId"
+                    :initial-sub-tab="initialSubTab"
                     @refresh-job="getJob(props.jobId)"
                     :is-completed="isCompleted"
                   />

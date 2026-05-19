@@ -32,6 +32,7 @@ export const NAV_ITEMS: NavItem[] = [
     title: "Operational",
     icon: Ship,
     children: [
+      { title: "Quotation & Pricing", href: "/operational/quotations" },
       { title: "Job", href: "/operational/jobs" },
       { title: "eBL", href: "/operational/ebl" },
       { title: "Closing Job", href: "/operational/closing" },

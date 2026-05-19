@@ -6,24 +6,50 @@ export interface ExpenseItem {
   amount: number;
 }
 
+export interface CompanyAddress {
+  id: string;
+  label: string;
+  fullAddress: string;
+  isDefault: boolean;
+}
+
+export interface PaymentAllocation {
+  id: string;
+  amount: number;
+  payment: {
+    id: string;
+    paymentNumber?: string;
+    paymentDate: string;
+    status: string;
+    paymentMethod?: {
+      name: string;
+      code: string;
+    };
+    reference?: string;
+  };
+}
+
 export interface Expense {
   id: string;
   number: string;
   description: string;
   amount: number;
+  balanceDue: number;
   date: string;
   categoryId?: string;
   vendorId?: string;
   jobId?: string;
   taxId?: string;
   category?: { id: string; name: string };
-  vendor?: { id: string; name: string };
+  vendor?: { id: string; name: string; address?: string; addresses?: CompanyAddress[] };
   job?: { id: string; jobNumber: string };
+  status?: { id: string; code: string; name: string };
   notes?: string;
   createdAt: string;
   currency?: string;
   exchangeRate?: number;
   items?: ExpenseItem[];
+  paymentAllocations?: PaymentAllocation[];
 }
 
 export interface Pagination {
@@ -44,6 +70,7 @@ export interface ExpenseFilters {
   sortOrder?: "asc" | "desc";
   page?: number;
   limit?: number;
+  type?: "JOB" | "GENERAL";
 }
 
 export function useFinanceExpense() {

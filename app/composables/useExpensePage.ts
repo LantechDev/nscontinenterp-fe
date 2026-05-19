@@ -51,6 +51,8 @@ export interface ExpenseFormData {
   jobId: string;
   taxId: string;
   notes: string;
+  currency: string;
+  exchangeRate: number;
 }
 
 export type ViewMode = "list" | "grid";
@@ -77,6 +79,7 @@ export function useExpensePage() {
   const {
     fetchExpenses,
     fetchExpenseById,
+    createExpense,
     deleteExpense,
     updateExpense,
     isLoading: isExpenseLoading,
@@ -126,6 +129,8 @@ export function useExpensePage() {
     jobId: "",
     taxId: "",
     notes: "",
+    currency: "IDR",
+    exchangeRate: 1,
   });
 
   const taxOptions = ref<Array<{ id: string; name: string; rate: number }>>([]);
@@ -192,7 +197,34 @@ export function useExpensePage() {
     navigateToExpense(id);
   };
 
-  // Edit handlers
+  // Create/Edit handlers
+  const openCreateModal = async () => {
+    try {
+      editingExpenseId.value = "";
+      await loadDropdownData();
+
+      formData.value = {
+        number: `EXP-${Date.now().toString().slice(-6)}`,
+        description: "",
+        amount: 0,
+        date: new Date().toISOString().split("T")[0] || "",
+        categoryId: "",
+        vendorId: "",
+        jobId: "",
+        taxId: "",
+        notes: "",
+        currency: "IDR",
+        exchangeRate: 1,
+      };
+
+      isEditModalOpen.value = true;
+      editError.value = null;
+    } catch (e) {
+      console.error("Failed to open create modal:", e);
+      editError.value = "Failed to load form initialization data";
+    }
+  };
+
   const openEditModal = async (id: string) => {
     try {
       editingExpenseId.value = id;
@@ -214,6 +246,8 @@ export function useExpensePage() {
         jobId: exp.job?.id || exp.jobId || "",
         taxId: exp.taxId || "",
         notes: exp.notes || "",
+        currency: exp.currency || "IDR",
+        exchangeRate: Number(exp.exchangeRate) || 1,
       };
 
       isEditModalOpen.value = true;
@@ -230,15 +264,13 @@ export function useExpensePage() {
     editingExpenseId.value = "";
   };
 
-  // Update handler
+  // Update/Create handler
   const handleUpdate = async () => {
-    if (!editingExpenseId.value) return;
-
     try {
       isSubmitting.value = true;
       editError.value = null;
 
-      const result = await updateExpense(editingExpenseId.value, {
+      const payload = {
         number: formData.value.number,
         description: formData.value.description,
         amount: formData.value.amount,
@@ -248,17 +280,26 @@ export function useExpensePage() {
         jobId: formData.value.jobId || undefined,
         taxId: formData.value.taxId || undefined,
         notes: formData.value.notes,
-      });
+        currency: formData.value.currency,
+        exchangeRate: formData.value.exchangeRate,
+      };
+
+      let result;
+      if (editingExpenseId.value) {
+        result = await updateExpense(editingExpenseId.value, payload);
+      } else {
+        result = await createExpense(payload);
+      }
 
       if (result) {
         closeEditModal();
         await loadExpenses();
       } else {
-        throw new Error("Failed to update expense");
+        throw new Error("Failed to save expense");
       }
     } catch (e) {
-      console.error("Failed to update expense:", e);
-      editError.value = "Failed to update expense";
+      console.error("Failed to save expense:", e);
+      editError.value = "Failed to save expense";
     } finally {
       isSubmitting.value = false;
     }
@@ -346,6 +387,7 @@ export function useExpensePage() {
     loadDropdownData,
     handlePageChange,
     handleRowClick,
+    openCreateModal,
     openEditModal,
     closeEditModal,
     handleUpdate,

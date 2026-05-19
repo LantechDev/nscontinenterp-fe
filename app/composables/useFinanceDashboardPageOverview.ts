@@ -13,11 +13,17 @@ export function useFinanceDashboardPageOverview() {
     if (!overviewStats.value) {
       return [
         {
-          title: "Total Income",
+          title: "Total Revenue",
           value: "Rp0",
           change: 0,
           changeLabel: "vs Last Period",
           isPrimary: true,
+        },
+        {
+          title: "Total Collection",
+          value: "Rp0",
+          change: 0,
+          changeLabel: "vs Last Period",
         },
         { title: "Total Outcome", value: "Rp0", change: 0, changeLabel: "vs Last Period" },
         { title: "Net Profit", value: "Rp0", change: 0, changeLabel: "vs Last Period" },
@@ -41,11 +47,17 @@ export function useFinanceDashboardPageOverview() {
     const o = overviewStats.value;
     return [
       {
-        title: "Total Income",
+        title: "Total Revenue",
         value: o.totalIncomeFormatted || "Rp0",
         change: o.incomeGrowth,
         changeLabel: "vs Last Period",
         isPrimary: true,
+      },
+      {
+        title: "Total Collection",
+        value: o.totalCollectionFormatted || "Rp0",
+        change: 0, // Collection growth logic can be added later if needed
+        changeLabel: "Cash Received",
       },
       {
         title: "Total Outcome",

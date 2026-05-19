@@ -12,33 +12,71 @@ import {
 import { toast } from "vue-sonner";
 import { useInvoices, type Invoice } from "~/composables/useInvoices";
 import { usePayments } from "~/composables/usePayments";
+import type { Expense } from "~/composables/useFinanceExpense";
 import Modal from "~/components/ui/Modal.vue";
 
-const props = defineProps<{
-  jobId: string;
-  isCompleted?: boolean;
-}>();
+interface JobPaymentInfo {
+  id: string;
+  paymentNumber?: string;
+  paymentDate: string;
+  status: string;
+  paymentMethod?: {
+    name: string;
+    code: string;
+  };
+  reference?: string;
+  amount: number;
+  referenceNumber: string;
+  referenceId: string;
+}
+
+const props = withDefaults(
+  defineProps<{
+    jobId: string;
+    isCompleted?: boolean;
+    mode?: "in" | "out";
+  }>(),
+  {
+    mode: "in",
+  },
+);
 
 const emit = defineEmits<{
   (e: "reload"): void;
 }>();
 
-const { fetchInvoices, isLoading } = useInvoices();
+const { fetchInvoices, isLoading: isLoadingInvoices } = useInvoices();
+const { fetchExpenses, isLoading: isLoadingExpenses } = useFinanceExpense();
 const { voidPayment } = usePayments();
+
 const invoices = ref<Invoice[]>([]);
+const expenses = ref<Expense[]>([]);
 const error = ref<string | null>(null);
 const isVoiding = ref(false);
 const showVoidConfirm = ref(false);
 const paymentToVoid = ref<string | null>(null);
 const paymentNumberToVoid = ref<string | null>(null);
 
+const isLoading = computed(() =>
+  props.mode === "out" ? isLoadingExpenses.value : isLoadingInvoices.value,
+);
+
 const loadData = async () => {
   error.value = null;
-  const result = await fetchInvoices(props.jobId);
-  if (result.success) {
-    invoices.value = result.data || [];
+  if (props.mode === "out") {
+    try {
+      const result = await fetchExpenses({ jobId: props.jobId, limit: 100 });
+      expenses.value = result.items || [];
+    } catch (err: unknown) {
+      error.value = (err as Error).message || "Failed to load payment history";
+    }
   } else {
-    error.value = result.error || "Failed to load payment history";
+    const result = await fetchInvoices(props.jobId);
+    if (result.success) {
+      invoices.value = result.data || [];
+    } else {
+      error.value = result.error || "Failed to load payment history";
+    }
   }
 };
 
@@ -47,16 +85,24 @@ onMounted(() => {
 });
 
 const allPayments = computed(() => {
-  const payments: ReturnType<typeof buildPaymentEntry>[] = [];
-  invoices.value.forEach((invoice) => {
-    if (invoice.paymentAllocations && invoice.paymentAllocations.length > 0) {
-      invoice.paymentAllocations.forEach((alloc) => {
+  const payments: JobPaymentInfo[] = [];
+  const items = props.mode === "out" ? expenses.value : invoices.value;
+
+  items.forEach((item) => {
+    if (item.paymentAllocations && item.paymentAllocations.length > 0) {
+      item.paymentAllocations.forEach((alloc) => {
         if (alloc.payment) {
           payments.push({
-            ...alloc.payment,
-            amount: alloc.amount, // Use the allocated amount for this invoice
-            invoiceNumber: invoice.invoiceNumber,
-            invoiceId: invoice.id,
+            id: alloc.payment.id,
+            paymentNumber: alloc.payment.paymentNumber,
+            paymentDate: alloc.payment.paymentDate,
+            status: alloc.payment.status,
+            paymentMethod: alloc.payment.paymentMethod,
+            reference: alloc.payment.reference,
+            amount: alloc.amount, // Use the allocated amount for this item
+            referenceNumber:
+              props.mode === "out" ? (item as Expense).number : (item as Invoice).invoiceNumber,
+            referenceId: item.id,
           });
         }
       });
@@ -68,18 +114,6 @@ const allPayments = computed(() => {
     (a, b) => new Date(b.paymentDate).getTime() - new Date(a.paymentDate).getTime(),
   );
 });
-
-function buildPaymentEntry(
-  alloc: NonNullable<(typeof invoices.value)[0]["paymentAllocations"]>[0],
-  invoice: (typeof invoices.value)[0],
-) {
-  return {
-    ...alloc.payment!,
-    amount: alloc.amount,
-    invoiceNumber: invoice.invoiceNumber,
-    invoiceId: invoice.id,
-  };
-}
 
 const totalPaid = computed(() => {
   return allPayments.value.reduce((sum, p) => sum + Number(p.amount), 0);
@@ -166,17 +200,26 @@ defineExpose({
 
     <div v-else class="space-y-6">
       <!-- Summary Card -->
-      <div class="bg-[#012D5A] rounded-2xl p-6 text-white shadow-lg overflow-hidden relative">
+      <div
+        :class="[
+          'rounded-2xl p-6 text-white shadow-lg overflow-hidden relative',
+          mode === 'out' ? 'bg-[#062c58]' : 'bg-[#012D5A]',
+        ]"
+      >
         <div class="relative z-10">
           <p class="text-xs font-bold uppercase tracking-widest opacity-70 mb-1">
-            Total Payments Received
+            {{ mode === "out" ? "Total Payments Out" : "Total Payments Received" }}
           </p>
           <h3 class="text-3xl font-black">{{ formatCurrency(totalPaid) }}</h3>
           <div
             class="mt-4 flex items-center gap-2 text-xs font-medium bg-white/10 w-fit px-3 py-1.5 rounded-full border border-white/10"
           >
-            <CheckCircle2 class="w-3.5 h-3.5 text-emerald-400" />
-            Across {{ invoices.length }} Invoice{{ invoices.length > 1 ? "s" : "" }}
+            <CheckCircle2
+              :class="['w-3.5 h-3.5', mode === 'out' ? 'text-blue-400' : 'text-emerald-400']"
+            />
+            Across {{ mode === "out" ? expenses.length : invoices.length }}
+            {{ mode === "out" ? "Expense" : "Invoice"
+            }}{{ (mode === "out" ? expenses.length : invoices.length) > 1 ? "s" : "" }}
           </div>
         </div>
         <!-- Decorative Circle -->
@@ -235,7 +278,7 @@ defineExpose({
                 <div
                   class="inline-flex items-center gap-1.5 px-2 py-1 rounded bg-blue-50 text-blue-800 border border-blue-100 text-[9px] font-black uppercase tracking-widest shadow-sm"
                 >
-                  {{ payment.invoiceNumber }}
+                  {{ payment.referenceNumber }}
                 </div>
                 <button
                   v-if="

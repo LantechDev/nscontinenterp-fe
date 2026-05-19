@@ -106,6 +106,8 @@ export const TIME_PERIODS: { label: string; value: PeriodType }[] = [
 export interface OverviewStats {
   totalIncome: number;
   totalIncomeFormatted: string;
+  totalCollection: number;
+  totalCollectionFormatted: string;
   totalOutcome: number;
   totalOutcomeFormatted: string;
   netProfit: number;
