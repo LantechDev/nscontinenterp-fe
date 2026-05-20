@@ -60,6 +60,7 @@ export interface CreatePaymentPayload {
   amount: number;
   paymentDate: string;
   paymentMethodId?: string;
+  bankAccountId?: string;
   taxId?: string;
   reference?: string;
   notes?: string;
