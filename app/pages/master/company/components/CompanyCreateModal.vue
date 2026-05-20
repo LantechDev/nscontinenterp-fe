@@ -123,6 +123,8 @@ const phoneRules: Record<
   MY: { min: 9, max: 10 },
 };
 
+const uppercase = (value: string) => value.toUpperCase();
+
 const normalizePhone = (countryCode: string, rawValue: string) => {
   const dialCode = dialCodeMap.value[countryCode];
   const digits = rawValue.replace(/\D/g, "");
@@ -269,21 +271,21 @@ const handleSubmitCompany = async () => {
   isSubmitting.value = true;
   formError.value = null;
   const payload = {
-    name: formData.value.name,
+    name: uppercase(formData.value.name),
     email: formData.value.email,
     phone: normalizedPhone.value,
-    fullAddress: formData.value.fullAddress,
-    country: formData.value.country,
-    city: formData.value.city,
-    state: formData.value.state,
-    postalCode: formData.value.postalCode,
-    eori: formData.value.eori,
+    fullAddress: uppercase(formData.value.fullAddress),
+    country: uppercase(formData.value.country),
+    city: uppercase(formData.value.city),
+    state: uppercase(formData.value.state),
+    postalCode: uppercase(formData.value.postalCode),
+    eori: uppercase(formData.value.eori),
     isCustomer: formData.value.isCustomer,
     isVendor: formData.value.isVendor,
     categoryId: formData.value.categoryId,
     isActive: isActive.value,
-    description: formData.value.description,
-    notes: formData.value.notes,
+    description: uppercase(formData.value.description),
+    notes: uppercase(formData.value.notes),
   };
   const result = isEditMode.value
     ? await updateCompany(props.company?.id || "", payload)
@@ -322,6 +324,7 @@ const handleSubmitCompany = async () => {
             >
             <input
               v-model="formData.name"
+              v-uppercase
               type="text"
               placeholder="Input name"
               class="w-full px-3 py-2 rounded-lg border border-border focus:outline-none focus:ring-1 focus:ring-primary"
@@ -338,6 +341,7 @@ const handleSubmitCompany = async () => {
               placeholder="Input email"
               class="w-full px-3 py-2 rounded-lg border border-border focus:outline-none focus:ring-1 focus:ring-primary"
               required
+              v-uppercase
             />
           </div>
           <div class="space-y-1.5">
@@ -357,6 +361,7 @@ const handleSubmitCompany = async () => {
                 placeholder="812-3456-7890"
                 class="flex-1 px-3 py-2 rounded-lg border border-border focus:outline-none focus:ring-1 focus:ring-primary"
                 required
+                v-uppercase
               />
             </div>
             <p v-if="phoneError" class="text-xs text-red-500">{{ phoneError }}</p>
@@ -405,6 +410,7 @@ const handleSubmitCompany = async () => {
             <label class="text-sm font-medium text-foreground">Country</label>
             <input
               v-model="formData.country"
+              v-uppercase
               type="text"
               placeholder="Input country"
               class="w-full px-3 py-2 rounded-lg border border-border focus:outline-none focus:ring-1 focus:ring-primary"
@@ -414,6 +420,7 @@ const handleSubmitCompany = async () => {
             <label class="text-sm font-medium text-foreground">City</label>
             <input
               v-model="formData.city"
+              v-uppercase
               type="text"
               placeholder="Input city"
               class="w-full px-3 py-2 rounded-lg border border-border focus:outline-none focus:ring-1 focus:ring-primary"
@@ -423,6 +430,7 @@ const handleSubmitCompany = async () => {
             <label class="text-sm font-medium text-foreground">Full Address</label>
             <textarea
               v-model="formData.fullAddress"
+              v-uppercase
               placeholder="Enter full address"
               rows="3"
               class="w-full px-3 py-2 rounded-lg border border-border focus:outline-none focus:ring-1 focus:ring-primary resize-none"
@@ -432,6 +440,7 @@ const handleSubmitCompany = async () => {
             <label class="text-sm font-medium text-foreground">Postal/ Zip code</label>
             <input
               v-model="formData.postalCode"
+              v-uppercase
               type="text"
               placeholder="Input postal code"
               class="w-full px-3 py-2 rounded-lg border border-border focus:outline-none focus:ring-1 focus:ring-primary"
@@ -441,6 +450,7 @@ const handleSubmitCompany = async () => {
             <label class="text-sm font-medium text-foreground">State</label>
             <input
               v-model="formData.state"
+              v-uppercase
               type="text"
               placeholder="Input state"
               class="w-full px-3 py-2 rounded-lg border border-border focus:outline-none focus:ring-1 focus:ring-primary"
@@ -459,6 +469,7 @@ const handleSubmitCompany = async () => {
             <label class="text-sm font-medium text-foreground">Description</label>
             <textarea
               v-model="formData.description"
+              v-uppercase
               placeholder="Enter company description"
               rows="3"
               class="w-full px-3 py-2 rounded-lg border border-border focus:outline-none focus:ring-1 focus:ring-primary resize-none"
@@ -468,6 +479,7 @@ const handleSubmitCompany = async () => {
             <label class="text-sm font-medium text-foreground">Notes</label>
             <textarea
               v-model="formData.notes"
+              v-uppercase
               placeholder="Enter notes"
               rows="3"
               class="w-full px-3 py-2 rounded-lg border border-border focus:outline-none focus:ring-1 focus:ring-primary resize-none"

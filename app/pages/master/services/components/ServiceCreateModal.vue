@@ -41,7 +41,11 @@ const emit = defineEmits<{
 const { categories, units, fetchCategories, fetchUnits } = useServices();
 const { fetchTaxes } = useFinanceTax();
 
-const categoryOptions = computed(() => categories.value.map((c) => ({ id: c.id, name: c.name })));
+const categoryOptions = computed(() =>
+  categories.value
+    .filter((c) => !c.code || !c.code.startsWith("GEN_"))
+    .map((c) => ({ id: c.id, name: c.name })),
+);
 const unitOptions = computed(() => units.value.map((u) => ({ id: u.id, name: u.name })));
 const taxOptions = ref<Array<{ id: string; name: string }>>([{ id: "0", name: "0%" }]);
 
@@ -105,7 +109,11 @@ watch(
 );
 
 const handleSubmit = () => {
-  emit("submit", { ...formData.value });
+  emit("submit", {
+    ...formData.value,
+    name: formData.value.name.toUpperCase(),
+    code: formData.value.code.toUpperCase(),
+  });
 };
 
 const handleClose = () => {
@@ -139,6 +147,7 @@ defineExpose({ resetForm });
           </label>
           <input
             v-model="formData.name"
+            v-uppercase
             type="text"
             placeholder="e.g. Ocean Freight"
             class="w-full px-3 py-2 rounded-lg border border-border focus:outline-none focus:ring-1 focus:ring-primary"
@@ -152,6 +161,7 @@ defineExpose({ resetForm });
           </label>
           <input
             v-model="formData.code"
+            v-uppercase
             type="text"
             placeholder="SVC-XXX"
             class="w-full px-3 py-2 rounded-lg border border-border focus:outline-none focus:ring-1 focus:ring-primary"

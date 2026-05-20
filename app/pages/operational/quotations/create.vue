@@ -110,11 +110,18 @@ const FREIGHT_TERMS = [
 ];
 
 const searchedPorts = ref<Port[]>([]);
+const uppercase = (value: string) => value.toUpperCase();
+const uppercasePort = (port: Port): Port => ({
+  ...port,
+  code: uppercase(port.code || ""),
+  name: uppercase(port.name || ""),
+});
+
 watch(
   () => masterData.value?.ports,
   (val) => {
     if (val && searchedPorts.value.length === 0) {
-      searchedPorts.value = val;
+      searchedPorts.value = val.map(uppercasePort);
     }
   },
   { immediate: true },
@@ -125,13 +132,13 @@ const portsPod = computed(() => searchedPorts.value);
 
 async function handleSearchPol(query: string) {
   if (!query) {
-    searchedPorts.value = masterData.value?.ports || [];
+    searchedPorts.value = (masterData.value?.ports || []).map(uppercasePort);
     return;
   }
   const results = await $fetch<Port[]>(
-    `/api/master/ports?q=${encodeURIComponent(query)}&type=ocean`,
+    `/api/master/ports?q=${encodeURIComponent(uppercase(query))}&type=ocean`,
   );
-  searchedPorts.value = results;
+  searchedPorts.value = results.map(uppercasePort);
 }
 const handleSearchPod = handleSearchPol;
 
@@ -437,16 +444,16 @@ async function handleSubmit() {
 
   const payload = {
     customerId: formData.customerId,
-    picName: formData.picName || null,
-    pol: formData.pol || null,
-    pod: formData.pod || null,
+    picName: formData.picName ? uppercase(formData.picName) : null,
+    pol: formData.pol ? uppercase(formData.pol) : null,
+    pod: formData.pod ? uppercase(formData.pod) : null,
     containerTypeId: formData.containerTypeId || null,
     term: formData.term || null,
     date: formData.date || "",
     validUntil: formData.validUntil || "",
-    freeTime: formData.freeTime || null,
-    salesName: formData.salesName || null,
-    notes: formData.notes || null,
+    freeTime: formData.freeTime ? uppercase(formData.freeTime) : null,
+    salesName: formData.salesName ? uppercase(formData.salesName) : null,
+    notes: formData.notes ? uppercase(formData.notes) : null,
     currency: formData.currency,
     exchangeRate: Number(formData.exchangeRate || 1),
     subTotal: subTotal.value,
@@ -537,6 +544,7 @@ async function handleSubmit() {
               <input
                 type="text"
                 :value="formatInputCurrency(formData.exchangeRate, 'IDR')"
+                v-uppercase
                 @input="
                   (e) =>
                     (formData.exchangeRate = parseInputCurrency(
@@ -825,6 +833,7 @@ async function handleSubmit() {
                         v-model.number="ch.quantity"
                         min="1"
                         class="w-full px-3 py-2 bg-white border border-border rounded-lg text-sm focus:ring-1 focus:ring-[#062c58] outline-none transition-all shadow-sm h-10 text-center"
+                        v-uppercase
                       />
                     </div>
 
@@ -839,6 +848,7 @@ async function handleSubmit() {
                         <input
                           type="text"
                           :value="formatInputCurrency(ch.unitPrice)"
+                          v-uppercase
                           @input="
                             (e) =>
                               (ch.unitPrice = parseInputCurrency(

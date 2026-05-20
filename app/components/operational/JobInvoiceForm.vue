@@ -6,7 +6,8 @@ import { useCompanies } from "~/composables/useCompanies";
 import { useFinanceTax, type Tax } from "~/composables/useFinanceTax";
 import { useJobs } from "~/composables/useJobs";
 import Combobox from "~/components/ui/Combobox.vue";
-import Modal from "~/components/ui/Modal.vue";
+import SearchSelect from "~/components/ui/SearchSelect.vue";
+import ServiceCreateModal from "~/pages/master/services/components/ServiceCreateModal.vue";
 import DatePicker from "~/components/ui/DatePicker.vue";
 import { toast } from "vue-sonner";
 import { z } from "zod";
@@ -27,9 +28,8 @@ const invoiceSchema = z.object({
     .min(1, "At least one service item is required"),
 });
 
-const TAX_OPTIONS = ref<Array<{ name: string; value: string; rate: number }>>([
-  { name: "0%", value: "", rate: 0 },
-]);
+const taxList = ref<Tax[]>([]);
+const taxOptions = ref<Array<{ id: string; name: string }>>([]);
 
 const jobBillsOfLading = ref<Array<{ blNumber: string }>>([]);
 
@@ -67,7 +67,6 @@ interface FormItem {
   description: string;
   quantity: number;
   unitPrice: number;
-  taxId: string;
 }
 
 const form = ref({
@@ -84,32 +83,33 @@ const form = ref({
   notes: props.invoice?.notes || props.prefillData?.notes || "",
   blNumber: props.invoice?.blNumber || props.invoice?.job?.billsOfLading?.[0]?.blNumber || "",
   quotationId: props.invoice?.quotationId || props.prefillData?.quotationId || null,
+  taxId: props.invoice?.taxId || props.invoice?.invoiceTaxes?.[0]?.taxId || "",
   items: (props.invoice?.items?.map((item) => ({
     id: item.id,
     serviceId: item.service?.id || "",
     description: item.description,
     quantity: Number(item.quantity),
     unitPrice: Number(item.unitPrice),
-    taxId: item.taxId || "",
   })) ||
     props.prefillData?.items?.map((item) => ({
       serviceId: item.serviceId || "",
       description: item.description,
       quantity: item.quantity,
       unitPrice: item.unitPrice,
-      taxId: item.taxId || "",
-    })) || [
-      { serviceId: "", description: "", quantity: 1, unitPrice: 0, taxId: "" },
-    ]) as FormItem[],
+    })) || [{ serviceId: "", description: "", quantity: 1, unitPrice: 0 }]) as FormItem[],
 });
 
 // Service Modal State
 const isServiceModalOpen = ref(false);
 const isSubmittingService = ref(false);
+const serviceFormError = ref<string | null>(null);
 const activeItemIndex = ref<number | null>(null);
-const serviceForm = reactive({
+const serviceForm = ref({
   name: "",
   code: "",
+  isActive: true,
+  unitId: null,
+  categoryId: null,
 });
 
 onMounted(async () => {
@@ -137,22 +137,19 @@ onMounted(async () => {
   ]);
 
   if (taxesRes?.items) {
-    const uniqueTaxes = new Map<string, Tax>();
-    taxesRes.items.forEach((t) => {
-      // Allow any active tax to be selected
-      uniqueTaxes.set(t.id, t);
-    });
-    const dynamicTaxes = Array.from(uniqueTaxes.values()).map((t) => ({
-      name: `${t.name} (${Number(t.rate)}%)`,
-      value: t.id,
-      rate: Number(t.rate),
-    }));
-    TAX_OPTIONS.value = [{ name: "0%", value: "", rate: 0 }, ...dynamicTaxes];
+    taxList.value = taxesRes.items;
+    taxOptions.value = [
+      { id: "", name: "Non PPN (None)" },
+      ...taxList.value.map((t: Tax) => ({
+        id: t.id,
+        name: `${t.name} (${Number(t.rate)}%)`,
+      })),
+    ];
   }
 });
 
 const addItem = () => {
-  form.value.items.push({ serviceId: "", description: "", quantity: 1, unitPrice: 0, taxId: "" });
+  form.value.items.push({ serviceId: "", description: "", quantity: 1, unitPrice: 0 });
 };
 
 const removeItem = (index: number) => {
@@ -168,28 +165,43 @@ const onServiceChange = (index: number) => {
   if (service) {
     item.description = service.name;
     item.unitPrice = 0;
-    item.taxId = "";
   }
 };
 
 const handleCreateService = (name: string, index: number) => {
-  serviceForm.name = name;
-  serviceForm.code = name.toUpperCase().replace(/\s+/g, "_").substring(0, 10);
+  serviceForm.value = {
+    name,
+    code: name.toUpperCase().replace(/\s+/g, "_").substring(0, 10),
+    isActive: true,
+    unitId: null,
+    categoryId: null,
+  };
+  serviceFormError.value = null;
   activeItemIndex.value = index;
   isServiceModalOpen.value = true;
 };
 
-async function submitServiceForm() {
-  if (!serviceForm.name || !serviceForm.code) {
-    toast.error("Name and Code are required.");
+async function submitServiceForm(formData: {
+  name: string;
+  code: string;
+  status: string;
+  unitId: string;
+  categoryId: string;
+}) {
+  if (!formData.name || !formData.code) {
+    serviceFormError.value = "Name and Code are required.";
     return;
   }
 
   try {
     isSubmittingService.value = true;
+    serviceFormError.value = null;
     const result = await createService({
-      name: serviceForm.name,
-      code: serviceForm.code,
+      name: formData.name,
+      code: formData.code,
+      unitId: formData.unitId || undefined,
+      categoryId: formData.categoryId || undefined,
+      isActive: formData.status === "Active",
     });
 
     if (result.success && result.data) {
@@ -204,10 +216,10 @@ async function submitServiceForm() {
       }
       isServiceModalOpen.value = false;
     } else {
-      toast.error("Failed to create service: " + (result.error || "Unknown error"));
+      serviceFormError.value = result.error || "Failed to create service";
     }
   } catch (error: unknown) {
-    toast.error("Failed to create service: " + (error as Error)?.message);
+    serviceFormError.value = "Failed to create service: " + (error as Error)?.message;
   } finally {
     isSubmittingService.value = false;
   }
@@ -221,12 +233,13 @@ const subTotal = computed(() => {
   return form.value.currency === "IDR" ? Math.round(sum) : sum;
 });
 
+const selectedTax = computed(() => {
+  return taxList.value.find((t) => t.id === form.value.taxId);
+});
+
 const taxAmount = computed(() => {
-  const sum = form.value.items.reduce((sum, item) => {
-    const tax = TAX_OPTIONS.value.find((t) => t.value === item.taxId);
-    const rate = tax ? tax.rate : 0;
-    return sum + Number(item.quantity) * Number(item.unitPrice) * (rate / 100);
-  }, 0);
+  const rate = selectedTax.value ? Number(selectedTax.value.rate) : 0;
+  const sum = (subTotal.value * rate) / 100;
   return form.value.currency === "IDR" ? Math.round(sum) : sum;
 });
 
@@ -244,18 +257,9 @@ const handleSubmit = async () => {
     return;
   }
 
-  const taxesMap = new Map<string, number>();
-  form.value.items.forEach((item) => {
-    if (item.taxId) {
-      const baseAmount = Number(item.quantity) * Number(item.unitPrice);
-      taxesMap.set(item.taxId, (taxesMap.get(item.taxId) || 0) + baseAmount);
-    }
-  });
-
-  const taxesPayload = Array.from(taxesMap.entries()).map(([taxId, baseAmount]) => ({
-    taxId,
-    baseAmount,
-  }));
+  const taxesPayload = form.value.taxId
+    ? [{ taxId: form.value.taxId, baseAmount: subTotal.value }]
+    : [];
 
   const payload = {
     jobId: props.jobId,
@@ -276,7 +280,6 @@ const handleSubmit = async () => {
     items: form.value.items.map((item) => ({
       id: item.id, // Include id for updates
       serviceId: item.serviceId || undefined,
-      taxId: item.taxId || undefined,
       description: item.description,
       quantity: Number(item.quantity),
       unitPrice: Number(item.unitPrice),
@@ -400,6 +403,7 @@ const formatInputCurrency = (val: number | string, currency: string = form.value
             <input
               type="text"
               :value="formatInputCurrency(form.exchangeRate, 'IDR')"
+              v-uppercase
               @input="
                 (e) =>
                   (form.exchangeRate = parseInputCurrency(
@@ -478,6 +482,7 @@ const formatInputCurrency = (val: number | string, currency: string = form.value
               v-model="form.blNumber"
               placeholder="Enter B/L number..."
               class="flex-1 px-3 py-2 bg-white border border-border rounded-md text-sm focus:ring-2 focus:ring-[#012D5A]/20 focus:border-[#012D5A] outline-none transition-all font-mono"
+              v-uppercase
             />
             <div v-if="jobBillsOfLading.length > 0" class="flex items-center gap-2">
               <span class="text-[10px] text-muted-foreground font-bold uppercase italic"
@@ -516,11 +521,10 @@ const formatInputCurrency = (val: number | string, currency: string = form.value
           <div
             class="grid grid-cols-12 gap-3 px-4 py-2 border-b border-border bg-gray-50/50 text-[10px] font-bold text-muted-foreground uppercase tracking-wider"
           >
-            <div class="col-span-4">Service / Description</div>
+            <div class="col-span-5">Service / Description</div>
             <div class="col-span-1">Qty</div>
-            <div class="col-span-3 text-right">Unit Price</div>
-            <div class="col-span-3 text-right pr-4">Tax</div>
-            <div class="col-span-1"></div>
+            <div class="col-span-4 text-right">Unit Price</div>
+            <div class="col-span-2 text-right pr-4">Amount</div>
           </div>
 
           <div class="divide-y divide-border/50">
@@ -530,7 +534,7 @@ const formatInputCurrency = (val: number | string, currency: string = form.value
               class="grid grid-cols-12 gap-3 px-4 py-3 items-start group hover:bg-white transition-colors relative"
               :style="{ zIndex: form.items.length + 10 - index }"
             >
-              <div class="col-span-4 space-y-2">
+              <div class="col-span-5 space-y-2">
                 <Combobox
                   v-model="item.serviceId"
                   :options="services"
@@ -546,6 +550,7 @@ const formatInputCurrency = (val: number | string, currency: string = form.value
                   placeholder="Item description..."
                   rows="1"
                   class="w-full px-3 py-1.5 bg-white border border-border rounded-md text-xs focus:ring-2 focus:ring-[#012D5A]/20 focus:border-[#012D5A] outline-none transition-all resize-none"
+                  v-uppercase
                 ></textarea>
               </div>
               <div class="col-span-1">
@@ -554,9 +559,10 @@ const formatInputCurrency = (val: number | string, currency: string = form.value
                   v-model.number="item.quantity"
                   min="1"
                   class="w-full px-3 py-2 bg-white border border-border rounded-md text-sm focus:ring-2 focus:ring-[#012D5A]/20 focus:border-[#012D5A] outline-none transition-all"
+                  v-uppercase
                 />
               </div>
-              <div class="col-span-3">
+              <div class="col-span-4">
                 <div class="relative">
                   <span
                     class="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-[10px] font-bold pr-1 border-r border-border mr-1"
@@ -565,6 +571,7 @@ const formatInputCurrency = (val: number | string, currency: string = form.value
                   <input
                     type="text"
                     :value="formatInputCurrency(item.unitPrice)"
+                    v-uppercase
                     @input="
                       (e) =>
                         (item.unitPrice = parseInputCurrency((e.target as HTMLInputElement).value))
@@ -572,36 +579,15 @@ const formatInputCurrency = (val: number | string, currency: string = form.value
                     class="w-full pl-10 pr-3 py-2 bg-white border border-border rounded-md text-sm text-right font-medium focus:ring-2 focus:ring-[#012D5A]/20 focus:border-[#012D5A] outline-none transition-all"
                   />
                 </div>
-                <p class="text-[9px] text-right mt-1.5 font-bold text-muted-foreground">
-                  Sub: {{ formatCurrency(Number(item.quantity) * Number(item.unitPrice)) }}
-                </p>
               </div>
-              <div class="col-span-3 flex flex-col items-end pr-4">
-                <Combobox
-                  :model-value="item.taxId"
-                  :options="TAX_OPTIONS"
-                  label-key="name"
-                  value-key="value"
-                  placeholder="Tax..."
-                  class="w-full h-9 [&_button]:h-9 [&_button]:text-xs [&_button]:font-bold"
-                  @update:model-value="(val) => (item.taxId = String(val))"
-                />
-                <p class="text-[9px] text-right mt-1.5 font-bold text-slate-400">
-                  Tax:
-                  {{
-                    formatCurrency(
-                      Number(item.quantity) *
-                        Number(item.unitPrice) *
-                        ((TAX_OPTIONS.find((t) => t.value === item.taxId)?.rate || 0) / 100),
-                    )
-                  }}
+              <div class="col-span-2 flex items-center justify-between gap-2 pr-2">
+                <p class="text-sm font-bold text-[#012D5A] tabular-nums text-right flex-1">
+                  {{ formatCurrency(Number(item.quantity) * Number(item.unitPrice)) }}
                 </p>
-              </div>
-              <div class="col-span-1 flex justify-end">
                 <button
                   type="button"
                   @click="removeItem(index)"
-                  class="p-2 text-muted-foreground hover:text-red-500 transition-colors disabled:opacity-30"
+                  class="p-1.5 text-muted-foreground hover:text-red-500 transition-colors disabled:opacity-30"
                   :disabled="form.items.length === 1"
                 >
                   <Trash2 class="w-4 h-4" />
@@ -612,17 +598,34 @@ const formatInputCurrency = (val: number | string, currency: string = form.value
         </div>
       </div>
 
-      <!-- Notes Section -->
-      <div class="space-y-2">
-        <label class="text-xs font-bold text-muted-foreground uppercase tracking-wider"
-          >Internal Notes</label
-        >
-        <textarea
-          v-model="form.notes"
-          rows="2"
-          placeholder="Add any internal notes here..."
-          class="w-full px-4 py-3 bg-white border border-border rounded-xl text-sm focus:ring-2 focus:ring-[#012D5A]/20 focus:border-[#012D5A] outline-none transition-all resize-none"
-        ></textarea>
+      <!-- Section: Tax & Notes Side-by-Side -->
+      <div class="grid grid-cols-2 gap-8 pt-4">
+        <div class="space-y-2">
+          <label class="text-[10px] font-black text-muted-foreground uppercase tracking-widest"
+            >Tax (PPN/PPH)</label
+          >
+          <SearchSelect
+            v-model="form.taxId"
+            :initial-options="taxOptions"
+            placeholder="Select Tax"
+            class="w-full"
+          />
+          <p class="text-[9px] text-muted-foreground/60 font-medium px-1 italic">
+            Tax will be applied to the total subtotal amount.
+          </p>
+        </div>
+        <div class="space-y-2">
+          <label class="text-[10px] font-black text-muted-foreground uppercase tracking-widest"
+            >Internal Notes</label
+          >
+          <textarea
+            v-model="form.notes"
+            rows="2"
+            placeholder="Add internal remarks here..."
+            class="w-full px-4 py-3 text-sm border border-border rounded-xl focus:ring-2 focus:ring-[#012D5A]/10 focus:border-[#012D5A] outline-none transition-all bg-gray-50/30 resize-none shadow-sm"
+            v-uppercase
+          ></textarea>
+        </div>
       </div>
 
       <!-- Totals Section -->
@@ -634,8 +637,8 @@ const formatInputCurrency = (val: number | string, currency: string = form.value
               formatCurrency(subTotal)
             }}</span>
           </div>
-          <div class="flex items-center justify-between text-sm">
-            <span class="text-muted-foreground font-inter">Total Tax</span>
+          <div v-if="taxAmount > 0" class="flex items-center justify-between text-sm">
+            <span class="text-muted-foreground font-inter">Tax ({{ selectedTax?.name }})</span>
             <span class="font-medium text-foreground font-inter">{{
               formatCurrency(taxAmount)
             }}</span>
@@ -687,46 +690,13 @@ const formatInputCurrency = (val: number | string, currency: string = form.value
       </button>
     </div>
 
-    <!-- Service Creation Modal -->
-    <Modal
-      v-model="isServiceModalOpen"
-      title="Add New Service"
-      description="Create a new service to master data."
-      width="max-w-md"
-    >
-      <div class="space-y-4">
-        <div class="space-y-2">
-          <label class="text-xs font-bold text-muted-foreground uppercase">Service Name</label>
-          <input
-            v-model="serviceForm.name"
-            type="text"
-            class="input-field"
-            placeholder="e.g. Ocean Freight"
-          />
-        </div>
-        <div class="space-y-2">
-          <label class="text-xs font-bold text-muted-foreground uppercase">Service Code</label>
-          <input
-            v-model="serviceForm.code"
-            type="text"
-            class="input-field"
-            placeholder="e.g. OF_001"
-          />
-        </div>
-        <div class="flex justify-end gap-3 pt-4">
-          <button type="button" @click="isServiceModalOpen = false" class="btn-outline px-4 py-2">
-            Cancel
-          </button>
-          <button
-            type="button"
-            @click="submitServiceForm"
-            class="btn-primary px-6 py-2 bg-[#012D5A]"
-            :disabled="isSubmittingService"
-          >
-            {{ isSubmittingService ? "Creating..." : "Create Service" }}
-          </button>
-        </div>
-      </div>
-    </Modal>
+    <ServiceCreateModal
+      :is-open="isServiceModalOpen"
+      :is-submitting="isSubmittingService"
+      :error="serviceFormError"
+      :initial-data="serviceForm"
+      @update:is-open="(val) => (isServiceModalOpen = val)"
+      @submit="submitServiceForm"
+    />
   </div>
 </template>

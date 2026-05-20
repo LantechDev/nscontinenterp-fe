@@ -3,9 +3,21 @@ export interface ChartOfAccount {
   accountCode: string;
   accountName: string;
   accountType: string;
-  parentId?: string;
+  parentId?: string | null;
+  normalBalance?: string;
+  isPosting?: boolean;
   isActive: boolean;
   description?: string;
+}
+
+export interface ChartOfAccountPayload {
+  accountCode: string;
+  accountName: string;
+  accountType: string;
+  normalBalance: string;
+  isPosting: boolean;
+  parentId?: string | null;
+  isActive: boolean;
 }
 
 type ErrorResponse = {
@@ -38,14 +50,16 @@ export function useChartOfAccounts() {
   /**
    * Fetch all chart of accounts
    */
-  async function fetchAccounts(): Promise<{
+  async function fetchAccounts(includeInactive = false): Promise<{
     success: boolean;
     data?: ChartOfAccount[];
     error?: string;
   }> {
     isLoading.value = true;
     try {
-      const data = await $fetch<ChartOfAccount[]>("/api/finance/chart-of-accounts");
+      const data = await $fetch<ChartOfAccount[]>("/api/finance/chart-of-accounts", {
+        query: includeInactive ? { includeInactive: true } : undefined,
+      });
       accounts.value = data || [];
       return { success: true, data: accounts.value };
     } catch (error) {
@@ -93,11 +107,82 @@ export function useChartOfAccounts() {
     return accounts.value.find((acc) => acc.id === accountId);
   }
 
+  async function createAccount(payload: ChartOfAccountPayload): Promise<{
+    success: boolean;
+    data?: ChartOfAccount;
+    error?: string;
+  }> {
+    isLoading.value = true;
+    try {
+      const data = await $fetch<ChartOfAccount>("/api/finance/chart-of-accounts", {
+        method: "POST",
+        body: payload,
+      });
+      accounts.value = [...accounts.value, data].toSorted((a, b) =>
+        a.accountCode.localeCompare(b.accountCode),
+      );
+      return { success: true, data };
+    } catch (error) {
+      console.error("[ChartOfAccounts] Failed to create:", error);
+      return { success: false, error: getErrorMessage(error) };
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  async function updateAccount(
+    id: string,
+    payload: Partial<ChartOfAccountPayload>,
+  ): Promise<{
+    success: boolean;
+    data?: ChartOfAccount;
+    error?: string;
+  }> {
+    isLoading.value = true;
+    try {
+      const data = await $fetch<ChartOfAccount>(`/api/finance/chart-of-accounts/${id}`, {
+        method: "PATCH",
+        body: payload,
+      });
+      accounts.value = accounts.value
+        .map((account) => (account.id === id ? data : account))
+        .toSorted((a, b) => a.accountCode.localeCompare(b.accountCode));
+      return { success: true, data };
+    } catch (error) {
+      console.error("[ChartOfAccounts] Failed to update:", error);
+      return { success: false, error: getErrorMessage(error) };
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  async function deleteAccount(id: string): Promise<{
+    success: boolean;
+    error?: string;
+  }> {
+    isLoading.value = true;
+    try {
+      await $fetch(`/api/finance/chart-of-accounts/${id}`, {
+        method: "DELETE",
+      });
+      accounts.value = accounts.value.filter((account) => account.id !== id);
+      return { success: true };
+    } catch (error) {
+      console.error("[ChartOfAccounts] Failed to delete:", error);
+      return { success: false, error: getErrorMessage(error) };
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
   return {
     isLoading,
     accounts,
     fetchAccounts,
     searchAccounts,
+    createAccount,
+    updateAccount,
+    deleteAccount,
     formatAccountDisplay,
     getAccountById,
   };

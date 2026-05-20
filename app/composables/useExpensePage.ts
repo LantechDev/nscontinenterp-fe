@@ -47,6 +47,7 @@ export interface ExpenseFormData {
   amount: number;
   date: string;
   categoryId: string;
+  expenseCategoryId: string;
   vendorId: string;
   jobId: string;
   taxId: string;
@@ -64,10 +65,12 @@ export interface ExpenseData {
   amount: number;
   date: string;
   categoryId?: string;
+  expenseCategoryId?: string;
   vendorId?: string;
   jobId?: string;
   taxId?: string;
   category?: { id: string; name: string };
+  expenseCategory?: { id: string; name: string };
   vendor?: { id: string; name: string };
   job?: { id: string; jobNumber: string };
   notes?: string;
@@ -94,6 +97,7 @@ export function useExpensePage() {
   const filters = ref<ExpenseFilters>({
     search: "",
     categoryId: "",
+    expenseCategoryId: "",
     page: 1,
     limit: 10,
   });
@@ -114,9 +118,11 @@ export function useExpensePage() {
 
   // Edit modal state
   const isEditModalOpen = ref(false);
+  const isVendorCreateModalOpen = ref(false);
   const isSubmitting = ref(false);
   const editError = ref<string | null>(null);
   const editingExpenseId = ref<string>("");
+  const presetVendorName = ref("");
 
   // Form state
   const formData = ref<ExpenseFormData>({
@@ -125,6 +131,7 @@ export function useExpensePage() {
     amount: 0,
     date: "",
     categoryId: "",
+    expenseCategoryId: "",
     vendorId: "",
     jobId: "",
     taxId: "",
@@ -136,18 +143,33 @@ export function useExpensePage() {
   const taxOptions = ref<Array<{ id: string; name: string; rate: number }>>([]);
 
   // Dynamic category options fetched from the API
-  const serviceCategoryList = ref<Array<{ id: string; name: string }>>([]);
-  const categoryOptions = computed(() => [
-    { value: "", label: "Pilih Kategori" },
-    ...serviceCategoryList.value.map((cat) => ({ value: cat.id, label: cat.name })),
-  ]);
+  const serviceCategoryList = ref<Array<{ id: string; name: string; code?: string }>>([]);
+  const categoryOptions = computed(() => {
+    const isJob = filters.value.type === "JOB";
+    return [
+      { value: "", label: "Pilih Kategori" },
+      ...serviceCategoryList.value
+        .filter((cat) => {
+          if (isJob) {
+            return !cat.code || !cat.code.startsWith("GEN_");
+          }
+          return true;
+        })
+        .map((cat) => ({ value: cat.id, label: cat.name })),
+    ];
+  });
 
   // Computed
   const isLoading = computed(() => isExpenseLoading.value);
 
   // Watch for filter changes
   watch(
-    () => [filters.value.search, filters.value.categoryId, filters.value.page],
+    () => [
+      filters.value.search,
+      filters.value.categoryId,
+      filters.value.expenseCategoryId,
+      filters.value.page,
+    ],
     () => {
       loadExpenses();
     },
@@ -175,15 +197,39 @@ export function useExpensePage() {
 
   // Load dropdown data
   const loadDropdownData = async () => {
+    const isJob = filters.value.type === "JOB";
+    const categoriesPromise = isJob
+      ? fetchCategories()
+      : $fetch<Array<{ id: string; name: string; code?: string }>>(
+          "/api/master/expense-categories",
+        );
+
     const [_, __, taxes, catResult] = await Promise.all([
       fetchCompanies({ type: "VENDOR" }),
       fetchJobs(),
       fetchTaxes({ isActive: true, limit: 100 }),
-      fetchCategories(),
+      categoriesPromise,
     ]);
     taxOptions.value = taxes?.items || [];
-    if (catResult.success && catResult.data) {
-      serviceCategoryList.value = catResult.data.map((c) => ({ id: c.id, name: c.name }));
+    if (isJob) {
+      if (
+        catResult &&
+        typeof catResult === "object" &&
+        "success" in catResult &&
+        catResult.success &&
+        Array.isArray(catResult.data)
+      ) {
+        serviceCategoryList.value = catResult.data.map(
+          (c: { id: string; name: string; code?: string }) => ({
+            id: c.id,
+            name: c.name,
+            code: c.code,
+          }),
+        );
+      }
+    } else {
+      serviceCategoryList.value =
+        (catResult as Array<{ id: string; name: string; code?: string }>) || [];
     }
   };
 
@@ -209,6 +255,7 @@ export function useExpensePage() {
         amount: 0,
         date: new Date().toISOString().split("T")[0] || "",
         categoryId: "",
+        expenseCategoryId: "",
         vendorId: "",
         jobId: "",
         taxId: "",
@@ -242,6 +289,7 @@ export function useExpensePage() {
         amount: Number(exp.amount) || 0,
         date: formatDateForInput(exp.date),
         categoryId: exp.categoryId || "",
+        expenseCategoryId: exp.expenseCategoryId || "",
         vendorId: exp.vendor?.id || exp.vendorId || "",
         jobId: exp.job?.id || exp.jobId || "",
         taxId: exp.taxId || "",
@@ -264,11 +312,77 @@ export function useExpensePage() {
     editingExpenseId.value = "";
   };
 
-  // Update/Create handler
+  const handleCreateVendor = (name: string) => {
+    const vendorName = name.trim().toUpperCase();
+    if (!vendorName) return;
+
+    presetVendorName.value = vendorName;
+    isVendorCreateModalOpen.value = true;
+  };
+
+  const handleVendorCreateSuccess = async (company: Company) => {
+    try {
+      await fetchCompanies({ type: "VENDOR" });
+      formData.value.vendorId = company.id;
+      isVendorCreateModalOpen.value = false;
+      toast.success(`Vendor "${company.name}" berhasil dibuat.`);
+    } catch (error) {
+      console.error("Failed to refresh vendors:", error);
+      toast.error("Vendor berhasil dibuat, tapi gagal refresh daftar vendor.");
+    }
+  };
+
+  const handleCreateCategory = async (name: string) => {
+    try {
+      const categoryName = name.trim().toUpperCase();
+      if (!categoryName) return;
+
+      const isJob = filters.value.type === "JOB";
+      const endpoint = isJob ? "/api/master/service-categories" : "/api/master/expense-categories";
+      const created = await $fetch<{ id: string; name: string; code?: string }>(endpoint, {
+        method: "POST",
+        body: { name: categoryName },
+      });
+
+      serviceCategoryList.value = [
+        ...serviceCategoryList.value.filter((item) => item.id !== created.id),
+        created,
+      ];
+
+      if (isJob) {
+        formData.value.categoryId = created.id;
+      } else {
+        formData.value.expenseCategoryId = created.id;
+      }
+
+      toast.success(`Kategori "${created.name}" berhasil dibuat.`);
+    } catch (error) {
+      console.error("Failed to create category:", error);
+      toast.error("Gagal membuat kategori.");
+    }
+  };
+
   const handleUpdate = async () => {
     try {
       isSubmitting.value = true;
       editError.value = null;
+
+      // Frontend Validation
+      if (formData.value.jobId) {
+        if (!formData.value.categoryId) {
+          editError.value = "Kategori Jasa wajib dipilih untuk Job Expense.";
+          isSubmitting.value = false;
+          return;
+        }
+        formData.value.expenseCategoryId = "";
+      } else {
+        if (!formData.value.expenseCategoryId) {
+          editError.value = "Kategori Biaya wajib dipilih untuk General Expense.";
+          isSubmitting.value = false;
+          return;
+        }
+        formData.value.categoryId = "";
+      }
 
       const payload = {
         number: formData.value.number,
@@ -276,6 +390,7 @@ export function useExpensePage() {
         amount: formData.value.amount,
         date: formData.value.date,
         categoryId: formData.value.categoryId || undefined,
+        expenseCategoryId: formData.value.expenseCategoryId || undefined,
         vendorId: formData.value.vendorId || undefined,
         jobId: formData.value.jobId || undefined,
         taxId: formData.value.taxId || undefined,
@@ -367,9 +482,11 @@ export function useExpensePage() {
     viewMode,
     searchQuery,
     isEditModalOpen,
+    isVendorCreateModalOpen,
     isSubmitting,
     editError,
     editingExpenseId,
+    presetVendorName,
     formData,
     taxOptions,
     // Options
@@ -390,6 +507,9 @@ export function useExpensePage() {
     openCreateModal,
     openEditModal,
     closeEditModal,
+    handleCreateVendor,
+    handleVendorCreateSuccess,
+    handleCreateCategory,
     handleUpdate,
     handleDelete,
     initialize,

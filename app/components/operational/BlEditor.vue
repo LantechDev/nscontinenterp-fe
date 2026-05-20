@@ -241,7 +241,7 @@ async function handleSave() {
           <div class="grid grid-cols-2 gap-4">
             <div class="space-y-2">
               <label class="text-sm font-medium">BL Number</label>
-              <input v-model="formData.blNumber" class="input-field" />
+              <input v-model="formData.blNumber" class="input-field" v-uppercase />
             </div>
             <div class="space-y-2">
               <label class="text-sm font-medium">Container Number</label>
@@ -249,11 +249,12 @@ async function handleSave() {
                 v-model="formData.containerNumber"
                 class="input-field"
                 placeholder="ABCD1234567"
+                v-uppercase
               />
             </div>
             <div class="space-y-2">
               <label class="text-sm font-medium">Seal Number</label>
-              <input v-model="formData.sealNumber" class="input-field" />
+              <input v-model="formData.sealNumber" class="input-field" v-uppercase />
             </div>
             <div class="space-y-2">
               <label class="text-sm font-medium">Type</label>
@@ -326,6 +327,7 @@ async function handleSave() {
                   v-model.number="formData.grossWeight"
                   type="number"
                   class="input-field pr-8"
+                  v-uppercase
                 />
                 <span class="absolute right-3 top-2.5 text-xs text-muted-foreground">KGS</span>
               </div>
@@ -333,7 +335,12 @@ async function handleSave() {
             <div class="space-y-2">
               <label class="text-sm font-medium">Net Weight</label>
               <div class="relative">
-                <input v-model.number="formData.netWeight" type="number" class="input-field pr-8" />
+                <input
+                  v-model.number="formData.netWeight"
+                  type="number"
+                  class="input-field pr-8"
+                  v-uppercase
+                />
                 <span class="absolute right-3 top-2.5 text-xs text-muted-foreground">KGS</span>
               </div>
             </div>
@@ -344,6 +351,7 @@ async function handleSave() {
                   v-model.number="formData.measurement"
                   type="number"
                   class="input-field pr-8"
+                  v-uppercase
                 />
                 <span class="absolute right-3 top-2.5 text-xs text-muted-foreground">CBM</span>
               </div>
@@ -355,6 +363,7 @@ async function handleSave() {
               v-model="formData.cargoDescription"
               rows="4"
               class="input-field min-h-[100px]"
+              v-uppercase
             ></textarea>
           </div>
         </section>

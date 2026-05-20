@@ -111,19 +111,24 @@ const handleJobSearch = async (options: { query: string; page?: number; limit?: 
         </div>
         <div class="space-y-2">
           <label class="text-sm font-medium">Tanggal Invoice</label>
-          <input type="date" class="input-field" />
+          <input type="date" class="input-field" v-uppercase />
         </div>
         <div class="space-y-2">
           <label class="text-sm font-medium">Jatuh Tempo</label>
-          <input type="date" class="input-field" />
+          <input type="date" class="input-field" v-uppercase />
         </div>
         <div class="space-y-2 md:col-span-2">
           <label class="text-sm font-medium">Deskripsi</label>
-          <textarea rows="3" placeholder="Detail tagihan..." class="input-field"></textarea>
+          <textarea
+            rows="3"
+            placeholder="Detail tagihan..."
+            class="input-field"
+            v-uppercase
+          ></textarea>
         </div>
         <div class="space-y-2">
           <label class="text-sm font-medium">Jumlah</label>
-          <input type="text" placeholder="Rp 0" class="input-field" />
+          <input type="text" placeholder="Rp 0" class="input-field" v-uppercase />
         </div>
         <div class="space-y-2">
           <label class="text-sm font-medium">PPN</label>

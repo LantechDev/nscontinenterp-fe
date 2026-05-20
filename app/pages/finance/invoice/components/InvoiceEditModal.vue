@@ -59,6 +59,7 @@ const isTaxSelected = (taxId: string) => {
             type="text"
             class="w-full px-3 py-2 rounded-lg border border-border focus:outline-none focus:ring-1 focus:ring-primary bg-white"
             required
+            v-uppercase
           />
         </div>
 
@@ -87,6 +88,7 @@ const isTaxSelected = (taxId: string) => {
             type="date"
             class="w-full px-3 py-2 rounded-lg border border-border focus:outline-none focus:ring-1 focus:ring-primary bg-white"
             required
+            v-uppercase
           />
         </div>
 
@@ -99,6 +101,7 @@ const isTaxSelected = (taxId: string) => {
             type="date"
             class="w-full px-3 py-2 rounded-lg border border-border focus:outline-none focus:ring-1 focus:ring-primary bg-white"
             required
+            v-uppercase
           />
         </div>
 
@@ -170,6 +173,7 @@ const isTaxSelected = (taxId: string) => {
                     placeholder="Deskripsi"
                     class="w-full px-2 py-1.5 rounded border border-border focus:outline-none focus:ring-1 focus:ring-primary bg-white text-sm"
                     required
+                    v-uppercase
                   />
                 </td>
                 <td class="p-2">
@@ -191,6 +195,7 @@ const isTaxSelected = (taxId: string) => {
                     class="w-full px-2 py-1.5 rounded border border-border focus:outline-none focus:ring-1 focus:ring-primary bg-white text-sm text-center"
                     @input="emit('updateItemAmount', index)"
                     required
+                    v-uppercase
                   />
                 </td>
                 <td class="p-2">
@@ -201,6 +206,7 @@ const isTaxSelected = (taxId: string) => {
                     class="w-full px-2 py-1.5 rounded border border-border focus:outline-none focus:ring-1 focus:ring-primary bg-white text-sm text-right"
                     @input="emit('updateItemAmount', index)"
                     required
+                    v-uppercase
                   />
                 </td>
                 <td class="p-2 text-right font-medium">
@@ -236,6 +242,7 @@ const isTaxSelected = (taxId: string) => {
                 :checked="isTaxSelected(tax.id)"
                 @change="emit('toggleTax', tax.id)"
                 class="w-4 h-4 rounded border-border text-primary focus:ring-primary"
+                v-uppercase
               />
               <div class="flex flex-col">
                 <span class="text-sm font-medium">{{ tax.name }}</span>
@@ -258,6 +265,7 @@ const isTaxSelected = (taxId: string) => {
             rows="5"
             placeholder="Catatan invoice (opsional)"
             class="w-full px-3 py-2 rounded-lg border border-border focus:outline-none focus:ring-1 focus:ring-primary bg-white text-sm"
+            v-uppercase
           ></textarea>
         </div>
       </div>

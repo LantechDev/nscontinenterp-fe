@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Check, ChevronsUpDown, Plus } from "lucide-vue-next";
+import { Check, ChevronsUpDown, Plus, X } from "lucide-vue-next";
 import { onClickOutside } from "@vueuse/core";
 import { cn } from "~/lib/utils";
 
@@ -33,7 +33,7 @@ const containerRef = ref<HTMLElement | null>(null);
 const inputRef = ref<HTMLInputElement | null>(null);
 
 watch(searchQuery, (q) => {
-  emit("search", q);
+  emit("search", q.toUpperCase());
 });
 
 const getOptionValue = (option: ComboboxOption): string => {
@@ -105,6 +105,8 @@ const selectedLabel = computed(() => {
   return props.placeholder || "Select option...";
 });
 
+const hasSelection = computed(() => Boolean(props.modelValue));
+
 function selectOption(option: ComboboxOption) {
   cachedSelectedOption.value = option;
   emit("update:modelValue", getOptionValue(option));
@@ -114,9 +116,16 @@ function selectOption(option: ComboboxOption) {
 
 function handleCreate() {
   if (!props.allowCreate || !searchQuery.value) return;
-  emit("create", searchQuery.value);
+  emit("create", searchQuery.value.toUpperCase());
   open.value = false;
   searchQuery.value = "";
+}
+
+function clearSelection() {
+  cachedSelectedOption.value = null;
+  searchQuery.value = "";
+  open.value = false;
+  emit("update:modelValue", null);
 }
 
 watch(open, (isOpen) => {
@@ -131,6 +140,18 @@ watch(open, (isOpen) => {
 onClickOutside(containerRef as Ref<HTMLElement>, () => {
   open.value = false;
 });
+
+// Compute dropdown position for teleport
+const dropdownStyle = computed(() => {
+  if (!containerRef.value) return {};
+  const rect = containerRef.value.getBoundingClientRect();
+  return {
+    top: `${rect.bottom + 4}px`,
+    left: `${rect.left}px`,
+    width: `${rect.width}px`,
+    maxWidth: `${rect.width}px`,
+  };
+});
 </script>
 
 <template>
@@ -141,52 +162,69 @@ onClickOutside(containerRef as Ref<HTMLElement>, () => {
       @click="open = !open"
     >
       <span class="truncate">{{ selectedLabel }}</span>
-      <ChevronsUpDown class="ml-2 h-4 w-4 shrink-0 opacity-50" />
+      <span class="ml-2 flex shrink-0 items-center gap-1">
+        <span
+          v-if="hasSelection"
+          role="button"
+          tabindex="0"
+          aria-label="Clear selection"
+          class="rounded-sm p-0.5 text-muted-foreground opacity-70 transition-colors hover:bg-muted hover:text-foreground hover:opacity-100"
+          @click.stop="clearSelection"
+          @keydown.enter.stop.prevent="clearSelection"
+          @keydown.space.stop.prevent="clearSelection"
+        >
+          <X class="h-3.5 w-3.5" />
+        </span>
+        <ChevronsUpDown class="h-4 w-4 opacity-50" />
+      </span>
     </button>
 
-    <div
-      v-if="open"
-      class="absolute z-[100] mt-1 max-h-60 w-full overflow-auto rounded-md border bg-white dark:bg-slate-950 text-popover-foreground shadow-md animate-in fade-in-0 zoom-in-95"
-    >
-      <div class="flex items-center border-b px-3 sticky top-0 bg-white dark:bg-slate-950 z-10">
-        <input
-          ref="inputRef"
-          v-model="searchQuery"
-          v-uppercase
-          class="flex h-10 w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50"
-          placeholder="Search..."
-        />
-      </div>
-      <div class="p-1">
-        <div v-if="filteredOptions.length === 0 && !allowCreate" class="py-6 text-center text-sm">
-          No results found.
-        </div>
-
-        <div
-          v-if="allowCreate && searchQuery && !hasExactMatch"
-          class="relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none bg-[#012D5A]/10 hover:bg-[#012D5A] hover:text-white"
-          @click="handleCreate"
-        >
-          <Plus class="mr-2 h-4 w-4" />
-          Create "{{ searchQuery }}"
-        </div>
-
-        <div
-          v-for="option in filteredOptions"
-          :key="getOptionValue(option)"
-          class="relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-[#012D5A] hover:text-white data-[disabled]:pointer-events-none data-[disabled]:opacity-50"
-          :class="{
-            'bg-[#012D5A] text-white': modelValue === getOptionValue(option),
-          }"
-          @click="selectOption(option)"
-        >
-          <Check
-            class="mr-2 h-4 w-4"
-            :class="modelValue === getOptionValue(option) ? 'opacity-100' : 'opacity-0'"
+    <Teleport to="body">
+      <div
+        v-if="open"
+        class="fixed z-[1200] mt-1 max-h-60 w-full overflow-auto rounded-md border bg-white dark:bg-slate-950 text-popover-foreground shadow-md animate-in fade-in-0 zoom-in-95"
+        :style="dropdownStyle"
+      >
+        <div class="flex items-center border-b px-3 sticky top-0 bg-white dark:bg-slate-950 z-10">
+          <input
+            ref="inputRef"
+            v-model="searchQuery"
+            v-uppercase
+            class="flex h-10 w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50"
+            placeholder="Search..."
           />
-          {{ getOptionLabel(option) }}
+        </div>
+        <div class="p-1">
+          <div v-if="filteredOptions.length === 0 && !allowCreate" class="py-6 text-center text-sm">
+            No results found.
+          </div>
+
+          <div
+            v-if="allowCreate && searchQuery && !hasExactMatch"
+            class="relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none bg-[#012D5A]/10 hover:bg-[#012D5A] hover:text-white"
+            @click="handleCreate"
+          >
+            <Plus class="mr-2 h-4 w-4" />
+            Create "{{ searchQuery }}"
+          </div>
+
+          <div
+            v-for="option in filteredOptions"
+            :key="getOptionValue(option)"
+            class="relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-[#012D5A] hover:text-white data-[disabled]:pointer-events-none data-[disabled]:opacity-50"
+            :class="{
+              'bg-[#012D5A] text-white': modelValue === getOptionValue(option),
+            }"
+            @click="selectOption(option)"
+          >
+            <Check
+              class="mr-2 h-4 w-4"
+              :class="modelValue === getOptionValue(option) ? 'opacity-100' : 'opacity-0'"
+            />
+            {{ getOptionLabel(option) }}
+          </div>
         </div>
       </div>
-    </div>
+    </Teleport>
   </div>
 </template>

@@ -74,13 +74,23 @@ watch(
 );
 
 const isSubmitting = ref(false);
+const uppercase = (value: string) => value.toUpperCase();
 
 const handleSave = async () => {
   if (isSubmitting.value) return;
 
   isSubmitting.value = true;
   try {
-    emit("save", formData.value);
+    emit("save", {
+      ...formData.value,
+      label: uppercase(formData.value.label),
+      fullAddress: uppercase(formData.value.fullAddress),
+      street: uppercase(formData.value.street),
+      city: uppercase(formData.value.city),
+      state: uppercase(formData.value.state),
+      postalCode: uppercase(formData.value.postalCode),
+      eori: uppercase(formData.value.eori),
+    });
   } finally {
     isSubmitting.value = false;
   }
@@ -106,6 +116,7 @@ const handleSave = async () => {
             >
             <input
               v-model="formData.label"
+              v-uppercase
               type="text"
               placeholder="e.g., Head Office, Branch, Warehouse"
               class="w-full px-3 py-2 border border-slate-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
@@ -132,6 +143,7 @@ const handleSave = async () => {
             >
             <textarea
               v-model="formData.fullAddress"
+              v-uppercase
               rows="3"
               placeholder="Enter full address"
               class="w-full px-3 py-2 border border-slate-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary resize-none"
@@ -143,6 +155,7 @@ const handleSave = async () => {
             <label class="text-sm font-medium text-slate-700">Street</label>
             <input
               v-model="formData.street"
+              v-uppercase
               type="text"
               placeholder="Enter street name"
               class="w-full px-3 py-2 border border-slate-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
@@ -155,6 +168,7 @@ const handleSave = async () => {
               <label class="text-sm font-medium text-slate-700">City</label>
               <input
                 v-model="formData.city"
+                v-uppercase
                 type="text"
                 placeholder="Enter city"
                 class="w-full px-3 py-2 border border-slate-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
@@ -164,6 +178,7 @@ const handleSave = async () => {
               <label class="text-sm font-medium text-slate-700">State</label>
               <input
                 v-model="formData.state"
+                v-uppercase
                 type="text"
                 placeholder="Enter state/province"
                 class="w-full px-3 py-2 border border-slate-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
@@ -177,6 +192,7 @@ const handleSave = async () => {
               <label class="text-sm font-medium text-slate-700">Postal Code</label>
               <input
                 v-model="formData.postalCode"
+                v-uppercase
                 type="text"
                 placeholder="Enter postal code"
                 class="w-full px-3 py-2 border border-slate-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
@@ -200,6 +216,7 @@ const handleSave = async () => {
             <label class="text-sm font-medium text-slate-700">EORI Number</label>
             <input
               v-model="formData.eori"
+              v-uppercase
               type="text"
               placeholder="Enter EORI number"
               class="w-full px-3 py-2 border border-slate-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"

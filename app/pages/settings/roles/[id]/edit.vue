@@ -210,6 +210,7 @@ const handleSubmit = async () => {
               placeholder="Contoh: Administrator"
               class="input-field"
               :class="{ 'border-red-500': errors.name }"
+              v-uppercase
             />
             <p v-if="errors.name" class="text-xs text-red-500">{{ errors.name }}</p>
           </div>
@@ -221,6 +222,7 @@ const handleSubmit = async () => {
               placeholder="Contoh: ADMIN"
               class="input-field uppercase"
               :class="{ 'border-red-500': errors.code }"
+              v-uppercase
             />
             <p class="text-[10px] text-muted-foreground">
               Hanya huruf besar, angka, dan underscore (UNIQUE).
@@ -234,6 +236,7 @@ const handleSubmit = async () => {
               rows="2"
               placeholder="Deskripsi singkat tentang role ini..."
               class="input-field"
+              v-uppercase
             ></textarea>
           </div>
 

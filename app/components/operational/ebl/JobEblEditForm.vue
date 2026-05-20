@@ -889,6 +889,7 @@ const removeShipperRef = (index: number) => {
                         type="number"
                         v-model.number="item.qty"
                         class="input-field h-8 text-sm"
+                        v-uppercase
                       />
                     </div>
                     <div class="col-span-3 space-y-1">
@@ -913,6 +914,7 @@ const removeShipperRef = (index: number) => {
                         v-model.number="item.grossWeight"
                         step="0.01"
                         class="input-field h-8 text-sm"
+                        v-uppercase
                       />
                     </div>
                     <div class="col-span-2 space-y-1">
@@ -924,6 +926,7 @@ const removeShipperRef = (index: number) => {
                         v-model.number="item.netWeight"
                         step="0.01"
                         class="input-field h-8 text-sm"
+                        v-uppercase
                       />
                     </div>
                     <div class="col-span-3 space-y-1">
@@ -935,6 +938,7 @@ const removeShipperRef = (index: number) => {
                         v-model.number="item.measurementCbm"
                         step="0.01"
                         class="input-field h-8 text-sm"
+                        v-uppercase
                       />
                     </div>
                   </div>

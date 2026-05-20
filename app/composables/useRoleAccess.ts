@@ -130,6 +130,8 @@ export function useRoleAccess() {
     }
 
     if (
+      path.startsWith("/finance/chart-of-accounts") ||
+      path.startsWith("/finance/coa-mapping") ||
       path.startsWith("/finance/expenses") ||
       path.startsWith("/finance/transactions") ||
       path.startsWith("/finance/journal")

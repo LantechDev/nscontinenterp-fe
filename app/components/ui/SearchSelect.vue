@@ -122,7 +122,7 @@ const debouncedSearch = useDebounceFn(async (query: string) => {
 
 watch(searchQuery, (newQuery) => {
   if (props.fetchOptions) {
-    debouncedSearch(newQuery);
+    debouncedSearch(newQuery.toUpperCase());
   }
 });
 
@@ -212,6 +212,7 @@ defineExpose({
           <input
             ref="inputRef"
             v-model="searchQuery"
+            v-uppercase
             class="flex h-10 w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50"
             placeholder="Search..."
             :disabled="disabled"

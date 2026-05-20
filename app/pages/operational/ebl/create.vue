@@ -32,27 +32,32 @@ definePageMeta({
         </div>
         <div class="space-y-2">
           <label class="text-sm font-medium">Shipper</label>
-          <input type="text" placeholder="Nama shipper" class="input-field" />
+          <input type="text" placeholder="Nama shipper" class="input-field" v-uppercase />
         </div>
         <div class="space-y-2">
           <label class="text-sm font-medium">Consignee</label>
-          <input type="text" placeholder="Nama consignee" class="input-field" />
+          <input type="text" placeholder="Nama consignee" class="input-field" v-uppercase />
         </div>
         <div class="space-y-2">
           <label class="text-sm font-medium">Notify Party</label>
-          <input type="text" placeholder="Notify party" class="input-field" />
+          <input type="text" placeholder="Notify party" class="input-field" v-uppercase />
         </div>
         <div class="space-y-2 md:col-span-2">
           <label class="text-sm font-medium">Deskripsi Barang</label>
-          <textarea rows="3" placeholder="Description of goods..." class="input-field"></textarea>
+          <textarea
+            rows="3"
+            placeholder="Description of goods..."
+            class="input-field"
+            v-uppercase
+          ></textarea>
         </div>
         <div class="space-y-2">
           <label class="text-sm font-medium">Gross Weight (KGS)</label>
-          <input type="number" placeholder="0" class="input-field" />
+          <input type="number" placeholder="0" class="input-field" v-uppercase />
         </div>
         <div class="space-y-2">
           <label class="text-sm font-medium">Measurement (CBM)</label>
-          <input type="number" placeholder="0" class="input-field" />
+          <input type="number" placeholder="0" class="input-field" v-uppercase />
         </div>
       </div>
       <div class="flex justify-end gap-3 pt-4 border-t border-border">

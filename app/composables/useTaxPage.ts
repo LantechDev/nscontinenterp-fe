@@ -166,10 +166,10 @@ export function useTaxPage() {
       editError.value = null;
 
       const result = await updateTax(editingTaxId.value, {
-        name: formData.value.name,
+        name: formData.value.name.toUpperCase(),
         rate: formData.value.rate,
         type: formData.value.type,
-        description: formData.value.description,
+        description: formData.value.description.toUpperCase(),
         isActive: formData.value.isActive,
       });
 
