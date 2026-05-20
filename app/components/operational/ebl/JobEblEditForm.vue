@@ -174,13 +174,13 @@ watch(
     f.collectValue = "";
 
     if (f.freightPayment === "PREPAID_POL") {
-      f.prepaidValue = `Prepaid at ${polCity}`;
+      f.prepaidValue = `PREPAID AT ${polCity.toUpperCase()}`;
     } else if (f.freightPayment === "PREPAID_POD") {
-      f.prepaidValue = `Prepaid at ${podCity}`;
+      f.prepaidValue = `PREPAID AT ${podCity.toUpperCase()}`;
     } else if (f.freightPayment === "COLLECT_POL") {
-      f.collectValue = `Collect at ${polCity}`;
+      f.collectValue = `COLLECT AT ${polCity.toUpperCase()}`;
     } else if (f.freightPayment === "COLLECT_POD") {
-      f.collectValue = `Collect at ${podCity}`;
+      f.collectValue = `COLLECT AT ${podCity.toUpperCase()}`;
     }
   },
   { deep: true },

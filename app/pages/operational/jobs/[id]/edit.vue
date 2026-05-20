@@ -1533,6 +1533,7 @@ function addVessel() {
                 >
                 <textarea
                   v-model="formData.mainDescription"
+                  v-uppercase
                   rows="10"
                   placeholder="Enter detailed goods description to appear on BL..."
                   class="input-field min-h-[200px] py-3 resize-y transition-all duration-200"
@@ -1800,6 +1801,7 @@ function addVessel() {
                               <input
                                 type="text"
                                 v-model="item.hsCode"
+                                v-uppercase
                                 class="input-field h-8 text-sm placeholder:opacity-50"
                                 :class="{
                                   '!border-destructive focus:!ring-destructive/20':
@@ -1821,6 +1823,7 @@ function addVessel() {
                             >
                             <textarea
                               v-model="item.description"
+                              v-uppercase
                               rows="4"
                               class="input-field min-h-[100px] py-2 text-sm placeholder:opacity-50 resize-y transition-all duration-200"
                               placeholder="Description of goods in this container..."
@@ -1838,6 +1841,7 @@ function addVessel() {
                 >
                 <textarea
                   v-model="formData.shippingMark"
+                  v-uppercase
                   rows="6"
                   placeholder="Enter marks and numbers..."
                   class="input-field min-h-[120px] py-3 resize-y transition-all duration-200"
@@ -2210,6 +2214,7 @@ function addVessel() {
                   >
                   <input
                     v-model="formData.placeOfIssue"
+                    v-uppercase
                     type="text"
                     placeholder="e.g. Jakarta"
                     class="input-field"

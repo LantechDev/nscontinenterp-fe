@@ -21,6 +21,7 @@ import { useInvoices, type Invoice } from "~/composables/useInvoices";
 import { useCompanies } from "~/composables/useCompanies";
 import { useMasterData } from "~/composables/useMasterData";
 import { useFinanceExpense, type Expense } from "~/composables/useFinanceExpense";
+import { useChartOfAccounts, type ChartOfAccount } from "~/composables/useChartOfAccounts";
 import Combobox from "~/components/ui/Combobox.vue";
 import DatePicker from "~/components/ui/DatePicker.vue";
 
@@ -39,14 +40,44 @@ const { fetchInvoices } = useInvoices();
 const { fetchExpenses } = useFinanceExpense();
 const { companies, fetchCompanies, isLoading: isFetchingCompanies } = useCompanies();
 const { fetchPaymentMethods } = useMasterData();
+const { fetchAccounts } = useChartOfAccounts();
 
 const isOut = computed(() => props.mode === "out");
 const paymentMethods = ref<{ id: string; name: string; code: string }[]>([]);
+const coaAccountsList = ref<ChartOfAccount[]>([]);
+
+const isBankTransfer = computed(() => {
+  const method = paymentMethods.value.find((m) => m.id === form.value.paymentMethodId);
+  return method?.code === "BANK_TRANSFER";
+});
+
+const cashBankAccounts = computed(() => {
+  const method = paymentMethods.value.find((m) => m.id === form.value.paymentMethodId);
+
+  let allowedCodes = ["1111", "1112", "1113"];
+  if (method) {
+    if (method.code === "CASH") {
+      allowedCodes = ["1111"];
+    } else {
+      allowedCodes = ["1112", "1113"];
+    }
+  }
+
+  return coaAccountsList.value
+    .filter((acc) => allowedCodes.includes(acc.accountCode))
+    .map((acc) => ({
+      id: acc.id,
+      name: `${acc.accountCode} - ${acc.accountName}`,
+      code: acc.accountCode,
+    }));
+});
+
 const form = ref({
   companyId: props.companyId || "",
   amount: 0,
   paymentDate: new Date().toISOString().split("T")[0],
   paymentMethodId: "",
+  bankAccountId: "",
   reference: "",
   notes: "",
   useFifo: false,
@@ -276,6 +307,7 @@ const handleSave = async () => {
     amount: Number(form.value.amount),
     paymentDate: (form.value.paymentDate || new Date().toISOString().split("T")[0]) as string,
     paymentMethodId: form.value.paymentMethodId || undefined,
+    bankAccountId: form.value.bankAccountId || undefined,
     reference: form.value.reference,
     notes: form.value.notes,
     useFifo: form.value.useFifo,
@@ -300,8 +332,33 @@ onMounted(async () => {
     (async () => {
       paymentMethods.value = await fetchPaymentMethods();
     })(),
+    (async () => {
+      const res = await fetchAccounts();
+      if (res.success && res.data) {
+        coaAccountsList.value = res.data;
+      }
+    })(),
   ]);
 });
+
+watch(
+  [paymentCurrency, () => form.value.paymentMethodId, paymentMethods, cashBankAccounts],
+  ([newCurrency, newMethodId, methods, accounts]) => {
+    const method = methods.find((m) => m.id === newMethodId);
+    let targetCode = "1112"; // Default Mandiri IDR
+    if (newCurrency === "USD") {
+      targetCode = "1113"; // Mandiri USD
+    } else if (method && method.code === "CASH") {
+      targetCode = "1111"; // Kas Kecil
+    }
+
+    const matchedAccount = accounts.find((acc) => acc.code === targetCode);
+    if (matchedAccount) {
+      form.value.bankAccountId = matchedAccount.id;
+    }
+  },
+  { immediate: true },
+);
 
 const getItemNumber = (item: Invoice | Expense): string => {
   return isOut.value ? (item as Expense).number : (item as Invoice).invoiceNumber;
@@ -631,7 +688,7 @@ const getItemNumber = (item: Invoice | Expense): string => {
         type="button"
         @click="handleSave"
         class="bg-[#012D5A] hover:bg-[#062c58] text-white h-11 px-10 rounded-lg font-black text-sm shadow-xl shadow-[#012D5A]/10 active:scale-[0.98] transition-all flex items-center gap-3 disabled:opacity-50 disabled:grayscale"
-        :disabled="isSaving || form.amount <= 0 || !form.companyId"
+        :disabled="isSaving || form.amount <= 0 || !form.companyId || !form.bankAccountId"
       >
         <Loader2 v-if="isSaving" class="w-4 h-4 animate-spin" />
         <span>{{ isSaving ? "POSTING..." : "RECORD PAYMENT" }}</span>

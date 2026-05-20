@@ -27,6 +27,8 @@ const expandedGroups = ref<string[]>([
   "REVENUE",
   "COGS",
   "EXPENSE",
+  "OTHER_INCOME",
+  "OTHER_EXPENSE",
 ]);
 
 const formatCurrency = formatRupiah;
@@ -103,6 +105,8 @@ function getTypeLabel(type: string): string {
     REVENUE: "Revenue",
     COGS: "Cost of Goods Sold",
     EXPENSE: "Expenses",
+    OTHER_INCOME: "Other Income",
+    OTHER_EXPENSE: "Other Expenses",
   };
   return labels[type] || type;
 }
@@ -237,6 +241,9 @@ const totalCredit = computed(() => {
                 </th>
                 <th class="py-3 px-4 text-right text-sm font-medium text-gray-500">Debit</th>
                 <th class="py-3 px-4 text-right text-sm font-medium text-gray-500">Credit</th>
+                <th class="py-3 px-4 text-right text-sm font-medium text-gray-500">
+                  Closing Balance
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -257,6 +264,9 @@ const totalCredit = computed(() => {
                 </td>
                 <td class="py-3 px-4 text-sm text-right">
                   {{ formatCurrency(item.debitTotal) }}
+                </td>
+                <td class="py-3 px-4 text-sm text-right">
+                  {{ formatCurrency(item.creditTotal) }}
                 </td>
                 <td class="py-3 px-4 text-sm text-right font-semibold">
                   <span :class="item.closingBalance >= 0 ? 'text-green-700' : 'text-red-600'">{{
