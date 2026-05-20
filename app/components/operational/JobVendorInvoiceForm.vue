@@ -8,6 +8,7 @@ import { useJobs } from "~/composables/useJobs";
 import SearchSelect, { type SearchSelectOption } from "~/components/ui/SearchSelect.vue";
 import Combobox from "~/components/ui/Combobox.vue";
 import CompanyCreateModal from "~/pages/master/company/components/CompanyCreateModal.vue";
+import ServiceCreateModal from "~/pages/master/services/components/ServiceCreateModal.vue";
 import DatePicker from "~/components/ui/DatePicker.vue";
 import { toast } from "vue-sonner";
 import { z } from "zod";
@@ -15,11 +16,13 @@ import type { Company } from "~/composables/useMasterData";
 
 const vendorInvoiceSchema = z.object({
   vendorId: z.string().min(1, "Please select a vendor"),
+  categoryId: z.string().min(1, "Please select a category"),
   amount: z.number().gt(0, "Total amount must be greater than 0"),
   currency: z.enum(["IDR", "USD"]),
   exchangeRate: z.number().gt(0, "Exchange rate must be greater than 0"),
   items: z.array(
     z.object({
+      serviceId: z.string().min(1, "Service is required"),
       quantity: z.number().gt(0, "Quantity must be greater than 0"),
       unitPrice: z.number().gt(0, "Unit price must be greater than 0"),
     }),
@@ -36,7 +39,7 @@ const emit = defineEmits(["success", "cancel"]);
 const { createExpense, updateExpense, isLoading } = useFinanceExpense();
 const { fetchTaxes } = useFinanceTax();
 const { fetchCompanies, createCompany } = useCompanies();
-const { fetchServices, fetchCategories } = useServices();
+const { services, fetchServices, createService, fetchCategories } = useServices();
 const { getJob } = useJobs();
 
 const taxList = ref<Tax[]>([]);
@@ -61,6 +64,7 @@ const form = ref({
   currency: "IDR",
   exchangeRate: 1,
   items: [] as Array<{
+    serviceId: string;
     description: string;
     quantity: number;
     unitPrice: number;
@@ -97,8 +101,21 @@ watch([subtotal, taxAmount], ([newSubtotal, newTaxAmount]) => {
   }
 });
 
+const isServiceModalOpen = ref(false);
+const isSubmittingService = ref(false);
+const serviceFormError = ref<string | null>(null);
+const activeItemIndex = ref<number | null>(null);
+const serviceForm = ref({
+  name: "",
+  code: "",
+  isActive: true,
+  unitId: null,
+  categoryId: null,
+});
+
 const addItem = () => {
   form.value.items.push({
+    serviceId: "",
     description: "",
     quantity: 1,
     unitPrice: 0,
@@ -109,6 +126,77 @@ const addItem = () => {
 const removeItem = (index: number) => {
   form.value.items.splice(index, 1);
 };
+
+const onServiceChange = (index: number) => {
+  const item = form.value.items[index];
+  if (!item) return;
+  const service = services.value.find((s) => s.id === item.serviceId);
+  if (service) {
+    item.description = service.name;
+    if (!form.value.categoryId && service.categoryId) {
+      form.value.categoryId = service.categoryId;
+    }
+  }
+};
+
+const handleCreateService = (name: string, index: number) => {
+  serviceForm.value = {
+    name,
+    code: name.toUpperCase().replace(/\s+/g, "_").substring(0, 10),
+    isActive: true,
+    unitId: null,
+    categoryId: null,
+  };
+  serviceFormError.value = null;
+  activeItemIndex.value = index;
+  isServiceModalOpen.value = true;
+};
+
+async function submitServiceForm(formData: {
+  name: string;
+  code: string;
+  status: string;
+  unitId: string;
+  categoryId: string;
+}) {
+  if (!formData.name || !formData.code) {
+    serviceFormError.value = "Name and Code are required.";
+    return;
+  }
+
+  try {
+    isSubmittingService.value = true;
+    serviceFormError.value = null;
+    const result = await createService({
+      name: formData.name,
+      code: formData.code,
+      unitId: formData.unitId || undefined,
+      categoryId: formData.categoryId || undefined,
+      isActive: formData.status === "Active",
+    });
+
+    if (result.success && result.data) {
+      await fetchServices();
+      if (activeItemIndex.value !== null) {
+        const item = form.value.items[activeItemIndex.value];
+        if (item) {
+          item.serviceId = result.data.id;
+          item.description = result.data.name;
+          if (!form.value.categoryId && result.data.categoryId) {
+            form.value.categoryId = result.data.categoryId;
+          }
+        }
+      }
+      isServiceModalOpen.value = false;
+    } else {
+      serviceFormError.value = result.error || "Failed to create service";
+    }
+  } catch (error: unknown) {
+    serviceFormError.value = "Failed to create service: " + (error as Error)?.message;
+  } finally {
+    isSubmittingService.value = false;
+  }
+}
 
 onMounted(async () => {
   // Load initial data
@@ -133,10 +221,12 @@ onMounted(async () => {
     })),
   ];
 
-  categoryOptions.value = (categoriesResp?.data || []).map((c) => ({
-    id: c.id,
-    name: c.name,
-  }));
+  categoryOptions.value = (categoriesResp?.data || [])
+    .filter((c) => !c.code || !c.code.startsWith("GEN_"))
+    .map((c) => ({
+      id: c.id,
+      name: c.name,
+    }));
 
   // If editing, fill the form
   if (props.expense) {
@@ -152,12 +242,16 @@ onMounted(async () => {
       notes: props.expense.notes || "",
       currency: props.expense.currency || "IDR",
       exchangeRate: Number(props.expense.exchangeRate || 1),
-      items: (props.expense.items || []).map((item: ExpenseItem) => ({
-        description: item.description,
-        quantity: Number(item.quantity),
-        unitPrice: Number(item.unitPrice),
-        amount: Number(item.amount),
-      })),
+      items: (props.expense.items || []).map((item: ExpenseItem) => {
+        const matchedService = (services.value || []).find((s) => s.name === item.description);
+        return {
+          serviceId: matchedService?.id || "",
+          description: item.description,
+          quantity: Number(item.quantity),
+          unitPrice: Number(item.unitPrice),
+          amount: Number(item.amount),
+        };
+      }),
     };
 
     if (props.expense.vendor && props.expense.vendorId) {
@@ -318,6 +412,7 @@ async function onCompanyCreated(company: Company) {
                 required
                 class="w-full pl-10 pr-4 py-2.5 text-sm border border-border rounded-xl focus:ring-2 focus:ring-[#012D5A]/10 focus:border-[#012D5A] outline-none transition-all bg-gray-50/30"
                 placeholder="EXP-XXXX"
+                v-uppercase
               />
             </div>
           </div>
@@ -414,6 +509,7 @@ async function onCompanyCreated(company: Company) {
               <input
                 type="text"
                 :value="formatInputCurrency(form.exchangeRate, 'IDR')"
+                v-uppercase
                 @input="
                   (e) =>
                     (form.exchangeRate = parseInputCurrency(
@@ -460,7 +556,7 @@ async function onCompanyCreated(company: Company) {
           </button>
         </div>
 
-        <div class="border rounded-xl border-border bg-muted/5 overflow-hidden shadow-sm">
+        <div class="border rounded-xl border-border bg-muted/5 shadow-sm">
           <div
             class="grid grid-cols-12 gap-3 px-4 py-2.5 border-b border-border bg-gray-50/80 text-[10px] font-black text-muted-foreground uppercase tracking-widest"
           >
@@ -476,15 +572,28 @@ async function onCompanyCreated(company: Company) {
               <div
                 v-for="(item, index) in form.items"
                 :key="index"
-                class="grid grid-cols-12 gap-3 px-4 py-3 items-center group hover:bg-white transition-colors relative"
+                class="grid grid-cols-12 gap-3 px-4 py-3 items-start group hover:bg-white transition-colors relative"
+                :style="{ zIndex: form.items.length + 10 - index }"
               >
-                <div class="col-span-5">
-                  <input
-                    v-model="item.description"
-                    type="text"
-                    placeholder="Item description..."
-                    class="w-full h-9 px-3 py-2 bg-white border border-border rounded-md text-sm focus:ring-2 focus:ring-[#012D5A]/10 focus:border-[#012D5A] outline-none transition-all shadow-sm"
+                <div class="col-span-5 space-y-2">
+                  <Combobox
+                    v-model="item.serviceId"
+                    :options="services"
+                    label-key="name"
+                    value-key="id"
+                    placeholder="Choose service..."
+                    allow-create
+                    @update:model-value="onServiceChange(index)"
+                    @create="(name) => handleCreateService(name, index)"
+                    class="w-full h-9 [&_button]:h-9 [&_button]:text-xs [&_button]:font-medium"
                   />
+                  <textarea
+                    v-model="item.description"
+                    placeholder="Item description..."
+                    rows="1"
+                    class="w-full px-3 py-1.5 bg-white border border-border rounded-md text-xs focus:ring-2 focus:ring-[#012D5A]/10 focus:border-[#012D5A] outline-none transition-all resize-none shadow-sm"
+                    v-uppercase
+                  ></textarea>
                 </div>
                 <div class="col-span-1">
                   <input
@@ -493,6 +602,7 @@ async function onCompanyCreated(company: Company) {
                     min="1"
                     @input="updateItemAmount(index)"
                     class="w-full h-9 px-2 py-2 bg-white border border-border rounded-md text-sm focus:ring-2 focus:ring-[#012D5A]/10 focus:border-[#012D5A] outline-none transition-all text-center shadow-sm"
+                    v-uppercase
                   />
                 </div>
                 <div class="col-span-3">
@@ -500,6 +610,7 @@ async function onCompanyCreated(company: Company) {
                     <input
                       type="text"
                       :value="formatInputCurrency(item.unitPrice)"
+                      v-uppercase
                       @input="
                         (e) => (
                           (item.unitPrice = parseInputCurrency(
@@ -582,6 +693,7 @@ async function onCompanyCreated(company: Company) {
             rows="2"
             class="w-full px-4 py-3 text-sm border border-border rounded-xl focus:ring-2 focus:ring-[#012D5A]/10 focus:border-[#012D5A] outline-none transition-all bg-gray-50/30 resize-none shadow-sm"
             placeholder="Add internal remarks here..."
+            v-uppercase
           ></textarea>
         </div>
       </div>
@@ -706,6 +818,7 @@ async function onCompanyCreated(company: Company) {
                           <input
                             type="text"
                             :value="formatInputCurrency(form.amount)"
+                            v-uppercase
                             @input="
                               (e) =>
                                 (form.amount = parseInputCurrency(
@@ -773,6 +886,14 @@ async function onCompanyCreated(company: Company) {
       :preset-name="presetCompanyName"
       preset-type="VENDOR"
       @success="onCompanyCreated"
+    />
+    <ServiceCreateModal
+      :is-open="isServiceModalOpen"
+      :is-submitting="isSubmittingService"
+      :error="serviceFormError"
+      :initial-data="serviceForm"
+      @update:is-open="(val) => (isServiceModalOpen = val)"
+      @submit="submitServiceForm"
     />
   </div>
 </template>

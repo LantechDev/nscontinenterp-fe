@@ -67,6 +67,7 @@ const emit = defineEmits<{
               <label class="block text-sm font-medium mb-1">Nama Pajak</label>
               <input
                 v-model="formData.name"
+                v-uppercase
                 type="text"
                 required
                 class="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
@@ -98,6 +99,7 @@ const emit = defineEmits<{
                   max="100"
                   required
                   class="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
+                  v-uppercase
                 />
               </div>
             </div>
@@ -106,6 +108,7 @@ const emit = defineEmits<{
               <label class="block text-sm font-medium mb-1">Deskripsi</label>
               <textarea
                 v-model="formData.description"
+                v-uppercase
                 rows="2"
                 class="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
               ></textarea>

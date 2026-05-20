@@ -16,6 +16,7 @@ import { type Company } from "~/composables/useMasterData";
 import { type Tax } from "~/composables/useFinanceTax";
 import { useFinanceExpense } from "~/composables/useFinanceExpense";
 import type { JobWithBls } from "~/composables/useJobs";
+import CompanyCreateModal from "~/pages/master/company/components/CompanyCreateModal.vue";
 import { ExpenseEditModal } from "./components";
 import { generateExpensePdf } from "./utils/pdf-generator";
 
@@ -37,9 +38,11 @@ const {
   viewMode,
   searchQuery,
   isEditModalOpen,
+  isVendorCreateModalOpen,
   isSubmitting,
   editError,
   editingExpenseId,
+  presetVendorName,
   formData,
   categoryOptions,
   taxOptions,
@@ -53,6 +56,9 @@ const {
   openCreateModal,
   openEditModal,
   closeEditModal,
+  handleCreateVendor,
+  handleVendorCreateSuccess,
+  handleCreateCategory,
   handleUpdate,
   handleDelete,
   setData,
@@ -169,7 +175,7 @@ const isPageLoading = computed(() => isLoading.value || isBootstrapping.value);
 
       <div class="flex items-center gap-3">
         <select
-          v-model="filters.categoryId"
+          v-model="filters.expenseCategoryId"
           class="px-3 py-2 rounded-lg border border-border bg-white text-sm focus:outline-none focus:ring-1 focus:ring-primary"
         >
           <option value="">Semua Kategori</option>
@@ -218,6 +224,7 @@ const isPageLoading = computed(() => isLoading.value || isBootstrapping.value);
               <tr class="border-b border-border bg-white text-left">
                 <th class="py-3 px-4 text-sm font-medium text-foreground">No. Biaya</th>
                 <th class="py-3 px-4 text-sm font-medium text-foreground">Deskripsi</th>
+                <th class="py-3 px-4 text-sm font-medium text-foreground">Kategori</th>
                 <th class="py-3 px-4 text-sm font-medium text-foreground">Vendor</th>
                 <th class="py-3 px-4 text-sm font-medium text-foreground">Tanggal</th>
                 <th class="py-3 px-4 text-sm font-medium text-foreground">Jumlah</th>
@@ -240,6 +247,11 @@ const isPageLoading = computed(() => isLoading.value || isBootstrapping.value);
                   </div>
                 </td>
                 <td class="py-3 px-4 text-sm">{{ expense.description }}</td>
+                <td class="py-3 px-4 text-sm">
+                  <span class="px-2 py-0.5 rounded bg-muted text-muted-foreground border text-xs">
+                    {{ expense.expenseCategory?.name || "Uncategorized" }}
+                  </span>
+                </td>
                 <td class="py-3 px-4 text-sm text-muted-foreground">
                   {{ expense.vendor?.name || "N/A" }}
                 </td>
@@ -273,7 +285,7 @@ const isPageLoading = computed(() => isLoading.value || isBootstrapping.value);
                 </td>
               </tr>
               <tr v-if="expenses.length === 0">
-                <td colspan="6" class="py-12 text-center text-muted-foreground">
+                <td colspan="7" class="py-12 text-center text-muted-foreground">
                   Tidak ada biaya ditemukan.
                 </td>
               </tr>
@@ -348,7 +360,7 @@ const isPageLoading = computed(() => isLoading.value || isBootstrapping.value);
 
           <div class="flex items-center justify-between pt-4 border-t border-border">
             <span class="text-xs bg-muted px-2 py-0.5 rounded-full text-muted-foreground border">
-              {{ expense.category?.name || "Uncategorized" }}
+              {{ expense.expenseCategory?.name || "Uncategorized" }}
             </span>
           </div>
         </div>
@@ -387,6 +399,15 @@ const isPageLoading = computed(() => isLoading.value || isBootstrapping.value);
     :tax-options="taxOptions"
     :hide-job="true"
     @close="closeEditModal"
+    @create-vendor="handleCreateVendor"
+    @create-category="handleCreateCategory"
     @submit="handleUpdate"
+  />
+
+  <CompanyCreateModal
+    v-model="isVendorCreateModalOpen"
+    :preset-name="presetVendorName"
+    preset-role="vendor"
+    @success="handleVendorCreateSuccess"
   />
 </template>

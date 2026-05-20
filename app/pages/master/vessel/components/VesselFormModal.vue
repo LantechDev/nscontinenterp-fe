@@ -41,7 +41,12 @@ const resetForm = () => {
 };
 
 const handleSubmit = () => {
-  emit("submit", { ...formData.value });
+  emit("submit", {
+    ...formData.value,
+    name: formData.value.name.toUpperCase(),
+    imoNumber: formData.value.imoNumber.toUpperCase(),
+    description: formData.value.description.toUpperCase(),
+  });
 };
 
 const handleClose = () => {
@@ -91,6 +96,7 @@ defineExpose({ resetForm });
         </label>
         <input
           v-model="formData.name"
+          v-uppercase
           type="text"
           placeholder="e.g. MV Ever Given"
           class="w-full px-3 py-2 rounded-lg border border-border focus:outline-none focus:ring-1 focus:ring-primary"
@@ -102,6 +108,7 @@ defineExpose({ resetForm });
         <label class="text-sm font-medium text-foreground">IMO Number</label>
         <input
           v-model="formData.imoNumber"
+          v-uppercase
           type="text"
           placeholder="e.g. IMO9811000"
           class="w-full px-3 py-2 rounded-lg border border-border focus:outline-none focus:ring-1 focus:ring-primary"
@@ -117,6 +124,7 @@ defineExpose({ resetForm });
               type="radio"
               :value="true"
               class="w-4 h-4 text-[#012D5A] border-border focus:ring-primary"
+              v-uppercase
             />
             <span class="text-sm text-foreground">Active</span>
           </label>
@@ -126,6 +134,7 @@ defineExpose({ resetForm });
               type="radio"
               :value="false"
               class="w-4 h-4 text-[#012D5A] border-border focus:ring-primary"
+              v-uppercase
             />
             <span class="text-sm text-foreground">Inactive</span>
           </label>
@@ -136,6 +145,7 @@ defineExpose({ resetForm });
         <label class="text-sm font-medium text-foreground">Description</label>
         <textarea
           v-model="formData.description"
+          v-uppercase
           rows="3"
           placeholder="Enter vessel description..."
           class="w-full px-3 py-2 rounded-lg border border-border focus:outline-none focus:ring-1 focus:ring-primary resize-none"

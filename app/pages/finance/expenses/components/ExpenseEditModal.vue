@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from "vue";
 import { type ExpenseFormData } from "~/composables/useExpensePage";
 import Combobox from "~/components/ui/Combobox.vue";
 
@@ -18,6 +19,8 @@ const props = defineProps<{
 const emit = defineEmits<{
   close: [];
   submit: [];
+  createVendor: [name: string];
+  createCategory: [name: string];
 }>();
 
 const parseInputCurrency = (val: string, currency: string = props.formData.currency) => {
@@ -60,6 +63,17 @@ const formatInputCurrency = (val: number | string, currency: string = props.form
     minimumFractionDigits: 0,
   }).format(numericVal);
 };
+
+const computedCategory = computed({
+  get: () => (props.hideJob ? props.formData.expenseCategoryId : props.formData.categoryId),
+  set: (val) => {
+    if (props.hideJob) {
+      props.formData.expenseCategoryId = val;
+    } else {
+      props.formData.categoryId = val;
+    }
+  },
+});
 </script>
 
 <template>
@@ -106,6 +120,7 @@ const formatInputCurrency = (val: number | string, currency: string = props.form
               type="text"
               required
               class="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
+              v-uppercase
             />
           </div>
 
@@ -116,6 +131,7 @@ const formatInputCurrency = (val: number | string, currency: string = props.form
               rows="2"
               required
               class="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
+              v-uppercase
             ></textarea>
           </div>
 
@@ -166,6 +182,7 @@ const formatInputCurrency = (val: number | string, currency: string = props.form
                 <input
                   type="text"
                   :value="formatInputCurrency(formData.amount)"
+                  v-uppercase
                   @input="
                     (e) =>
                       (formData.amount = parseInputCurrency((e.target as HTMLInputElement).value))
@@ -183,6 +200,7 @@ const formatInputCurrency = (val: number | string, currency: string = props.form
                 type="date"
                 required
                 class="w-full px-3 py-2 h-10 border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
+                v-uppercase
               />
             </div>
           </div>
@@ -203,6 +221,7 @@ const formatInputCurrency = (val: number | string, currency: string = props.form
               <input
                 type="text"
                 :value="formatInputCurrency(formData.exchangeRate, 'IDR')"
+                v-uppercase
                 @input="
                   (e) =>
                     (formData.exchangeRate = parseInputCurrency(
@@ -233,6 +252,8 @@ const formatInputCurrency = (val: number | string, currency: string = props.form
                 v-model="formData.vendorId"
                 :options="companies"
                 placeholder="Pilih Vendor"
+                allow-create
+                @create="(name) => emit('createVendor', name)"
               />
             </div>
 
@@ -250,11 +271,13 @@ const formatInputCurrency = (val: number | string, currency: string = props.form
           <div>
             <label class="block text-sm font-medium mb-1">Kategori</label>
             <Combobox
-              v-model="formData.categoryId"
+              v-model="computedCategory"
               :options="categoryOptions"
               value-key="value"
               label-key="label"
               placeholder="Pilih Kategori"
+              allow-create
+              @create="(name) => emit('createCategory', name)"
             />
           </div>
 
@@ -273,6 +296,7 @@ const formatInputCurrency = (val: number | string, currency: string = props.form
               v-model="formData.notes"
               rows="2"
               class="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
+              v-uppercase
             ></textarea>
           </div>
 

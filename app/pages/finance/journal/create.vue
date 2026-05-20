@@ -80,7 +80,7 @@ onMounted(() => {
         <!-- Tanggal -->
         <div class="space-y-2">
           <label class="text-sm font-medium text-foreground">Tanggal</label>
-          <input v-model="journalDate" type="date" class="input-field" />
+          <input v-model="journalDate" type="date" class="input-field" v-uppercase />
         </div>
 
         <!-- Referensi (Invoice/PO) -->
@@ -91,6 +91,7 @@ onMounted(() => {
             type="text"
             placeholder="No. Referensi..."
             class="input-field"
+            v-uppercase
           />
         </div>
 
@@ -104,6 +105,7 @@ onMounted(() => {
             type="text"
             placeholder="Deskripsi jurnal"
             class="input-field"
+            v-uppercase
           />
         </div>
 
@@ -168,6 +170,7 @@ onMounted(() => {
                       step="0.01"
                       class="w-full h-10 px-4 text-right bg-background border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-ring transition-all disabled:bg-muted/50"
                       :disabled="entry.credit > 0"
+                      v-uppercase
                       @input="handleDebitChange(entry)"
                     />
                   </div>
@@ -181,6 +184,7 @@ onMounted(() => {
                       step="0.01"
                       class="w-full h-10 px-4 text-right bg-background border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-ring transition-all disabled:bg-muted/50"
                       :disabled="entry.debit > 0"
+                      v-uppercase
                       @input="handleCreditChange(entry)"
                     />
                   </div>

@@ -20,6 +20,7 @@ import type { JobWithBls } from "~/composables/useJobs";
 import { ExpenseEditModal } from "~/pages/finance/expenses/components";
 import { generateExpensePdf } from "~/pages/finance/expenses/utils/pdf-generator";
 import OperationalJobDetailSlideOver from "~/components/operational/JobDetailSlideOver.vue";
+import CompanyCreateModal from "~/pages/master/company/components/CompanyCreateModal.vue";
 
 interface ExpenseBootstrapData {
   expenses: { items: Expense[]; pagination: Pagination };
@@ -35,9 +36,11 @@ const {
   viewMode,
   searchQuery,
   isEditModalOpen,
+  isVendorCreateModalOpen,
   isSubmitting,
   editError,
   editingExpenseId,
+  presetVendorName,
   formData,
   categoryOptions,
   taxOptions,
@@ -50,6 +53,9 @@ const {
   handleRowClick,
   openEditModal,
   closeEditModal,
+  handleCreateVendor,
+  handleVendorCreateSuccess,
+  handleCreateCategory,
   handleUpdate,
   handleDelete,
   setData,
@@ -491,7 +497,16 @@ const handleInvoiceClick = (expense: Expense) => {
     :jobs="jobs"
     :tax-options="taxOptions"
     @close="closeEditModal"
+    @create-vendor="handleCreateVendor"
+    @create-category="handleCreateCategory"
     @submit="handleUpdate"
+  />
+
+  <CompanyCreateModal
+    v-model="isVendorCreateModalOpen"
+    :preset-name="presetVendorName"
+    preset-role="vendor"
+    @success="handleVendorCreateSuccess"
   />
 
   <!-- Job Detail Slide-over -->

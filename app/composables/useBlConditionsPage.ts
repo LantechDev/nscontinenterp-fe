@@ -86,12 +86,20 @@ export function useBlConditionsPage() {
     editError.value = null;
   };
 
+  const getUppercaseFormData = () => ({
+    ...formData.value,
+    clauseNumber: formData.value.clauseNumber.toUpperCase(),
+    clauseTitle: formData.value.clauseTitle.toUpperCase(),
+    clauseContent: formData.value.clauseContent.toUpperCase(),
+  });
+
   const handleSubmit = async () => {
     isSubmitting.value = true;
     editError.value = null;
     try {
+      const payload = getUppercaseFormData();
       if (editingId.value) {
-        const res = await updateCondition(editingId.value, formData.value);
+        const res = await updateCondition(editingId.value, payload);
         if (res.success) {
           toast.success("Clause updated successfully");
           closeEditModal();
@@ -100,7 +108,7 @@ export function useBlConditionsPage() {
         }
       } else {
         const res = await createCondition({
-          ...formData.value,
+          ...payload,
           sortOrder: allConditions.value.length,
         });
         if (res.success) {

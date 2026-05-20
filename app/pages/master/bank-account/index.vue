@@ -64,6 +64,8 @@ const formData = reactive({
   isActive: true,
 });
 
+const uppercase = (value: string) => value.toUpperCase();
+
 const openCreateModal = () => {
   editingAccount.value = null;
   formData.bankName = "";
@@ -89,10 +91,17 @@ const openEditModal = (account: BankAccount) => {
 const handleSubmit = async () => {
   isSubmitting.value = true;
   let res;
+  const payload = {
+    ...formData,
+    bankName: uppercase(formData.bankName),
+    accountNumber: uppercase(formData.accountNumber),
+    accountHolder: uppercase(formData.accountHolder),
+    swiftCode: uppercase(formData.swiftCode),
+  };
   if (editingAccount.value) {
-    res = await updateBankAccount(editingAccount.value.id, { ...formData });
+    res = await updateBankAccount(editingAccount.value.id, payload);
   } else {
-    res = await createBankAccount({ ...formData });
+    res = await createBankAccount(payload);
   }
 
   if (res.success) {
@@ -378,6 +387,7 @@ const toggleMenu = (id: string) => {
           >
           <input
             v-model="formData.bankName"
+            v-uppercase
             type="text"
             required
             placeholder="e.g. BANK MANDIRI"
@@ -390,6 +400,7 @@ const toggleMenu = (id: string) => {
           >
           <input
             v-model="formData.accountNumber"
+            v-uppercase
             type="text"
             required
             placeholder="e.g. 121-00-XXXX-X"
@@ -402,6 +413,7 @@ const toggleMenu = (id: string) => {
           >
           <input
             v-model="formData.accountHolder"
+            v-uppercase
             type="text"
             required
             placeholder="Account holder name"
@@ -414,6 +426,7 @@ const toggleMenu = (id: string) => {
           >
           <input
             v-model="formData.swiftCode"
+            v-uppercase
             type="text"
             placeholder="e.g. BMRIIDJA"
             class="input-field"

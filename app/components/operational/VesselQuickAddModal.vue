@@ -102,6 +102,7 @@ const handleSubmit = async () => {
           class="w-full px-3 py-2 rounded-lg border border-border focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
           required
           autofocus
+          v-uppercase
         />
       </div>
 
@@ -113,6 +114,7 @@ const handleSubmit = async () => {
             type="text"
             placeholder="e.g. IMO9811000"
             class="w-full px-3 py-2 rounded-lg border border-border focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+            v-uppercase
           />
         </div>
 
@@ -125,6 +127,7 @@ const handleSubmit = async () => {
                 type="radio"
                 :value="true"
                 class="w-4 h-4 text-[#012D5A] border-border focus:ring-primary"
+                v-uppercase
               />
               <span class="text-sm text-foreground group-hover:text-blue-600 transition-colors"
                 >Active</span
@@ -136,6 +139,7 @@ const handleSubmit = async () => {
                 type="radio"
                 :value="false"
                 class="w-4 h-4 text-[#012D5A] border-border focus:ring-primary"
+                v-uppercase
               />
               <span class="text-sm text-foreground group-hover:text-red-600 transition-colors"
                 >Inactive</span
@@ -152,6 +156,7 @@ const handleSubmit = async () => {
           rows="3"
           placeholder="Enter vessel description or additional info..."
           class="w-full px-3 py-2 rounded-lg border border-border focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all resize-none"
+          v-uppercase
         />
       </div>
     </form>

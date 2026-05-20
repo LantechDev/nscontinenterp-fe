@@ -5,6 +5,7 @@ import { useExpensePage } from "~/composables/useExpensePage";
 import { ExpenseEditModal } from "./components";
 import { generateExpensePdf } from "./utils/pdf-generator";
 import { toast } from "vue-sonner";
+import CompanyCreateModal from "~/pages/master/company/components/CompanyCreateModal.vue";
 
 definePageMeta({
   layout: "dashboard",
@@ -31,9 +32,11 @@ const isLoading = computed(() => loading.value);
 // Use expense page composable for modal
 const {
   isEditModalOpen,
+  isVendorCreateModalOpen,
   isSubmitting,
   editError,
   editingExpenseId,
+  presetVendorName,
   formData,
   categoryOptions,
   companies,
@@ -41,6 +44,9 @@ const {
   taxOptions,
   openEditModal,
   closeEditModal,
+  handleCreateVendor,
+  handleVendorCreateSuccess,
+  handleCreateCategory,
   handleUpdate,
   initialize,
 } = useExpensePage();
@@ -167,7 +173,7 @@ onMounted(() => {
               <span
                 class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-muted text-muted-foreground border"
               >
-                {{ expense.category?.name || "Uncategorized" }}
+                {{ expense.expenseCategory?.name || expense.category?.name || "Uncategorized" }}
               </span>
             </div>
           </div>
@@ -193,6 +199,15 @@ onMounted(() => {
     :tax-options="taxOptions"
     :hide-job="true"
     @close="closeEditModal"
+    @create-vendor="handleCreateVendor"
+    @create-category="handleCreateCategory"
     @submit="handleUpdate"
+  />
+
+  <CompanyCreateModal
+    v-model="isVendorCreateModalOpen"
+    :preset-name="presetVendorName"
+    preset-role="vendor"
+    @success="handleVendorCreateSuccess"
   />
 </template>

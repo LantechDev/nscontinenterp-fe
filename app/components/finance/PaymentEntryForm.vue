@@ -480,6 +480,7 @@ const getItemNumber = (item: Invoice | Expense): string => {
             </div>
             <input
               :value="formatInputCurrency(form.amount, paymentCurrency)"
+              v-uppercase
               @input="(e) => handleInputFormatted(e, 'main')"
               type="text"
               placeholder="Enter amount..."
@@ -573,6 +574,7 @@ const getItemNumber = (item: Invoice | Expense): string => {
                         item.currency,
                       )
                     "
+                    v-uppercase
                     @input="(e) => handleInputFormatted(e, item.id)"
                     type="text"
                     class="w-full pl-8 pr-3 py-2 bg-white border border-[#012D5A]/20 rounded-lg text-right font-black text-[#012D5A] focus:ring-2 focus:ring-[#012D5A]/10 focus:border-[#012D5A] outline-none shadow-sm text-sm"
@@ -653,6 +655,7 @@ const getItemNumber = (item: Invoice | Expense): string => {
             type="text"
             placeholder="Bank Ref, Check #"
             class="w-full h-11 pl-10 pr-3 bg-white border border-border rounded-md text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#012D5A]/10 focus:border-[#012D5A] transition-all"
+            v-uppercase
           />
         </div>
       </div>
@@ -669,6 +672,7 @@ const getItemNumber = (item: Invoice | Expense): string => {
             type="text"
             placeholder="Optional notes..."
             class="w-full h-11 pl-10 pr-3 bg-white border border-border rounded-md text-sm outline-none shadow-sm focus:ring-2 focus:ring-[#012D5A]/10 focus:border-[#012D5A] transition-all"
+            v-uppercase
           />
         </div>
       </div>

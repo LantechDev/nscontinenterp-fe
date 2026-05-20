@@ -85,7 +85,7 @@ onMounted(() => {
         <!-- Tanggal -->
         <div class="space-y-2">
           <label class="text-sm font-medium text-foreground">Tanggal Transaksi</label>
-          <input v-model="transactionDate" type="date" class="input-field" />
+          <input v-model="transactionDate" type="date" class="input-field" v-uppercase />
         </div>
 
         <!-- Nomor Referensi -->
@@ -97,6 +97,7 @@ onMounted(() => {
             placeholder="TRX/YYMM/0001"
             class="input-field"
             readonly
+            v-uppercase
           />
         </div>
       </div>
@@ -111,6 +112,7 @@ onMounted(() => {
           type="text"
           placeholder="Deskripsi transaksi..."
           class="input-field"
+          v-uppercase
         />
       </div>
 
@@ -126,6 +128,7 @@ onMounted(() => {
           step="0.01"
           placeholder="0"
           class="input-field"
+          v-uppercase
         />
       </div>
 

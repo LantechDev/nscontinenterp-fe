@@ -13,7 +13,7 @@ export interface CompanyAddress {
   isDefault: boolean;
 }
 
-export interface PaymentAllocation {
+export interface ExpensePaymentAllocation {
   id: string;
   amount: number;
   payment: {
@@ -37,10 +37,12 @@ export interface Expense {
   balanceDue: number;
   date: string;
   categoryId?: string;
+  expenseCategoryId?: string;
   vendorId?: string;
   jobId?: string;
   taxId?: string;
   category?: { id: string; name: string };
+  expenseCategory?: { id: string; name: string };
   vendor?: { id: string; name: string; address?: string; addresses?: CompanyAddress[] };
   job?: { id: string; jobNumber: string };
   status?: { id: string; code: string; name: string };
@@ -49,7 +51,7 @@ export interface Expense {
   currency?: string;
   exchangeRate?: number;
   items?: ExpenseItem[];
-  paymentAllocations?: PaymentAllocation[];
+  paymentAllocations?: ExpensePaymentAllocation[];
 }
 
 export interface Pagination {
@@ -62,6 +64,7 @@ export interface Pagination {
 export interface ExpenseFilters {
   search?: string;
   categoryId?: string;
+  expenseCategoryId?: string;
   vendorId?: string;
   jobId?: string;
   startDate?: string;

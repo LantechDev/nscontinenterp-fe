@@ -1273,6 +1273,7 @@ function addVessel() {
                   :value="jobDetails?.jobNumber"
                   class="input-field bg-muted/30 cursor-not-allowed border-dashed"
                   disabled
+                  v-uppercase
                 />
               </div>
 
@@ -1607,6 +1608,7 @@ function addVessel() {
                             '!border-destructive focus:!ring-destructive/20':
                               containerErrors[container.id],
                           }"
+                          v-uppercase
                         />
                         <p
                           v-if="containerErrors[container.id]"
@@ -1625,6 +1627,7 @@ function addVessel() {
                           type="text"
                           placeholder="e.g. SN123456"
                           class="input-field uppercase"
+                          v-uppercase
                         />
                       </div>
                       <div class="md:col-span-1 flex flex-col items-center justify-center pb-2">
@@ -1700,6 +1703,7 @@ function addVessel() {
                                   '!border-destructive focus:!ring-destructive/20':
                                     containerErrors[`${container.id}-${item.id}-qty`],
                                 }"
+                                v-uppercase
                               />
                               <p
                                 v-if="containerErrors[`${container.id}-${item.id}-qty`]"
@@ -1736,6 +1740,7 @@ function addVessel() {
                                   '!border-destructive focus:!ring-destructive/20':
                                     containerErrors[`${container.id}-${item.id}-gw`],
                                 }"
+                                v-uppercase
                               />
                               <p
                                 v-if="containerErrors[`${container.id}-${item.id}-gw`]"
@@ -1759,6 +1764,7 @@ function addVessel() {
                                   '!border-destructive focus:!ring-destructive/20':
                                     containerErrors[`${container.id}-${item.id}-nw`],
                                 }"
+                                v-uppercase
                               />
                               <p
                                 v-if="containerErrors[`${container.id}-${item.id}-nw`]"
@@ -1782,6 +1788,7 @@ function addVessel() {
                                   '!border-destructive focus:!ring-destructive/20':
                                     containerErrors[`${container.id}-${item.id}-cbm`],
                                 }"
+                                v-uppercase
                               />
                               <p
                                 v-if="containerErrors[`${container.id}-${item.id}-cbm`]"
@@ -2202,6 +2209,7 @@ function addVessel() {
                     min="0"
                     class="input-field"
                     :disabled="formData.isDirectMaster"
+                    v-uppercase
                   />
                 </div>
               </div>

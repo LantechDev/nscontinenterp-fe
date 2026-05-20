@@ -19,7 +19,11 @@ const form = ref({
 
 async function handleSubmit() {
   try {
-    await createTax(form.value);
+    await createTax({
+      ...form.value,
+      name: form.value.name.toUpperCase(),
+      description: form.value.description.toUpperCase(),
+    });
     navigateTo("/master/tax");
   } catch (error) {
     toast.error("Gagal menyimpan pajak: " + (error as Error).message);
@@ -51,6 +55,7 @@ async function handleSubmit() {
             <label class="text-sm font-medium">Nama Pajak</label>
             <input
               v-model="form.name"
+              v-uppercase
               type="text"
               required
               class="w-full px-4 py-2 border rounded-lg focus:ring-1 focus:ring-primary outline-none"
@@ -78,6 +83,7 @@ async function handleSubmit() {
               required
               class="w-full px-4 py-2 border rounded-lg focus:ring-1 focus:ring-primary outline-none"
               placeholder="0"
+              v-uppercase
             />
           </div>
           <div class="space-y-2">
@@ -95,6 +101,7 @@ async function handleSubmit() {
           <label class="text-sm font-medium">Deskripsi</label>
           <textarea
             v-model="form.description"
+            v-uppercase
             rows="3"
             class="w-full px-4 py-2 border rounded-lg focus:ring-1 focus:ring-primary outline-none resize-none"
             placeholder="Catatan tambahan..."

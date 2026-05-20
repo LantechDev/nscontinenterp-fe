@@ -157,6 +157,7 @@ onClickOutside(containerRef, () => {
         <input
           ref="inputRef"
           v-model="searchQuery"
+          v-uppercase
           class="flex h-10 w-full rounded-md bg-transparent py-3 pl-2 text-sm outline-none placeholder:text-muted-foreground"
           placeholder="Search options..."
           @keydown.escape="open = false"

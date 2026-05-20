@@ -127,6 +127,7 @@ const handleSubmit = async () => {
             placeholder="Nama lengkap"
             class="input-field"
             :class="{ 'border-red-500': errors.name }"
+            v-uppercase
           />
           <p v-if="errors.name" class="text-xs text-red-500">{{ errors.name }}</p>
         </div>
@@ -138,6 +139,7 @@ const handleSubmit = async () => {
             placeholder="email@example.com"
             class="input-field"
             :class="{ 'border-red-500': errors.email }"
+            v-uppercase
           />
           <p v-if="errors.email" class="text-xs text-red-500">{{ errors.email }}</p>
         </div>
@@ -149,6 +151,7 @@ const handleSubmit = async () => {
             placeholder="••••••••"
             class="input-field"
             :class="{ 'border-red-500': errors.password }"
+            v-uppercase
           />
           <p v-if="errors.password" class="text-xs text-red-500">{{ errors.password }}</p>
         </div>
@@ -160,6 +163,7 @@ const handleSubmit = async () => {
             placeholder="••••••••"
             class="input-field"
             :class="{ 'border-red-500': errors.confirmPassword }"
+            v-uppercase
           />
           <p v-if="errors.confirmPassword" class="text-xs text-red-500">
             {{ errors.confirmPassword }}

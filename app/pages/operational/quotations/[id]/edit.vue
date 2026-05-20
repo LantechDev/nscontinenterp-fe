@@ -600,6 +600,7 @@ function scrollTo(id: string) {
                 type="text"
                 :disabled="isLocked"
                 :value="formatInputCurrency(formData.exchangeRate, 'IDR')"
+                v-uppercase
                 @input="
                   (e) =>
                     (formData.exchangeRate = parseInputCurrency(
@@ -921,6 +922,7 @@ function scrollTo(id: string) {
                         min="1"
                         :disabled="isLocked"
                         class="w-full px-3 py-2 bg-white border border-border rounded-lg text-sm focus:ring-1 focus:ring-[#062c58] outline-none transition-all shadow-sm h-10 text-center disabled:bg-gray-50 disabled:opacity-75"
+                        v-uppercase
                       />
                     </div>
 
@@ -936,6 +938,7 @@ function scrollTo(id: string) {
                           type="text"
                           :disabled="isLocked"
                           :value="formatInputCurrency(ch.unitPrice)"
+                          v-uppercase
                           @input="
                             (e) =>
                               (ch.unitPrice = parseInputCurrency(

@@ -63,6 +63,7 @@ const emit = defineEmits<{
               <label class="block text-sm font-medium mb-1">Clause #</label>
               <input
                 v-model="formData.clauseNumber"
+                v-uppercase
                 type="text"
                 required
                 placeholder="e.g. 1"
@@ -73,6 +74,7 @@ const emit = defineEmits<{
               <label class="block text-sm font-medium mb-1">Clause Title</label>
               <input
                 v-model="formData.clauseTitle"
+                v-uppercase
                 type="text"
                 required
                 placeholder="e.g. DEFINITIONS"
@@ -85,6 +87,7 @@ const emit = defineEmits<{
             <label class="block text-sm font-medium mb-1">Content</label>
             <textarea
               v-model.trim="formData.clauseContent"
+              v-uppercase
               required
               rows="12"
               placeholder="Detailed clause text..."
