@@ -53,6 +53,23 @@ export function toNumber(value: unknown): number {
 }
 
 /**
+ * Format number as full Indonesian Rupiah currency.
+ * @param value - The numeric value to format (handles Prisma Decimal)
+ * @returns Formatted string like "Rp1.000.000"
+ */
+export function formatFullRupiah(value: unknown): string {
+  const num = toNumber(value);
+  if (isNaN(num)) return "Rp0";
+
+  return new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(num);
+}
+
+/**
  * Format number as Indonesian Rupiah currency (abbreviated format)
  * @param value - The numeric value to format (handles Prisma Decimal)
  * @returns Formatted string like "Rp238jt", "Rp1,5M", "Rp2,3T"

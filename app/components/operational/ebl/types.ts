@@ -1,7 +1,11 @@
 export interface EblVessel {
   id?: string | number;
   vesselId?: string | null;
+  transportId?: string | null;
+  transportType?: string | null;
   vesselName?: string | null;
+  vessel?: { name?: string | null } | null;
+  plane?: { name?: string | null } | null;
   voyageNumber?: string | null;
   etd?: string | null;
   eta?: string | null;
@@ -110,6 +114,7 @@ export interface ActiveJobData {
   placeOfDelivery?: string | null;
   finalDestination?: string | null;
   vessel?: { name?: string } | null;
+  plane?: { name?: string } | null;
   voyageNumber?: string | null;
   quantity?: number | string | null;
   grossWeight?: number | string | null;

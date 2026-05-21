@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, onMounted } from "vue";
 import { Search, ChevronDown, ChevronUp } from "lucide-vue-next";
-import { cn, formatRupiah } from "~/lib/utils";
+import { cn, formatFullRupiah } from "~/lib/utils";
 import type { TrialBalanceGroup } from "~/types/finance-dashboard";
 
 const props = defineProps<{
@@ -31,7 +31,7 @@ const expandedGroups = ref<string[]>([
   "OTHER_EXPENSE",
 ]);
 
-const formatCurrency = formatRupiah;
+const formatCurrency = formatFullRupiah;
 
 // Get API base URL
 const baseUrl = "/api";

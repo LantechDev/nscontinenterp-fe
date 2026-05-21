@@ -65,6 +65,21 @@ export interface Quotation {
   updatedAt: string;
 
   charges: QuotationCharge[];
+
+  // Multi-use feature (from the switch in create quotation)
+  allowMultipleInvoices?: boolean;
+
+  // Usage / Traceability — invoices created from this quotation
+  invoices?: Array<{
+    id: string;
+    invoiceNumber: string;
+    status: string;
+    total: number;
+    currency: string;
+    createdAt: string;
+    jobId?: string;
+    jobNumber?: string;
+  }>;
 }
 
 export interface CreateQuotation {
@@ -75,6 +90,7 @@ export interface CreateQuotation {
   freeTime?: string | null;
   salesName?: string | null;
   notes?: string | null;
+  allowMultipleInvoices?: boolean;
 
   currency?: string;
   exchangeRate?: number;
@@ -94,6 +110,7 @@ export interface UpdateQuotation {
   validUntil?: string;
   freeTime?: string | null;
   salesName?: string | null;
+  allowMultipleInvoices?: boolean;
   status?: string;
   notes?: string | null;
 
@@ -193,13 +210,39 @@ export function useQuotations() {
     limit?: number;
     search?: string;
     status?: string;
-  }): Promise<ApiResponse<{ items: Quotation[]; total: number; totalPages: number }>> {
+    customerId?: string;
+  }): Promise<
+    ApiResponse<{
+      items: Quotation[];
+      total: number;
+      totalPages: number;
+      stats: {
+        total: number;
+        draft: number;
+        sent: number;
+        confirmed: number;
+        converted: number;
+        cancelled: number;
+        expired: number;
+      };
+    }>
+  > {
     isLoading.value = true;
     try {
-      const data = await $fetch<{ items: Quotation[]; total: number; totalPages: number }>(
-        "/api/operational/quotations",
-        { params },
-      );
+      const data = await $fetch<{
+        items: Quotation[];
+        total: number;
+        totalPages: number;
+        stats: {
+          total: number;
+          draft: number;
+          sent: number;
+          confirmed: number;
+          converted: number;
+          cancelled: number;
+          expired: number;
+        };
+      }>("/api/operational/quotations", { params });
       quotations.value = data.items || [];
       return { success: true, data };
     } catch (error) {

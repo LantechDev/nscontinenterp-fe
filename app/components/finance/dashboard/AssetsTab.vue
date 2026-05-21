@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ArrowUpDown, Download, Search, ChevronDown, Plus } from "lucide-vue-next";
-import { cn, formatRupiah } from "~/lib/utils";
+import { cn, formatFullRupiah } from "~/lib/utils";
 import type { StatCardData } from "~/types/finance";
 import Combobox from "~/components/ui/Combobox.vue";
 
@@ -55,7 +55,7 @@ const emit = defineEmits<{
   (e: "addAsset"): void;
 }>();
 
-const formatCurrency = formatRupiah;
+const formatCurrency = formatFullRupiah;
 
 const formatDate = (dateStr: string): string => {
   return new Date(dateStr).toLocaleDateString("id-ID", {

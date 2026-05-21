@@ -19,7 +19,6 @@ import { cn } from "~/lib/utils";
 import Modal from "~/components/ui/Modal.vue";
 import { useJobs } from "~/composables/useJobs";
 import type { JobCostItem } from "~/types/finance-dashboard";
-import { formatCurrency } from "~/lib/utils";
 import { toast } from "vue-sonner";
 import JobProfitPreview from "~/components/operational/JobProfitPreview.vue";
 import { Download, FileSpreadsheet } from "lucide-vue-next";
@@ -201,6 +200,16 @@ const handleExportExcel = () => {
 const handlePageChange = (newPage: number) => {
   pagination.value.page = newPage;
   loadData();
+};
+
+const formatCurrency = (value: unknown) => {
+  const amount = Number(value || 0);
+  return new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(Number.isNaN(amount) ? 0 : amount);
 };
 </script>
 

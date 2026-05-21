@@ -39,6 +39,16 @@ const statusFilter = ref("ALL");
 const totalItems = ref(0);
 const totalPages = ref(0);
 
+const apiStats = ref({
+  total: 0,
+  draft: 0,
+  sent: 0,
+  confirmed: 0,
+  converted: 0,
+  cancelled: 0,
+  expired: 0,
+});
+
 // Load data
 async function loadData() {
   const params = {
@@ -52,6 +62,9 @@ async function loadData() {
   if (res.success && res.data) {
     totalItems.value = res.data.total;
     totalPages.value = res.data.totalPages;
+    if (res.data.stats) {
+      apiStats.value = res.data.stats;
+    }
   } else if (res.error) {
     toast.error("Failed to load quotations: " + res.error);
   }
@@ -77,25 +90,11 @@ onMounted(() => {
 
 // KPI Summary based on sales funnel status matching finance/dashboard.vue style
 const stats = computed(() => {
-  const list = quotations.value || [];
-  let draftCount = 0;
-  let sentCount = 0;
-  let confirmedCount = 0;
-  let convertedCount = 0;
-
-  list.forEach((q) => {
-    if (q.status === "DRAFT") draftCount++;
-    if (q.status === "SENT") sentCount++;
-    if (q.status === "CONFIRMED") confirmedCount++;
-    if (q.status === "CONVERTED") convertedCount++;
-  });
-
   return {
-    totalQuotes: totalItems.value,
-    draftCount,
-    sentCount,
-    confirmedCount,
-    convertedCount,
+    totalQuotes: apiStats.value.total,
+    draftCount: apiStats.value.draft,
+    sentCount: apiStats.value.sent,
+    confirmedCount: apiStats.value.confirmed + apiStats.value.converted,
   };
 });
 

@@ -67,7 +67,13 @@ interface FormItem {
   description: string;
   quantity: number;
   unitPrice: number;
+  taxId?: string | null;
 }
+
+const prefillTaxId =
+  props.prefillData?.items?.find((item) => item.taxId)?.taxId ||
+  props.prefillData?.items?.[0]?.taxId ||
+  "";
 
 const form = ref({
   invoiceNumber: props.invoice?.invoiceNumber || "",
@@ -83,19 +89,21 @@ const form = ref({
   notes: props.invoice?.notes || props.prefillData?.notes || "",
   blNumber: props.invoice?.blNumber || props.invoice?.job?.billsOfLading?.[0]?.blNumber || "",
   quotationId: props.invoice?.quotationId || props.prefillData?.quotationId || null,
-  taxId: props.invoice?.taxId || props.invoice?.invoiceTaxes?.[0]?.taxId || "",
+  taxId: props.invoice?.taxId || props.invoice?.invoiceTaxes?.[0]?.taxId || prefillTaxId || "",
   items: (props.invoice?.items?.map((item) => ({
     id: item.id,
     serviceId: item.service?.id || "",
     description: item.description,
     quantity: Number(item.quantity),
     unitPrice: Number(item.unitPrice),
+    taxId: item.taxId || null,
   })) ||
     props.prefillData?.items?.map((item) => ({
       serviceId: item.serviceId || "",
       description: item.description,
       quantity: item.quantity,
       unitPrice: item.unitPrice,
+      taxId: item.taxId || null,
     })) || [{ serviceId: "", description: "", quantity: 1, unitPrice: 0 }]) as FormItem[],
 });
 
@@ -280,6 +288,7 @@ const handleSubmit = async () => {
     items: form.value.items.map((item) => ({
       id: item.id, // Include id for updates
       serviceId: item.serviceId || undefined,
+      taxId: item.taxId || form.value.taxId || undefined,
       description: item.description,
       quantity: Number(item.quantity),
       unitPrice: Number(item.unitPrice),

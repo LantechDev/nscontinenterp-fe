@@ -845,7 +845,7 @@ async function handleSubmit(isDraft: boolean = false) {
     shippingMark: formData.shippingMark || undefined,
     vendorId: formData.vendorId || undefined,
     isDirectMaster: formData.isDirectMaster,
-    status: isDraft ? "DRAFT" : "ACTIVE",
+    status: isDraft ? "DRAFT" : "IN_PROGRESS",
   };
 
   const { success, error } = await createJob(payload as CreateJob);

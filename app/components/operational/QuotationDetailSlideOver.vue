@@ -4,6 +4,7 @@ import {
   X,
   FileText,
   Calendar,
+  Clock,
   Loader2,
   Settings,
   CheckCircle2,
@@ -49,6 +50,7 @@ const activeTab = ref("overview");
 const tabs = [
   { id: "overview", label: "Overview" },
   { id: "items", label: "Quotation Items & Pricing" },
+  { id: "usage", label: "Usage" },
   { id: "pdf", label: "PDF Preview" },
 ];
 
@@ -59,6 +61,10 @@ const previewRef = ref<InstanceType<typeof QuotationPreview> | null>(null);
 const taxesList = ref<Array<{ id: string; name: string; rate: number }>>([]);
 
 const quotation = computed(() => currentQuotation.value);
+
+const isMultiUse = computed(() => Boolean(quotation.value?.allowMultipleInvoices));
+
+const relatedInvoices = computed(() => quotation.value?.invoices || []);
 
 const getPol = computed(() => quotation.value?.polName || quotation.value?.pol || "-");
 const getPod = computed(() => quotation.value?.podName || quotation.value?.pod || "-");
@@ -676,6 +682,128 @@ const handleGeneratePDF = async () => {
                   </div>
 
                   <QuotationPreview ref="previewRef" :quotation="quotation" />
+                </div>
+
+                <!-- Tab: Usage (Invoice & Job Traceability) -->
+                <div v-if="activeTab === 'usage'" class="space-y-8 animate-fade-in">
+                  <!-- Multi-use Status -->
+                  <div class="bg-white border border-border rounded-2xl p-6 shadow-sm">
+                    <div class="flex items-start justify-between gap-4">
+                      <div>
+                        <div class="flex items-center gap-2">
+                          <h3 class="text-sm font-bold text-foreground">Multi-use Quotation</h3>
+                          <span
+                            class="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded border"
+                            :class="
+                              isMultiUse
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                : 'bg-gray-100 text-gray-600 border-gray-200'
+                            "
+                          >
+                            {{ isMultiUse ? "ENABLED" : "DISABLED" }}
+                          </span>
+                        </div>
+                        <p class="text-xs text-muted-foreground mt-1 max-w-md">
+                          {{
+                            isMultiUse
+                              ? "This quotation can be converted into multiple invoices across different jobs."
+                              : "This quotation can only be converted once. After first conversion it becomes locked for further invoicing."
+                          }}
+                        </p>
+                      </div>
+                      <div
+                        class="px-3 py-1.5 rounded-lg text-xs font-bold border flex items-center gap-1.5 shrink-0"
+                        :class="
+                          isMultiUse
+                            ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                            : 'border-gray-200 bg-gray-50 text-gray-600'
+                        "
+                      >
+                        <span>{{ relatedInvoices.length }}</span>
+                        <span class="font-medium"
+                          >invoice{{ relatedInvoices.length !== 1 ? "s" : "" }}</span
+                        >
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Related Invoices -->
+                  <div>
+                    <h3 class="text-sm font-bold text-foreground mb-3 flex items-center gap-2">
+                      <Receipt class="w-4 h-4" />
+                      Invoices Created from this Quotation
+                    </h3>
+
+                    <div
+                      v-if="relatedInvoices.length === 0"
+                      class="border border-dashed border-border rounded-2xl p-8 text-center bg-white"
+                    >
+                      <Receipt class="w-8 h-8 mx-auto text-muted-foreground/40 mb-3" />
+                      <p class="text-sm font-medium text-muted-foreground">No invoices yet</p>
+                      <p class="text-xs text-muted-foreground mt-1">
+                        This quotation has not been converted into any invoice.
+                      </p>
+                    </div>
+
+                    <div
+                      v-else
+                      class="border border-border rounded-2xl overflow-hidden bg-white shadow-sm"
+                    >
+                      <table class="w-full text-sm">
+                        <thead>
+                          <tr
+                            class="border-b border-border bg-gray-50 text-[10px] font-bold text-muted-foreground uppercase tracking-wider"
+                          >
+                            <th class="py-3 px-6 text-left">Invoice</th>
+                            <th class="py-3 px-4 text-left">Job</th>
+                            <th class="py-3 px-4 text-left">Date</th>
+                            <th class="py-3 px-4 text-right">Amount</th>
+                            <th class="py-3 px-6 text-center">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody class="divide-y divide-border/50">
+                          <tr
+                            v-for="inv in relatedInvoices"
+                            :key="inv.id"
+                            class="hover:bg-muted/30 transition-colors"
+                          >
+                            <td class="py-4 px-6">
+                              <span class="font-semibold text-[#012D5A]">{{
+                                inv.invoiceNumber
+                              }}</span>
+                            </td>
+                            <td class="py-4 px-4">
+                              <span v-if="inv.jobNumber" class="font-medium text-foreground">
+                                {{ inv.jobNumber }}
+                              </span>
+                              <span v-else class="text-muted-foreground italic text-xs">—</span>
+                            </td>
+                            <td class="py-4 px-4 text-xs text-muted-foreground">
+                              {{ inv.createdAt ? formatDate(inv.createdAt) : "—" }}
+                            </td>
+                            <td class="py-4 px-4 text-right font-semibold text-foreground">
+                              {{ formatCurrency(inv.total || 0, inv.currency) }}
+                            </td>
+                            <td class="py-4 px-6">
+                              <div class="flex justify-center">
+                                <span
+                                  class="px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded border"
+                                  :class="getStatusBadgeClass(inv.status)"
+                                >
+                                  {{ inv.status || "—" }}
+                                </span>
+                              </div>
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  <p class="text-[10px] text-muted-foreground px-1">
+                    This section shows all invoices that were created using this quotation as the
+                    source.
+                  </p>
                 </div>
               </div>
             </div>
