@@ -928,6 +928,7 @@ const CARGO_MOVEMENTS = [
   { id: "LCL_LCL", name: "LCL/LCL" },
   { id: "FCL_LCL", name: "FCL/LCL" },
   { id: "LCL_FCL", name: "LCL/FCL" },
+  { id: "AIR_AIR", name: "AIR/AIR" },
 ];
 
 const DELIVERY_MOVEMENTS = [
@@ -938,6 +939,7 @@ const DELIVERY_MOVEMENTS = [
   { id: "CFS_CY", name: "CFS-CY" },
   { id: "CFS_CFS", name: "CFS-CFS" },
   { id: "CY_CFS", name: "CY-CFS" },
+  { id: "AIR_AIR", name: "AIR/AIR" },
 ];
 
 const BL_TYPES = [
