@@ -19,10 +19,12 @@ import TimePicker from "~/components/ui/TimePicker.vue";
 import Checkbox from "~/components/ui/Checkbox.vue";
 import Modal from "~/components/ui/Modal.vue";
 import type { Company, ContainerType, Vessel, Port } from "~/composables/useMasterData";
+import type { Plane } from "~/composables/usePlanes";
 import SectionCard from "../components/SectionCard.vue";
 import JobPartyRow from "../components/JobPartyRow.vue";
 import CompanyCreateModal from "~/pages/master/company/components/CompanyCreateModal.vue";
 import VesselQuickAddModal from "~/components/operational/VesselQuickAddModal.vue";
+import PlaneQuickAddModal from "~/components/operational/PlaneQuickAddModal.vue";
 
 definePageMeta({
   layout: "dashboard",
@@ -61,9 +63,11 @@ const {
   fetchCompanies,
   fetchContainerTypes,
   fetchVessels,
+  fetchPlanes,
   fetchPorts,
   createCompany,
   createVessel,
+  createPlane,
   fetchPackageTypes,
 } = useMasterData();
 import { toast } from "vue-sonner";
@@ -74,6 +78,7 @@ const companies = ref<Company[]>([]);
 const containerTypes = ref<ContainerType[]>([]);
 const packageTypes = ref<PackageType[]>([]);
 const vessels = ref<Vessel[]>([]);
+const planes = ref<Plane[]>([]);
 
 const portsPol = ref<Port[]>([]);
 const portsPod = ref<Port[]>([]);
@@ -99,6 +104,20 @@ const isVesselModalOpen = ref(false);
 const presetVesselName = ref("");
 const companyPresetName = ref("");
 const activeVesselObj = ref<{
+  vesselId: string;
+  vesselName: string;
+  voyageNumber: string;
+  tsPortId: string;
+  etd: string;
+  eta: string;
+  sequence: number;
+  vesselType: string;
+} | null>(null);
+
+// Plane Modal State (for Air Freight)
+const isPlaneModalOpen = ref(false);
+const presetPlaneName = ref("");
+const activePlaneObj = ref<{
   vesselId: string;
   vesselName: string;
   voyageNumber: string;
@@ -227,6 +246,11 @@ const formData = reactive({
   isDirectMaster: false,
   shipmentType: "OCEAN",
 });
+
+// Dynamic transport options for Air vs Ocean
+const transportOptions = computed(() =>
+  formData.shipmentType === "AIR" ? planes.value : vessels.value,
+);
 
 onMounted(async () => {
   if (jobData.value) {
@@ -512,17 +536,19 @@ function populateFormData(job: JobWithBls) {
 
 async function refreshMasterData(polCode?: string, podCode?: string) {
   const type = formData.shipmentType === "AIR" ? "air" : "ocean";
-  const [comps, types, packs, vess, initialPorts] = await Promise.all([
+  const [comps, types, packs, vess, plns, initialPorts] = await Promise.all([
     fetchCompanies(),
     fetchContainerTypes(),
     fetchPackageTypes(),
     fetchVessels(),
+    fetchPlanes(),
     $fetch<Port[]>(`/api/master/ports?type=${type}`),
   ]);
   companies.value = comps;
   containerTypes.value = types;
   packageTypes.value = packs;
   vessels.value = vess;
+  planes.value = plns;
 
   // Ensure selected ports are included in the list
   const selectedPol = polCode || formData.pol;
@@ -722,9 +748,16 @@ watch(
 watch(
   () => formData.vessels,
   (newVessels) => {
+    const list = formData.shipmentType === "AIR" ? planes.value : vessels.value;
     newVessels.forEach((v, idx) => {
       v.sequence = idx;
       v.vesselType = idx === 0 ? "feeder" : "mother";
+      if (v.vesselId) {
+        const found = list.find((item) => item.id === v.vesselId);
+        if (found?.name) {
+          v.vesselName = found.name;
+        }
+      }
     });
   },
   { deep: true },
@@ -966,9 +999,10 @@ async function handleCompanySuccess(newCompany: Company) {
   }
 }
 
-async function handleCreateVessel(
+// Unified handler for Vessel/Plane quick add
+async function handleCreateTransport(
   name: string,
-  vessel?: {
+  item?: {
     vesselId: string;
     vesselName: string;
     voyageNumber: string;
@@ -979,10 +1013,20 @@ async function handleCreateVessel(
     vesselType: string;
   },
 ) {
-  presetVesselName.value = name;
-  activeVesselObj.value = vessel || null;
-  isVesselModalOpen.value = true;
+  const isAir = formData.shipmentType === "AIR";
+
+  if (isAir) {
+    presetPlaneName.value = name;
+    activePlaneObj.value = item || null;
+    isPlaneModalOpen.value = true;
+  } else {
+    presetVesselName.value = name;
+    activeVesselObj.value = item || null;
+    isVesselModalOpen.value = true;
+  }
 }
+
+const handleCreateVessel = handleCreateTransport;
 
 const onVesselCreateSuccess = async (vessel: { id: string; name: string }) => {
   await refreshMasterData();
@@ -1001,6 +1045,23 @@ const onVesselCreateSuccess = async (vessel: { id: string; name: string }) => {
 
   isVesselModalOpen.value = false;
   toast.success(`Vessel "${vessel.name}" created successfully.`);
+};
+
+const onPlaneCreateSuccess = async (plane: { id: string; name: string }) => {
+  await refreshMasterData();
+
+  if (activePlaneObj.value) {
+    activePlaneObj.value.vesselId = plane.id;
+    activePlaneObj.value.vesselName = plane.name;
+  } else {
+    if (formData.vessels.length > 0 && formData.vessels[0]) {
+      formData.vessels[0].vesselId = plane.id;
+      formData.vessels[0].vesselName = plane.name;
+    }
+  }
+
+  isPlaneModalOpen.value = false;
+  toast.success(`Plane "${plane.name}" created successfully.`);
 };
 
 async function handleSubmit() {
@@ -1873,7 +1934,9 @@ function addVessel() {
                     {{
                       formData.serviceType === "TRUCKING"
                         ? "TRUCKING COMPANY (CARRIER)"
-                        : "SHIPPING LINE (CARRIER)"
+                        : formData.shipmentType === "AIR" || formData.serviceType === "AIR"
+                          ? "AIRLINE (CARRIER)"
+                          : "SHIPPING LINE (CARRIER)"
                     }}
                   </label>
                   <Combobox
@@ -1919,6 +1982,29 @@ function addVessel() {
                 </template>
               </div>
 
+              <!-- Cargo & Delivery Movement Types -->
+              <div
+                v-if="formData.serviceType !== 'TRUCKING'"
+                class="grid grid-cols-1 md:grid-cols-2 gap-8 pb-6 border-b border-border/40"
+              >
+                <div class="space-y-2">
+                  <label
+                    class="text-xs font-semibold text-muted-foreground tracking-wider uppercase pl-1"
+                  >
+                    CARGO MOVEMENT <span class="text-destructive">*</span>
+                  </label>
+                  <Combobox v-model="formData.cargoMovementId" :options="CARGO_MOVEMENTS" />
+                </div>
+                <div class="space-y-2">
+                  <label
+                    class="text-xs font-semibold text-muted-foreground tracking-wider uppercase pl-1"
+                  >
+                    DELIVERY MOVEMENT <span class="text-destructive">*</span>
+                  </label>
+                  <Combobox v-model="formData.deliveryMovementId" :options="DELIVERY_MOVEMENTS" />
+                </div>
+              </div>
+
               <!-- Vessel Schedule (For Ocean/Air) -->
               <div v-if="formData.serviceType !== 'TRUCKING'" class="space-y-6">
                 <div class="flex items-center justify-between border-b border-border/50 pb-3">
@@ -1959,10 +2045,10 @@ function addVessel() {
                         >
                         <Combobox
                           v-model="vessel.vesselId"
-                          :options="vessels"
+                          :options="transportOptions"
                           label-key="name"
                           value-key="id"
-                          placeholder="Vessel..."
+                          :placeholder="formData.shipmentType === 'AIR' ? 'Plane...' : 'Vessel...'"
                           allow-create
                           @create="(name) => handleCreateVessel(name, vessel)"
                           class="h-10"
@@ -2274,6 +2360,13 @@ function addVessel() {
       v-model:is-open="isVesselModalOpen"
       :initial-name="presetVesselName"
       @success="onVesselCreateSuccess"
+    />
+
+    <!-- Quick Add Plane Modal (Air Freight) -->
+    <PlaneQuickAddModal
+      v-model:is-open="isPlaneModalOpen"
+      :initial-name="presetPlaneName"
+      @success="onPlaneCreateSuccess"
     />
   </div>
 </template>

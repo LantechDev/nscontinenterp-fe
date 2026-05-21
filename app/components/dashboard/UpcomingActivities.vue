@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Calendar, Clock, ChevronRight, Anchor, MapPin } from "lucide-vue-next";
+import { Calendar, Clock, ChevronRight, Anchor, MapPin, Plane } from "lucide-vue-next";
 import { cn } from "~/lib/utils";
 
 interface Activity {
@@ -8,6 +8,7 @@ interface Activity {
   title: string;
   description: string;
   time: string;
+  isAir?: boolean;
 }
 
 const props = defineProps<{
@@ -36,14 +37,15 @@ const activities = computed(() => props.events || []);
     >
       <Calendar class="w-10 h-10 text-muted-foreground/40 mb-3" />
       <p class="text-sm font-medium text-muted-foreground">No upcoming schedule</p>
-      <p class="text-xs text-muted-foreground/60 mt-1">Vessel ETD/ETA will appear here</p>
+      <p class="text-xs text-muted-foreground/60 mt-1">Vessel/Plane ETD/ETA will appear here</p>
     </div>
 
     <div v-else class="space-y-3 flex-1 overflow-auto pr-1">
-      <div
+      <NuxtLink
         v-for="activity in activities"
         :key="activity.id"
-        class="p-4 rounded-xl border border-border bg-white hover:border-blue-200 hover:shadow-sm transition-all cursor-pointer group"
+        :to="`/operational/jobs?id=${activity.id}`"
+        class="block p-4 rounded-xl border border-border bg-white hover:border-blue-200 hover:shadow-sm transition-all cursor-pointer group"
       >
         <div class="flex items-start justify-between gap-3 mb-2">
           <div class="flex items-center gap-3">
@@ -57,7 +59,10 @@ const activities = computed(() => props.events || []);
                 )
               "
             >
-              <Anchor v-if="activity.type === 'Departure'" class="w-4 h-4" />
+              <template v-if="activity.type === 'Departure'">
+                <Plane v-if="activity.isAir" class="w-4 h-4" />
+                <Anchor v-else class="w-4 h-4" />
+              </template>
               <MapPin v-else class="w-4 h-4" />
             </div>
             <div>
@@ -80,10 +85,10 @@ const activities = computed(() => props.events || []);
             )
           "
         >
-          <Clock class="w-3 h-3" />
+          <Calendar class="w-3.5 h-3.5" />
           <span>{{ activity.time }}</span>
         </div>
-      </div>
+      </NuxtLink>
     </div>
   </div>
 </template>

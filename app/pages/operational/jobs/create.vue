@@ -23,10 +23,12 @@ import type {
   Port,
   PackageType,
 } from "~/composables/useMasterData";
+import type { Plane } from "~/composables/usePlanes";
 import SectionCard from "./components/SectionCard.vue";
 import JobPartyRow from "./components/JobPartyRow.vue";
 import CompanyCreateModal from "~/pages/master/company/components/CompanyCreateModal.vue";
 import VesselQuickAddModal from "~/components/operational/VesselQuickAddModal.vue";
+import PlaneQuickAddModal from "~/components/operational/PlaneQuickAddModal.vue";
 
 definePageMeta({
   layout: "dashboard",
@@ -34,10 +36,11 @@ definePageMeta({
 });
 
 import { useJobs, type CreateJob } from "~/composables/useJobs";
-const { createJob, isLoading } = useJobs();
+const { createJob, getJob, isLoading } = useJobs();
 const { confirm } = useConfirm();
-const { createVessel } = useMasterData();
+const { createVessel, createPlane } = useMasterData();
 const router = useRouter();
+const route = useRoute();
 import { toast } from "vue-sonner";
 
 const { user } = useAuth();
@@ -51,22 +54,25 @@ const {
   companies: Company[];
   containerTypes: ContainerType[];
   vessels: Vessel[];
+  planes: Plane[];
   ports: Port[];
   packageTypes: PackageType[];
 }>(
   "job-create-master-data",
   async () => {
-    const [comps, types, packs, vess, initialPorts] = await Promise.all([
+    const [comps, types, packs, vess, plns, initialPorts] = await Promise.all([
       $fetch<Company[]>("/api/master/companies"),
       $fetch<ContainerType[]>("/api/master/container-types"),
       $fetch<PackageType[]>("/api/master/package-types"),
       $fetch<Vessel[]>("/api/master/vessels"),
+      $fetch<Plane[]>("/api/master/planes"),
       $fetch<Port[]>("/api/master/ports"),
     ]);
     return {
       companies: comps,
       containerTypes: types,
       vessels: vess,
+      planes: plns,
       ports: initialPorts,
       packageTypes: packs,
     };
@@ -77,6 +83,7 @@ const {
 const companies = computed(() => masterData.value?.companies || []);
 const containerTypes = computed(() => masterData.value?.containerTypes || []);
 const vessels = computed(() => masterData.value?.vessels || []);
+const planes = computed(() => masterData.value?.planes || []);
 const packageTypes = computed(() => masterData.value?.packageTypes || []);
 
 const searchedPorts = ref<Port[]>([]);
@@ -111,6 +118,21 @@ const activeCompanyField = ref<
 const isVesselModalOpen = ref(false);
 const presetVesselName = ref("");
 const activeVesselObj = ref<{
+  id: number;
+  vesselId: string;
+  vesselName: string;
+  voyageNumber: string;
+  tsPortId: string;
+  etd: string;
+  eta: string;
+  sequence: number;
+  vesselType: string;
+} | null>(null);
+
+// Plane Modal State (for Air Freight)
+const isPlaneModalOpen = ref(false);
+const presetPlaneName = ref("");
+const activePlaneObj = ref<{
   id: number;
   vesselId: string;
   vesselName: string;
@@ -248,6 +270,11 @@ const formData = reactive({
   forwarderAddressId: "",
   vendorId: "",
 });
+
+// Dynamic transport options (Vessel for Ocean, Plane for Air)
+const transportOptions = computed(() =>
+  formData.shipmentType === "AIR" ? planes.value : vessels.value,
+);
 
 // Search handlers for ports/airports (client-side only)
 async function handleSearchPol(query: string) {
@@ -422,9 +449,16 @@ watch(
 watch(
   () => formData.vessels,
   (newVessels) => {
+    const list = formData.shipmentType === "AIR" ? planes.value : vessels.value;
     newVessels.forEach((v, idx) => {
       v.sequence = idx;
       v.vesselType = idx === 0 ? "feeder" : "mother";
+      if (v.vesselId) {
+        const found = list.find((item) => item.id === v.vesselId);
+        if (found?.name) {
+          v.vesselName = found.name;
+        }
+      }
     });
   },
   { deep: true },
@@ -660,9 +694,10 @@ const onCompanyCreateSuccess = async (company: Company) => {
   isCompanyModalOpen.value = false;
 };
 
-async function handleCreateVessel(
+// Unified handler - decides Vessel or Plane based on shipmentType
+async function handleCreateTransport(
   name: string,
-  vessel?: {
+  item?: {
     id: number;
     vesselId: string;
     vesselName: string;
@@ -674,10 +709,21 @@ async function handleCreateVessel(
     vesselType: string;
   },
 ) {
-  presetVesselName.value = name;
-  activeVesselObj.value = vessel || null;
-  isVesselModalOpen.value = true;
+  const isAir = formData.shipmentType === "AIR";
+
+  if (isAir) {
+    presetPlaneName.value = name;
+    activePlaneObj.value = item || null;
+    isPlaneModalOpen.value = true;
+  } else {
+    presetVesselName.value = name;
+    activeVesselObj.value = item || null;
+    isVesselModalOpen.value = true;
+  }
 }
+
+// Keep old name as alias for backward (in case any other call)
+const handleCreateVessel = handleCreateTransport;
 
 const onVesselCreateSuccess = async (vessel: { id: string; name: string }) => {
   await refreshMasterData();
@@ -691,6 +737,20 @@ const onVesselCreateSuccess = async (vessel: { id: string; name: string }) => {
 
   isVesselModalOpen.value = false;
   toast.success(`Vessel "${vessel.name}" created successfully.`);
+};
+
+const onPlaneCreateSuccess = async (plane: { id: string; name: string }) => {
+  await refreshMasterData();
+
+  // Auto-assign the created plane to the active field
+  if (activePlaneObj.value) {
+    activePlaneObj.value.vesselId = plane.id;
+  } else if (formData.vessels[0]) {
+    formData.vessels[0].vesselId = plane.id;
+  }
+
+  isPlaneModalOpen.value = false;
+  toast.success(`Plane "${plane.name}" created successfully.`);
 };
 
 async function handleSubmit(isDraft: boolean = false) {
@@ -957,6 +1017,285 @@ function addVessel() {
     sequence: formData.vessels.length,
     vesselType: "mother",
   });
+}
+
+// ============================================
+// COPY JOB FEATURE - Prefill form from existing job
+// ============================================
+watch(
+  () => route.query.copyFrom,
+  async (copyFrom) => {
+    if (copyFrom && typeof copyFrom === "string") {
+      const { success, data: jobData } = await getJob(copyFrom);
+      if (success && jobData) {
+        await populateFormFromExistingJob(jobData);
+        toast.success("Job copied as template. Review all fields before creating the new job.");
+      }
+    }
+  },
+  { immediate: true },
+);
+
+interface JobItem {
+  id?: string;
+  serviceType?: string;
+  shipmentType?: string;
+  tradeTypeId?: string;
+  customerId?: string;
+  customerAddressId?: string;
+  pol?: string;
+  polName?: string;
+  pod?: string;
+  podName?: string;
+  preCarriageBy?: string;
+  placeOfReceipt?: string;
+  placeOfDelivery?: string;
+  finalDestination?: string;
+  commodity?: string;
+  mainDescription?: string;
+  hsCode?: string;
+  shippingMark?: string;
+  cargoMovement?: { code?: string } | null;
+  cargoMovementId?: string | null;
+  deliveryMovement?: { code?: string } | null;
+  deliveryMovementId?: string | null;
+  vendorId?: string;
+  grossWeight?: string | number | null;
+  netWeight?: string | number | null;
+  measurement?: string | number | null;
+  freightTerm?: string;
+  blType?: string;
+  isNegotiable?: boolean;
+  placeOfIssue?: string;
+  dateOfIssue?: string;
+  isDirectMaster?: boolean;
+  totalBlCount?: number;
+  pickupAddress?: string;
+  deliveryAddress?: string;
+  pickupDate?: string;
+  pickupTime?: string;
+  deliveryDate?: string;
+  deliveryTime?: string;
+  truckType?: string;
+  shipperReferences?: string[] | null;
+  jobParties?: {
+    companyId?: string;
+    addressBookId?: string;
+    partyRole?: { code?: string } | null;
+  }[];
+  vessels?: {
+    vesselId?: string;
+    transportId?: string;
+    vesselName?: string;
+    vessel?: { name?: string } | null;
+    plane?: { name?: string } | null;
+    voyageNumber?: string;
+    tsPortId?: string;
+    etd?: string;
+    eta?: string;
+    sequence?: number;
+    vesselType?: string;
+  }[];
+  jobContainers?: {
+    containerNumber?: string;
+    sealNumber?: string;
+    containerTypeId?: string;
+    isHazardous?: boolean;
+    items?: {
+      sequenceNo?: number;
+      qty?: number;
+      packageTypeCode?: string;
+      grossWeight?: string | number | null;
+      netWeight?: string | number | null;
+      measurementCbm?: string | number | null;
+      description?: string;
+      hsCode?: string;
+    }[];
+  }[];
+}
+
+async function populateFormFromExistingJob(jobInput: unknown) {
+  const job = jobInput as JobItem;
+  // Make sure port list is available
+  if (searchedPorts.value.length === 0 && masterData.value?.ports?.length) {
+    searchedPorts.value = [...masterData.value.ports];
+  }
+
+  // Reset some things
+  formData.shipperReferences = [];
+
+  // Top level
+  formData.serviceType = job.serviceType || "OCEAN";
+  formData.shipmentType = job.shipmentType || "OCEAN";
+  formData.tradeTypeId = job.tradeTypeId || "EXPORT";
+  formData.customerId = job.customerId || "";
+  formData.customerAddressId = job.customerAddressId || "";
+
+  formData.pol = job.pol || "";
+  formData.pod = job.pod || "";
+
+  // Ensure POL/POD are visible in the port Combobox (they may not be in initial list)
+  if (job.pol) {
+    const existsPol = searchedPorts.value.some((p: { code: string }) => p.code === job.pol);
+    if (!existsPol) {
+      searchedPorts.value.push({
+        code: job.pol,
+        name: job.polName || job.pol,
+        city: "",
+        country: "",
+      });
+    }
+  }
+  if (job.pod) {
+    const existsPod = searchedPorts.value.some((p: { code: string }) => p.code === job.pod);
+    if (!existsPod) {
+      searchedPorts.value.push({
+        code: job.pod,
+        name: job.podName || job.pod,
+        city: "",
+        country: "",
+      });
+    }
+  }
+  formData.preCarriageBy = job.preCarriageBy || "";
+  formData.placeOfReceipt = job.placeOfReceipt || "";
+  formData.placeOfDelivery = job.placeOfDelivery || "";
+  formData.finalDestination = job.finalDestination || "";
+
+  formData.commodity = job.commodity || "";
+  formData.mainDescription = job.mainDescription || "";
+  formData.hsCode = job.hsCode || "";
+  formData.shippingMark = job.shippingMark || "";
+
+  // Prefer the code from the relation (FCL_FCL, etc.) over the raw DB ID
+  // If no data exists, leave it null (don't force default)
+  formData.cargoMovementId = job.cargoMovement?.code || job.cargoMovementId || "";
+  formData.deliveryMovementId = job.deliveryMovement?.code || job.deliveryMovementId || "";
+  formData.vendorId = job.vendorId || "";
+
+  formData.grossWeight = job.grossWeight ? Number(job.grossWeight) : null;
+  formData.netWeight = job.netWeight ? Number(job.netWeight) : null;
+  formData.measurement = job.measurement ? Number(job.measurement) : null;
+
+  formData.freightTerm = job.freightTerm || "PREPAID";
+  formData.blType = job.blType || "ORIGINAL";
+  formData.isNegotiable = job.isNegotiable || false;
+  formData.placeOfIssue = job.placeOfIssue || "";
+  formData.dateOfIssue = job.dateOfIssue || "";
+  formData.isDirectMaster = job.isDirectMaster || false;
+  formData.totalBlCount = job.totalBlCount || 1;
+
+  // Pickup / Delivery (for trucking)
+  formData.pickupAddress = job.pickupAddress || "";
+  formData.deliveryAddress = job.deliveryAddress || "";
+  formData.pickupDate = job.pickupDate || "";
+  formData.pickupTime = job.pickupTime || "";
+  formData.deliveryDate = job.deliveryDate || "";
+  formData.deliveryTime = job.deliveryTime || "";
+  formData.truckType = job.truckType || "";
+
+  // Map parties from jobParties
+  if (job.jobParties && Array.isArray(job.jobParties)) {
+    job.jobParties.forEach((party) => {
+      const roleCode = party.partyRole?.code || "";
+      if (roleCode === "SHIPPER") {
+        formData.shipperId = party.companyId || "";
+        formData.shipperAddressId = party.addressBookId || "";
+      } else if (roleCode === "CONSIGNEE") {
+        formData.consigneeId = party.companyId || "";
+        formData.consigneeAddressId = party.addressBookId || "";
+      } else if (roleCode === "NOTIFY_PARTY") {
+        formData.notifyPartyId = party.companyId || "";
+        formData.notifyPartyAddressId = party.addressBookId || "";
+      } else if (roleCode === "FORWARDER" || roleCode === "AGENT") {
+        formData.forwarderId = party.companyId || "";
+        formData.forwarderAddressId = party.addressBookId || "";
+      }
+    });
+  }
+
+  // Map vessels / planes schedule
+  if (job.vessels && Array.isArray(job.vessels) && job.vessels.length > 0) {
+    formData.vessels = job.vessels.map((v, idx) => ({
+      id: Date.now() + idx,
+      vesselId: v.vesselId || v.transportId || "",
+      vesselName: v.vesselName || v.vessel?.name || "",
+      voyageNumber: v.voyageNumber || "",
+      tsPortId: v.tsPortId || "",
+      etd: v.etd || "",
+      eta: v.eta || "",
+      sequence: v.sequence || idx,
+      vesselType: v.vesselType || (idx === 0 ? "feeder" : "mother"),
+    }));
+  } else {
+    // reset to default one empty
+    formData.vessels = [
+      {
+        id: Date.now(),
+        vesselId: "",
+        vesselName: "",
+        voyageNumber: "",
+        tsPortId: "",
+        etd: "",
+        eta: "",
+        sequence: 0,
+        vesselType: "feeder",
+      },
+    ];
+  }
+
+  // Map containers + items
+  if (job.jobContainers && Array.isArray(job.jobContainers) && job.jobContainers.length > 0) {
+    formData.containers = job.jobContainers.map((c, idx) => ({
+      id: Date.now() + idx,
+      containerNumber: c.containerNumber || "",
+      sealNumber: c.sealNumber || "",
+      containerTypeId: c.containerTypeId || "",
+      isHazardous: c.isHazardous || false,
+      items: Array.isArray(c.items)
+        ? c.items.map((item, i) => ({
+            id: Date.now() + i,
+            sequenceNo: item.sequenceNo || i + 1,
+            qty: item.qty || 1,
+            packageTypeCode: item.packageTypeCode || "",
+            grossWeight: item.grossWeight ? Number(item.grossWeight) : null,
+            netWeight: item.netWeight ? Number(item.netWeight) : null,
+            measurementCbm: item.measurementCbm ? Number(item.measurementCbm) : null,
+            description: item.description || "",
+            hsCode: item.hsCode || "",
+          }))
+        : [],
+    }));
+  } else {
+    // default one empty container
+    formData.containers = [
+      {
+        id: Date.now(),
+        containerNumber: "",
+        sealNumber: "",
+        containerTypeId: "",
+        isHazardous: false,
+        items: [
+          {
+            id: Date.now(),
+            sequenceNo: 1,
+            qty: 1,
+            packageTypeCode: "",
+            grossWeight: null,
+            netWeight: null,
+            measurementCbm: null,
+            description: "",
+            hsCode: "",
+          },
+        ],
+      },
+    ];
+  }
+
+  // Shipper references
+  if (job.shipperReferences && Array.isArray(job.shipperReferences)) {
+    formData.shipperReferences = [...job.shipperReferences];
+  }
 }
 </script>
 
@@ -1689,7 +2028,9 @@ function addVessel() {
                     {{
                       formData.serviceType === "TRUCKING"
                         ? "TRUCKING COMPANY (CARRIER)"
-                        : "SHIPPING LINE (CARRIER)"
+                        : formData.shipmentType === "AIR" || formData.serviceType === "AIR"
+                          ? "AIRLINE (CARRIER)"
+                          : "SHIPPING LINE (CARRIER)"
                     }}
                   </label>
                   <Combobox
@@ -1796,10 +2137,10 @@ function addVessel() {
                         >
                         <Combobox
                           v-model="vessel.vesselId"
-                          :options="vessels"
+                          :options="transportOptions"
                           label-key="name"
                           value-key="id"
-                          placeholder="Vessel..."
+                          :placeholder="formData.shipmentType === 'AIR' ? 'Plane...' : 'Vessel...'"
                           allow-create
                           @create="(name) => handleCreateVessel(name, vessel)"
                           class="h-10"
@@ -2126,6 +2467,13 @@ function addVessel() {
       v-model:is-open="isVesselModalOpen"
       :initial-name="presetVesselName"
       @success="onVesselCreateSuccess"
+    />
+
+    <!-- Quick Add Plane Modal (Air Freight) -->
+    <PlaneQuickAddModal
+      v-model:is-open="isPlaneModalOpen"
+      :initial-name="presetPlaneName"
+      @success="onPlaneCreateSuccess"
     />
   </div>
 </template>
