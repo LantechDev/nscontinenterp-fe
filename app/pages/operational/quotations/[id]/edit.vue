@@ -156,6 +156,7 @@ const formData = reactive({
   status: "DRAFT",
   currency: "IDR",
   exchangeRate: 1,
+  allowMultipleInvoices: false,
   notes: "",
   charges: [] as Array<QuotationCharge & { tempId: number }>,
 });
@@ -189,6 +190,7 @@ async function loadQuotation() {
     formData.status = q.status;
     formData.currency = q.currency || "IDR";
     formData.exchangeRate = Number(q.exchangeRate || 1);
+    formData.allowMultipleInvoices = Boolean(q.allowMultipleInvoices);
     formData.notes = q.notes || "";
 
     formData.charges = (q.charges || []).map((ch) => ({
@@ -426,6 +428,7 @@ async function handleSubmit() {
     notes: formData.notes || null,
     currency: formData.currency,
     exchangeRate: Number(formData.exchangeRate || 1),
+    allowMultipleInvoices: formData.allowMultipleInvoices,
     subTotal: subTotal.value,
     taxAmount: calculatedTaxRate,
     taxTotal: taxAmount.value,
@@ -586,6 +589,40 @@ function scrollTo(id: string) {
                   USD
                 </button>
               </div>
+            </div>
+
+            <!-- Multi Invoice Switch -->
+            <div class="flex items-center gap-2 ml-4">
+              <span class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest"
+                >Multi-use</span
+              >
+              <button
+                type="button"
+                :disabled="isLocked"
+                @click="formData.allowMultipleInvoices = !formData.allowMultipleInvoices"
+                :class="[
+                  'relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none border disabled:cursor-not-allowed disabled:opacity-50',
+                  formData.allowMultipleInvoices
+                    ? 'bg-[#062c58] border-[#062c58]'
+                    : 'bg-gray-200 border-border',
+                ]"
+                role="switch"
+                :aria-checked="formData.allowMultipleInvoices"
+                title="Aktifkan agar quotation ini bisa dijadikan invoice berkali-kali"
+              >
+                <span
+                  :class="[
+                    'inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform',
+                    formData.allowMultipleInvoices ? 'translate-x-4' : 'translate-x-0.5',
+                  ]"
+                />
+              </button>
+              <span
+                class="text-[10px] font-bold"
+                :class="formData.allowMultipleInvoices ? 'text-[#062c58]' : 'text-muted-foreground'"
+              >
+                {{ formData.allowMultipleInvoices ? "ON" : "OFF" }}
+              </span>
             </div>
 
             <!-- Exchange Rate inside top bar -->

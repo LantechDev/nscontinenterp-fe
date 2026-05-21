@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Download, Search, FileText, ChevronRight } from "lucide-vue-next";
-import { formatRupiah, cn } from "~/lib/utils";
+import { formatFullRupiah, cn } from "~/lib/utils";
 import type { StatCardData } from "~/types/finance";
 import JobDetailSlideOver from "~/components/operational/JobDetailSlideOver.vue";
 import Combobox from "~/components/ui/Combobox.vue";
@@ -19,17 +19,6 @@ export interface DetailedTaxReportItem {
   currency?: string;
   exchangeRate?: number;
 }
-
-const formatFullRupiah = (value: unknown): string => {
-  const num = Number(value);
-  if (isNaN(num)) return "Rp 0";
-  return new Intl.NumberFormat("id-ID", {
-    style: "currency",
-    currency: "IDR",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(num);
-};
 
 const formatCurrency = (amount: unknown, currency?: string): string => {
   if (amount === undefined || amount === null) return "-";

@@ -39,7 +39,7 @@ const emit = defineEmits<{
 }>();
 
 const { fetchInvoices, isLoading, fetchInvoiceById, voidInvoice } = useInvoices();
-const { fetchQuotations, updateQuotation } = useQuotations();
+const { fetchQuotations } = useQuotations();
 const invoices = ref<
   Array<{
     id: string;
@@ -201,7 +201,7 @@ const openQuotationPicker = async () => {
     quotationsList.value = (res.data.items || []).filter(
       (q) =>
         (!resolvedCustomerId.value || q.customerId === resolvedCustomerId.value) &&
-        q.status !== "CONVERTED",
+        canUseQuotationForInvoice(q),
     );
   }
   isLoadingQuotations.value = false;
@@ -225,6 +225,15 @@ const selectQuotation = (q: Quotation) => {
   showQuotationPicker.value = false;
   isEditing.value = false;
   showForm.value = true;
+};
+
+const canUseQuotationForInvoice = (q: Quotation): boolean => {
+  if (q.status === "CONFIRMED") return true;
+  if (q.status === "CONVERTED") {
+    const flag = (q as unknown as { allowMultipleInvoices?: boolean }).allowMultipleInvoices;
+    return Boolean(flag);
+  }
+  return false;
 };
 
 watch(
@@ -278,15 +287,10 @@ const handleFormSuccess = async () => {
   isEditing.value = false;
   loadInvoices();
 
-  // If this invoice was created from a quotation, mark that quotation CONVERTED
-  if (selectedQuotation.value) {
-    const res = await updateQuotation(selectedQuotation.value.id, { status: "CONVERTED" });
-    if (res.success) {
-      toast.success(`Quotation ${selectedQuotation.value.number} ditandai CONVERTED.`);
-    }
-    selectedQuotation.value = null;
-    prefillFromQuotation.value = null;
-  }
+  // Clear any quotation selection used for prefill (no longer marks as CONVERTED,
+  // so the same quotation can be used to create multiple invoices)
+  selectedQuotation.value = null;
+  prefillFromQuotation.value = null;
 };
 
 const handlePaymentSuccess = () => {
@@ -366,11 +370,11 @@ const handlePaymentVoided = async () => {
         <div v-else class="space-y-2 max-h-[420px] overflow-y-auto pr-1">
           <div v-for="q in quotationsList" :key="q.id">
             <button
-              @click="q.status === 'CONFIRMED' ? selectQuotation(q) : undefined"
-              :disabled="q.status !== 'CONFIRMED'"
+              @click="canUseQuotationForInvoice(q) ? selectQuotation(q) : undefined"
+              :disabled="!canUseQuotationForInvoice(q)"
               :class="[
                 'w-full text-left p-4 rounded-xl border transition-all group',
-                q.status === 'CONFIRMED'
+                canUseQuotationForInvoice(q)
                   ? 'border-border hover:border-[#062c58]/40 hover:bg-blue-50/30 cursor-pointer'
                   : 'border-border/40 bg-gray-50/60 opacity-60 cursor-not-allowed',
               ]"
@@ -380,7 +384,7 @@ const handlePaymentVoided = async () => {
                   <div
                     :class="[
                       'p-2 rounded-lg shrink-0',
-                      q.status === 'CONFIRMED'
+                      canUseQuotationForInvoice(q)
                         ? 'bg-blue-50 text-[#062c58]'
                         : 'bg-gray-100 text-gray-400',
                     ]"
@@ -391,7 +395,7 @@ const handlePaymentVoided = async () => {
                     <p
                       :class="[
                         'text-sm font-bold',
-                        q.status === 'CONFIRMED' ? 'text-[#062c58]' : 'text-gray-400',
+                        canUseQuotationForInvoice(q) ? 'text-[#062c58]' : 'text-gray-400',
                       ]"
                     >
                       {{ q.number }}
@@ -412,12 +416,14 @@ const handlePaymentVoided = async () => {
                         'bg-gray-100 text-gray-600 border-gray-200': q.status === 'DRAFT',
                         'bg-amber-50 text-amber-700 border-amber-200': q.status === 'SENT',
                         'bg-blue-50 text-blue-700 border-blue-200': q.status === 'CONFIRMED',
+                        'bg-emerald-50 text-emerald-700 border-emerald-200':
+                          q.status === 'CONVERTED',
                       }"
                       >{{ q.status }}</span
                     >
                   </div>
                   <ChevronRight
-                    v-if="q.status === 'CONFIRMED'"
+                    v-if="canUseQuotationForInvoice(q)"
                     class="w-4 h-4 text-muted-foreground group-hover:text-[#062c58] transition-colors"
                   />
                 </div>
@@ -438,7 +444,10 @@ const handlePaymentVoided = async () => {
                   }}
                 </p>
               </div>
-              <div v-if="q.status !== 'CONFIRMED'" class="mt-2 pl-11 flex items-center gap-1.5">
+              <div
+                v-if="!canUseQuotationForInvoice(q)"
+                class="mt-2 pl-11 flex items-center gap-1.5"
+              >
                 <svg
                   class="w-3 h-3 text-amber-500 shrink-0"
                   fill="currentColor"
@@ -451,7 +460,7 @@ const handlePaymentVoided = async () => {
                   />
                 </svg>
                 <p class="text-[10px] text-amber-600 font-semibold">
-                  Harus berstatus CONFIRMED dulu sebelum bisa dijadikan invoice
+                  Harus berstatus CONFIRMED, atau CONVERTED dengan Multi-use aktif
                 </p>
               </div>
             </button>

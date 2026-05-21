@@ -1,5 +1,5 @@
 import { ref } from "vue";
-import { formatRupiah } from "~/lib/utils";
+import { formatFullRupiah } from "~/lib/utils";
 
 export interface DetailedTaxReportItem {
   invoiceId: string;
@@ -51,12 +51,12 @@ export function useFinanceDashboardPageTaxReport() {
     return [
       {
         title: "Total Pajak",
-        value: formatRupiah(totalTax),
+        value: formatFullRupiah(totalTax),
         isPrimary: true,
       },
       {
         title: "Total Dasar Pengenaan",
-        value: formatRupiah(totalBase),
+        value: formatFullRupiah(totalBase),
       },
       {
         title: "Jumlah Transaksi",

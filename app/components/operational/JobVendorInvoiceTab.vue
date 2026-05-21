@@ -6,10 +6,10 @@ import {
   AlertCircle,
   MoreHorizontal,
   Pencil,
-  Trash2,
   Wallet,
   ArrowLeft,
   Download,
+  Ban,
 } from "lucide-vue-next";
 import JobVendorInvoiceForm from "./JobVendorInvoiceForm.vue";
 import JobVendorInvoicePreview from "./JobVendorInvoicePreview.vue";
@@ -26,7 +26,11 @@ const props = defineProps<{
   isCompleted?: boolean;
 }>();
 
-const { fetchExpenses, deleteExpense, isLoading: isGlobalLoading } = useFinanceExpense();
+const emit = defineEmits<{
+  (e: "refresh-job"): void;
+}>();
+
+const { fetchExpenses, voidExpense, isLoading: isGlobalLoading } = useFinanceExpense();
 
 const expenses = ref<Expense[]>([]);
 const isLoading = ref(false);
@@ -34,8 +38,6 @@ const error = ref<string | null>(null);
 
 const showForm = ref(false);
 const editingExpense = ref<Expense | null>(null);
-const showDeleteConfirm = ref(false);
-const expenseToDelete = ref<string | null>(null);
 
 // Payment & Detail State
 const showPaymentForm = ref(false);
@@ -45,6 +47,8 @@ const previewRef = ref<InstanceType<typeof JobVendorInvoicePreview> | null>(null
 const isGeneratingPDF = ref(false);
 const showMoreActions = ref(false);
 const paymentTabRef = ref<InstanceType<typeof JobPaymentTab> | null>(null);
+const isVoiding = ref(false);
+const showVoidConfirm = ref(false);
 
 const loadExpenses = async () => {
   isLoading.value = true;
@@ -102,23 +106,21 @@ const closeDetail = () => {
   showDetail.value = false;
 };
 
-const confirmDelete = () => {
+const handleVoid = async () => {
   if (!activeExpense.value) return;
-  expenseToDelete.value = activeExpense.value.id;
-  showDeleteConfirm.value = true;
-};
 
-const handleDelete = async () => {
-  if (!expenseToDelete.value) return;
-  try {
-    await deleteExpense(expenseToDelete.value);
-    toast.success("Vendor invoice deleted");
-    showDeleteConfirm.value = false;
-    closeDetail();
+  isVoiding.value = true;
+  const result = await voidExpense(activeExpense.value.id);
+  if (result.success) {
+    showVoidConfirm.value = false;
     await loadExpenses();
-  } catch (err: unknown) {
-    toast.error("Failed to delete: " + (err as Error).message);
+    paymentTabRef.value?.refresh();
+    emit("refresh-job");
+    toast.success("Vendor invoice voided");
+  } else {
+    toast.error(result.error || "Failed to void vendor invoice");
   }
+  isVoiding.value = false;
 };
 
 const formatCurrency = (amount: number, currency: string = "IDR") => {
@@ -163,16 +165,19 @@ watch(
 const handleSuccess = () => {
   showForm.value = false;
   loadExpenses();
+  emit("refresh-job");
 };
 
 const handlePaymentSuccess = () => {
   showPaymentForm.value = false;
   loadExpenses();
   paymentTabRef.value?.refresh();
+  emit("refresh-job");
 };
 
 const handlePaymentVoided = async () => {
   await loadExpenses();
+  emit("refresh-job");
 };
 
 const handlePrint = async () => {
@@ -182,6 +187,33 @@ const handlePrint = async () => {
     isGeneratingPDF.value = false;
   }
 };
+
+const getExpenseStatusCode = (expense?: Expense | null) => {
+  const explicitCode = expense?.status?.code?.toUpperCase();
+  if (explicitCode) return explicitCode;
+  if (!expense) return "";
+
+  const amount = Number(expense.amount || 0);
+  const balanceDue = Number(expense.balanceDue || 0);
+  if (balanceDue <= 0) return "PAID";
+  if (amount > 0 && balanceDue < amount) return "PARTIALLY_PAID";
+  return "UNPAID";
+};
+
+const getExpenseStatusName = (expense?: Expense | null) => {
+  if (expense?.status?.name) return expense.status.name;
+  const code = getExpenseStatusCode(expense);
+  const names: Record<string, string> = {
+    PAID: "Paid",
+    PARTIALLY_PAID: "Partially Paid",
+    UNPAID: "Unpaid",
+    VOIDED: "Voided",
+    VOID: "Voided",
+  };
+  return names[code] || code || "-";
+};
+
+const activeExpenseStatusCode = computed(() => getExpenseStatusCode(activeExpense.value));
 
 const getStatusColor = (code?: string) => {
   switch (code?.toUpperCase()) {
@@ -244,10 +276,10 @@ const getStatusColor = (code?: string) => {
           <span
             :class="[
               'px-3 py-1.5 rounded-md text-[10px] font-bold border uppercase tracking-widest shadow-sm shadow-black/5',
-              getStatusColor(activeExpense.status?.code),
+              getStatusColor(activeExpenseStatusCode),
             ]"
           >
-            {{ activeExpense.status?.name || activeExpense.status?.code }}
+            {{ getExpenseStatusName(activeExpense) }}
           </span>
 
           <div class="h-8 w-px bg-border/40 mx-1"></div>
@@ -255,7 +287,7 @@ const getStatusColor = (code?: string) => {
           <div class="flex items-center gap-3">
             <!-- Record Payment (Primary Action) -->
             <button
-              v-if="activeExpense.status?.code !== 'PAID' && !isCompleted"
+              v-if="!['PAID', 'VOIDED', 'VOID'].includes(activeExpenseStatusCode) && !isCompleted"
               @click="showPaymentForm = true"
               class="inline-flex items-center px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg shadow-md hover:shadow-emerald-200/50 text-[11px] font-black uppercase tracking-wider gap-2 transition-all hover:-translate-y-0.5 active:translate-y-0"
             >
@@ -316,15 +348,15 @@ const getStatusColor = (code?: string) => {
                 </button>
 
                 <button
-                  v-if="!isCompleted"
+                  v-if="!['VOIDED', 'VOID'].includes(activeExpenseStatusCode) && !isCompleted"
                   @click="
-                    confirmDelete();
+                    showVoidConfirm = true;
                     showMoreActions = false;
                   "
                   class="w-full text-left px-4 py-2.5 hover:bg-red-50 flex items-center gap-3 text-xs font-bold text-red-600 transition-colors border-none bg-transparent outline-none"
                 >
-                  <Trash2 class="w-4 h-4" />
-                  Delete Invoice
+                  <Ban class="w-4 h-4" />
+                  Void Vendor Invoice
                 </button>
               </div>
             </div>
@@ -377,6 +409,19 @@ const getStatusColor = (code?: string) => {
             </div>
           </div>
         </div>
+      </div>
+      <div
+        v-else-if="['VOIDED', 'VOID'].includes(activeExpenseStatusCode)"
+        class="bg-gray-50/50 border border-border border-dashed rounded-xl p-8 text-center mt-4"
+      >
+        <Receipt class="w-8 h-8 text-muted-foreground/30 mx-auto mb-3" />
+        <p class="text-xs font-bold text-muted-foreground uppercase tracking-widest">
+          Payment History Cleared
+        </p>
+        <p class="text-[10px] text-muted-foreground mt-1 max-w-[220px] mx-auto leading-relaxed">
+          Applied vendor payments were released back to their original records when this invoice was
+          voided.
+        </p>
       </div>
 
       <!-- Preview Component -->
@@ -450,13 +495,12 @@ const getStatusColor = (code?: string) => {
                     {{ expense.number }}
                   </span>
                   <span
-                    v-if="expense.status"
                     :class="[
                       'text-[9px] px-1.5 py-0.5 rounded font-black border uppercase tracking-wider',
-                      getStatusColor(expense.status.code),
+                      getStatusColor(getExpenseStatusCode(expense)),
                     ]"
                   >
-                    {{ expense.status.name }}
+                    {{ getExpenseStatusName(expense) }}
                   </span>
                 </div>
                 <p class="text-xs font-bold text-foreground mt-1 uppercase">
@@ -534,26 +578,37 @@ const getStatusColor = (code?: string) => {
       />
     </Modal>
 
-    <!-- Delete Confirm Modal -->
+    <!-- Void Confirm Modal -->
     <Modal
-      v-model="showDeleteConfirm"
-      title="Delete Invoice"
-      description="Are you sure you want to delete this vendor invoice? This action cannot be undone."
+      v-model="showVoidConfirm"
+      title="Void Vendor Invoice"
+      description="Are you sure you want to void this vendor invoice? This will create a reversal journal entry and cannot be undone."
       width="max-w-sm"
     >
-      <div class="flex justify-end gap-3 pt-4">
-        <button
-          @click="showDeleteConfirm = false"
-          class="px-4 py-2 text-xs font-bold text-muted-foreground hover:bg-muted rounded-lg"
-        >
-          Cancel
-        </button>
-        <button
-          @click="handleDelete"
-          class="px-4 py-2 bg-red-600 text-white text-xs font-bold rounded-lg hover:bg-red-700 shadow-md"
-        >
-          Confirm Delete
-        </button>
+      <div class="space-y-4 pt-2">
+        <div class="p-3 bg-red-50 border border-red-100 rounded-lg flex items-start gap-3">
+          <AlertCircle class="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+          <p class="text-xs text-red-800 leading-relaxed font-medium">
+            Voiding a vendor invoice will record it as inactive for audit purposes and zero out the
+            balance due.
+          </p>
+        </div>
+        <div class="flex justify-end gap-3 pt-2">
+          <button
+            @click="showVoidConfirm = false"
+            class="px-4 py-2 text-xs font-bold text-muted-foreground hover:bg-muted rounded-md transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            @click="handleVoid"
+            :disabled="isVoiding"
+            class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-md shadow-sm transition-colors flex items-center gap-2"
+          >
+            <Loader2 v-if="isVoiding" class="w-3.5 h-3.5 animate-spin" />
+            {{ isVoiding ? "Voiding..." : "Confirm Void" }}
+          </button>
+        </div>
       </div>
     </Modal>
   </div>

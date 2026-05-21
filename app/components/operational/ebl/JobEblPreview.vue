@@ -60,11 +60,72 @@ const isDraft = computed(() => blStatus.value === "draft" || !props.activeBl);
 const isFinalized = computed(
   () => blStatus.value === "finalized" || blStatus.value === "confirmed",
 );
+const isAir = computed(
+  () =>
+    props.jobData?.shipmentType === "AIR" ||
+    props.activeBl?.job?.shipmentType === "AIR" ||
+    props.jobData?.serviceType === "AIR" ||
+    props.activeBl?.job?.serviceType === "AIR",
+);
+const documentTitle = computed(() => (isAir.value ? "AIR WAYBILL" : "BILL OF LADING"));
+const documentNumberLabel = computed(() =>
+  isAir.value ? "AIR WAYBILL NO." : "BILL OF LADING NO.",
+);
+const transportScheduleLabel = computed(() =>
+  isAir.value ? "AIRLINE / FLIGHT NO." : "VESSEL/VOYAGE",
+);
+const primaryTransportLabel = computed(() => (isAir.value ? "AIRCRAFT" : "OCEAN VESSEL"));
+const loadingPlaceLabel = computed(() => (isAir.value ? "AIRPORT OF LOADING" : "PORT OF LOADING"));
+const dischargePlaceLabel = computed(() =>
+  isAir.value ? "AIRPORT OF DISCHARGE" : "PORT OF DISCHARGE",
+);
+const continuedTransportLabel = computed(() => (isAir.value ? "FLIGHT" : "VESSEL VOYAGE"));
+const loadedDateLabel = computed(() =>
+  isAir.value ? "FLIGHT DEPARTURE DATE" : "DATE LADEN ON BOARD",
+);
+const issuePlaceLabel = computed(() =>
+  isAir.value ? "PLACE OF AWB ISSUE" : "PLACE OF BILL(S) ISSUE",
+);
+const transportList = computed(() => props.activeBl?.vessels || props.jobData?.vessels || []);
+const getTransportName = (transport?: (typeof transportList.value)[number]) => {
+  if (!transport) return "";
+  if (isAir.value) {
+    return (
+      transport.plane?.name ||
+      (transport.transportType === "plane" ? transport.vesselName : "") ||
+      transport.vesselName ||
+      ""
+    );
+  }
+  return transport.vessel?.name || transport.vesselName || "";
+};
+const transportLegs = computed(() =>
+  transportList.value
+    .map((v) => `${getTransportName(v)} / ${v.voyageNumber || ""}`)
+    .filter((s) => s.trim() !== "/")
+    .join(", "),
+);
+const primaryTransportName = computed(
+  () =>
+    getTransportName(transportList.value[0]) ||
+    (isAir.value
+      ? getVal(props.jobData?.plane?.name, "-")
+      : getVal(props.jobData?.vessel?.name, "-")),
+);
 
 const getVal = (val: unknown, fallback: unknown = "") => {
   const s = val ? String(val).trim() : fallback ? String(fallback).trim() : "";
   return s;
 };
+
+const limitText = (val: unknown, maxLength = 18) => {
+  const text = getVal(val);
+  if (text.length <= maxLength) return text;
+  return `${text.slice(0, maxLength).trimEnd()}...`;
+};
+
+const freightPayableAtRaw = computed(() => getVal(props.jobData?.podName, props.jobData?.pod));
+const freightPayableAt = computed(() => limitText(freightPayableAtRaw.value, 18));
 
 const formatNumber = (num: unknown, decimals: number = 3): string => {
   if (!num && num !== 0) return "-";
@@ -105,21 +166,25 @@ const getContainerTotals = (cnt: EblContainer) => {
   return { gw, nw, cbm, qty };
 };
 
-const shipper = computed(
-  () =>
-    props.activeBl?.job?.jobParties?.find((p: EblParty) => p.partyRole?.code === "SHIPPER") ||
-    props.jobData?.jobParties?.find((p: EblParty) => p.partyRole?.code === "SHIPPER"),
-);
-const consignee = computed(
-  () =>
-    props.activeBl?.job?.jobParties?.find((p: EblParty) => p.partyRole?.code === "CONSIGNEE") ||
-    props.jobData?.jobParties?.find((p: EblParty) => p.partyRole?.code === "CONSIGNEE"),
-);
-const notifyParty = computed(
-  () =>
-    props.activeBl?.job?.jobParties?.find(
-      (p: EblParty) => p.partyRole?.code === "NOTIFY PARTY" || p.partyRole?.code === "NOTIFY_PARTY",
-    ) || props.jobData?.jobParties?.find((p: EblParty) => p.partyRole?.code === "NOTIFY PARTY"),
+const findPartyByRole = (roleCodes: string[]) => {
+  const normalizedRoles = roleCodes.map((role) => role.replace(/[\s-]/g, "_").toUpperCase());
+  const parties = [
+    ...(props.activeBl?.job?.jobParties || []),
+    ...(props.jobData?.jobParties || []),
+    ...(props.activeBl?.parties || []),
+  ];
+
+  return parties.find((party: EblParty) => {
+    const code = party.partyRole?.code?.replace(/[\s-]/g, "_").toUpperCase();
+    return code ? normalizedRoles.includes(code) : false;
+  });
+};
+
+const shipper = computed(() => findPartyByRole(["SHIPPER"]));
+const consignee = computed(() => findPartyByRole(["CONSIGNEE"]));
+const notifyParty = computed(() => findPartyByRole(["NOTIFY_PARTY", "NOTIFY PARTY"]));
+const forwardingAgent = computed(() =>
+  findPartyByRole(["FORWARDER", "FORWARDING_AGENT", "FORWARDING AGENT", "AGENT"]),
 );
 
 const containers = computed(() => {
@@ -336,7 +401,7 @@ const generatePDF = async () => {
       pdf.addImage(imgData, "JPEG", 0, 0, 210, 297, undefined, "FAST");
     }
 
-    pdf.save(`BL_${props.jobData.jobNumber || "DRAFT"}.pdf`);
+    pdf.save(`${isAir.value ? "AWB" : "BL"}_${props.jobData.jobNumber || "DRAFT"}.pdf`);
     return true;
   } catch (error) {
     console.error(error);
@@ -398,7 +463,9 @@ defineExpose({
             <div class="text-[0.6rem] font-mono mb-1 text-black">
               PAGE: {{ pIdx + 1 }} OF {{ paginatedPages.length }}
             </div>
-            <h1 class="text-lg font-bold tracking-widest uppercase leading-none">BILL OF LADING</h1>
+            <h1 class="text-lg font-bold tracking-widest uppercase leading-none">
+              {{ documentTitle }}
+            </h1>
           </div>
         </div>
 
@@ -428,9 +495,9 @@ defineExpose({
                     }}</span>
                   </div>
                   <div class="w-1/2 pt-1 px-2 pb-2">
-                    <span class="font-bold text-[0.6rem] leading-none mb-0.5 block"
-                      >BILL OF LADING NO.</span
-                    >
+                    <span class="font-bold text-[0.6rem] leading-none mb-0.5 block">{{
+                      documentNumberLabel
+                    }}</span>
                     <span class="font-mono text-[0.8rem] text-black leading-none">{{
                       getVal(activeBl?.blNumber)
                     }}</span>
@@ -474,8 +541,7 @@ defineExpose({
                 <div
                   class="whitespace-pre-wrap font-mono uppercase text-[0.75rem] leading-tight text-black"
                 >
-                  PT NOVA SYNC CONTINENT<br />KMP MUARA BAHARI NOMOR 189 RT.010<br />RW.013, TANJUNG
-                  PRIOK
+                  {{ formatPartyDisplay(forwardingAgent) || "-" }}
                 </div>
               </div>
             </div>
@@ -496,12 +562,15 @@ defineExpose({
                 class="w-1/2 pt-1 px-2 pb-2 text-[0.45rem] text-justify leading-[1.1] font-medium text-[#062c58]"
               >
                 RECEIVED by the Carrier in apparent good order and condition (unless otherwise
-                stated herein) the total number or quantity of Containers or other packages or units
+                stated herein) the total number or quantity of
+                {{ isAir ? "packages or units" : "Containers or other packages or units" }}
                 indicated in the box entitled "Carrier's Receipt", to be carried subject to all the
-                terms and conditions hereof from the Place of Receipt or Port of Loading to the Port
-                of Discharge or Place of Delivery, as applicable. Delivery of the Goods to the
-                Carrier for Carriage hereunder constitutes acceptance by the Merchant of all the
-                terms and conditions of this Bill of Lading.
+                terms and conditions hereof from the Place of Receipt or
+                {{ isAir ? "Airport of Loading" : "Port of Loading" }} to the
+                {{ isAir ? "Airport of Discharge" : "Port of Discharge" }} or Place of Delivery, as
+                applicable. Delivery of the Goods to the Carrier for Carriage hereunder constitutes
+                acceptance by the Merchant of all the terms and conditions of this
+                {{ isAir ? "Air Waybill" : "Bill of Lading" }}.
               </div>
             </div>
             <div class="flex border-b border-[#062c58]" style="min-height: 40px">
@@ -522,39 +591,35 @@ defineExpose({
                 }}</span>
               </div>
               <div class="w-[50%] pt-0.5 px-2 pb-1.5">
-                <span class="font-bold text-[0.6rem] block leading-none mb-0.5">VESSEL/VOYAGE</span>
+                <span class="font-bold text-[0.6rem] block leading-none mb-0.5">{{
+                  transportScheduleLabel
+                }}</span>
                 <span class="font-mono text-[0.75rem] uppercase text-black leading-none">
-                  {{
-                    (activeBl?.vessels || jobData?.vessels || [])
-                      .map((v) => `${v.vesselName || ""} / ${v.voyageNumber || ""}`)
-                      .filter((s) => s.trim() !== "/")
-                      .join(", ") || "-"
-                  }}
+                  {{ transportLegs || "-" }}
                 </span>
               </div>
             </div>
             <div class="flex border-b border-[#062c58]" style="min-height: 40px">
               <div class="w-[25%] border-r border-[#062c58] pt-0.5 px-2 pb-1.5">
-                <span class="font-bold text-[0.6rem] block leading-none mb-0.5">OCEAN VESSEL</span>
+                <span class="font-bold text-[0.6rem] block leading-none mb-0.5">{{
+                  primaryTransportLabel
+                }}</span>
                 <span class="font-mono text-[0.75rem] uppercase leading-none text-black">
-                  {{
-                    (activeBl?.vessels || jobData?.vessels || [])[0]?.vesselName ||
-                    getVal(jobData?.vessel?.name, "-")
-                  }}
+                  {{ primaryTransportName }}
                 </span>
               </div>
               <div class="w-[25%] border-r border-[#062c58] pt-0.5 px-2 pb-1.5">
-                <span class="font-bold text-[0.6rem] block leading-none mb-0.5"
-                  >PORT OF LOADING</span
-                >
+                <span class="font-bold text-[0.6rem] block leading-none mb-0.5">{{
+                  loadingPlaceLabel
+                }}</span>
                 <span class="font-mono text-[0.75rem] uppercase leading-none text-black">{{
                   getVal(jobData?.polName, jobData?.pol)
                 }}</span>
               </div>
               <div class="w-[50%] pt-0.5 px-2 pb-1.5">
-                <span class="font-bold text-[0.6rem] block leading-none mb-0.5"
-                  >PORT OF DISCHARGE</span
-                >
+                <span class="font-bold text-[0.6rem] block leading-none mb-0.5">{{
+                  dischargePlaceLabel
+                }}</span>
                 <span class="font-mono text-[0.75rem] uppercase leading-none text-black">{{
                   getVal(jobData?.podName, jobData?.pod)
                 }}</span>
@@ -607,10 +672,10 @@ defineExpose({
             style="height: 30px"
           >
             <span
-              >VESSEL VOYAGE:
+              >{{ continuedTransportLabel }}:
               {{
-                (activeBl?.vessels || jobData?.vessels || [])
-                  .map((v) => `${v.vesselName || ""} ${v.voyageNumber || ""}`)
+                transportList
+                  .map((v) => `${getTransportName(v)} ${v.voyageNumber || ""}`)
                   .filter((s) => s.trim())
                   .join(", ") || "-"
               }}</span
@@ -639,7 +704,12 @@ defineExpose({
               <div
                 class="w-[22%] border-r border-[#062c58] p-1 flex flex-col items-center justify-center leading-tight"
               >
-                <span>CNTR. NOS. W/SEAL NOS.</span><span>MARKS & NUMBERS</span>
+                <template v-if="isAir">
+                  <span>MARKS & NUMBERS</span><span>PACKAGE ID</span>
+                </template>
+                <template v-else>
+                  <span>CNTR. NOS. W/SEAL NOS.</span><span>MARKS & NUMBERS</span>
+                </template>
               </div>
               <div
                 class="w-[10%] border-r border-[#062c58] p-1 flex flex-col items-center justify-center leading-tight text-[0.5rem]"
@@ -679,8 +749,13 @@ defineExpose({
                   class="flex w-full mb-1 font-bold italic border-b border-[#062c58]/10"
                 >
                   <div class="w-[22%] pl-3 pr-6 break-words whitespace-pre-wrap text-[11px]">
-                    {{ cnt.containerNumber || ""
-                    }}<span v-if="cnt.sealNumber" class="ml-1">/{{ cnt.sealNumber }}</span>
+                    <template v-if="isAir">
+                      {{ pIdx === 0 && cIdx === 0 ? getVal(jobData?.shippingMark) : "" }}
+                    </template>
+                    <template v-else>
+                      {{ cnt.containerNumber || ""
+                      }}<span v-if="cnt.sealNumber" class="ml-1">/{{ cnt.sealNumber }}</span>
+                    </template>
                   </div>
                   <div class="w-[10%] px-2 text-right text-[11px]">
                     {{ formatNumber(getContainerTotals(cnt).qty, 0) }}
@@ -689,7 +764,7 @@ defineExpose({
                     {{ cnt.isHazardous ? "X" : "" }}
                   </div>
                   <div class="w-[40%] px-3 font-mono text-[11px]">
-                    1X{{ cnt.containerType?.code || "" }} S.T.C.:
+                    {{ isAir ? "SAID TO CONTAIN:" : `1X${cnt.containerType?.code || ""} S.T.C.:` }}
                   </div>
                   <div class="w-[12.5%] px-3 text-right text-[11px]">
                     {{ formatNumber(getContainerTotals(cnt).gw) }}KGS
@@ -794,8 +869,9 @@ defineExpose({
                   >FREIGHT & CHARGES PAYABLE AT / BY:</span
                 >
                 <span
-                  class="uppercase font-mono text-[0.6rem] text-black leading-none font-normal mt-1 block"
-                  >{{ getVal(jobData?.podName, jobData?.pod) }}</span
+                  class="uppercase font-mono text-[0.55rem] text-black leading-tight font-normal mt-1 block max-h-[1.35rem] overflow-hidden break-words"
+                  :title="freightPayableAtRaw"
+                  >{{ freightPayableAt || "-" }}</span
                 >
               </div>
               <div class="w-[15%] border-r border-[#062c58] p-1">
@@ -813,8 +889,8 @@ defineExpose({
               <div
                 class="w-[29%] p-0.5 text-[0.42rem] font-normal leading-tight text-justify flex items-start text-black"
               >
-                [1] ORIGINAL BILL(S) OF LADING HAVE BEEN SIGNED, WHERE DELIVERED AGAINST ONE, THE
-                OTHERS(S) TO BE VOID.
+                [1] ORIGINAL {{ isAir ? "AIR WAYBILL(S)" : "BILL(S) OF LADING" }} HAVE BEEN SIGNED,
+                WHERE DELIVERED AGAINST ONE, THE OTHERS(S) TO BE VOID.
               </div>
             </div>
             <div class="flex flex-1" style="min-height: 110px">
@@ -893,7 +969,7 @@ defineExpose({
                 <div class="border-b border-[#062c58] px-2 pt-0.5 pb-2" style="min-height: 35px">
                   <span
                     class="text-[#062c58] text-[0.38rem] tracking-tighter opacity-80 uppercase font-bold leading-none block"
-                    >DATE LADEN ON BOARD</span
+                    >{{ loadedDateLabel }}</span
                   >
                   <span
                     class="font-mono text-[0.65rem] text-black uppercase leading-none mt-1 block"
@@ -903,7 +979,7 @@ defineExpose({
                 <div class="border-b border-[#062c58] px-2 pt-0.5 pb-2" style="min-height: 35px">
                   <span
                     class="text-[#062c58] text-[0.38rem] tracking-tighter opacity-80 uppercase font-bold leading-none block"
-                    >PLACE OF BILL(S) ISSUE</span
+                    >{{ issuePlaceLabel }}</span
                   >
                   <span
                     class="font-mono text-[0.65rem] text-black uppercase leading-none mt-1 block"
@@ -929,8 +1005,8 @@ defineExpose({
 
         <div class="mt-1 flex justify-between pr-2 text-[#062c58]" style="height: 35px">
           <div class="text-[0.45rem] w-1/2 mt-0.5 italic leading-tight">
-            The printed terms and conditions on this Bill are available at its website at
-            www.nscontinent.com
+            The printed terms and conditions on this {{ isAir ? "Air Waybill" : "Bill" }} are
+            available at its website at www.nscontinent.com
           </div>
           <div
             v-if="pIdx === paginatedPages.length - 1"
@@ -960,7 +1036,7 @@ defineExpose({
       >
         <div class="mb-2 text-center border-b border-[#062c58] pb-1">
           <h2 class="text-[15px] font-bold uppercase tracking-widest">
-            Combined Transport Bill of Lading
+            {{ isAir ? "Air Waybill" : "Combined Transport Bill of Lading" }}
           </h2>
           <h3 class="text-xs font-semibold uppercase">Conditions of Contract</h3>
         </div>
@@ -982,7 +1058,8 @@ defineExpose({
         </div>
 
         <div class="mt-1 pt-1 border-t border-gray-200 text-[6px] text-center italic opacity-50">
-          * These terms and conditions are continued from the face of the Bill of Lading *
+          * These terms and conditions are continued from the face of the
+          {{ isAir ? "Air Waybill" : "Bill of Lading" }} *
         </div>
       </div>
     </div>

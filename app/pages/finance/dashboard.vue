@@ -13,7 +13,7 @@ import {
 import { useFinanceDashboardAssets } from "~/composables/useFinanceDashboardAssets";
 import { useExportPopup } from "~/composables/useExportPopup";
 import { useFinanceTax } from "~/composables/useFinanceTax";
-import { cn, formatRupiah } from "~/lib/utils";
+import { cn, formatFullRupiah } from "~/lib/utils";
 import { exportStyledPdf, type PdfCol } from "~/lib/pdf-export";
 import { TABS, TIME_PERIODS, type PeriodType, type TabName } from "~/types/finance";
 
@@ -198,7 +198,7 @@ const assetsStatsCards = computed(() => {
   const totalValue = assetStats.value?.totalValue || 0;
   const totalCount = assetStats.value?.totalAssets || 0;
   return [
-    { title: "Total Assets", value: formatRupiah(totalValue), isPrimary: true },
+    { title: "Total Assets", value: formatFullRupiah(totalValue), isPrimary: true },
     { title: "Assets Count", value: totalCount.toString(), changeLabel: "", suffix: "" },
   ];
 });

@@ -56,11 +56,21 @@ const formatDate = (dateStr?: string | null) => {
   }
 };
 
-const invoices = computed(() => props.job?.invoices || []);
-const vendorInvoices = computed(() => props.job?.expenses || []);
+const getStatusCode = (status?: string | { code?: string; name?: string } | null) => {
+  if (!status) return "";
+  return (typeof status === "string" ? status : status.code || status.name || "").toUpperCase();
+};
+
+const isVoided = (item: { status?: string | { code?: string; name?: string } | null }) =>
+  getStatusCode(item.status) === "VOIDED" || getStatusCode(item.status) === "VOID";
+
+const allInvoices = computed(() => props.job?.invoices || []);
+const allVendorInvoices = computed(() => props.job?.expenses || []);
+const invoices = computed(() => allInvoices.value.filter((inv) => !isVoided(inv)));
+const vendorInvoices = computed(() => allVendorInvoices.value.filter((exp) => !isVoided(exp)));
 
 const totalRevenue = computed(() => {
-  if (invoices.value.length > 0) {
+  if (allInvoices.value.length > 0) {
     return invoices.value.reduce((sum: number, inv: ProfitInvoice) => {
       const amount = toNumber(inv.total) || 0;
       const rate = toNumber(inv.exchangeRate) || 1;
@@ -79,7 +89,7 @@ const getItemDescriptions = (items: { description: string | null }[] | null | un
 };
 
 const totalCost = computed(() => {
-  if (vendorInvoices.value.length > 0) {
+  if (allVendorInvoices.value.length > 0) {
     return vendorInvoices.value.reduce((sum: number, exp: ProfitExpense) => {
       const amount = toNumber(exp.amount) || 0;
       const rate = toNumber(exp.exchangeRate) || 1;
@@ -91,7 +101,7 @@ const totalCost = computed(() => {
 
 const profit = computed(() => {
   // Always prefer calculated profit if we have detailed data
-  if (invoices.value.length > 0 || vendorInvoices.value.length > 0) {
+  if (allInvoices.value.length > 0 || allVendorInvoices.value.length > 0) {
     return totalRevenue.value - totalCost.value;
   }
   if (props.job?.profit !== undefined && props.job?.profit !== null)
@@ -101,7 +111,10 @@ const profit = computed(() => {
 
 const margin = computed(() => {
   // Always prefer calculated margin if we have detailed data
-  if ((invoices.value.length > 0 || vendorInvoices.value.length > 0) && totalRevenue.value !== 0) {
+  if (
+    (allInvoices.value.length > 0 || allVendorInvoices.value.length > 0) &&
+    totalRevenue.value !== 0
+  ) {
     return (profit.value / totalRevenue.value) * 100;
   }
   if (props.job?.margin !== undefined && props.job?.margin !== null)

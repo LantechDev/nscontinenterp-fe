@@ -158,6 +158,27 @@ export function useFinanceExpense() {
     }
   }
 
+  async function voidExpense(
+    id: string,
+  ): Promise<{ success: boolean; data?: Expense; error?: string }> {
+    isLoading.value = true;
+    try {
+      const responseData = await $fetch<Expense>(`/api/finance/expense/${id}/void`, {
+        method: "POST",
+      });
+      return { success: true, data: responseData };
+    } catch (error: unknown) {
+      console.error("[Expense] Failed to void:", error);
+      const err = error as { data?: { message?: string; error?: string }; message?: string };
+      return {
+        success: false,
+        error: err.data?.message || err.data?.error || err.message || "Failed to void expense",
+      };
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
   return {
     isLoading,
     fetchExpenses,
@@ -165,5 +186,6 @@ export function useFinanceExpense() {
     createExpense,
     updateExpense,
     deleteExpense,
+    voidExpense,
   };
 }
