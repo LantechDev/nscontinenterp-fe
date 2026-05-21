@@ -178,12 +178,14 @@ const toggleEditMode = () => {
     { id: "LCL_LCL", name: "LCL/LCL" },
     { id: "FCL_LCL", name: "FCL/LCL" },
     { id: "LCL_FCL", name: "LCL/FCL" },
+    { id: "AIR_AIR", name: "AIR/AIR" },
   ];
   const DELIVERY_MOVEMENTS = [
     { id: "CY_CY", name: "CY-CY" },
     { id: "CY_DOOR", name: "CY-DOOR" },
     { id: "DOOR_CY", name: "DOOR-CY" },
     { id: "DOOR_DOOR", name: "DOOR-DOOR" },
+    { id: "AIR_AIR", name: "AIR/AIR" },
   ];
 
   editForm.value = {
