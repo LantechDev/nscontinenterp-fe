@@ -26,10 +26,11 @@ const formatDateForInput = (dateStr: string) => {
 
 const statusLabel = (code: string) => {
   const labels: Record<string, string> = {
-    PAID: "LUNAS",
-    UNPAID: "BELUM LUNAS",
-    PARTIALLY_PAID: "SEBAGIAN",
-    OVERDUE: "JATUH TEMPO",
+    PAID: "PAID",
+    UNPAID: "UNPAID",
+    PARTIALLY_PAID: "PARTIALLY PAID",
+    OVERDUE: "OVERDUE",
+    VOIDED: "VOIDED",
   };
   return labels[code] || code;
 };
@@ -156,26 +157,26 @@ export function useInvoicePage() {
   };
 
   const statusConfig: Record<StatusType, StatusConfig> = {
-    pending: { label: "Belum Lunas", class: "bg-yellow-50 text-yellow-700 border-yellow-200" },
-    partially: { label: "Sebagian", class: "bg-blue-50 text-blue-700 border-blue-200" },
-    paid: { label: "Lunas", class: "bg-green-50 text-green-700 border-green-200" },
-    overdue: { label: "Jatuh Tempo", class: "bg-red-50 text-red-700 border-red-200" },
+    pending: { label: "Unpaid", class: "bg-yellow-50 text-yellow-700 border-yellow-200" },
+    partially: { label: "Partially Paid", class: "bg-blue-50 text-blue-700 border-blue-200" },
+    paid: { label: "Paid", class: "bg-green-50 text-green-700 border-green-200" },
+    overdue: { label: "Overdue", class: "bg-red-50 text-red-700 border-red-200" },
     voided: { label: "Void", class: "bg-gray-100 text-gray-500 border-gray-300 line-through" },
   };
 
   const statusOptions = [
-    { value: "", label: "Semua Status" },
-    { value: "PAID", label: "Lunas" },
-    { value: "UNPAID", label: "Belum Lunas" },
-    { value: "PARTIALLY_PAID", label: "Sebagian" },
-    { value: "OVERDUE", label: "Jatuh Tempo" },
+    { value: "", label: "All Status" },
+    { value: "PAID", label: "Paid" },
+    { value: "UNPAID", label: "Unpaid" },
+    { value: "PARTIALLY_PAID", label: "Partially Paid" },
+    { value: "OVERDUE", label: "Overdue" },
     { value: "VOIDED", label: "Void" },
   ];
 
   const editStatusOptions = [
-    { id: "PAID", name: "Lunas (Paid)" },
-    { id: "UNPAID", name: "Belum Lunas (Unpaid)" },
-    { id: "OVERDUE", name: "Jatuh Tempo (Overdue)" },
+    { id: "PAID", name: "Paid" },
+    { id: "UNPAID", name: "Unpaid" },
+    { id: "OVERDUE", name: "Overdue" },
   ];
 
   // Format helpers

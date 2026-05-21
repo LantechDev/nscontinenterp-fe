@@ -127,6 +127,7 @@ export interface ActiveJobData {
   blType?: string | null;
   vessels?: EblVessel[];
   serviceType?: string;
+  shipmentType?: string | null;
   pickupAddress?: string | null;
   deliveryAddress?: string | null;
   pickupDate?: string | null;
@@ -155,6 +156,7 @@ export interface EditFormType {
   forwarderAddressId?: string;
   customerId?: string;
   customerAddressId?: string;
+  shipmentType?: string;
   isNotifySameAsConsignee?: boolean;
   mainDescription?: string;
   commodity?: string;

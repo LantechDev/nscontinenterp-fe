@@ -128,6 +128,9 @@ const editForm = ref<EditFormType>({
 });
 
 const jobData = computed(() => activeBl.value?.job || props.job);
+// NOTE: getBlRender now returns a complete `job` object that includes the full
+// vessel/plane schedule (with eta, transportId, transportType, etc.).
+// This makes the data flow reliable for JobEblEditForm without frontend hacks.
 
 const toggleEditMode = () => {
   if (editMode.value) {
@@ -286,13 +289,18 @@ const toggleEditMode = () => {
       };
     }),
 
-    vessels: (d?.vessels || props.job?.vessels || []).map((v: EblVessel) => ({
-      vesselId: v.vesselId || "",
-      vesselName: v.vesselName || "",
-      voyageNumber: v.voyageNumber || "",
-      etd: v.etd || "",
-      sequence: v.sequence || 0,
-    })),
+    vessels: (props.job?.vessels || d?.vessels || []).map(
+      (v: EblVessel & { transportId?: string | null }, idx) => ({
+        id: Date.now() + idx,
+        vesselId: v.vesselId || v.transportId || "",
+        vesselName: v.vesselName || "",
+        voyageNumber: v.voyageNumber || "",
+        etd: v.etd || "",
+        eta: v.eta || "",
+        tsPortId: v.tsPortId || "",
+        sequence: v.sequence || idx,
+      }),
+    ),
   };
 
   editMode.value = true;

@@ -20,6 +20,7 @@ import {
   Plus,
   Trash2,
   Check,
+  Plane as PlaneIcon,
 } from "lucide-vue-next";
 import JobFinanceTab from "./JobFinanceTab.vue";
 import JobEblTab from "./JobEblTab.vue";
@@ -31,7 +32,9 @@ import DatePicker from "~/components/ui/DatePicker.vue";
 import { toast } from "vue-sonner";
 import type { EblVessel, ActiveJobData } from "./ebl/types";
 import type { Vessel } from "~/composables/useMasterData";
+import type { Plane } from "~/composables/usePlanes";
 import VesselQuickAddModal from "./VesselQuickAddModal.vue";
+import PlaneQuickAddModal from "./PlaneQuickAddModal.vue";
 
 interface Props {
   modelValue: boolean;
@@ -58,7 +61,7 @@ const tabs = [
   { id: "document", label: "Upload Document" },
 ];
 
-const { fetchVessels, createVessel, fetchPorts } = useMasterData();
+const { fetchVessels, fetchPlanes, createVessel, createPlane, fetchPorts } = useMasterData();
 const masterPorts = ref<Port[]>([]);
 const refreshPorts = async (query?: string) => {
   masterPorts.value = await fetchPorts(query);
@@ -69,11 +72,13 @@ const isEditingVessels = ref(false);
 const editableVessels = ref<EblVessel[]>([]);
 const activeVesselObj = ref<EblVessel | null>(null);
 const masterVessels = ref<Vessel[]>([]);
+const masterPlanes = ref<Plane[]>([]);
 const editablePol = ref("");
 const editablePod = ref("");
 
 const refreshMasterData = async () => {
   masterVessels.value = await fetchVessels();
+  masterPlanes.value = await fetchPlanes();
   masterPorts.value = await fetchPorts();
 };
 
@@ -81,22 +86,46 @@ const refreshMasterData = async () => {
 const isVesselModalOpen = ref(false);
 const presetVesselName = ref("");
 
-const handleCreateVessel = async (name: string, vessel?: EblVessel) => {
-  presetVesselName.value = name;
-  activeVesselObj.value = vessel || null;
-  isVesselModalOpen.value = true;
+// Plane Modal State (Air Freight)
+const isPlaneModalOpen = ref(false);
+const presetPlaneName = ref("");
+
+// Unified create handler for Vessel or Plane
+const handleCreateTransport = async (name: string, item?: EblVessel) => {
+  if (isAir.value) {
+    presetPlaneName.value = name;
+    activeVesselObj.value = item || null; // reuse for simplicity
+    isPlaneModalOpen.value = true;
+  } else {
+    presetVesselName.value = name;
+    activeVesselObj.value = item || null;
+    isVesselModalOpen.value = true;
+  }
 };
+
+// Keep alias for existing calls in template
+const handleCreateVessel = handleCreateTransport;
 
 const onVesselCreateSuccess = async (vessel: { id: string; name: string }) => {
   await refreshMasterData();
 
-  // Auto-assign the created vessel to the active field
   if (activeVesselObj.value) {
     activeVesselObj.value.vesselId = vessel.id;
   }
 
   isVesselModalOpen.value = false;
   toast.success(`Vessel "${vessel.name}" created successfully.`);
+};
+
+const onPlaneCreateSuccess = async (plane: { id: string; name: string }) => {
+  await refreshMasterData();
+
+  if (activeVesselObj.value) {
+    activeVesselObj.value.vesselId = plane.id;
+  }
+
+  isPlaneModalOpen.value = false;
+  toast.success(`Plane "${plane.name}" created successfully.`);
 };
 
 const startEditVessels = () => {
@@ -130,10 +159,22 @@ const removeVessel = (idx: number) => {
 
 const saveVessels = async () => {
   if (!props.jobId) return;
+
+  // Clean sync: ensure vesselName is always up-to-date from master data before persisting.
+  // This keeps the denormalized display name correct in job_vessels for all consumers.
+  syncTransportNames();
+
+  // Keep top-level job.eta in sync with the final leg (last vessel/plane)
+  const lastLeg =
+    editableVessels.value.length > 0
+      ? editableVessels.value[editableVessels.value.length - 1]
+      : null;
+
   const res = await updateJob(props.jobId, {
     vessels: editableVessels.value,
     pol: editablePol.value,
     pod: editablePod.value,
+    eta: lastLeg?.eta || undefined,
   });
   if (res.success) {
     isEditingVessels.value = false;
@@ -141,7 +182,26 @@ const saveVessels = async () => {
   }
 };
 
+/**
+ * Sync vesselName from the currently loaded master list for every selected transport.
+ * Called on selection changes (via watcher) and explicitly before save.
+ * This is the single source of truth for keeping display names correct in the junction table.
+ */
+const syncTransportNames = () => {
+  const list = isAir.value ? masterPlanes.value : masterVessels.value;
+
+  editableVessels.value.forEach((leg) => {
+    if (leg.vesselId) {
+      const selected = list.find((item) => item.id === leg.vesselId);
+      if (selected?.name) {
+        leg.vesselName = selected.name;
+      }
+    }
+  });
+};
+
 const job = computed(() => currentJob.value);
+const isAir = computed(() => job.value?.shipmentType === "AIR" || job.value?.serviceType === "AIR");
 const isCompleting = ref(false);
 const isCancelingComplete = ref(false);
 const isCompleted = computed(() => {
@@ -192,6 +252,17 @@ const isDraft = computed(() => {
   return code === "DRAFT";
 });
 
+// Final ETA for header summary: prefer top-level job.eta, fallback to last vessel leg eta
+// (very important for AIR/Plane jobs and multi-leg schedules)
+const finalEta = computed(() => {
+  if (job.value?.eta) return job.value.eta;
+  const vessels = job.value?.vessels;
+  if (vessels && vessels.length > 0) {
+    return vessels[vessels.length - 1]?.eta || null;
+  }
+  return null;
+});
+
 watch(
   () => props.modelValue,
   async (isOpen) => {
@@ -202,6 +273,15 @@ watch(
   },
   { immediate: true },
 );
+
+// Ensure fresh job data (incl. vessels + eta for AIR) whenever user enters the eBL tab.
+// This guarantees JobEblTab always receives up-to-date props.job for form seeding (ETA POD etc.)
+// without requiring the user to close/reopen the slideover.
+watch(activeTab, (tab) => {
+  if (tab === "ebl" && props.jobId) {
+    getJob(props.jobId);
+  }
+});
 
 const formatDate = (dateString?: string | null) => {
   if (!dateString) return "-";
@@ -240,7 +320,10 @@ const getStatusName = computed(() => {
 const getJobTypeName = computed(
   () => job.value?.tradeType?.name || job.value?.tradeTypeId || "Export",
 );
-const getVesselName = computed(() => job.value?.vessel?.name || job.value?.vesselId || "-");
+const getVesselName = computed(
+  () => job.value?.vessel?.name || job.value?.plane?.name || job.value?.vesselId || "-",
+);
+
 const getServiceName = computed(
   () => job.value?.service?.name || job.value?.serviceId || "Ocean Freight",
 );
@@ -336,7 +419,7 @@ const handleActivateJob = async () => {
   if (!confirmed) return;
 
   isActivating.value = true;
-  const result = await updateJob(job.value.id, { status: "CONFIRMED" });
+  const result = await updateJob(job.value.id, { status: "IN_PROGRESS" });
   if (result.success) {
     toast.success("Job berhasil diaktifkan.");
     await getJob(job.value.id);
@@ -371,16 +454,30 @@ function getVesselLabels(index: number, list: (EblVessel | JobVessel)[]) {
   const isLast = index === list.length - 1;
   const isIntermediate = !isFirst && !isLast;
 
+  const transportLabel = isAir.value ? "Plane" : "Vessel";
+
   return {
     header: isFirst
-      ? "Feeder Vessel"
+      ? `Feeder ${transportLabel}`
       : isLast
-        ? `Mother Vessel ${index} (Last)`
-        : `Mother Vessel ${index + 1}`,
+        ? `Mother ${transportLabel} ${index} (Last)`
+        : `Mother ${transportLabel} ${index + 1}`,
     etd: isFirst ? "ETD POL" : "ETD T/S PORT",
     eta: isLast ? "ETA POD" : "ETA NEXT PORT",
-    leftPortLabel: isFirst ? "POL Name" : "T/S Port Name",
-    rightPortLabel: isLast ? "POD Name" : "Next Port Name",
+    leftPortLabel: isFirst
+      ? isAir
+        ? "Airport POL"
+        : "POL Name"
+      : isAir
+        ? "T/S Airport Name"
+        : "T/S Port Name",
+    rightPortLabel: isLast
+      ? isAir
+        ? "Airport POD"
+        : "POD Name"
+      : isAir
+        ? "Next Airport Name"
+        : "Next Port Name",
     isFirst,
     isLast,
     isIntermediate,
@@ -395,6 +492,9 @@ watch(
       v.sequence = idx + 1;
       v.vesselType = idx === 0 ? "feeder" : "mother";
     });
+
+    // Keep transport names in sync while the user is editing (live)
+    syncTransportNames();
   },
   { deep: true },
 );
@@ -516,7 +616,7 @@ watch(
                     <CalendarClock class="w-4 h-4" /> ETD - ETA
                   </div>
                   <div class="font-medium">
-                    {{ formatDate(job.etd) }} - {{ formatDate(job.eta) }}
+                    {{ formatDate(job.etd) }} - {{ formatDate(finalEta) }}
                   </div>
                 </div>
               </div>
@@ -601,14 +701,17 @@ watch(
                         <div
                           class="w-10 h-10 rounded-full bg-blue-50/80 flex items-center justify-center text-[#012D5A] shrink-0 border border-blue-100"
                         >
-                          <Ship class="w-5 h-5 text-[#012D5A]/80" />
+                          <component
+                            :is="isAir ? PlaneIcon : Ship"
+                            class="w-5 h-5 text-[#012D5A]/80"
+                          />
                         </div>
                         <div class="flex-1">
                           <div class="flex items-center justify-between mb-2">
                             <p
                               class="text-xs text-muted-foreground uppercase font-bold tracking-wider"
                             >
-                              Vessel Schedule
+                              {{ isAir ? "Plane Schedule" : "Vessel Schedule" }}
                             </p>
                             <div
                               v-if="!isEditingVessels && !isCompleted"
@@ -627,7 +730,7 @@ watch(
                                 @click="addVessel"
                                 class="flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors text-[10px] font-bold uppercase tracking-wider"
                               >
-                                <Plus class="w-3 h-3" /> ADD VESSEL
+                                <Plus class="w-3 h-3" /> ADD {{ isAir ? "PLANE" : "VESSEL" }}
                               </button>
                               <button
                                 @click="saveVessels"
@@ -662,7 +765,10 @@ watch(
                                 <div>
                                   <p class="font-bold text-sm text-foreground leading-tight">
                                     {{
-                                      vessel.vesselName || vessel.vessel?.name || "Unknown Vessel"
+                                      vessel.vesselName ||
+                                      vessel.plane?.name ||
+                                      vessel.vessel?.name ||
+                                      "No transport assigned"
                                     }}
                                   </p>
                                   <div class="flex items-center gap-2 mt-0.5">
@@ -741,7 +847,7 @@ watch(
                               v-if="!job.vessels || job.vessels.length === 0"
                               class="text-sm font-medium text-muted-foreground italic"
                             >
-                              No vessels assigned
+                              No {{ isAir ? "planes" : "vessels" }} assigned
                             </div>
                           </div>
 
@@ -767,10 +873,10 @@ watch(
                                   >
                                   <Combobox
                                     v-model="vessel.vesselId"
-                                    :options="masterVessels"
+                                    :options="isAir ? masterPlanes : masterVessels"
                                     label-key="name"
                                     value-key="id"
-                                    placeholder="Search Vessel..."
+                                    :placeholder="isAir ? 'Search Plane...' : 'Search Vessel...'"
                                     allow-create
                                     @create="(name) => handleCreateVessel(name, vessel)"
                                     class="h-8"
@@ -932,7 +1038,13 @@ watch(
                         </div>
                         <div>
                           <p class="text-xs text-muted-foreground mb-0.5">
-                            {{ job.serviceType === "TRUCKING" ? "Vendor" : "Shipping Line" }}
+                            {{
+                              job.serviceType === "TRUCKING"
+                                ? "Vendor"
+                                : isAir
+                                  ? "Airline"
+                                  : "Shipping Line"
+                            }}
                           </p>
                           <p class="font-bold text-sm text-foreground">{{ getVendorName }}</p>
                         </div>
@@ -1340,6 +1452,13 @@ watch(
       v-model:is-open="isVesselModalOpen"
       :initial-name="presetVesselName"
       @success="onVesselCreateSuccess"
+    />
+
+    <!-- Quick Add Plane Modal -->
+    <PlaneQuickAddModal
+      v-model:is-open="isPlaneModalOpen"
+      :initial-name="presetPlaneName"
+      @success="onPlaneCreateSuccess"
     />
   </Teleport>
 </template>

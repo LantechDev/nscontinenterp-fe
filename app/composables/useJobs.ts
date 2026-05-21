@@ -10,7 +10,9 @@ import type { JobCostBreakdownResponse } from "~/types/finance-dashboard";
 
 export interface JobVessel {
   id: string;
-  vesselId: string | null;
+  vesselId: string | null; // legacy alias for transportId
+  transportId?: string | null;
+  transportType?: "vessel" | "plane";
   vesselName: string | null;
   voyageNumber: string | null;
   etd: string | null;
@@ -19,6 +21,7 @@ export interface JobVessel {
   sequence: number;
   vesselType?: string;
   vessel?: { name: string; imoNumber?: string | null } | null;
+  plane?: { name: string; imoNumber?: string | null } | null;
   polName?: string | null;
   podName?: string | null;
 }
@@ -26,6 +29,8 @@ export interface JobVessel {
 export interface BlVessel {
   id: string;
   vesselId: string | null;
+  transportId?: string | null;
+  transportType?: "vessel" | "plane";
   vesselName: string | null;
   voyageNumber: string | null;
   etd: string | null;
@@ -33,6 +38,7 @@ export interface BlVessel {
   tsPortId: string | null;
   sequence: number;
   vessel?: { name: string; imoNumber?: string | null } | null;
+  plane?: { name: string; imoNumber?: string | null } | null;
 }
 
 export interface JobDocumentItem {
@@ -109,6 +115,7 @@ export interface Job {
   showShipperReferencesOnBl?: boolean;
   // Relations
   vessel?: { name: string; imoNumber?: string | null } | null;
+  plane?: { name: string; imoNumber?: string | null } | null;
   containerType?: { name: string; code: string } | null;
   tradeType?: { name: string; code: string } | null;
   cargoMovement?: { name: string; code: string } | null;

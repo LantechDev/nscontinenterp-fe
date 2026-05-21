@@ -1,7 +1,8 @@
 import { type AuthResponse } from "../types/auth";
 import type { Vessel } from "./useVessels";
+import type { Plane } from "./usePlanes";
 
-export { type Vessel };
+export { type Vessel, type Plane };
 
 export interface Address {
   id: string;
@@ -157,6 +158,17 @@ export function useMasterData() {
     }
   }
 
+  async function fetchPlanes(query?: string) {
+    try {
+      const data = await $fetch<Plane[]>("/api/master/planes", {
+        params: { search: query },
+      });
+      return data;
+    } catch {
+      return [];
+    }
+  }
+
   async function fetchPorts(query?: string, type?: "ocean" | "air") {
     try {
       const data = await $fetch<Port[]>("/api/master/ports", {
@@ -216,6 +228,21 @@ export function useMasterData() {
     }
   }
 
+  async function createPlane(name: string): Promise<AuthResponse<Plane>> {
+    try {
+      isLoading.value = true;
+      const data = await $fetch<Plane>(`/api/master/planes`, {
+        method: "POST",
+        body: { name },
+      });
+      return { success: true, data };
+    } catch (error) {
+      return handleApiError<Plane>(error);
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
   async function createCompanyCategory(name: string): Promise<AuthResponse<CompanyCategory>> {
     try {
       isLoading.value = true;
@@ -247,11 +274,13 @@ export function useMasterData() {
     fetchContainerTypes,
     fetchPackageTypes,
     fetchVessels,
+    fetchPlanes,
     fetchPorts,
     fetchPaymentMethods,
     fetchCompanyCategories,
     createCompany,
     createVessel,
+    createPlane,
     createCompanyCategory,
   };
 }

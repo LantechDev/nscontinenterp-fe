@@ -8,6 +8,7 @@ import {
   Building2,
   Wrench,
   Anchor,
+  Plane,
   Landmark,
   Percent,
   FileText,
@@ -50,11 +51,13 @@ export const NAV_ITEMS: NavItem[] = [
       { title: "Company", href: "/master/company", icon: Building2 },
       { title: "Service", href: "/master/services", icon: Wrench },
       { title: "Vessel", href: "/master/vessel", icon: Anchor },
+      { title: "Plane", href: "/master/plane", icon: Plane },
       { title: "Bank Account", href: "/master/bank-account", icon: Landmark },
       { title: "Pajak", href: "/master/tax", icon: Percent },
       { title: "B/L Conditions", href: "/master/bl-conditions", icon: FileText },
     ],
   },
+
   {
     title: "Operational",
     icon: Ship,

@@ -7,10 +7,11 @@ import type { InvoiceDetail } from "~/composables/useInvoices";
  */
 function getStatusLabel(code: string): string {
   const labels: Record<string, string> = {
-    PAID: "LUNAS",
-    UNPAID: "BELUM LUNAS",
-    PARTIALLY_PAID: "SEBAGIAN",
-    OVERDUE: "JATUH TEMPO",
+    PAID: "PAID",
+    UNPAID: "UNPAID",
+    PARTIALLY_PAID: "PARTIALLY PAID",
+    OVERDUE: "OVERDUE",
+    VOIDED: "VOIDED",
   };
   return labels[code] || code;
 }

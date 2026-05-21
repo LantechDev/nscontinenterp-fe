@@ -230,7 +230,7 @@ const handleExportPdf = async () => {
         `${(dashboardData.value.stats.totalIncomeChange ?? 0) >= 0 ? "+" : ""}${dashboardData.value.stats.totalIncomeChange ?? 0}%`,
       ],
       [
-        "Active Jobs",
+        "Ongoing Jobs",
         String(dashboardData.value.stats.activeJobs ?? 0),
         `${(dashboardData.value.stats.activeJobsChange ?? 0) >= 0 ? "+" : ""}${dashboardData.value.stats.activeJobsChange ?? 0}%`,
       ],
@@ -346,7 +346,7 @@ const handleExportExcel = () => {
         `${(stats.totalIncomeChange ?? 0) >= 0 ? "+" : ""}${stats.totalIncomeChange ?? 0}%`,
       ],
       [
-        "Active Jobs",
+        "Ongoing Jobs",
         String(stats.activeJobs ?? 0),
         `${(stats.activeJobsChange ?? 0) >= 0 ? "+" : ""}${stats.activeJobsChange ?? 0}%`,
       ],
@@ -639,7 +639,7 @@ onClickOutside(periodDropdownRef as Ref<HTMLElement>, () => {
         variant="primary"
       />
       <DashboardStatCard
-        title="Active Job"
+        title="Ongoing Job"
         :value="String(dashboardData?.stats?.activeJobs || 0)"
         :change="dashboardData?.stats?.activeJobsChange ?? 0"
         change-label="vs Last Year"
@@ -667,7 +667,7 @@ onClickOutside(periodDropdownRef as Ref<HTMLElement>, () => {
         <DashboardRevenueChart :data="dashboardData?.financialOverview" />
       </div>
       <div>
-        <DashboardUpcomingActivities :events="dashboardData?.upcomingEvents" />
+        <DashboardUpcomingActivities :events="dashboardData?.upcomingEvents?.slice(0, 3)" />
       </div>
     </div>
 

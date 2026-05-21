@@ -72,9 +72,9 @@ const formData = ref({
 
 // Status options
 const statusOptions = [
-  { id: "PAID", name: "Lunas (Paid)" },
-  { id: "UNPAID", name: "Belum Lunas (Unpaid)" },
-  { id: "OVERDUE", name: "Jatuh Tempo (Overdue)" },
+  { id: "PAID", name: "Paid" },
+  { id: "UNPAID", name: "Unpaid" },
+  { id: "OVERDUE", name: "Overdue" },
 ];
 
 const companies = ref<Company[]>([]);
@@ -93,10 +93,10 @@ const handleDownload = async () => {
 
 const getStatusBadge = (statusCode: string) => {
   const statusMap: Record<string, { label: string; class: string }> = {
-    PAID: { label: "Lunas", class: "badge-success" },
-    UNPAID: { label: "Pending", class: "badge-warning" },
-    PARTIALLY_PAID: { label: "Sebagian", class: "badge-warning" },
-    OVERDUE: { label: "Jatuh Tempo", class: "badge-danger" },
+    PAID: { label: "Paid", class: "badge-success" },
+    UNPAID: { label: "Unpaid", class: "badge-warning" },
+    PARTIALLY_PAID: { label: "Partially Paid", class: "badge-warning" },
+    OVERDUE: { label: "Overdue", class: "badge-danger" },
   };
   return statusMap[statusCode] || { label: statusCode, class: "badge-warning" };
 };

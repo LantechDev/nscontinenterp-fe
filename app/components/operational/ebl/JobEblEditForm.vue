@@ -9,6 +9,8 @@ import SectionCard from "~/pages/operational/jobs/components/SectionCard.vue";
 import DatePicker from "~/components/ui/DatePicker.vue";
 import Checkbox from "~/components/ui/Checkbox.vue";
 import VesselQuickAddModal from "~/components/operational/VesselQuickAddModal.vue";
+import PlaneQuickAddModal from "~/components/operational/PlaneQuickAddModal.vue";
+import type { Plane } from "~/composables/usePlanes";
 
 import type {
   ActiveJobData,
@@ -41,8 +43,10 @@ const {
   fetchContainerTypes,
   fetchPackageTypes,
   fetchVessels,
+  fetchPlanes,
   fetchPorts,
   createVessel,
+  createPlane,
 } = useMasterData();
 
 const { confirm } = useConfirm();
@@ -51,23 +55,40 @@ const companies = ref<Company[]>([]);
 const containerTypes = ref<ContainerType[]>([]);
 const packageTypes = ref<PackageType[]>([]);
 const vessels = ref<Vessel[]>([]);
+const planes = ref<Plane[]>([]);
 const portsPol = ref<Port[]>([]);
 const portsPod = ref<Port[]>([]);
 
 onMounted(async () => {
-  const [c, ct, pt, v] = await Promise.all([
+  const [c, ct, pt, v, p] = await Promise.all([
     fetchCompanies(),
     fetchContainerTypes(),
     fetchPackageTypes(),
     fetchVessels(),
+    fetchPlanes(),
   ]);
   companies.value = c;
   containerTypes.value = ct;
   packageTypes.value = pt;
   vessels.value = v;
+  planes.value = p;
 
-  if (editForm.value.pol) portsPol.value = await fetchPorts(editForm.value.pol);
-  if (editForm.value.pod) portsPod.value = await fetchPorts(editForm.value.pod);
+  const portType = isAir.value ? "air" : "ocean";
+
+  if (editForm.value.pol) {
+    portsPol.value = await $fetch<Port[]>(
+      `/api/master/ports?q=${editForm.value.pol}&type=${portType}`,
+    );
+  } else {
+    portsPol.value = await $fetch<Port[]>(`/api/master/ports?type=${portType}`);
+  }
+  if (editForm.value.pod) {
+    portsPod.value = await $fetch<Port[]>(
+      `/api/master/ports?q=${editForm.value.pod}&type=${portType}`,
+    );
+  } else {
+    portsPod.value = await $fetch<Port[]>(`/api/master/ports?type=${portType}`);
+  }
 
   // Sync Shipper References from Job if empty in eBL
   if (
@@ -76,12 +97,96 @@ onMounted(async () => {
   ) {
     editForm.value.shipperReferences = [...props.jobData.shipperReferences];
   }
+
+  // Pull basic fields + transport from jobData (especially important for AIR / Plane jobs)
+  const j = props.jobData;
+  if (j) {
+    // Job Customer
+    if (!editForm.value.customerId && j.customerId) {
+      editForm.value.customerId = j.customerId;
+    }
+
+    // Final ETA
+    if (!editForm.value.eta && j.eta) {
+      editForm.value.eta = j.eta;
+    }
+
+    // Date Cargo Received (on the job or first BL)
+    const jobDateCargo =
+      ((j as Record<string, unknown>).dateCargoReceived as string | undefined) ||
+      ((j.billsOfLading?.[0] as Record<string, unknown>)?.dateCargoReceived as string | undefined);
+    if (!editForm.value.dateCargoReceived && jobDateCargo) {
+      editForm.value.dateCargoReceived = jobDateCargo;
+    }
+
+    // POL / POD fallback
+    if (!editForm.value.pol && j.pol) editForm.value.pol = j.pol;
+    if (!editForm.value.pod && j.pod) editForm.value.pod = j.pod;
+
+    // Seed / fill the eBL's vessel/plane legs from the job's vessels.
+    // The render response now guarantees a complete job.vessels array (with eta + transportId for planes).
+    // We still support the extended shape for safety.
+    interface JobVesselData extends EblVessel {
+      transportId?: string | null;
+      vessel?: { name?: string | null } | null;
+      plane?: { name?: string | null } | null;
+    }
+    const jobVessels = (j.vessels || []) as unknown as JobVesselData[];
+    if (jobVessels.length > 0) {
+      const formVessels = editForm.value.vessels;
+      if (!formVessels || formVessels.length === 0) {
+        editForm.value.vessels = jobVessels.map((v, idx) => ({
+          id: Date.now() + idx,
+          vesselId: v.vesselId || v.transportId || "",
+          vesselName: v.vesselName || v.vessel?.name || v.plane?.name || "",
+          voyageNumber: v.voyageNumber || "",
+          etd: v.etd || "",
+          eta: v.eta || "",
+          sequence: v.sequence || idx,
+          vesselType: v.vesselType || (idx === 0 ? "feeder" : "mother"),
+          tsPortId: v.tsPortId || "",
+        }));
+      } else {
+        // Backfill *all* legs (incl. last leg ETA POD) when eBL already has vessel entries
+        const len = Math.min(jobVessels.length, formVessels.length);
+        for (let i = 0; i < len; i++) {
+          const jv = jobVessels[i];
+          const fv = formVessels[i];
+          if (fv && jv) {
+            if (!fv.vesselId) fv.vesselId = jv.vesselId || jv.transportId || "";
+            if (!fv.vesselName)
+              fv.vesselName = jv.vesselName || jv.vessel?.name || jv.plane?.name || "";
+            if (!fv.voyageNumber) fv.voyageNumber = jv.voyageNumber || "";
+            if (!fv.etd) fv.etd = jv.etd || "";
+            if (!fv.eta) fv.eta = jv.eta || "";
+            if (!fv.tsPortId) fv.tsPortId = jv.tsPortId || "";
+          }
+        }
+      }
+      // Extra safety net: last vessel leg (ETA POD) falls back to job top-level eta
+      if (formVessels && formVessels.length > 0) {
+        const last = formVessels[formVessels.length - 1];
+        if (last && !last.eta && j.eta) {
+          last.eta = j.eta;
+        }
+      }
+    }
+  }
 });
 
 // Vessel Modal State
 const isVesselModalOpen = ref(false);
 const presetVesselName = ref("");
 const activeVesselObj = ref<EblVessel | null>(null);
+
+// Plane Modal State (for Air Freight)
+const isPlaneModalOpen = ref(false);
+const presetPlaneName = ref("");
+const activePlaneObj = ref<EblVessel | null>(null);
+
+const isAir = computed(
+  () => props.jobData?.shipmentType === "AIR" || editForm.value.shipmentType === "AIR",
+);
 
 watch(
   () => editForm.value.isNotifySameAsConsignee,
@@ -187,17 +292,31 @@ watch(
 );
 
 const handleSearchPol = async (q: string) => {
-  portsPol.value = await fetchPorts(q);
+  const type = isAir.value ? "air" : "ocean";
+  portsPol.value = await $fetch<Port[]>(
+    `/api/master/ports?q=${encodeURIComponent(q)}&type=${type}`,
+  );
 };
 const handleSearchPod = async (q: string) => {
-  portsPod.value = await fetchPorts(q);
+  const type = isAir.value ? "air" : "ocean";
+  portsPod.value = await $fetch<Port[]>(
+    `/api/master/ports?q=${encodeURIComponent(q)}&type=${type}`,
+  );
 };
 
-const handleCreateVessel = async (name: string, vessel?: EblVessel) => {
-  presetVesselName.value = name;
-  activeVesselObj.value = vessel || null;
-  isVesselModalOpen.value = true;
+const handleCreateTransport = (name: string, item?: EblVessel) => {
+  if (isAir.value) {
+    presetPlaneName.value = name;
+    activePlaneObj.value = item || null;
+    isPlaneModalOpen.value = true;
+  } else {
+    presetVesselName.value = name;
+    activeVesselObj.value = item || null;
+    isVesselModalOpen.value = true;
+  }
 };
+
+const handleCreateVessel = handleCreateTransport;
 
 const onVesselCreateSuccess = async (vessel: { id: string; name: string }) => {
   vessels.value = await fetchVessels();
@@ -225,6 +344,35 @@ const onVesselCreateSuccess = async (vessel: { id: string; name: string }) => {
 
   isVesselModalOpen.value = false;
   toast.success(`Vessel "${vessel.name}" created successfully.`);
+};
+
+const onPlaneCreateSuccess = async (plane: { id: string; name: string }) => {
+  planes.value = await fetchPlanes();
+
+  if (activePlaneObj.value) {
+    activePlaneObj.value.vesselId = plane.id;
+    activePlaneObj.value.vesselName = plane.name;
+  } else {
+    if (!editForm.value.vessels) editForm.value.vessels = [];
+    if (editForm.value.vessels && editForm.value.vessels.length > 0) {
+      const first = editForm.value.vessels[0];
+      if (first) {
+        first.vesselId = plane.id;
+        first.vesselName = plane.name;
+      }
+    } else {
+      editForm.value.vessels.push({
+        vesselId: plane.id,
+        vesselName: plane.name,
+        voyageNumber: "",
+        etd: "",
+        sequence: 0,
+      });
+    }
+  }
+
+  isPlaneModalOpen.value = false;
+  toast.success(`Plane "${plane.name}" created successfully.`);
 };
 
 const TRADE_TYPES = [
@@ -293,17 +441,36 @@ function getVesselLabels(index: number) {
   const vesselsCount = editForm.value.vessels?.length || 0;
   const isFirst = index === 0;
   const isLast = index === vesselsCount - 1;
+  const air = isAir.value;
 
   return {
-    header: isFirst
-      ? "Feeder Vessel"
-      : isLast
-        ? `Mother Vessel ${index} (Last)`
-        : `Mother Vessel ${index}`,
+    header: air
+      ? isFirst
+        ? "Feeder Plane"
+        : isLast
+          ? `Mother Plane ${index} (Last)`
+          : `Mother Plane ${index}`
+      : isFirst
+        ? "Feeder Vessel"
+        : isLast
+          ? `Mother Vessel ${index} (Last)`
+          : `Mother Vessel ${index}`,
     etd: isFirst ? "ETD POL" : "ETD T/S PORT",
     eta: isLast ? "ETA POD" : "ETA NEXT PORT",
-    leftPortLabel: isFirst ? "POL Name" : "T/S Port Name",
-    rightPortLabel: isLast ? "POD Name" : "Next Port Name",
+    leftPortLabel: isFirst
+      ? air
+        ? "Airport POL"
+        : "POL Name"
+      : air
+        ? "T/S Airport Name"
+        : "T/S Port Name",
+    rightPortLabel: isLast
+      ? air
+        ? "Airport POD"
+        : "POD Name"
+      : air
+        ? "Next Airport Name"
+        : "Next Port Name",
     isFirst,
     isLast,
     hasTransit: vesselsCount > 1,
@@ -329,9 +496,16 @@ watch(
   () => editForm.value.vessels,
   (vesselList) => {
     if (!vesselList) return;
+    const list = isAir.value ? planes.value : vessels.value;
     vesselList.forEach((v, idx) => {
       v.sequence = idx;
       v.vesselType = idx === 0 ? "feeder" : "mother";
+      if (v.vesselId) {
+        const found = list.find((item) => item.id === v.vesselId);
+        if (found?.name) {
+          v.vesselName = found.name;
+        }
+      }
     });
   },
   { deep: true },
@@ -533,14 +707,14 @@ const removeShipperRef = (index: number) => {
               class="text-sm font-bold text-foreground/80 uppercase tracking-widest flex items-center gap-2"
             >
               <div class="w-1.5 h-4 bg-primary rounded-full"></div>
-              Vessel Schedule
+              {{ isAir ? "Plane Schedule" : "Vessel Schedule" }}
             </h4>
             <button
               type="button"
               @click="addVessel"
               class="text-xs text-blue-600 hover:text-blue-700 font-bold uppercase tracking-widest flex items-center gap-1.5 transition-colors"
             >
-              <Plus class="w-3.5 h-3.5" /> Add Vessel
+              <Plus class="w-3.5 h-3.5" /> {{ isAir ? "Add Plane" : "Add Vessel" }}
             </button>
           </div>
 
@@ -560,10 +734,10 @@ const removeShipperRef = (index: number) => {
                   </label>
                   <Combobox
                     v-model="vessel.vesselId"
-                    :options="vessels"
+                    :options="isAir ? planes : vessels"
                     label-key="name"
                     value-key="id"
-                    placeholder="Search Vessel..."
+                    :placeholder="isAir ? 'Search Plane...' : 'Search Vessel...'"
                     allow-create
                     @create="(name) => handleCreateVessel(name, vessel)"
                     class="h-10"
@@ -981,6 +1155,13 @@ const removeShipperRef = (index: number) => {
       v-model:is-open="isVesselModalOpen"
       :initial-name="presetVesselName"
       @success="onVesselCreateSuccess"
+    />
+
+    <!-- Quick Add Plane Modal (Air Freight) -->
+    <PlaneQuickAddModal
+      v-model:is-open="isPlaneModalOpen"
+      :initial-name="presetPlaneName"
+      @success="onPlaneCreateSuccess"
     />
   </div>
 </template>

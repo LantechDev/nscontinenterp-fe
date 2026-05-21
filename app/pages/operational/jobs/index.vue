@@ -3,6 +3,7 @@ import {
   Plus,
   Search,
   Ship,
+  Plane,
   Eye,
   Calendar,
   MapPin,
@@ -14,16 +15,25 @@ import {
   ChevronRight,
   Edit,
   Trash2,
+  Copy,
+  PowerOff,
+  Briefcase,
+  CheckCircle2,
 } from "lucide-vue-next";
 import { cn } from "~/lib/utils";
+import { toast } from "vue-sonner";
+import { useConfirm } from "~/composables/useConfirm";
+import Combobox from "~/components/ui/Combobox.vue";
+import DashboardStatCard from "~/components/dashboard/StatCard.vue";
 
 definePageMeta({
   layout: "dashboard",
 });
 
-const { jobs, fetchJobs, isLoading } = useJobs();
+const { jobs, fetchJobs, isLoading, updateJob } = useJobs();
 const route = useRoute();
 const router = useRouter();
+const { confirm } = useConfirm();
 
 const { pending } = await useAsyncData("jobs-list", () => fetchJobs(), { server: false });
 
@@ -38,7 +48,14 @@ const filteredJobs = computed(() => {
     const matchesSearch =
       job.jobNumber.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
       job.commodity.toLowerCase().includes(searchQuery.value.toLowerCase());
-    return matchesSearch;
+
+    const matchesStatus =
+      !statusFilter.value || job.status?.code?.toUpperCase() === statusFilter.value.toUpperCase();
+
+    const matchesShipment =
+      !shipmentTypeFilter.value || job.shipmentType === shipmentTypeFilter.value;
+
+    return matchesSearch && matchesStatus && matchesShipment;
   });
 });
 
@@ -49,9 +66,8 @@ const getStatusClass = (statusCode: string | null | undefined) => {
     return "bg-green-50 text-green-700 border-green-200";
   if (code === "DRAFT") return "bg-gray-100 text-gray-600 border-gray-200";
   if (code === "CANCELLED" || code === "VOID") return "bg-red-50 text-red-700 border-red-200";
-  if (code === "PENDING" || code === "ACTIVE" || code === "IN_PROGRESS")
+  if (code === "PENDING" || code === "IN_PROGRESS")
     return "bg-yellow-50 text-yellow-700 border-yellow-200";
-  if (code === "CONFIRMED") return "bg-blue-50 text-blue-700 border-blue-200";
   return "bg-blue-50 text-blue-700 border-blue-200";
 };
 
@@ -60,11 +76,83 @@ const isDetailOpen = ref(false);
 const initialTab = ref<string | undefined>(undefined);
 const initialBlId = ref<string | undefined>(undefined);
 
+// Filters
+const statusFilter = ref<string>("");
+const shipmentTypeFilter = ref<string>(""); // "", "AIR", "OCEAN"
+
+const statusOptions = [
+  { value: "", label: "Semua Status" },
+  { value: "DRAFT", label: "Draft" },
+  { value: "IN_PROGRESS", label: "In Progress" },
+  { value: "COMPLETED", label: "Completed" },
+  { value: "CANCELLED", label: "Cancelled" },
+  { value: "CLOSED", label: "Closed" },
+];
+
+const shipmentTypeOptions = [
+  { value: "", label: "Semua Tipe" },
+  { value: "AIR", label: "AIR (Plane)" },
+  { value: "OCEAN", label: "OCEAN (Vessel)" },
+];
+
+// Stats for header (consistent with other master pages)
+const stats = computed(() => {
+  const list = jobs.value;
+  const total = list.length;
+
+  const active = list.filter((j) => {
+    const code = (typeof j.status === "string" ? j.status : j.status?.code || "").toUpperCase();
+    return !["CANCELLED", "VOID", "COMPLETED", "CLOSED", "DONE"].includes(code);
+  }).length;
+
+  const air = list.filter((j) => j.shipmentType === "AIR").length;
+  const ocean = list.filter((j) => j.shipmentType === "OCEAN").length;
+
+  return { total, active, air, ocean };
+});
+
 function openJobDetail(id: string, tab?: string, blId?: string) {
   selectedJobId.value = id;
   initialTab.value = tab;
   initialBlId.value = blId;
   isDetailOpen.value = true;
+}
+
+function copyJob(jobId: string) {
+  // Navigate to create page with copyFrom query so it can prefill data
+  router.push(`/operational/jobs/create?copyFrom=${jobId}`);
+}
+
+async function deactivateJob(jobInput: unknown) {
+  // TODO: replace with proper Job type from composable
+  const job = jobInput as {
+    id: string;
+    jobNumber: string;
+    status?: string | { code?: string } | null;
+  };
+  const status = (
+    typeof job.status === "string" ? job.status : job.status?.code || ""
+  ).toUpperCase();
+  if (["CANCELLED", "VOID", "COMPLETED", "CLOSED", "DONE"].includes(status)) {
+    toast.error("Job sudah tidak aktif");
+    return;
+  }
+
+  const confirmed = await confirm({
+    title: "Nonaktifkan Job",
+    message: `Apakah Anda yakin ingin menonaktifkan job ${job.jobNumber}?`,
+    confirmText: "Nonaktifkan",
+    type: "warning",
+  });
+  if (!confirmed) return;
+
+  const res = await updateJob(job.id, { status: "CANCELLED" });
+  if (res.success) {
+    toast.success("Job berhasil dinonaktifkan");
+    await fetchJobs();
+  } else {
+    toast.error(res.error || "Gagal menonaktifkan job");
+  }
 }
 
 watch(
@@ -128,16 +216,52 @@ watch(
       </div>
     </div>
 
+    <!-- Stats Cards (same style as Dashboard) -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <DashboardStatCard title="Total Jobs" :value="String(stats.total)" :icon="Briefcase" />
+      <DashboardStatCard title="Ongoing Jobs" :value="String(stats.active)" :icon="CheckCircle2" />
+      <DashboardStatCard title="AIR (Plane)" :value="String(stats.air)" :icon="Plane" />
+      <DashboardStatCard title="OCEAN (Vessel)" :value="String(stats.ocean)" :icon="Ship" />
+    </div>
+
     <!-- Filters -->
-    <div class="flex items-center justify-between gap-4">
-      <div class="relative w-full max-w-sm">
-        <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-        <input
-          v-model="searchQuery"
-          type="text"
-          placeholder="Cari job..."
-          class="w-full pl-10 pr-4 py-2 text-sm border border-border rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground"
-        />
+    <div class="flex flex-wrap items-center justify-between gap-4">
+      <div class="flex items-center gap-3 flex-1 min-w-0">
+        <!-- Search -->
+        <div class="relative flex-1 max-w-sm">
+          <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <input
+            v-model="searchQuery"
+            type="text"
+            placeholder="Cari job..."
+            class="w-full pl-10 pr-4 py-2 text-sm border border-border rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground"
+          />
+        </div>
+
+        <!-- Filters (stay together, no wrap) -->
+        <div class="flex items-center gap-3 shrink-0">
+          <!-- Status Filter -->
+          <div class="w-44">
+            <Combobox
+              v-model="statusFilter"
+              :options="statusOptions"
+              label-key="label"
+              value-key="value"
+              placeholder="Semua Status"
+            />
+          </div>
+
+          <!-- Shipment Type Filter -->
+          <div class="w-44">
+            <Combobox
+              v-model="shipmentTypeFilter"
+              :options="shipmentTypeOptions"
+              label-key="label"
+              value-key="value"
+              placeholder="Semua Tipe"
+            />
+          </div>
+        </div>
       </div>
 
       <div class="flex items-center gap-3">
@@ -206,7 +330,8 @@ watch(
               <td class="py-3 px-4">
                 <div class="flex items-center gap-2">
                   <div class="p-1.5 rounded bg-blue-50 text-[#012D5A]">
-                    <Ship class="w-4 h-4" />
+                    <Plane v-if="job.shipmentType === 'AIR'" class="w-4 h-4" />
+                    <Ship v-else class="w-4 h-4" />
                   </div>
                   <div class="flex flex-col">
                     <span class="text-sm font-semibold text-[#012D5A]">{{ job.jobNumber }}</span>
@@ -341,6 +466,28 @@ watch(
                         <Edit class="w-4 h-4" />
                         Edit
                       </NuxtLink>
+                      <button
+                        class="w-full px-4 py-2 text-left text-sm hover:bg-muted flex items-center gap-2"
+                        @click="copyJob(job.id)"
+                      >
+                        <Copy class="w-4 h-4" />
+                        Copy Job
+                      </button>
+                      <button
+                        v-if="
+                          !['CANCELLED', 'VOID', 'COMPLETED', 'CLOSED', 'DONE'].includes(
+                            (typeof job.status === 'string'
+                              ? job.status
+                              : job.status?.code || ''
+                            ).toUpperCase(),
+                          )
+                        "
+                        class="w-full px-4 py-2 text-left text-sm hover:bg-red-50 text-red-600 flex items-center gap-2"
+                        @click="deactivateJob(job)"
+                      >
+                        <PowerOff class="w-4 h-4" />
+                        Nonaktifkan Job
+                      </button>
                     </template>
                   </UiActionMenu>
                 </div>
@@ -367,7 +514,8 @@ watch(
             <div
               class="w-12 h-12 rounded-lg bg-blue-50 text-[#012D5A] flex items-center justify-center shrink-0"
             >
-              <Ship class="w-6 h-6" />
+              <Plane v-if="job.shipmentType === 'AIR'" class="w-6 h-6" />
+              <Ship v-else class="w-6 h-6" />
             </div>
             <div>
               <h3 class="font-bold text-base text-foreground">{{ job.jobNumber }}</h3>
@@ -410,6 +558,28 @@ watch(
                   <Edit class="w-4 h-4" />
                   Edit
                 </NuxtLink>
+                <button
+                  class="w-full px-4 py-2 text-left text-sm hover:bg-muted flex items-center gap-2"
+                  @click="copyJob(job.id)"
+                >
+                  <Copy class="w-4 h-4" />
+                  Copy Job
+                </button>
+                <button
+                  v-if="
+                    !['CANCELLED', 'VOID', 'COMPLETED', 'CLOSED', 'DONE'].includes(
+                      (typeof job.status === 'string'
+                        ? job.status
+                        : job.status?.code || ''
+                      ).toUpperCase(),
+                    )
+                  "
+                  class="w-full px-4 py-2 text-left text-sm hover:bg-red-50 text-red-600 flex items-center gap-2"
+                  @click="deactivateJob(job)"
+                >
+                  <PowerOff class="w-4 h-4" />
+                  Nonaktifkan Job
+                </button>
               </template>
             </UiActionMenu>
           </div>

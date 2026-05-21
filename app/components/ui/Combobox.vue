@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Check, ChevronsUpDown, Plus, X } from "lucide-vue-next";
 import { onClickOutside } from "@vueuse/core";
-import { cn } from "~/lib/utils";
+import { useFloating, autoUpdate, offset, flip, shift, size } from "@floating-ui/vue";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type ComboboxOption = Record<string, any>;
@@ -30,6 +30,7 @@ const emit = defineEmits<{
 const open = ref(false);
 const searchQuery = ref("");
 const containerRef = ref<HTMLElement | null>(null);
+const floatingRef = ref<HTMLElement | null>(null);
 const inputRef = ref<HTMLInputElement | null>(null);
 
 watch(searchQuery, (q) => {
@@ -141,16 +142,23 @@ onClickOutside(containerRef as Ref<HTMLElement>, () => {
   open.value = false;
 });
 
-// Compute dropdown position for teleport
-const dropdownStyle = computed(() => {
-  if (!containerRef.value) return {};
-  const rect = containerRef.value.getBoundingClientRect();
-  return {
-    top: `${rect.bottom + 4}px`,
-    left: `${rect.left}px`,
-    width: `${rect.width}px`,
-    maxWidth: `${rect.width}px`,
-  };
+// === CLEAN FLOATING POSITIONING (using @floating-ui/vue) ===
+const { floatingStyles } = useFloating(containerRef, floatingRef, {
+  strategy: "fixed", // important when using Teleport to body
+  placement: "bottom-start",
+  middleware: [
+    offset(4),
+    flip(),
+    shift({ padding: 8 }),
+    size({
+      apply({ rects, elements }) {
+        Object.assign(elements.floating.style, {
+          width: `${rects.reference.width}px`,
+        });
+      },
+    }),
+  ],
+  whileElementsMounted: autoUpdate, // auto updates on scroll, resize, etc.
 });
 </script>
 
@@ -182,8 +190,9 @@ const dropdownStyle = computed(() => {
     <Teleport to="body">
       <div
         v-if="open"
-        class="fixed z-[1200] mt-1 max-h-60 w-full overflow-auto rounded-md border bg-white dark:bg-slate-950 text-popover-foreground shadow-md animate-in fade-in-0 zoom-in-95"
-        :style="dropdownStyle"
+        ref="floatingRef"
+        class="fixed z-[1200] max-h-60 w-full overflow-auto rounded-md border bg-white dark:bg-slate-950 text-popover-foreground shadow-lg transition-opacity duration-100 ease-out"
+        :style="floatingStyles"
       >
         <div class="flex items-center border-b px-3 sticky top-0 bg-white dark:bg-slate-950 z-10">
           <input
