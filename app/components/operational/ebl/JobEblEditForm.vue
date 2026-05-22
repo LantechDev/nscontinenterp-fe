@@ -750,14 +750,14 @@ const removeShipperRef = (index: number) => {
                 <div class="md:col-span-3 space-y-2">
                   <label
                     class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1"
-                    >Voyage No</label
+                    >{{ isAir ? "Plane No" : "Voyage No" }}</label
                   >
                   <input
                     v-model="vessel.voyageNumber"
                     v-uppercase
                     type="text"
                     class="input-field h-10"
-                    placeholder="Voyage..."
+                    :placeholder="isAir ? 'Plane No...' : 'Voyage...'"
                   />
                 </div>
 

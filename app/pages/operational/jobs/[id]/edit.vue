@@ -1353,17 +1353,6 @@ function addVessel() {
                 <Combobox v-model="formData.tradeTypeId" :options="TRADE_TYPES" />
               </div>
 
-              <!-- Type of Shipment -->
-              <div v-if="formData.serviceType === 'OCEAN'" class="space-y-2">
-                <div class="h-6 flex items-center">
-                  <label
-                    class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
-                    >TYPE OF SHIPMENT <span class="text-destructive">*</span></label
-                  >
-                </div>
-                <Combobox v-model="formData.shipmentType" :options="SHIPMENT_TYPES" />
-              </div>
-
               <!-- Service Type -->
               <div class="space-y-2">
                 <div class="h-6 flex items-center">
@@ -1373,6 +1362,17 @@ function addVessel() {
                   >
                 </div>
                 <Combobox v-model="formData.serviceType" :options="SERVICE_TYPES" />
+              </div>
+
+              <!-- Type of Shipment -->
+              <div v-if="formData.serviceType === 'OCEAN'" class="space-y-2">
+                <div class="h-6 flex items-center">
+                  <label
+                    class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
+                    >TYPE OF SHIPMENT <span class="text-destructive">*</span></label
+                  >
+                </div>
+                <Combobox v-model="formData.shipmentType" :options="SHIPMENT_TYPES" />
               </div>
 
               <!-- Truck Type (Conditional) -->
