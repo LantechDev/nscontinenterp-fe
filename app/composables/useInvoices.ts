@@ -169,7 +169,12 @@ async function getNextInvoiceNumber(jobId: string): Promise<string> {
     return data.nextNumber;
   } catch (error) {
     console.error("[Invoices] Failed to get next number:", error);
-    return `INV-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+    const now = new Date();
+    const yy = now.getFullYear().toString().slice(-2);
+    const mm = (now.getMonth() + 1).toString().padStart(2, "0");
+    const dd = now.getDate().toString().padStart(2, "0");
+    const random = Math.floor(10000 + Math.random() * 90000);
+    return `ID${yy}${mm}${dd}${random}`;
   }
 }
 

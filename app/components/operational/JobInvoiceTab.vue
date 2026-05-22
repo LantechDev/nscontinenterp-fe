@@ -15,6 +15,7 @@ import {
   Printer,
   FileText,
   ChevronRight,
+  History,
 } from "lucide-vue-next";
 import JobInvoiceForm from "./JobInvoiceForm.vue";
 import JobInvoicePreview from "./JobInvoicePreview.vue";
@@ -24,6 +25,8 @@ import Modal from "~/components/ui/Modal.vue";
 import { useInvoices, type InvoiceDetail } from "~/composables/useInvoices";
 import { useQuotations, type Quotation } from "~/composables/useQuotations";
 import { toast } from "vue-sonner";
+import JobFinanceHistoryModal from "./JobFinanceHistoryModal.vue";
+import type { ActivityLog } from "~/lib/activity-log-api";
 
 const props = defineProps<{
   jobId: string;
@@ -38,7 +41,7 @@ const emit = defineEmits<{
   (e: "refresh-job"): void;
 }>();
 
-const { fetchInvoices, isLoading, fetchInvoiceById, voidInvoice } = useInvoices();
+const { fetchInvoices, isLoading, fetchInvoiceById, voidInvoice, deleteInvoice } = useInvoices();
 const { fetchQuotations } = useQuotations();
 const invoices = ref<
   Array<{
@@ -63,6 +66,46 @@ const previewRef = ref<InstanceType<typeof JobInvoicePreview> | null>(null);
 const isGeneratingPDF = ref(false);
 const isVoiding = ref(false);
 const showVoidConfirm = ref(false);
+const isDeleting = ref(false);
+const showDeleteConfirm = ref(false);
+const showHistoryModal = ref(false);
+const isLoadingHistory = ref(false);
+const historyLogs = ref<ActivityLog[]>([]);
+
+const isJobHistory = ref(false);
+
+const fetchInvoiceHistory = async (invoiceId: string) => {
+  isJobHistory.value = false;
+  showHistoryModal.value = true;
+  isLoadingHistory.value = true;
+  try {
+    const data = await $fetch<ActivityLog[]>(`/api/finance/invoice/${invoiceId}/activity-logs`);
+    historyLogs.value = data || [];
+  } catch (err) {
+    console.error("Failed to load invoice history:", err);
+    toast.error("Failed to load invoice history");
+  } finally {
+    isLoadingHistory.value = false;
+  }
+};
+
+const fetchJobInvoiceHistory = async () => {
+  isJobHistory.value = true;
+  showHistoryModal.value = true;
+  isLoadingHistory.value = true;
+  try {
+    const data = await $fetch<ActivityLog[]>(
+      `/api/operational/jobs/${props.jobId}/invoice-activity-logs`,
+    );
+    historyLogs.value = data || [];
+  } catch (err) {
+    console.error("Failed to load job invoice history:", err);
+    toast.error("Failed to load job invoice history");
+  } finally {
+    isLoadingHistory.value = false;
+  }
+};
+
 const showMoreActions = ref(false);
 const printMode = ref<"invoice" | "receipt">("invoice");
 const printReceiptAmount = ref<number | undefined>(undefined);
@@ -181,6 +224,23 @@ const handleVoid = async () => {
     toast.error(result.error || "Failed to void invoice");
   }
   isVoiding.value = false;
+};
+
+const handleDeleteInvoice = async () => {
+  if (!activeInvoice.value) return;
+
+  isDeleting.value = true;
+  const result = await deleteInvoice(activeInvoice.value.id);
+  if (result.success) {
+    showDeleteConfirm.value = false;
+    activeInvoice.value = null;
+    await loadInvoices();
+    emit("refresh-job");
+    toast.success("Invoice deleted successfully");
+  } else {
+    toast.error(result.error || "Failed to delete invoice");
+  }
+  isDeleting.value = false;
 };
 
 onMounted(async () => {
@@ -579,6 +639,17 @@ const handlePaymentVoided = async () => {
               </button>
 
               <button
+                @click="
+                  fetchInvoiceHistory(activeInvoice.id);
+                  showMoreActions = false;
+                "
+                class="w-full text-left px-4 py-2.5 hover:bg-muted flex items-center gap-3 text-xs font-bold text-foreground transition-colors border-none bg-transparent outline-none"
+              >
+                <History class="w-4 h-4 text-muted-foreground" />
+                View History Logs
+              </button>
+
+              <button
                 v-if="activeInvoice.status?.code !== 'VOIDED' && !isCompleted"
                 @click="
                   showVoidConfirm = true;
@@ -588,6 +659,22 @@ const handlePaymentVoided = async () => {
               >
                 <Ban class="w-4 h-4" />
                 Void Commercial Invoice
+              </button>
+
+              <button
+                v-if="
+                  activeInvoice.status?.code !== 'PAID' &&
+                  activeInvoice.status?.code !== 'PARTIALLY_PAID' &&
+                  !isCompleted
+                "
+                @click="
+                  showDeleteConfirm = true;
+                  showMoreActions = false;
+                "
+                class="w-full text-left px-4 py-2.5 hover:bg-red-50 flex items-center gap-3 text-xs font-bold text-red-600 transition-colors border-none bg-transparent outline-none"
+              >
+                <Trash2 class="w-4 h-4" />
+                Delete Invoice
               </button>
             </div>
           </div>
@@ -682,25 +769,36 @@ const handlePaymentVoided = async () => {
     <div v-else class="space-y-6">
       <div class="flex items-center justify-between">
         <h3 class="text-base font-bold text-foreground">Job Invoices</h3>
-        <div v-if="!isCompleted" class="flex items-center gap-2">
+        <div class="flex items-center gap-2">
+          <!-- Always show Job Invoice Logs -->
           <button
-            @click="openQuotationPicker"
-            class="inline-flex items-center px-3 py-1.5 bg-white border border-[#062c58]/20 text-[#062c58] text-xs font-semibold rounded-md hover:bg-blue-50 transition-colors gap-1.5 shadow-sm"
+            @click="fetchJobInvoiceHistory"
+            class="inline-flex items-center px-3 py-1.5 bg-white border border-slate-200 text-slate-700 text-xs font-semibold rounded-md hover:bg-slate-50 transition-colors gap-1.5 shadow-sm"
           >
-            <FileText class="w-3.5 h-3.5" />
-            From Quotation
+            <History class="w-3.5 h-3.5 text-slate-500" />
+            Job Invoice Logs
           </button>
-          <button
-            @click="
-              showForm = true;
-              selectedQuotation = null;
-              prefillFromQuotation = null;
-            "
-            class="inline-flex items-center px-3 py-1.5 bg-[#062c58] text-white text-xs font-semibold rounded-md hover:bg-[#062c58]/90 transition-colors gap-1.5 shadow-sm"
-          >
-            <Plus class="w-3.5 h-3.5" />
-            Create Invoice
-          </button>
+
+          <div v-if="!isCompleted" class="flex items-center gap-2">
+            <button
+              @click="openQuotationPicker"
+              class="inline-flex items-center px-3 py-1.5 bg-white border border-[#062c58]/20 text-[#062c58] text-xs font-semibold rounded-md hover:bg-blue-50 transition-colors gap-1.5 shadow-sm"
+            >
+              <FileText class="w-3.5 h-3.5" />
+              From Quotation
+            </button>
+            <button
+              @click="
+                showForm = true;
+                selectedQuotation = null;
+                prefillFromQuotation = null;
+              "
+              class="inline-flex items-center px-3 py-1.5 bg-[#062c58] text-white text-xs font-semibold rounded-md hover:bg-[#062c58]/90 transition-colors gap-1.5 shadow-sm"
+            >
+              <Plus class="w-3.5 h-3.5" />
+              Create Invoice
+            </button>
+          </div>
         </div>
       </div>
 
@@ -895,5 +993,53 @@ const handlePaymentVoided = async () => {
         </div>
       </div>
     </Modal>
+
+    <!-- Delete Confirmation Modal -->
+    <Modal
+      v-model="showDeleteConfirm"
+      title="Delete Invoice"
+      description="Are you sure you want to delete this invoice? This will soft-delete the invoice and hide it from all lists."
+      width="max-w-sm"
+    >
+      <div class="space-y-4 pt-2">
+        <div class="p-3 bg-red-50 border border-red-100 rounded-lg flex items-start gap-3">
+          <AlertCircle class="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+          <p class="text-xs text-red-800 leading-relaxed font-medium">
+            Deleting an invoice will hide it from normal views, reports, and calculations. You can
+            recover it later if needed.
+          </p>
+        </div>
+        <div class="flex justify-end gap-3 pt-2">
+          <button
+            @click="showDeleteConfirm = false"
+            class="px-4 py-2 text-xs font-bold text-muted-foreground hover:bg-muted rounded-md transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            @click="handleDeleteInvoice"
+            :disabled="isDeleting"
+            class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-md shadow-sm transition-colors flex items-center gap-2"
+          >
+            <Loader2 v-if="isDeleting" class="w-3.5 h-3.5 animate-spin" />
+            {{ isDeleting ? "Deleting..." : "Confirm Delete" }}
+          </button>
+        </div>
+      </div>
+    </Modal>
+
+    <!-- History Log Modal -->
+    <JobFinanceHistoryModal
+      v-model="showHistoryModal"
+      :is-job-history="isJobHistory"
+      :is-loading="isLoadingHistory"
+      :history-logs="historyLogs"
+      :title="isJobHistory ? 'Job Invoice Logs' : 'Activity History'"
+      :description="
+        isJobHistory
+          ? 'List of all activity and invoice logs for this job.'
+          : 'List of all activities and changes related to this invoice.'
+      "
+    />
   </div>
 </template>
