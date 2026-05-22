@@ -1,14 +1,6 @@
-export interface ServiceCategory {
-  id: string;
-  code: string;
-  name: string;
-}
+import type { ServiceCategory, ServiceUnit } from "~/types/master";
 
-export interface ServiceUnit {
-  id: string;
-  code: string;
-  name: string;
-}
+export type { ServiceCategory, ServiceUnit };
 
 export interface Service {
   id: string;

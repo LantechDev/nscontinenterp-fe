@@ -107,7 +107,13 @@ export function useRoleAccess() {
     if (
       path.startsWith("/master/company") ||
       path.startsWith("/master/services") ||
-      path.startsWith("/master/vessel")
+      path.startsWith("/master/vessel") ||
+      path.startsWith("/master/plane") ||
+      path.startsWith("/master/bank-account") ||
+      path.startsWith("/master/tax") ||
+      path.startsWith("/master/bl-conditions") ||
+      path.startsWith("/master/service-categories") ||
+      path.startsWith("/master/service-units")
     ) {
       return hasAnyPermission("company");
     }
