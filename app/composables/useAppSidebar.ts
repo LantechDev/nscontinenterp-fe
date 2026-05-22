@@ -26,6 +26,8 @@ import {
   Shield,
   History,
   Globe,
+  Tag,
+  Scale,
 } from "lucide-vue-next";
 import type { Organization } from "~/types/auth";
 
@@ -50,6 +52,8 @@ export const NAV_ITEMS: NavItem[] = [
     children: [
       { title: "Company", href: "/master/company", icon: Building2 },
       { title: "Service", href: "/master/services", icon: Wrench },
+      { title: "Service Category", href: "/master/service-categories", icon: Tag },
+      { title: "Service Unit", href: "/master/service-units", icon: Scale },
       { title: "Vessel", href: "/master/vessel", icon: Anchor },
       { title: "Plane", href: "/master/plane", icon: Plane },
       { title: "Bank Account", href: "/master/bank-account", icon: Landmark },

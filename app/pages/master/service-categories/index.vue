@@ -1,0 +1,242 @@
+<script setup lang="ts">
+import { Plus, Search, Loader2, Trash2 } from "lucide-vue-next";
+import type { ServiceCategory } from "~/types/master";
+import { CategoryFormModal, CategoryTable, CategoryStats } from "./components";
+
+definePageMeta({
+  layout: "dashboard",
+});
+
+const {
+  categories: categoriesList,
+  stats,
+  isLoading,
+  fetchCategories,
+  createCategory,
+  updateCategory,
+  deleteCategory,
+} = useServiceCategories();
+
+const { pending } = await useAsyncData("categories-list", () => fetchCategories(), {
+  server: false,
+});
+
+// Search state
+const searchQuery = ref("");
+
+// Filtered categories (keep full ServiceCategory objects to satisfy table prop types and enable accurate date sorting)
+const filteredCategories = computed(() => {
+  let list = categoriesList.value;
+  if (searchQuery.value) {
+    const query = searchQuery.value.toLowerCase();
+    list = list.filter(
+      (c) => c.name.toLowerCase().includes(query) || c.code.toLowerCase().includes(query),
+    );
+  }
+  return list;
+});
+
+// Sorting state
+const sortField = ref<string>("name");
+const sortDirection = ref<"asc" | "desc">("asc");
+
+const sortedCategories = computed(() => {
+  const sorted = [...filteredCategories.value];
+  sorted.sort((a, b) => {
+    let comparison = 0;
+    switch (sortField.value) {
+      case "name":
+        comparison = a.name.localeCompare(b.name);
+        break;
+      case "code":
+        comparison = a.code.localeCompare(b.code);
+        break;
+      case "createdAt":
+        comparison = a.createdAt.localeCompare(b.createdAt);
+        break;
+      default:
+        comparison = a.name.localeCompare(b.name);
+    }
+    return sortDirection.value === "asc" ? comparison : -comparison;
+  });
+  return sorted;
+});
+
+const toggleSort = (field: string) => {
+  if (sortField.value === field) {
+    sortDirection.value = sortDirection.value === "asc" ? "desc" : "asc";
+  } else {
+    sortField.value = field;
+    sortDirection.value = "asc";
+  }
+};
+
+// Modal state
+const isModalOpen = ref(false);
+const isSubmitting = ref(false);
+const formError = ref<string | null>(null);
+const editingCategory = ref<ServiceCategory | null>(null);
+
+const openCreateModal = () => {
+  editingCategory.value = null;
+  isModalOpen.value = true;
+};
+
+const openEditModal = (category: ServiceCategory) => {
+  editingCategory.value = category;
+  isModalOpen.value = true;
+};
+
+const handleSubmit = async (formData: { name: string }) => {
+  if (!formData.name) {
+    formError.value = "Category name is required";
+    return;
+  }
+
+  isSubmitting.value = true;
+  formError.value = null;
+
+  const categoryData = {
+    name: formData.name,
+  };
+
+  let result;
+  if (editingCategory.value) {
+    result = await updateCategory(editingCategory.value.id, categoryData);
+  } else {
+    result = await createCategory(categoryData);
+  }
+
+  if (result.success) {
+    isModalOpen.value = false;
+    editingCategory.value = null;
+    await fetchCategories();
+  } else {
+    formError.value = result.error || "Failed to save category";
+  }
+
+  isSubmitting.value = false;
+};
+
+// Delete confirmation
+const isDeleteModalOpen = ref(false);
+const categoryToDelete = ref<ServiceCategory | null>(null);
+
+const openDeleteModal = (category: ServiceCategory) => {
+  categoryToDelete.value = category;
+  isDeleteModalOpen.value = true;
+};
+
+const handleDelete = async () => {
+  if (!categoryToDelete.value) return;
+
+  isSubmitting.value = true;
+  const result = await deleteCategory(categoryToDelete.value.id);
+
+  if (result.success) {
+    isDeleteModalOpen.value = false;
+    categoryToDelete.value = null;
+    await fetchCategories();
+  } else {
+    formError.value = result.error || "Failed to delete category";
+  }
+
+  isSubmitting.value = false;
+};
+</script>
+
+<template>
+  <div class="space-y-6 animate-fade-in p-6">
+    <!-- Page header -->
+    <div class="flex items-center justify-between">
+      <h1 class="text-2xl font-bold">Service Category</h1>
+    </div>
+
+    <!-- Stats Cards -->
+    <CategoryStats :total="stats.total" />
+
+    <!-- Filters -->
+    <div class="flex items-center justify-between gap-4">
+      <div class="relative w-full max-w-sm">
+        <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        <input
+          v-model="searchQuery"
+          type="text"
+          placeholder="Search Category..."
+          class="w-full pl-10 pr-4 py-2 text-sm border border-border rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground"
+        />
+      </div>
+
+      <button
+        @click="openCreateModal"
+        class="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-[#012D5A] text-white hover:bg-[#012D5A]/90 rounded-lg transition-colors min-w-fit whitespace-nowrap"
+      >
+        <Plus class="w-4 h-4" />
+        <span>New Category</span>
+      </button>
+    </div>
+
+    <!-- Loading State -->
+    <div v-if="isLoading" class="flex items-center justify-center py-12">
+      <Loader2 class="w-8 h-8 animate-spin text-[#012D5A]" />
+    </div>
+
+    <!-- Table -->
+    <CategoryTable
+      v-else
+      :categories="sortedCategories"
+      :sort-field="sortField"
+      :sort-direction="sortDirection"
+      @toggle-sort="toggleSort"
+      @edit="openEditModal"
+      @delete="openDeleteModal"
+    />
+
+    <!-- Create/Edit Modal -->
+    <CategoryFormModal
+      :is-open="isModalOpen"
+      :is-submitting="isSubmitting"
+      :error="formError"
+      :editing-category="editingCategory"
+      @update:is-open="(val) => (isModalOpen = val)"
+      @submit="handleSubmit"
+    />
+
+    <!-- Delete Confirmation Modal -->
+    <UiModal
+      v-model="isDeleteModalOpen"
+      title="Delete Category"
+      description="Are you sure you want to delete this category? This action cannot be undone."
+      width="max-w-md"
+    >
+      <div v-if="categoryToDelete" class="py-4">
+        <p class="text-sm text-muted-foreground">
+          You are about to delete
+          <span class="font-medium text-foreground">{{ categoryToDelete.name }}</span
+          >.
+        </p>
+      </div>
+
+      <template #footer>
+        <button
+          type="button"
+          @click="isDeleteModalOpen = false"
+          class="px-4 py-2 text-sm font-medium bg-white border border-gray-300 rounded-lg text-foreground hover:bg-gray-50 transition-colors"
+          :disabled="isSubmitting"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          @click="handleDelete"
+          :disabled="isSubmitting"
+          class="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <Loader2 v-if="isSubmitting" class="w-4 h-4 animate-spin" />
+          <Trash2 v-else class="w-4 h-4" />
+          {{ isSubmitting ? "Deleting..." : "Delete" }}
+        </button>
+      </template>
+    </UiModal>
+  </div>
+</template>
