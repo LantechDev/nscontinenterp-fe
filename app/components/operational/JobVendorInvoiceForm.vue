@@ -4,7 +4,6 @@ import { useFinanceExpense, type Expense, type ExpenseItem } from "~/composables
 import { useFinanceTax, type Tax } from "~/composables/useFinanceTax";
 import { useCompanies } from "~/composables/useCompanies";
 import { useServices } from "~/composables/useServices";
-import { useJobs } from "~/composables/useJobs";
 import SearchSelect, { type SearchSelectOption } from "~/components/ui/SearchSelect.vue";
 import Combobox from "~/components/ui/Combobox.vue";
 import CompanyCreateModal from "~/pages/master/company/components/CompanyCreateModal.vue";
@@ -40,7 +39,6 @@ const { createExpense, updateExpense, isLoading } = useFinanceExpense();
 const { fetchTaxes } = useFinanceTax();
 const { fetchCompanies, createCompany } = useCompanies();
 const { services, fetchServices, createService, fetchCategories } = useServices();
-const { getJob } = useJobs();
 
 const taxList = ref<Tax[]>([]);
 const taxOptions = ref<Array<{ id: string; name: string }>>([]);
@@ -265,21 +263,6 @@ onMounted(async () => {
   } else {
     // Generate expense number
     form.value.number = `EXP-${Date.now().toString().slice(-6)}`;
-
-    // Auto-select vendor from Job if available
-    const jobRes = await getJob(props.jobId);
-    if (jobRes.success && jobRes.data?.vendorId) {
-      form.value.vendorId = jobRes.data.vendorId;
-      // Add to initial options so SearchSelect can show the name
-      if (jobRes.data.vendor) {
-        vendorOptions.value = [
-          {
-            id: jobRes.data.vendorId,
-            name: jobRes.data.vendor.name,
-          },
-        ];
-      }
-    }
   }
 });
 

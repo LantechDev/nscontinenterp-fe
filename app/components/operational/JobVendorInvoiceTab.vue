@@ -10,6 +10,7 @@ import {
   ArrowLeft,
   Download,
   Ban,
+  History,
 } from "lucide-vue-next";
 import JobVendorInvoiceForm from "./JobVendorInvoiceForm.vue";
 import JobVendorInvoicePreview from "./JobVendorInvoicePreview.vue";
@@ -18,6 +19,8 @@ import PaymentEntryForm from "~/components/finance/PaymentEntryForm.vue";
 import Modal from "~/components/ui/Modal.vue";
 import { useFinanceExpense, type Expense } from "~/composables/useFinanceExpense";
 import { toast } from "vue-sonner";
+import JobFinanceHistoryModal from "./JobFinanceHistoryModal.vue";
+import type { ActivityLog } from "~/lib/activity-log-api";
 
 const props = defineProps<{
   jobId: string;
@@ -49,6 +52,43 @@ const showMoreActions = ref(false);
 const paymentTabRef = ref<InstanceType<typeof JobPaymentTab> | null>(null);
 const isVoiding = ref(false);
 const showVoidConfirm = ref(false);
+
+const showHistoryModal = ref(false);
+const isLoadingHistory = ref(false);
+const historyLogs = ref<ActivityLog[]>([]);
+const isJobHistory = ref(false);
+
+const fetchExpenseHistory = async (expenseId: string) => {
+  isJobHistory.value = false;
+  showHistoryModal.value = true;
+  isLoadingHistory.value = true;
+  try {
+    const data = await $fetch<ActivityLog[]>(`/api/finance/expense/${expenseId}/activity-logs`);
+    historyLogs.value = data || [];
+  } catch (err) {
+    console.error("Failed to load expense history:", err);
+    toast.error("Failed to load expense history");
+  } finally {
+    isLoadingHistory.value = false;
+  }
+};
+
+const fetchJobInvoiceHistory = async () => {
+  isJobHistory.value = true;
+  showHistoryModal.value = true;
+  isLoadingHistory.value = true;
+  try {
+    const data = await $fetch<ActivityLog[]>(
+      `/api/operational/jobs/${props.jobId}/invoice-activity-logs`,
+    );
+    historyLogs.value = data || [];
+  } catch (err) {
+    console.error("Failed to load job invoice history:", err);
+    toast.error("Failed to load job invoice history");
+  } finally {
+    isLoadingHistory.value = false;
+  }
+};
 
 const loadExpenses = async () => {
   isLoading.value = true;
@@ -358,6 +398,17 @@ const getStatusColor = (code?: string) => {
                   <Ban class="w-4 h-4" />
                   Void Vendor Invoice
                 </button>
+
+                <button
+                  @click="
+                    fetchExpenseHistory(activeExpense.id);
+                    showMoreActions = false;
+                  "
+                  class="w-full text-left px-4 py-2.5 hover:bg-muted/50 flex items-center gap-3 text-xs font-bold text-foreground transition-colors border-none bg-transparent outline-none"
+                >
+                  <History class="w-4 h-4 text-muted-foreground" />
+                  View History Logs
+                </button>
               </div>
             </div>
           </div>
@@ -432,14 +483,25 @@ const getStatusColor = (code?: string) => {
     <div v-else class="space-y-6">
       <div class="flex items-center justify-between">
         <h3 class="text-base font-bold text-foreground">Vendor Invoices (Invoice Masuk)</h3>
-        <button
-          v-if="!isCompleted"
-          @click="openCreateForm"
-          class="inline-flex items-center px-3 py-1.5 bg-[#012D5A] text-white text-xs font-semibold rounded-md hover:bg-[#012D5A]/90 transition-colors gap-1.5 shadow-sm uppercase tracking-wider"
-        >
-          <Plus class="w-3.5 h-3.5" />
-          Record Invoice
-        </button>
+        <div class="flex items-center gap-2">
+          <!-- Always show Job Invoice Logs -->
+          <button
+            @click="fetchJobInvoiceHistory"
+            class="inline-flex items-center px-3 py-1.5 bg-white border border-slate-200 text-slate-700 text-xs font-semibold rounded-md hover:bg-slate-50 transition-colors gap-1.5 shadow-sm"
+          >
+            <History class="w-3.5 h-3.5 text-slate-500" />
+            Job Invoice Logs
+          </button>
+
+          <button
+            v-if="!isCompleted"
+            @click="openCreateForm"
+            class="inline-flex items-center px-3 py-1.5 bg-[#012D5A] text-white text-xs font-semibold rounded-md hover:bg-[#012D5A]/90 transition-colors gap-1.5 shadow-sm uppercase tracking-wider"
+          >
+            <Plus class="w-3.5 h-3.5" />
+            Record Invoice
+          </button>
+        </div>
       </div>
 
       <div
@@ -611,5 +673,19 @@ const getStatusColor = (code?: string) => {
         </div>
       </div>
     </Modal>
+
+    <!-- History Log Modal -->
+    <JobFinanceHistoryModal
+      v-model="showHistoryModal"
+      :is-job-history="isJobHistory"
+      :is-loading="isLoadingHistory"
+      :history-logs="historyLogs"
+      :title="isJobHistory ? 'Job Invoice Logs' : 'Activity History'"
+      :description="
+        isJobHistory
+          ? 'List of all activity and invoice logs for this job.'
+          : 'List of all activities and changes related to this vendor invoice.'
+      "
+    />
   </div>
 </template>
