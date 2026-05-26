@@ -160,11 +160,8 @@ const removeVessel = (idx: number) => {
 const saveVessels = async () => {
   if (!props.jobId) return;
 
-  // Clean sync: ensure vesselName is always up-to-date from master data before persisting.
-  // This keeps the denormalized display name correct in job_vessels for all consumers.
   syncTransportNames();
 
-  // Keep top-level job.eta in sync with the final leg (last vessel/plane)
   const lastLeg =
     editableVessels.value.length > 0
       ? editableVessels.value[editableVessels.value.length - 1]
@@ -182,11 +179,6 @@ const saveVessels = async () => {
   }
 };
 
-/**
- * Sync vesselName from the currently loaded master list for every selected transport.
- * Called on selection changes (via watcher) and explicitly before save.
- * This is the single source of truth for keeping display names correct in the junction table.
- */
 const syncTransportNames = () => {
   const list = isAir.value ? masterPlanes.value : masterVessels.value;
 
@@ -514,7 +506,7 @@ watch(
         <div class="slide-panel relative w-full max-w-5xl bg-white h-full shadow-2xl flex flex-col">
           <!-- Header -->
           <div
-            class="px-6 pt-5 pb-4 border-b border-border flex items-center justify-between shrink-0 bg-white z-20"
+            class="px-6 pt-5 pb-4 border-b border-border flex items-center justify-between shrink-0 bg-white relative z-20"
           >
             <div class="flex items-center gap-2 text-sm text-muted-foreground font-medium">
               Job <span class="mx-1">›</span>

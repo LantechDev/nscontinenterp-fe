@@ -60,6 +60,7 @@ export interface EblParty {
 export interface ActiveBlData {
   id?: string;
   status?: string | { code?: string; name?: string };
+  statusId?: string | null;
   blNumber?: string;
   job?: ActiveJobData;
   prepaid?: string;

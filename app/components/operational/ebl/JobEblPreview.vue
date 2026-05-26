@@ -1,16 +1,13 @@
 <script setup lang="ts">
-import { ref, computed, nextTick, onMounted } from "vue";
+import { ref, computed, nextTick, onMounted, watch } from "vue";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import { toast } from "vue-sonner";
-import type {
-  ActiveJobData,
-  ActiveBlData,
-  EblParty,
-  EblContainer,
-  EblContainerItem,
-} from "./types";
+import type { ActiveJobData, ActiveBlData, EblContainer, EblContainerItem } from "./types";
 import { useBlConditions } from "~/composables/useBlConditions";
+import JobEblExportConfig from "./JobEblExportConfig.vue";
+import JobEblFrontPage from "./JobEblFrontPage.vue";
+import JobEblBackPage from "./JobEblBackPage.vue";
 
 const props = defineProps<{
   jobData: ActiveJobData;
@@ -38,153 +35,12 @@ onMounted(async () => {
 const isGeneratingPDF = ref(false);
 const eblContainer = ref<HTMLElement | null>(null);
 
-const blStatus = computed(() => {
-  const s = props.activeBl?.status;
-  const raw = props.activeBl?.statusRaw;
-
-  if (!s) return "";
-  if (typeof s === "string") {
-    const lower = s.toLowerCase();
-    if (lower === "finalized" || lower === "confirmed") return "confirmed";
-    return lower;
-  }
-
-  const code = s.code?.toLowerCase() || "";
-  // Fallback: if raw string is finalized but model is draft, trust raw
-  if (code === "draft" && raw?.toLowerCase() === "finalized") return "confirmed";
-
-  return code;
-});
-
-const isDraft = computed(() => blStatus.value === "draft" || !props.activeBl);
-const isFinalized = computed(
-  () => blStatus.value === "finalized" || blStatus.value === "confirmed",
-);
 const isAir = computed(
   () =>
     props.jobData?.shipmentType === "AIR" ||
     props.activeBl?.job?.shipmentType === "AIR" ||
     props.jobData?.serviceType === "AIR" ||
     props.activeBl?.job?.serviceType === "AIR",
-);
-const documentTitle = computed(() => (isAir.value ? "AIR WAYBILL" : "BILL OF LADING"));
-const documentNumberLabel = computed(() =>
-  isAir.value ? "AIR WAYBILL NO." : "BILL OF LADING NO.",
-);
-const transportScheduleLabel = computed(() =>
-  isAir.value ? "AIRLINE / FLIGHT NO." : "VESSEL/VOYAGE",
-);
-const primaryTransportLabel = computed(() => (isAir.value ? "AIRCRAFT" : "OCEAN VESSEL"));
-const loadingPlaceLabel = computed(() => (isAir.value ? "AIRPORT OF LOADING" : "PORT OF LOADING"));
-const dischargePlaceLabel = computed(() =>
-  isAir.value ? "AIRPORT OF DISCHARGE" : "PORT OF DISCHARGE",
-);
-const continuedTransportLabel = computed(() => (isAir.value ? "FLIGHT" : "VESSEL VOYAGE"));
-const loadedDateLabel = computed(() =>
-  isAir.value ? "FLIGHT DEPARTURE DATE" : "DATE LADEN ON BOARD",
-);
-const issuePlaceLabel = computed(() =>
-  isAir.value ? "PLACE OF AWB ISSUE" : "PLACE OF BILL(S) ISSUE",
-);
-const transportList = computed(() => props.activeBl?.vessels || props.jobData?.vessels || []);
-const getTransportName = (transport?: (typeof transportList.value)[number]) => {
-  if (!transport) return "";
-  if (isAir.value) {
-    return (
-      transport.plane?.name ||
-      (transport.transportType === "plane" ? transport.vesselName : "") ||
-      transport.vesselName ||
-      ""
-    );
-  }
-  return transport.vessel?.name || transport.vesselName || "";
-};
-const transportLegs = computed(() =>
-  transportList.value
-    .map((v) => `${getTransportName(v)} / ${v.voyageNumber || ""}`)
-    .filter((s) => s.trim() !== "/")
-    .join(", "),
-);
-const primaryTransportName = computed(
-  () =>
-    getTransportName(transportList.value[0]) ||
-    (isAir.value
-      ? getVal(props.jobData?.plane?.name, "-")
-      : getVal(props.jobData?.vessel?.name, "-")),
-);
-
-const getVal = (val: unknown, fallback: unknown = "") => {
-  const s = val ? String(val).trim() : fallback ? String(fallback).trim() : "";
-  return s;
-};
-
-const limitText = (val: unknown, maxLength = 18) => {
-  const text = getVal(val);
-  if (text.length <= maxLength) return text;
-  return `${text.slice(0, maxLength).trimEnd()}...`;
-};
-
-const freightPayableAtRaw = computed(() => getVal(props.jobData?.podName, props.jobData?.pod));
-const freightPayableAt = computed(() => limitText(freightPayableAtRaw.value, 18));
-
-const formatNumber = (num: unknown, decimals: number = 3): string => {
-  if (!num && num !== 0) return "-";
-  const n = parseFloat(num as string);
-  if (isNaN(n)) return "-";
-  return n.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: decimals });
-};
-
-const getContainerTotals = (cnt: EblContainer) => {
-  let gw = 0,
-    nw = 0,
-    cbm = 0,
-    qty = 0;
-  if (cnt.items && Array.isArray(cnt.items)) {
-    cnt.items.forEach((item: EblContainerItem) => {
-      qty += Number(item.qty) || 0;
-      gw += Number(item.grossWeight) || 0;
-      nw += Number(item.netWeight) || 0;
-      cbm += Number(item.measurementCbm) || 0;
-    });
-  }
-
-  if (qty === 0) qty = Number(cnt.totalQty) || Number(cnt.quantity) || 0;
-  if (gw === 0) gw = Number(cnt.totalGrossWeight) || Number(cnt.grossWeight) || 0;
-  if (nw === 0) nw = Number(cnt.totalNetWeight) || Number(cnt.netWeight) || 0;
-  if (cbm === 0) cbm = Number(cnt.totalMeasurementCbm) || Number(cnt.measurement) || 0;
-
-  if (containers.value?.length === 1) {
-    if (qty === 0) qty = Number(props.activeBl?.totalQty) || Number(props.jobData?.quantity) || 0;
-    if (gw === 0)
-      gw = Number(props.activeBl?.totalGrossWeight) || Number(props.jobData?.grossWeight) || 0;
-    if (nw === 0)
-      nw = Number(props.activeBl?.totalNetWeight) || Number(props.jobData?.netWeight) || 0;
-    if (cbm === 0)
-      cbm = Number(props.activeBl?.totalMeasurementCbm) || Number(props.jobData?.measurement) || 0;
-  }
-
-  return { gw, nw, cbm, qty };
-};
-
-const findPartyByRole = (roleCodes: string[]) => {
-  const normalizedRoles = roleCodes.map((role) => role.replace(/[\s-]/g, "_").toUpperCase());
-  const parties = [
-    ...(props.activeBl?.job?.jobParties || []),
-    ...(props.jobData?.jobParties || []),
-    ...(props.activeBl?.parties || []),
-  ];
-
-  return parties.find((party: EblParty) => {
-    const code = party.partyRole?.code?.replace(/[\s-]/g, "_").toUpperCase();
-    return code ? normalizedRoles.includes(code) : false;
-  });
-};
-
-const shipper = computed(() => findPartyByRole(["SHIPPER"]));
-const consignee = computed(() => findPartyByRole(["CONSIGNEE"]));
-const notifyParty = computed(() => findPartyByRole(["NOTIFY_PARTY", "NOTIFY PARTY"]));
-const forwardingAgent = computed(() =>
-  findPartyByRole(["FORWARDER", "FORWARDING_AGENT", "FORWARDING AGENT", "AGENT"]),
 );
 
 const containers = computed(() => {
@@ -227,63 +83,6 @@ const containers = computed(() => {
   }
   return [];
 });
-
-const totals = computed(() => {
-  let qty = 0;
-  let grossWeight = 0;
-  let netWeight = 0;
-  let measurement = 0;
-
-  if (containers.value && containers.value.length > 0) {
-    ((containers.value || []) as EblContainer[]).forEach((cnt: EblContainer) => {
-      const ct = getContainerTotals(cnt);
-      qty += ct.qty;
-      grossWeight += ct.gw;
-      netWeight += ct.nw;
-      measurement += ct.cbm;
-    });
-  }
-
-  if (qty === 0) qty = Number(props.activeBl?.totalQty) || Number(props.jobData?.quantity) || 0;
-  if (grossWeight === 0)
-    grossWeight =
-      Number(props.activeBl?.totalGrossWeight) || Number(props.jobData?.grossWeight) || 0;
-  if (netWeight === 0)
-    netWeight = Number(props.activeBl?.totalNetWeight) || Number(props.jobData?.netWeight) || 0;
-  if (measurement === 0)
-    measurement =
-      Number(props.activeBl?.totalMeasurementCbm) || Number(props.jobData?.measurement) || 0;
-
-  return { qty, grossWeight, netWeight, measurement };
-});
-
-const formatPartyDisplay = (partyInfo: EblParty | undefined) => {
-  if (!partyInfo) return "";
-  const name = (partyInfo.companyName || partyInfo.company?.name || "").trim();
-  const address = (
-    partyInfo.addressBook?.fullAddress ||
-    partyInfo.addressBook?.address ||
-    ""
-  ).trim();
-  const city = (partyInfo.addressBook?.city || "").trim();
-  const parts = [name, address, city].filter((p) => p.length > 0);
-  return parts.join("\n");
-};
-
-const formatDate = (dateStr?: string | null) => {
-  if (!dateStr) return "";
-  try {
-    const d = new Date(dateStr);
-    const parts = new Intl.DateTimeFormat("en-GB", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    }).formatToParts(d);
-    return `${parts.find((p) => p.type === "day")?.value} ${parts.find((p) => p.type === "month")?.value.toUpperCase()} ${parts.find((p) => p.type === "year")?.value}`;
-  } catch {
-    return dateStr;
-  }
-};
 
 const LINE_HEIGHT = 16;
 const PAGE_1_MAX_HEIGHT = 200;
@@ -370,6 +169,281 @@ const paginatedPages = computed(() => {
   return pages;
 });
 
+const normalizeBlStatus = (status?: string | null) => {
+  const lower = status?.toLowerCase();
+  if (!lower) return "";
+  if (lower === "finalized" || lower === "confirmed") return "confirmed";
+  if (lower === "pending_approval") return "pending_approval";
+  return lower;
+};
+
+const permanentBlType = computed(() => {
+  const rawStatus =
+    typeof props.activeBl?.status === "string"
+      ? props.activeBl.status
+      : props.activeBl?.status?.code || props.activeBl?.status?.name || "";
+  const statusCandidates = [props.activeBl?.statusRaw, props.activeBl?.statusId, rawStatus].map(
+    (status) => normalizeBlStatus(status),
+  );
+  const isFinalized = statusCandidates.includes("confirmed");
+  const type = (props.activeBl?.blType || props.jobData?.blType || "").toUpperCase();
+
+  if (isFinalized && (!type || type === "DRAFT")) return "ORIGINAL";
+  return type || "DRAFT";
+});
+
+const defaultExportMode = computed(() => {
+  const pType = permanentBlType.value;
+  if (pType === "ORIGINAL") return "ORIGINAL";
+  if (pType === "TELEX_RELEASE") return "EXPRESS_RELEASE";
+  if (pType === "SEAWAYBILL") return "SEAWAYBILL";
+  return "DRAFT";
+});
+
+const exportMode = ref(defaultExportMode.value);
+const jumlahOriginal = ref(3);
+const jumlahCopy = ref(2);
+const watermarkColor = ref<string>("red");
+
+let lastBlType: string | null = null;
+watch(
+  permanentBlType,
+  (newType) => {
+    if (newType === lastBlType) return;
+    lastBlType = newType;
+    exportMode.value = defaultExportMode.value;
+
+    if (newType === "ORIGINAL") {
+      jumlahOriginal.value = 3;
+      jumlahCopy.value = 2;
+    } else {
+      jumlahOriginal.value = 0;
+      jumlahCopy.value = 3;
+    }
+  },
+  { immediate: true },
+);
+
+watch(exportMode, (newMode) => {
+  if (newMode === "ORIGINAL") {
+    if (jumlahOriginal.value === 0) jumlahOriginal.value = 3;
+    if (jumlahCopy.value === 0) jumlahCopy.value = 2;
+    return;
+  }
+
+  jumlahOriginal.value = 0;
+  if (jumlahCopy.value === 0) jumlahCopy.value = 3;
+});
+
+interface RenderedPage {
+  key: string;
+  type: "front" | "back";
+  pageIndex: number;
+  pageItems: EblContainer[];
+  copyLabel: string;
+  showWatermark: boolean;
+}
+
+const getOrdinalLabel = (o: number) => {
+  const ordinals = [
+    "FIRST",
+    "SECOND",
+    "THIRD",
+    "FOURTH",
+    "FIFTH",
+    "SIXTH",
+    "SEVENTH",
+    "EIGHTH",
+    "NINTH",
+    "TENTH",
+  ];
+  if (o >= 1 && o <= ordinals.length) {
+    return `${ordinals[o - 1]} ORIGINAL`;
+  }
+  return `${o}TH ORIGINAL`;
+};
+
+const renderedPages = computed(() => {
+  const list: RenderedPage[] = [];
+  const P = paginatedPages.value.length;
+  const hasBackPage = activeConditions.value.length > 0;
+  const mode = exportMode.value;
+
+  if (mode === "ORIGINAL") {
+    // 1. Generate Originals
+    for (let o = 1; o <= jumlahOriginal.value; o++) {
+      const label = getOrdinalLabel(o);
+      for (let p = 0; p < P; p++) {
+        list.push({
+          key: `original-${o}-front-${p}`,
+          type: "front",
+          pageIndex: p,
+          pageItems: paginatedPages.value[p] || [],
+          copyLabel: label,
+          showWatermark: false,
+        });
+      }
+      if (hasBackPage) {
+        list.push({
+          key: `original-${o}-back`,
+          type: "back",
+          pageIndex: 0,
+          pageItems: [],
+          copyLabel: label,
+          showWatermark: false,
+        });
+      }
+    }
+
+    // 2. Generate Copies
+    for (let c = 1; c <= jumlahCopy.value; c++) {
+      const label = "NON NEGOTIABLE COPY";
+      for (let p = 0; p < P; p++) {
+        list.push({
+          key: `copy-${c}-front-${p}`,
+          type: "front",
+          pageIndex: p,
+          pageItems: paginatedPages.value[p] || [],
+          copyLabel: label,
+          showWatermark: false,
+        });
+      }
+      if (hasBackPage) {
+        list.push({
+          key: `copy-${c}-back`,
+          type: "back",
+          pageIndex: 0,
+          pageItems: [],
+          copyLabel: label,
+          showWatermark: false,
+        });
+      }
+    }
+  } else if (mode === "EXPRESS_RELEASE") {
+    // Generate Copies with EXPRESS RELEASE watermark
+    for (let c = 1; c <= jumlahCopy.value; c++) {
+      const label = "NON NEGOTIABLE COPY";
+      for (let p = 0; p < P; p++) {
+        list.push({
+          key: `express-${c}-front-${p}`,
+          type: "front",
+          pageIndex: p,
+          pageItems: paginatedPages.value[p] || [],
+          copyLabel: label,
+          showWatermark: true,
+        });
+      }
+      if (hasBackPage) {
+        list.push({
+          key: `express-${c}-back`,
+          type: "back",
+          pageIndex: 0,
+          pageItems: [],
+          copyLabel: label,
+          showWatermark: false,
+        });
+      }
+    }
+  } else if (mode === "SEAWAYBILL") {
+    // Generate Copies labeled "SEA WAYBILL"
+    for (let c = 1; c <= jumlahCopy.value; c++) {
+      const label = "SEA WAYBILL";
+      for (let p = 0; p < P; p++) {
+        list.push({
+          key: `seaway-${c}-front-${p}`,
+          type: "front",
+          pageIndex: p,
+          pageItems: paginatedPages.value[p] || [],
+          copyLabel: label,
+          showWatermark: false,
+        });
+      }
+      if (hasBackPage) {
+        list.push({
+          key: `seaway-${c}-back`,
+          type: "back",
+          pageIndex: 0,
+          pageItems: [],
+          copyLabel: label,
+          showWatermark: false,
+        });
+      }
+    }
+  } else if (mode === "DRAFT") {
+    // Generate Draft copies (labeled DRAFT - NON NEGOTIABLE)
+    for (let c = 1; c <= jumlahCopy.value; c++) {
+      const label = "DRAFT - NON NEGOTIABLE";
+      for (let p = 0; p < P; p++) {
+        list.push({
+          key: `draft-${c}-front-${p}`,
+          type: "front",
+          pageIndex: p,
+          pageItems: paginatedPages.value[p] || [],
+          copyLabel: label,
+          showWatermark: false,
+        });
+      }
+      if (hasBackPage) {
+        list.push({
+          key: `draft-${c}-back`,
+          type: "back",
+          pageIndex: 0,
+          pageItems: [],
+          copyLabel: label,
+          showWatermark: false,
+        });
+      }
+    }
+  }
+
+  return list;
+});
+
+const printSummary = computed(() => {
+  const P = paginatedPages.value.length;
+  const hasBack = activeConditions.value.length > 0;
+  const pagesPerSet = hasBack ? P + 1 : P;
+  const mode = exportMode.value;
+
+  if (mode === "ORIGINAL") {
+    const sets = jumlahOriginal.value + jumlahCopy.value;
+    const totalPages = sets * pagesPerSet;
+    return {
+      type: "ORIGINAL",
+      details: `${jumlahOriginal.value} Original Set(s) + ${jumlahCopy.value} Copy Set(s)`,
+      sets,
+      totalPages,
+    };
+  } else if (mode === "EXPRESS_RELEASE") {
+    const sets = jumlahCopy.value;
+    const totalPages = sets * pagesPerSet;
+    return {
+      type: "EXPRESS RELEASE",
+      details: `${jumlahCopy.value} Copy Set(s) with EXPRESS RELEASE Watermark`,
+      sets,
+      totalPages,
+    };
+  } else if (mode === "SEAWAYBILL") {
+    const sets = jumlahCopy.value;
+    const totalPages = sets * pagesPerSet;
+    return {
+      type: "SEAWAYBILL",
+      details: `${jumlahCopy.value} Copy Set(s) (Seawaybill)`,
+      sets,
+      totalPages,
+    };
+  } else {
+    const sets = jumlahCopy.value;
+    const totalPages = sets * pagesPerSet;
+    return {
+      type: "DRAFT",
+      details: `${jumlahCopy.value} Draft Copy Set(s) (DRAFT - NON NEGOTIABLE)`,
+      sets,
+      totalPages,
+    };
+  }
+});
+
 const generatePDF = async () => {
   if (!eblContainer.value || !props.jobData) return false;
 
@@ -386,9 +460,12 @@ const generatePDF = async () => {
     const pages = eblContainer.value.querySelectorAll(".a4-page-wrapper");
 
     for (let i = 0; i < pages.length; i++) {
+      const pageEl = pages[i];
+      if (!pageEl) continue;
+
       if (i > 0) pdf.addPage();
 
-      const canvas = await html2canvas(pages[i] as HTMLElement, {
+      const canvas = await html2canvas(pageEl as HTMLElement, {
         scale: 2,
         useCORS: true,
         logging: false,
@@ -396,6 +473,77 @@ const generatePDF = async () => {
         scrollY: 0,
         scrollX: 0,
       });
+
+      // Draw watermark on canvas if the element has watermark container
+      const hasWatermark = pageEl.querySelector(".watermark-container") !== null;
+      if (hasWatermark) {
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.save();
+
+          // Reset transform matrix to absolute canvas pixels
+          ctx.setTransform(1, 0, 0, 1, 0, 0);
+
+          // Calculate scale factor relative to base A4 design width (794px)
+          const scale = canvas.width / 794;
+
+          // Calculate center of the absolute canvas
+          const centerX = canvas.width / 2;
+          const centerY = canvas.height / 2 - 0.08 * canvas.height; // shifts watermark up by 8% of page height
+
+          ctx.translate(centerX, centerY);
+          ctx.rotate((-30 * Math.PI) / 180); // Rotate -30 degrees
+
+          const text = "EXPRESS RELEASE";
+          const fontSize = 72 * scale;
+
+          // Configure text styling
+          ctx.font = `900 ${fontSize}px Impact, Haettenschweiler, "Arial Narrow Bold", sans-serif`;
+          ctx.textBaseline = "middle";
+          ctx.textAlign = "center";
+
+          // Apply letter spacing (6px in CSS -> 12px on canvas)
+          const letterSpacing = 6 * scale;
+          if ("letterSpacing" in ctx) {
+            (ctx as unknown as { letterSpacing: string }).letterSpacing = `${letterSpacing}px`;
+          }
+
+          const textMetrics = ctx.measureText(text);
+          const textWidth = textMetrics.width;
+          const textHeight = fontSize * 0.8; // Approximate uppercase letter height
+
+          const padY = 20 * scale;
+          const padX = 60 * scale;
+          const boxWidth = textWidth + padX * 2;
+          const boxHeight = textHeight + padY * 2;
+          const borderRadius = 4 * scale;
+          const borderThickness = 8 * scale;
+
+          // Apply watermark color
+          const isRed = watermarkColor.value === "red";
+          const color = isRed ? "#c62828" : "#0d47a1";
+
+          ctx.strokeStyle = color;
+          ctx.fillStyle = color;
+          ctx.lineWidth = borderThickness;
+          ctx.globalAlpha = 0.18; // Opacity of 0.18 for both box and text
+
+          const x = -boxWidth / 2;
+          const y = -boxHeight / 2;
+
+          ctx.beginPath();
+          if (typeof ctx.roundRect === "function") {
+            ctx.roundRect(x, y, boxWidth, boxHeight, borderRadius);
+          } else {
+            ctx.rect(x, y, boxWidth, boxHeight);
+          }
+          ctx.stroke();
+
+          // Draw the text
+          ctx.fillText(text, 0, 0);
+          ctx.restore();
+        }
+      }
 
       const imgData = canvas.toDataURL("image/jpeg", 0.8);
       pdf.addImage(imgData, "JPEG", 0, 0, 210, 297, undefined, "FAST");
@@ -419,648 +567,41 @@ defineExpose({
 </script>
 
 <template>
-  <div class="flex justify-center bg-gray-50/50 py-12 rounded-2xl overflow-auto">
-    <div class="relative group flex flex-col gap-10" ref="eblContainer">
-      <div
-        v-for="(pageItems, pIdx) in paginatedPages"
-        :key="'page-' + pIdx"
-        class="a4-page-wrapper bg-white shadow-xl shrink-0 flex flex-col text-[#062c58] border"
-        style="
-          width: 794px;
-          height: 1123px;
-          padding: 20px 30px;
-          box-sizing: border-box;
-          position: relative;
-        "
-      >
-        <div
-          class="header-section flex justify-between items-end mb-1 relative z-[1] bg-white"
-          style="height: 70px"
-        >
-          <div class="w-[35%] pb-1">
-            <img
-              :src="logoUrl"
-              alt="NS Continent Logo"
-              class="h-16 object-contain max-w-[190px]"
-              crossorigin="anonymous"
-            />
-          </div>
-          <div class="w-[30%] text-center pb-2 flex flex-col justify-end h-full relative">
-            <template v-if="isDraft">
-              <span
-                class="text-sm font-bold tracking-widest uppercase block leading-none text-[#062c58]"
-                >DRAFT - NON NEGOTIABLE</span
-              >
-            </template>
-            <template v-else>
-              <span
-                class="text-sm font-bold tracking-widest uppercase block leading-none text-[#062c58]"
-                >ORIGINAL NEGOTIABLE</span
-              >
-            </template>
-          </div>
-          <div class="w-[35%] text-right pb-1 flex flex-col items-end justify-end h-full">
-            <div class="text-[0.6rem] font-mono mb-1 text-black">
-              PAGE: {{ pIdx + 1 }} OF {{ paginatedPages.length }}
-            </div>
-            <h1 class="text-lg font-bold tracking-widest uppercase leading-none">
-              {{ documentTitle }}
-            </h1>
-          </div>
-        </div>
+  <div class="space-y-6 w-full">
+    <!-- PDF Print Options Card -->
+    <JobEblExportConfig
+      v-model:exportMode="exportMode"
+      :permanentBlType="permanentBlType"
+      v-model:jumlahOriginal="jumlahOriginal"
+      v-model:jumlahCopy="jumlahCopy"
+      v-model:watermarkColor="watermarkColor"
+      :printSummary="printSummary"
+      :isGeneratingPDF="isGeneratingPDF"
+    />
 
-        <div
-          class="main-border-container border border-[#062c58] flex-1 flex flex-col text-[0.7rem] relative overflow-hidden h-full"
-        >
-          <div v-if="pIdx === 0" class="routing-section relative z-[1] bg-white">
-            <div class="flex border-b border-[#062c58]" style="min-height: 75px">
-              <div class="w-1/2 border-r border-[#062c58] pt-1 px-2 pb-2">
-                <span class="font-bold mb-0.5 text-[0.6rem] leading-none block"
-                  >SHIPPER/EXPORTER</span
-                >
-                <div
-                  class="whitespace-pre-wrap font-mono uppercase text-[0.75rem] leading-tight text-black"
-                >
-                  {{ formatPartyDisplay(shipper) || "-" }}
-                </div>
-              </div>
-              <div class="w-1/2">
-                <div class="flex border-b border-[#062c58]" style="min-height: 35px">
-                  <div class="w-1/2 border-r border-[#062c58] pt-1 px-2 pb-2">
-                    <span class="font-bold text-[0.6rem] leading-none mb-0.5 block"
-                      >BOOKING NO.</span
-                    >
-                    <span class="font-mono text-[0.8rem] text-black leading-none">{{
-                      getVal(jobData?.jobNumber)
-                    }}</span>
-                  </div>
-                  <div class="w-1/2 pt-1 px-2 pb-2">
-                    <span class="font-bold text-[0.6rem] leading-none mb-0.5 block">{{
-                      documentNumberLabel
-                    }}</span>
-                    <span class="font-mono text-[0.8rem] text-black leading-none">{{
-                      getVal(activeBl?.blNumber)
-                    }}</span>
-                  </div>
-                </div>
-                <div class="pt-1 px-2 pb-3">
-                  <span class="font-bold text-[0.6rem] block leading-none">EXPORT REFERENCES</span>
-                  <div class="font-mono text-[0.75rem] text-black pb-1.5">
-                    {{ getVal(jobData?.customerReference, "-") }}
-                  </div>
-                  <div
-                    v-if="
-                      activeBl?.showShipperReferencesOnBl !== false &&
-                      activeBl?.shipperReferences?.length
-                    "
-                    class="pt-1.5 border-t border-[#062c58] -mx-2 px-2"
-                  >
-                    <span class="font-bold text-[0.6rem] block leading-none mb-0.5"
-                      >SHIPPER REFERENCE</span
-                    >
-                    <div class="font-mono text-[0.75rem] text-black">
-                      {{ activeBl.shipperReferences.join(", ") }}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div class="flex border-b border-[#062c58]" style="min-height: 75px">
-              <div class="w-1/2 border-r border-[#062c58] pt-1 px-2 pb-2">
-                <span class="font-bold mb-0.5 text-[0.6rem] leading-none block">CONSIGNEE</span>
-                <div
-                  class="whitespace-pre-wrap font-mono uppercase text-[0.75rem] leading-tight text-black"
-                >
-                  {{ formatPartyDisplay(consignee) || "-" }}
-                </div>
-              </div>
-              <div class="w-1/2 pt-1 px-2 pb-2">
-                <span class="font-bold mb-0.5 text-[0.6rem] leading-none block"
-                  >FORWARDING AGENT - REFERENCES</span
-                >
-                <div
-                  class="whitespace-pre-wrap font-mono uppercase text-[0.75rem] leading-tight text-black"
-                >
-                  {{ formatPartyDisplay(forwardingAgent) || "-" }}
-                </div>
-              </div>
-            </div>
-            <div class="flex border-b border-[#062c58]" style="min-height: 100px">
-              <div class="w-1/2 border-r border-[#062c58]">
-                <div class="pt-1 px-2 pb-2">
-                  <span class="font-bold text-[0.6rem] mb-0.5 leading-none block"
-                    >NOTIFY PARTY</span
-                  >
-                  <div
-                    class="whitespace-pre-wrap font-mono uppercase text-[0.75rem] leading-tight text-black"
-                  >
-                    {{ formatPartyDisplay(notifyParty) || "-" }}
-                  </div>
-                </div>
-              </div>
-              <div
-                class="w-1/2 pt-1 px-2 pb-2 text-[0.45rem] text-justify leading-[1.1] font-medium text-[#062c58]"
-              >
-                RECEIVED by the Carrier in apparent good order and condition (unless otherwise
-                stated herein) the total number or quantity of
-                {{ isAir ? "packages or units" : "Containers or other packages or units" }}
-                indicated in the box entitled "Carrier's Receipt", to be carried subject to all the
-                terms and conditions hereof from the Place of Receipt or
-                {{ isAir ? "Airport of Loading" : "Port of Loading" }} to the
-                {{ isAir ? "Airport of Discharge" : "Port of Discharge" }} or Place of Delivery, as
-                applicable. Delivery of the Goods to the Carrier for Carriage hereunder constitutes
-                acceptance by the Merchant of all the terms and conditions of this
-                {{ isAir ? "Air Waybill" : "Bill of Lading" }}.
-              </div>
-            </div>
-            <div class="flex border-b border-[#062c58]" style="min-height: 40px">
-              <div class="w-[25%] border-r border-[#062c58] pt-0.5 px-2 pb-1.5">
-                <span class="font-bold text-[0.6rem] block leading-none mb-0.5"
-                  >PRE-CARRIAGE BY</span
-                >
-                <span class="font-mono text-[0.75rem] uppercase leading-none text-black">{{
-                  getVal(jobData?.preCarriageBy, "-")
-                }}</span>
-              </div>
-              <div class="w-[25%] border-r border-[#062c58] pt-0.5 px-2 pb-1.5">
-                <span class="font-bold text-[0.6rem] block leading-none mb-0.5"
-                  >PLACE OF RECEIPT</span
-                >
-                <span class="font-mono text-[0.75rem] uppercase leading-none text-black">{{
-                  getVal(jobData?.placeOfReceipt, getVal(jobData?.polName, jobData?.pol))
-                }}</span>
-              </div>
-              <div class="w-[50%] pt-0.5 px-2 pb-1.5">
-                <span class="font-bold text-[0.6rem] block leading-none mb-0.5">{{
-                  transportScheduleLabel
-                }}</span>
-                <span class="font-mono text-[0.75rem] uppercase text-black leading-none">
-                  {{ transportLegs || "-" }}
-                </span>
-              </div>
-            </div>
-            <div class="flex border-b border-[#062c58]" style="min-height: 40px">
-              <div class="w-[25%] border-r border-[#062c58] pt-0.5 px-2 pb-1.5">
-                <span class="font-bold text-[0.6rem] block leading-none mb-0.5">{{
-                  primaryTransportLabel
-                }}</span>
-                <span class="font-mono text-[0.75rem] uppercase leading-none text-black">
-                  {{ primaryTransportName }}
-                </span>
-              </div>
-              <div class="w-[25%] border-r border-[#062c58] pt-0.5 px-2 pb-1.5">
-                <span class="font-bold text-[0.6rem] block leading-none mb-0.5">{{
-                  loadingPlaceLabel
-                }}</span>
-                <span class="font-mono text-[0.75rem] uppercase leading-none text-black">{{
-                  getVal(jobData?.polName, jobData?.pol)
-                }}</span>
-              </div>
-              <div class="w-[50%] pt-0.5 px-2 pb-1.5">
-                <span class="font-bold text-[0.6rem] block leading-none mb-0.5">{{
-                  dischargePlaceLabel
-                }}</span>
-                <span class="font-mono text-[0.75rem] uppercase leading-none text-black">{{
-                  getVal(jobData?.podName, jobData?.pod)
-                }}</span>
-              </div>
-            </div>
-            <div class="flex border-b border-[#062c58]" style="min-height: 40px">
-              <div class="w-[25%] border-r border-[#062c58] pt-0.5 px-2 pb-1.5">
-                <span class="font-bold text-[0.55rem] block leading-none mb-0.5"
-                  >PLACE OF DELIVERY</span
-                >
-                <span class="font-mono text-[0.75rem] uppercase leading-none text-black">{{
-                  getVal(jobData?.placeOfDelivery, getVal(jobData?.podName, jobData?.pod))
-                }}</span>
-              </div>
-              <div class="w-[25%] border-r border-[#062c58] pt-0.5 px-2 pb-1.5">
-                <span class="font-bold text-[0.55rem] block leading-none mb-0.5"
-                  >TYPE OF MOVEMENT</span
-                >
-                <span class="font-mono text-[0.7rem] uppercase text-black leading-none"
-                  >{{
-                    (jobData?.cargoMovement?.code || jobData?.cargoMovementId || "FCL_FCL").replace(
-                      "_",
-                      "/",
-                    )
-                  }}
-                  -
-                  {{
-                    (
-                      jobData?.deliveryMovement?.code ||
-                      jobData?.deliveryMovementId ||
-                      "CY_CY"
-                    ).replace("_", "/")
-                  }}</span
-                >
-              </div>
-              <div class="w-[50%] pt-0.5 px-2 pb-1.5">
-                <span class="font-bold text-[0.55rem] block leading-none mb-0.5"
-                  >FINAL DESTINATION</span
-                >
-                <span class="font-mono text-[0.75rem] uppercase leading-none text-black">{{
-                  getVal(jobData?.finalDestination, getVal(jobData?.podName, jobData?.pod))
-                }}</span>
-              </div>
-            </div>
-          </div>
+    <!-- Preview Canvas -->
+    <div class="flex justify-center bg-gray-50/50 py-12 rounded-2xl overflow-auto">
+      <div class="relative group flex flex-col gap-10" ref="eblContainer">
+        <template v-for="page in renderedPages" :key="page.key">
+          <!-- Front Page -->
+          <JobEblFrontPage
+            v-if="page.type === 'front'"
+            :page="page"
+            :jobData="jobData"
+            :activeBl="activeBl"
+            :logoUrl="logoUrl"
+            :isAir="isAir"
+            :watermarkColor="watermarkColor"
+            :paginatedPagesLength="paginatedPages.length"
+          />
 
-          <div
-            v-if="pIdx > 0"
-            class="vessel-minimal-header flex justify-between items-end border-b border-[#062c58] p-2 text-black font-mono text-[0.6rem] uppercase relative z-[1] bg-white"
-            style="height: 30px"
-          >
-            <span
-              >{{ continuedTransportLabel }}:
-              {{
-                transportList
-                  .map((v) => `${getTransportName(v)} ${v.voyageNumber || ""}`)
-                  .filter((s) => s.trim())
-                  .join(", ") || "-"
-              }}</span
-            >
-            <span class="text-[#062c58] text-[0.6rem] font-bold tracking-widest leading-none">
-              <template v-if="isDraft">DRAFT - NON NEGOTIABLE</template>
-              <template v-else>ORIGINAL NEGOTIABLE</template>
-            </span>
-          </div>
-
-          <div class="flex flex-col border-b border-[#062c58] bg-white relative z-[1]">
-            <div class="flex border-b border-[#062c58]" style="min-height: 25px">
-              <div
-                class="w-[32%] px-2 py-1 text-[0.55rem] italic flex items-center border-r border-[#062c58]"
-              >
-                (CHECK "HM" COLUMN IF HAZARDOUS MATERIAL)
-              </div>
-              <div
-                class="flex-1 text-center font-bold text-[0.65rem] px-2 py-1 flex items-center justify-center"
-              >
-                PARTICULARS DECLARED BY SHIPPER BUT NOT ACKNOWLEDGED BY THE CARRIER
-              </div>
-            </div>
-
-            <div class="flex bg-[#062c58]/5 font-bold text-[0.55rem] h-[45px]">
-              <div
-                class="w-[22%] border-r border-[#062c58] p-1 flex flex-col items-center justify-center leading-tight"
-              >
-                <template v-if="isAir">
-                  <span>MARKS & NUMBERS</span><span>PACKAGE ID</span>
-                </template>
-                <template v-else>
-                  <span>CNTR. NOS. W/SEAL NOS.</span><span>MARKS & NUMBERS</span>
-                </template>
-              </div>
-              <div
-                class="w-[10%] border-r border-[#062c58] p-1 flex flex-col items-center justify-center leading-tight text-[0.5rem]"
-              >
-                <span>QUANTITY</span><span class="font-normal">(FOR CUSTOMS</span
-                ><span class="font-normal">DECLARATION ONLY)</span>
-              </div>
-              <div
-                class="w-[3%] border-r border-[#062c58] p-1 flex flex-col items-center justify-center leading-none"
-              >
-                <span>D</span><span class="mt-0.5">G</span>
-              </div>
-              <div class="w-[40%] border-r border-[#062c58] p-1 flex items-center justify-center">
-                DESCRIPTION OF PACKAGES AND GOODS
-              </div>
-              <div class="w-[12.5%] border-r border-[#062c58] p-1 flex items-center justify-center">
-                GROSS WEIGHT
-              </div>
-              <div class="w-[12.5%] p-1 flex items-center justify-center">GROSS MEASUREMENT</div>
-            </div>
-          </div>
-
-          <div :class="[pIdx === 0 ? 'cargo-window-p1' : 'cargo-window-p2']" class="relative">
-            <div class="vertical-grid-lines">
-              <div class="w-[22%] border-r border-[#062c58]"></div>
-              <div class="w-[10%] border-r border-[#062c58]"></div>
-              <div class="w-[3%] border-r border-[#062c58]"></div>
-              <div class="w-[40%] border-r border-[#062c58]"></div>
-              <div class="w-[12.5%] border-r border-[#062c58]"></div>
-              <div class="w-[12.5%]"></div>
-            </div>
-
-            <div class="relative z-[1] text-black font-mono pt-1">
-              <template v-for="(cnt, cIdx) in pageItems" :key="cIdx">
-                <div
-                  v-if="cnt.isHeaderVisible && !cnt.isFallback"
-                  class="flex w-full mb-1 font-bold italic border-b border-[#062c58]/10"
-                >
-                  <div class="w-[22%] pl-3 pr-6 break-words whitespace-pre-wrap text-[11px]">
-                    <template v-if="isAir">
-                      {{ pIdx === 0 && cIdx === 0 ? getVal(jobData?.shippingMark) : "" }}
-                    </template>
-                    <template v-else>
-                      {{ cnt.containerNumber || ""
-                      }}<span v-if="cnt.sealNumber" class="ml-1">/{{ cnt.sealNumber }}</span>
-                    </template>
-                  </div>
-                  <div class="w-[10%] px-2 text-right text-[11px]">
-                    {{ formatNumber(getContainerTotals(cnt).qty, 0) }}
-                  </div>
-                  <div class="w-[3%] flex items-center justify-center text-[10px] leading-none">
-                    {{ cnt.isHazardous ? "X" : "" }}
-                  </div>
-                  <div class="w-[40%] px-3 font-mono text-[11px]">
-                    {{ isAir ? "SAID TO CONTAIN:" : `1X${cnt.containerType?.code || ""} S.T.C.:` }}
-                  </div>
-                  <div class="w-[12.5%] px-3 text-right text-[11px]">
-                    {{ formatNumber(getContainerTotals(cnt).gw) }}KGS
-                  </div>
-                  <div class="w-[12.5%] px-3 text-right text-[11px]">
-                    {{ formatNumber(getContainerTotals(cnt).cbm) }}CBM
-                  </div>
-                </div>
-
-                <div
-                  v-for="(item, iIdx) in cnt.renderItems"
-                  :key="iIdx"
-                  class="flex w-full mb-1 tracking-tight"
-                >
-                  <div class="w-[22%] pl-3 text-[9px] uppercase leading-tight">
-                    {{ pIdx === 0 && cIdx === 0 && iIdx === 0 ? jobData?.shippingMark : "" }}
-                  </div>
-                  <div class="w-[10%] px-2 text-right text-[11px]">
-                    {{ formatNumber(item.qty, 0) }}
-                  </div>
-                  <div class="w-[3%] flex items-center justify-center text-[10px] leading-none">
-                    {{ cnt.isHazardous ? "X" : "" }}
-                  </div>
-                  <div class="w-[40%] px-3 font-mono">
-                    <div class="font-bold underline mb-0.5 text-[11px]">
-                      {{ item.packageTypeCode || "PKGS" }} OF:
-                    </div>
-                    <div
-                      v-for="(line, lIdx) in item.displayLines"
-                      :key="lIdx"
-                      class="break-all text-[11px] leading-[14px]"
-                    >
-                      {{ line }}
-                    </div>
-                    <div v-if="item.hsCode" class="text-[10px] mt-1 font-bold">
-                      (HS CODE: {{ item.hsCode }})
-                    </div>
-                  </div>
-                  <div class="w-[12.5%] px-3 text-right text-[11px]">
-                    {{ formatNumber(item.grossWeight, 0) }}
-                  </div>
-                  <div class="w-[12.5%] px-3 text-right text-[11px]">
-                    {{ formatNumber(item.measurementCbm, 2) }}
-                  </div>
-                </div>
-
-                <div class="mb-4"></div>
-              </template>
-
-              <template v-if="pageItems[0]?.isFallback">
-                <div class="flex w-full mb-2 tracking-tight text-[11px]">
-                  <div class="w-[22%] pl-2 pr-6 whitespace-pre-wrap break-words">
-                    {{ getVal(jobData?.shippingMark) }}
-                  </div>
-                  <div class="w-[10%] px-2 text-right">
-                    <div>{{ formatNumber(totals.qty, 0) }}</div>
-                    <div>PACKAGES</div>
-                  </div>
-                  <div class="w-[3%]"></div>
-                  <div class="w-[40%] px-2 whitespace-pre-wrap break-words">
-                    {{ "NO CARGO DATA" }}
-                  </div>
-                  <div class="w-[12.5%] px-2 text-right text-black">
-                    {{ formatNumber(totals.grossWeight) }}KGS
-                  </div>
-                  <div class="w-[12.5%] px-2 text-right text-black">
-                    {{ formatNumber(totals.measurement) }}CBM
-                  </div>
-                </div>
-              </template>
-            </div>
-          </div>
-
-          <div
-            v-if="pIdx < paginatedPages.length - 1"
-            class="border-t border-[#062c58] text-center font-bold text-[0.55rem] py-1 mt-auto"
-          >
-            ** TO BE CONTINUED ON PAGE {{ pIdx + 2 }} **
-          </div>
-
-          <div
-            v-if="pIdx === 0"
-            class="bl-footer border-t border-[#062c58] flex flex-col relative z-[1] bg-white"
-          >
-            <div class="flex border-b border-[#062c58] text-[#062c58]" style="min-height: 20px">
-              <div class="px-3 w-1/4 font-bold flex items-start pt-1 text-[0.55rem] leading-none">
-                Declared Cargo Value US $
-              </div>
-              <div
-                class="border-l border-[#062c58] flex-1 text-left font-normal text-[0.45rem] leading-tight flex items-start pt-1 px-2 text-black"
-              >
-                . If Merchant enters a value, Carrier's limitation of liability shall not apply and
-                the ad valorem rate will be charged.
-              </div>
-            </div>
-            <div
-              class="flex border-b border-[#062c58] text-[0.5rem] font-bold"
-              style="min-height: 35px"
-            >
-              <div class="w-[20%] border-r border-[#062c58] pt-1 px-2 pb-2">
-                <span class="text-[0.55rem] leading-tight text-[#062c58] font-bold uppercase block"
-                  >FREIGHT & CHARGES PAYABLE AT / BY:</span
-                >
-                <span
-                  class="uppercase font-mono text-[0.55rem] text-black leading-tight font-normal mt-1 block max-h-[1.35rem] overflow-hidden break-words"
-                  :title="freightPayableAtRaw"
-                  >{{ freightPayableAt || "-" }}</span
-                >
-              </div>
-              <div class="w-[15%] border-r border-[#062c58] p-1">
-                <span class="text-[#062c58] font-bold block">SERVICE CONTRACT NO.</span>
-              </div>
-              <div class="w-[12%] border-r border-[#062c58] p-1">
-                <span class="text-[#062c58] font-bold block">DOC FORM NO.</span>
-              </div>
-              <div class="w-[12%] border-r border-[#062c58] p-1">
-                <span class="text-[#062c58] font-bold block">COMMODITY CODE</span>
-              </div>
-              <div class="w-[12%] border-r border-[#062c58] p-1">
-                <span class="text-[#062c58] font-bold block">EXCHANGE RATE</span>
-              </div>
-              <div
-                class="w-[29%] p-0.5 text-[0.42rem] font-normal leading-tight text-justify flex items-start text-black"
-              >
-                [1] ORIGINAL {{ isAir ? "AIR WAYBILL(S)" : "BILL(S) OF LADING" }} HAVE BEEN SIGNED,
-                WHERE DELIVERED AGAINST ONE, THE OTHERS(S) TO BE VOID.
-              </div>
-            </div>
-            <div class="flex flex-1" style="min-height: 110px">
-              <div class="w-[71%] border-r border-[#062c58] flex flex-col">
-                <div
-                  class="flex border-b border-[#062c58] text-[0.55rem] text-center font-bold"
-                  style="min-height: 20px"
-                >
-                  <div
-                    class="w-[15%] border-r border-[#062c58] h-full p-1 flex items-center justify-center"
-                  >
-                    CODE
-                  </div>
-                  <div
-                    class="w-[20%] border-r border-[#062c58] h-full p-1 flex items-center justify-center"
-                  >
-                    TARIFF ITEM
-                  </div>
-                  <div
-                    class="w-[15%] border-r border-[#062c58] h-full p-1 flex items-center justify-center"
-                  >
-                    FREIGHTED AS
-                  </div>
-                  <div
-                    class="w-[15%] border-r border-[#062c58] h-full p-1 flex items-center justify-center"
-                  >
-                    RATE
-                  </div>
-                  <div
-                    class="w-[17.5%] border-r border-[#062c58] h-full p-1 flex items-center justify-center"
-                  >
-                    PREPAID
-                  </div>
-                  <div class="w-[17.5%] h-full p-1 flex items-center justify-center">COLLECT</div>
-                </div>
-                <div class="flex-1 relative">
-                  <div class="absolute inset-0 flex pointer-events-none text-[#062c58]">
-                    <div class="w-[15%] border-r border-[#062c58] h-full"></div>
-                    <div class="w-[20%] border-r border-[#062c58] h-full"></div>
-                    <div class="w-[15%] border-r border-[#062c58] h-full"></div>
-                    <div class="w-[15%] border-r border-[#062c58] h-full"></div>
-                    <div class="w-[17.5%] border-r border-[#062c58] h-full"></div>
-                    <div class="w-[17.5%] h-full"></div>
-                  </div>
-                  <div
-                    class="relative z-[1] flex h-full items-start pt-1 font-mono text-[8.5px] uppercase"
-                  >
-                    <div class="w-[15%]"></div>
-                    <div class="w-[20%]"></div>
-                    <div class="w-[15%]"></div>
-                    <div class="w-[15%]"></div>
-                    <div
-                      class="w-[17.5%] px-2 text-left text-black font-normal text-[8.1px] break-words"
-                    >
-                      {{ activeBl?.prepaid }}
-                    </div>
-                    <div
-                      class="w-[17.5%] px-2 text-left text-black font-normal text-[8.1px] break-words"
-                    >
-                      {{ activeBl?.collect }}
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div class="w-[29%] flex flex-col text-[0.5rem]">
-                <div class="border-b border-[#062c58] px-2 pt-0.5 pb-2" style="min-height: 35px">
-                  <span
-                    class="text-[#062c58] text-[0.38rem] tracking-tighter uppercase opacity-80 font-bold leading-none block"
-                    >DATE CARGO RECEIVED</span
-                  >
-                  <span
-                    class="font-mono text-[0.65rem] text-black uppercase leading-none mt-1 block"
-                    >{{ formatDate(activeBl?.dateCargoReceived) }}</span
-                  >
-                </div>
-                <div class="border-b border-[#062c58] px-2 pt-0.5 pb-2" style="min-height: 35px">
-                  <span
-                    class="text-[#062c58] text-[0.38rem] tracking-tighter opacity-80 uppercase font-bold leading-none block"
-                    >{{ loadedDateLabel }}</span
-                  >
-                  <span
-                    class="font-mono text-[0.65rem] text-black uppercase leading-none mt-1 block"
-                    >{{ formatDate(jobData?.etd) }}</span
-                  >
-                </div>
-                <div class="border-b border-[#062c58] px-2 pt-0.5 pb-2" style="min-height: 35px">
-                  <span
-                    class="text-[#062c58] text-[0.38rem] tracking-tighter opacity-80 uppercase font-bold leading-none block"
-                    >{{ issuePlaceLabel }}</span
-                  >
-                  <span
-                    class="font-mono text-[0.65rem] text-black uppercase leading-none mt-1 block"
-                    >{{ getVal(activeBl?.placeOfIssue) }}</span
-                  >
-                </div>
-                <div class="px-2 pt-1 pb-2" style="min-height: 35px">
-                  <span
-                    class="text-[#062c58] text-[0.38rem] tracking-tighter uppercase opacity-80 font-bold leading-none block"
-                    >DATED</span
-                  >
-                  <span
-                    class="font-mono text-[0.65rem] text-black uppercase leading-none mt-1 block"
-                    >{{
-                      formatDate(activeBl?.dateOfIssue) || formatDate(new Date().toISOString())
-                    }}</span
-                  >
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="mt-1 flex justify-between pr-2 text-[#062c58]" style="height: 35px">
-          <div class="text-[0.45rem] w-1/2 mt-0.5 italic leading-tight">
-            The printed terms and conditions on this {{ isAir ? "Air Waybill" : "Bill" }} are
-            available at its website at www.nscontinent.com
-          </div>
-          <div
-            v-if="pIdx === paginatedPages.length - 1"
-            class="w-[260px] text-[0.45rem] flex flex-col items-end"
-          >
-            <div class="w-full text-left font-mono leading-tight bg-white p-2">
-              <span class="font-bold">SIGNED BY: </span>PT. SAMUDERA AGENCIES INDONESIA<br />
-              <span class="pl-14 text-[0.4rem] italic"
-                >, as agent for and on behalf of NS CONTINENT</span
-              >
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Conditions of Contract Page (Back Page) -->
-      <div
-        v-if="activeConditions.length > 0"
-        class="a4-page-wrapper bg-white shadow-xl shrink-0 flex flex-col text-[#062c58] border p-5"
-        style="
-          width: 794px;
-          height: 1123px;
-          box-sizing: border-box;
-          position: relative;
-          background-color: #fff;
-        "
-      >
-        <div class="mb-2 text-center border-b border-[#062c58] pb-1">
-          <h2 class="text-[15px] font-bold uppercase tracking-widest">
-            {{ isAir ? "Air Waybill" : "Combined Transport Bill of Lading" }}
-          </h2>
-          <h3 class="text-xs font-semibold uppercase">Conditions of Contract</h3>
-        </div>
-
-        <div
-          class="columns-2 gap-x-3 text-justify flex-1 overflow-hidden"
-          style="font-size: 8.5px; line-height: 1.1"
-        >
-          <div
-            v-for="condition in activeConditions"
-            :key="condition.id"
-            class="mb-1 break-inside-avoid"
-          >
-            <span class="font-bold mr-0.5"
-              >{{ condition.clauseNumber }}. {{ condition.clauseTitle }}:</span
-            >
-            <span class="leading-none">{{ condition.clauseContent }}</span>
-          </div>
-        </div>
-
-        <div class="mt-1 pt-1 border-t border-gray-200 text-[6px] text-center italic opacity-50">
-          * These terms and conditions are continued from the face of the
-          {{ isAir ? "Air Waybill" : "Bill of Lading" }} *
-        </div>
+          <!-- Conditions of Contract Page (Back Page) -->
+          <JobEblBackPage
+            v-else-if="page.type === 'back'"
+            :isAir="isAir"
+            :activeConditions="activeConditions"
+          />
+        </template>
       </div>
     </div>
   </div>
@@ -1070,79 +611,5 @@ defineExpose({
 #print-target {
   -webkit-print-color-adjust: exact !important;
   print-color-adjust: exact !important;
-}
-
-.a4-page-wrapper {
-  width: 794px;
-  height: 1123px;
-
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  padding: 15px 30px;
-
-  box-sizing: border-box;
-  background: white;
-  position: relative;
-}
-
-.main-border-container {
-  border: 1px solid #062c58;
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-
-  min-height: 0;
-
-  overflow: hidden;
-}
-
-.cargo-window-p1 {
-  height: 220px;
-
-  flex-shrink: 0;
-  overflow: hidden;
-  position: relative;
-  border-bottom: 1px solid #062c58;
-}
-
-.cargo-window-p2 {
-  flex: 1 1 0%;
-
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  position: relative;
-  overflow: hidden;
-}
-
-.vertical-grid-lines {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  display: flex;
-  pointer-events: none;
-  z-index: 0;
-}
-
-.vertical-grid-lines > div {
-  height: 100%;
-}
-
-.bl-footer {
-  height: 310px;
-
-  flex-shrink: 0;
-  background: white;
-}
-
-.font-mono {
-  font-family: "Courier New", Courier, monospace;
-  font-size: 11px;
-  line-height: 14px;
-  white-space: pre-wrap;
-  word-break: break-all;
 }
 </style>
