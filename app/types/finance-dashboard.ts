@@ -166,3 +166,84 @@ export interface JournalEntryDetail {
   credit: number;
   runningBalance: number;
 }
+
+export interface BalanceSheetAccount {
+  id: string;
+  accountCode: string;
+  accountName: string;
+  accountType: string;
+  balance: number;
+}
+
+export interface BalanceSheetGroup {
+  type: "ASSET" | "LIABILITY" | "EQUITY";
+  label: string;
+  items: BalanceSheetAccount[];
+  total: number;
+}
+
+export interface BalanceSheetReport {
+  asOfDate: string;
+  assets: BalanceSheetGroup;
+  liabilities: BalanceSheetGroup;
+  equity: BalanceSheetGroup;
+  totals: {
+    totalAssets: number;
+    totalLiabilities: number;
+    totalEquity: number;
+    totalLiabilitiesAndEquity: number;
+  };
+  balanceDifference: number;
+  isBalanced: boolean;
+}
+
+export type CashFlowActivity = "OPERATING" | "INVESTING" | "FINANCING";
+
+export interface CashFlowBreakdownItem {
+  accountId: string;
+  accountCode: string;
+  accountName: string;
+  activity: CashFlowActivity;
+  cashIn: number;
+  cashOut: number;
+  netCashFlow: number;
+}
+
+export interface CashFlowActivityGroup {
+  activity: CashFlowActivity;
+  label: string;
+  cashIn: number;
+  cashOut: number;
+  netCashFlow: number;
+  items: CashFlowBreakdownItem[];
+}
+
+export interface CashFlowUnclassifiedItem {
+  accountId: string;
+  accountCode: string;
+  accountName: string;
+  amount: number;
+}
+
+export interface CashFlowReport {
+  startDate: string;
+  endDate: string;
+  method: "direct";
+  openingCashBalance: number;
+  cashIn: number;
+  cashOut: number;
+  operatingCashFlow: number;
+  investingCashFlow: number;
+  financingCashFlow: number;
+  netCashFlow: number;
+  closingCashBalance: number;
+  groups: {
+    operating: CashFlowActivityGroup;
+    investing: CashFlowActivityGroup;
+    financing: CashFlowActivityGroup;
+  };
+  unclassified: {
+    count: number;
+    items: CashFlowUnclassifiedItem[];
+  };
+}

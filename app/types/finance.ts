@@ -96,6 +96,8 @@ export const TABS = [
   "Assets",
   "Accounts Receivable",
   "Trial Balance",
+  "Balance Sheet",
+  "Cash Flow",
   "Tax Report",
   "Finance Close",
 ] as const;

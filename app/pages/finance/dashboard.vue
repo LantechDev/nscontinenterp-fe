@@ -22,9 +22,12 @@ import FinanceCloseTab from "~/components/finance/dashboard/FinanceCloseTab.vue"
 import OverviewTab from "~/components/finance/dashboard/OverviewTab.vue";
 import TransactionTab from "~/components/finance/dashboard/TransactionTab.vue";
 import TrialBalanceTab from "~/components/finance/dashboard/TrialBalanceTab.vue";
+import BalanceSheetTab from "~/components/finance/dashboard/BalanceSheetTab.vue";
+import CashFlowTab from "~/components/finance/dashboard/CashFlowTab.vue";
 import AccountsReceivableTab from "~/components/finance/dashboard/AccountsReceivableTab.vue";
 import AssetsTab from "~/components/finance/dashboard/AssetsTab.vue";
 import TaxReportTab from "~/components/finance/dashboard/TaxReportTab.vue";
+import type { BalanceSheetReport, CashFlowReport } from "~/types/finance-dashboard";
 import { toast } from "vue-sonner";
 import SearchSelect from "~/components/ui/SearchSelect.vue";
 
@@ -192,6 +195,16 @@ const formattedAssetTaxOptions = computed(() =>
 
 // Assets data - use the composable data
 const assetsData = computed(() => assets.value);
+const balanceSheetReport = ref<BalanceSheetReport | null>(null);
+const cashFlowReport = ref<CashFlowReport | null>(null);
+
+function setBalanceSheetReport(data: BalanceSheetReport | null) {
+  balanceSheetReport.value = data;
+}
+
+function setCashFlowReport(data: CashFlowReport | null) {
+  cashFlowReport.value = data;
+}
 
 // Computed assets stats
 const assetsStatsCards = computed(() => {
@@ -547,6 +560,181 @@ function handleFinanceCloseExportExcel() {
   );
 }
 
+function handleBalanceSheetExport() {
+  const report = balanceSheetReport.value;
+  if (!report) {
+    toast.error("No balance sheet data to export");
+    return;
+  }
+
+  const groups = [report.assets, report.liabilities, report.equity];
+  const rows: (string | number)[][] = [];
+
+  groups.forEach((group) => {
+    rows.push([group.label.toUpperCase(), "", ""]);
+    group.items.forEach((item) => {
+      rows.push([item.accountCode, item.accountName, item.balance]);
+    });
+    rows.push([`TOTAL ${group.label.toUpperCase()}`, "", group.total]);
+    rows.push(["", "", ""]);
+  });
+  rows.push(["BALANCE DIFFERENCE", "", report.balanceDifference]);
+
+  exportStyledPdf({
+    title: "BALANCE SHEET",
+    period: `As of ${new Date(report.asOfDate).toLocaleDateString("id-ID")}`,
+    cols: [
+      { header: "Account Code", width: 0.18 },
+      { header: "Account Name", width: 0.52 },
+      { header: "Balance", width: 0.3, align: "right", isCurrency: true },
+    ],
+    rows,
+    filename: `BALANCE_SHEET_${report.asOfDate}.pdf`,
+  });
+}
+
+function handleBalanceSheetExportExcel() {
+  const report = balanceSheetReport.value;
+  if (!report) {
+    toast.error("No balance sheet data to export");
+    return;
+  }
+
+  const rows: StyledRow[] = [
+    { cells: ["PT NOVA SYNC — BALANCE SHEET", "", ""], style: 7 },
+    {
+      cells: [`As of ${new Date(report.asOfDate).toLocaleDateString("id-ID")}`, "", ""],
+      style: 8,
+    },
+    { cells: ["Account Code", "Account Name", "Balance"], style: 0 },
+  ];
+
+  [report.assets, report.liabilities, report.equity].forEach((group) => {
+    rows.push({ cells: [group.label.toUpperCase(), "", ""], style: 0 });
+    group.items.forEach((item, index) => {
+      const style = index % 2 === 0 ? 1 : 2;
+      rows.push({
+        cells: [item.accountCode, item.accountName, item.balance],
+        style,
+        cellStyles: [style, style, style === 1 ? 5 : 6],
+      });
+    });
+    rows.push({
+      cells: [`TOTAL ${group.label.toUpperCase()}`, "", group.total],
+      style: 3,
+      cellStyles: [3, 3, 3],
+    });
+  });
+
+  rows.push({
+    cells: ["BALANCE DIFFERENCE", "", report.balanceDifference],
+    style: 3,
+    cellStyles: [3, 3, 3],
+  });
+
+  buildStyledWorkbook("Balance Sheet", rows, [18, 42, 22], `BALANCE_SHEET_${report.asOfDate}.xlsx`);
+}
+
+function handleCashFlowExport() {
+  const report = cashFlowReport.value;
+  if (!report) {
+    toast.error("No cash flow data to export");
+    return;
+  }
+
+  const groups = [report.groups.operating, report.groups.investing, report.groups.financing];
+  const rows: (string | number)[][] = [
+    ["Opening Cash Balance", "", "", "", report.openingCashBalance],
+  ];
+
+  groups.forEach((group) => {
+    rows.push([group.label.toUpperCase(), "", "", "", group.netCashFlow]);
+    group.items.forEach((item) => {
+      rows.push([item.accountCode, item.accountName, item.cashIn, item.cashOut, item.netCashFlow]);
+    });
+    rows.push([
+      `TOTAL ${group.label.toUpperCase()}`,
+      "",
+      group.cashIn,
+      group.cashOut,
+      group.netCashFlow,
+    ]);
+    rows.push(["", "", "", "", ""]);
+  });
+  rows.push(["Closing Cash Balance", "", "", "", report.closingCashBalance]);
+
+  exportStyledPdf({
+    title: "CASH FLOW",
+    period: `${new Date(report.startDate).toLocaleDateString("id-ID")} - ${new Date(report.endDate).toLocaleDateString("id-ID")}`,
+    cols: [
+      { header: "Account Code", width: 0.16 },
+      { header: "Account Name", width: 0.34 },
+      { header: "Cash In", width: 0.16, align: "right", isCurrency: true },
+      { header: "Cash Out", width: 0.16, align: "right", isCurrency: true },
+      { header: "Net", width: 0.18, align: "right", isCurrency: true },
+    ],
+    rows,
+    filename: `CASH_FLOW_${report.startDate}_${report.endDate}.pdf`,
+    orientation: "landscape",
+  });
+}
+
+function handleCashFlowExportExcel() {
+  const report = cashFlowReport.value;
+  if (!report) {
+    toast.error("No cash flow data to export");
+    return;
+  }
+
+  const periodLabel = `${new Date(report.startDate).toLocaleDateString("id-ID")} - ${new Date(report.endDate).toLocaleDateString("id-ID")}`;
+  const rows: StyledRow[] = [
+    { cells: ["PT NOVA SYNC — CASH FLOW", "", "", "", ""], style: 7 },
+    { cells: [periodLabel, "", "", "", ""], style: 8 },
+    { cells: ["Account Code", "Account Name", "Cash In", "Cash Out", "Net"], style: 0 },
+    {
+      cells: ["Opening Cash Balance", "", "", "", report.openingCashBalance],
+      style: 3,
+      cellStyles: [3, 3, 3, 3, 3],
+    },
+  ];
+
+  [report.groups.operating, report.groups.investing, report.groups.financing].forEach((group) => {
+    rows.push({ cells: [group.label.toUpperCase(), "", "", "", group.netCashFlow], style: 0 });
+    group.items.forEach((item, index) => {
+      const style = index % 2 === 0 ? 1 : 2;
+      rows.push({
+        cells: [item.accountCode, item.accountName, item.cashIn, item.cashOut, item.netCashFlow],
+        style,
+        cellStyles: [style, style, style === 1 ? 5 : 6, style === 1 ? 5 : 6, style === 1 ? 5 : 6],
+      });
+    });
+    rows.push({
+      cells: [
+        `TOTAL ${group.label.toUpperCase()}`,
+        "",
+        group.cashIn,
+        group.cashOut,
+        group.netCashFlow,
+      ],
+      style: 3,
+      cellStyles: [3, 3, 3, 3, 3],
+    });
+  });
+
+  rows.push({
+    cells: ["Closing Cash Balance", "", "", "", report.closingCashBalance],
+    style: 3,
+    cellStyles: [3, 3, 3, 3, 3],
+  });
+
+  buildStyledWorkbook(
+    "Cash Flow",
+    rows,
+    [18, 34, 18, 18, 18],
+    `CASH_FLOW_${report.startDate}_${report.endDate}.xlsx`,
+  );
+}
+
 async function handleAssetsAdd() {
   showAssetModal.value = true;
   if (assetTaxOptions.value.length === 0) {
@@ -605,6 +793,10 @@ function dispatchExportPdf() {
     handleTaxReportExport();
   } else if (activeTab.value === "Accounts Receivable") {
     handleArApExport();
+  } else if (activeTab.value === "Balance Sheet") {
+    handleBalanceSheetExport();
+  } else if (activeTab.value === "Cash Flow") {
+    handleCashFlowExport();
   }
 }
 
@@ -619,6 +811,10 @@ function dispatchExportExcel() {
     handleTaxReportExportExcel();
   } else if (activeTab.value === "Accounts Receivable") {
     handleArApExportExcel();
+  } else if (activeTab.value === "Balance Sheet") {
+    handleBalanceSheetExportExcel();
+  } else if (activeTab.value === "Cash Flow") {
+    handleCashFlowExportExcel();
   }
 }
 
@@ -1138,6 +1334,22 @@ function handleTaxReportExportExcel() {
           v-model:selected-year="selectedYear"
           :selected-period="selectedPeriod"
           :available-years="availableYears"
+        />
+
+        <BalanceSheetTab
+          v-else-if="activeTab === 'Balance Sheet'"
+          :selected-year="selectedYear"
+          :available-years="availableYears"
+          @update:report-data="setBalanceSheetReport"
+          @export="openExportPopup($event)"
+        />
+
+        <CashFlowTab
+          v-else-if="activeTab === 'Cash Flow'"
+          :selected-year="selectedYear"
+          :available-years="availableYears"
+          @update:report-data="setCashFlowReport"
+          @export="openExportPopup($event)"
         />
 
         <AccountsReceivableTab

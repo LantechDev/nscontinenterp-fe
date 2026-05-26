@@ -47,8 +47,8 @@ export default defineNuxtPlugin(() => {
         // Add Bearer token for client-side requests
         if (import.meta.client) {
           const token = getClientToken();
-          if (token && !headers.has("authorization")) {
-            headers.set("authorization", `Bearer ${token}`);
+          if (token && !headers.has("authorization") && !headers.has("Authorization")) {
+            headers.set("Authorization", `Bearer ${token}`);
           }
         }
       }
