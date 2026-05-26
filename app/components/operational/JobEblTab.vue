@@ -54,21 +54,36 @@ const listRejectingId = ref<string | null>(null);
 
 const previewRef = ref<InstanceType<typeof JobEblPreview> | null>(null);
 
+const normalizeBlStatus = (status?: string | null) => {
+  const lower = status?.toLowerCase();
+  if (!lower) return "";
+  if (lower === "finalized" || lower === "confirmed") return "confirmed";
+  if (lower === "pending_approval") return "pending_approval";
+  return lower;
+};
+
 const blStatus = computed(() => {
   const s = activeBl.value?.status;
   const raw = activeBl.value?.statusRaw;
+  const statusId = activeBl.value?.statusId;
 
-  if (!s) return "";
+  const rawStatus = normalizeBlStatus(raw);
+  const idStatus = normalizeBlStatus(statusId);
+  if (rawStatus === "confirmed" || idStatus === "confirmed") return "confirmed";
+  if (rawStatus === "pending_approval" || idStatus === "pending_approval") {
+    return "pending_approval";
+  }
+
+  if (!s) return rawStatus || idStatus;
   if (typeof s === "string") {
-    const lower = s.toLowerCase();
-    if (lower === "finalized" || lower === "confirmed") return "confirmed";
-    return lower;
+    return normalizeBlStatus(s);
   }
 
   const code = s.code?.toLowerCase() || "";
   // High-priority fallback: if the DB status string is "finalized" but code is still "draft", prioritize finalized.
-  if (code === "draft" && raw?.toLowerCase() === "finalized") return "confirmed";
+  if (code === "draft" && rawStatus === "confirmed") return "confirmed";
   if (code === "pending_approval") return "pending_approval";
+  if (code === "confirmed" || code === "finalized") return "confirmed";
 
   return code;
 });
@@ -440,6 +455,12 @@ const loadBlRender = async (blId: string) => {
       if (data.jobContainers) mappedBl.jobContainers = data.jobContainers;
       if (data.parties) mappedBl.renderParties = data.parties;
       if (data.mainDescription !== undefined) mappedBl.mainDescription = data.mainDescription;
+      if (data.job) {
+        mappedBl.job = {
+          ...mappedBl.job,
+          ...data.job,
+        } as ActiveJobData;
+      }
 
       activeBl.value = mappedBl;
     }

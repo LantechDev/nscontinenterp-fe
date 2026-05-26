@@ -21,6 +21,22 @@ const headerTitle = computed(() => {
   return props.invoice?.status?.code === "draft" ? "PROFORMA INVOICE" : "COMMERCIAL INVOICE";
 });
 
+const invoiceTitle = computed(() => {
+  if (mode.value === "receipt") return "OFFICIAL RECEIPT";
+
+  const invoiceTaxes = props.invoice?.invoiceTaxes || [];
+  if (invoiceTaxes.length === 0) {
+    return "INVOICE REIMBURSEMENT";
+  }
+
+  const allZero = invoiceTaxes.every((t) => Number(t.rate) === 0);
+  if (allZero) {
+    return "INVOICE REIMBURSEMENT";
+  }
+
+  return "INVOICE";
+});
+
 // Helper for "Sum in Words" (Robust Indonesian Terbilang)
 const terbilang = (n: number): string => {
   if (n === 0) return "";
@@ -417,7 +433,7 @@ defineExpose({
           <div class="w-[35%] text-right pb-1 flex flex-col items-end justify-end h-full">
             <div class="text-[0.6rem] font-mono mb-1 text-black">PAGE: 1 OF 1</div>
             <h1 class="text-xl font-bold tracking-widest uppercase leading-none text-[#062c58]">
-              {{ mode === "receipt" ? "OFFICIAL RECEIPT" : "INVOICE" }}
+              {{ invoiceTitle }}
             </h1>
           </div>
         </div>
