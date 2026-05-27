@@ -241,9 +241,11 @@ onMounted(async () => {
       currency: props.expense.currency || "IDR",
       exchangeRate: Number(props.expense.exchangeRate || 1),
       items: (props.expense.items || []).map((item: ExpenseItem) => {
-        const matchedService = (services.value || []).find((s) => s.name === item.description);
+        const matchedService = (services.value || []).find(
+          (s) => s.id === item.serviceId || s.name === item.description,
+        );
         return {
-          serviceId: matchedService?.id || "",
+          serviceId: item.serviceId || matchedService?.id || "",
           description: item.description,
           quantity: Number(item.quantity),
           unitPrice: Number(item.unitPrice),

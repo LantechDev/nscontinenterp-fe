@@ -3,6 +3,8 @@ import { AlertTriangle, ChevronDown, ChevronUp, Download } from "lucide-vue-next
 import FinanceStatCard from "~/components/finance/StatCard.vue";
 import { formatFullRupiah } from "~/lib/utils";
 import type { CashFlowActivityGroup, CashFlowReport } from "~/types/finance-dashboard";
+import Combobox from "~/components/ui/Combobox.vue";
+import DatePicker from "~/components/ui/DatePicker.vue";
 
 const props = defineProps<{
   selectedYear: string;
@@ -19,6 +21,7 @@ const isLoading = ref(false);
 const error = ref<string | null>(null);
 const report = ref<CashFlowReport | null>(null);
 const localYear = ref(props.selectedYear || new Date().getFullYear().toString());
+const yearOptions = computed(() => props.availableYears.map((year) => ({ id: year, name: year })));
 const startDate = ref(`${localYear.value}-01-01`);
 const endDate = ref(`${localYear.value}-12-31`);
 const expandedGroups = ref<string[]>(["OPERATING", "INVESTING", "FINANCING"]);
@@ -79,12 +82,12 @@ async function fetchCashFlow() {
   }
 }
 
-function handleYearChange() {
-  if (!localYear.value) return;
-  startDate.value = `${localYear.value}-01-01`;
-  endDate.value = `${localYear.value}-12-31`;
-  fetchCashFlow();
-}
+watch(localYear, (newYear) => {
+  if (newYear) {
+    startDate.value = `${newYear}-01-01`;
+    endDate.value = `${newYear}-12-31`;
+  }
+});
 
 function toggleGroup(activity: string) {
   const index = expandedGroups.value.indexOf(activity);
@@ -119,15 +122,18 @@ onMounted(() => {
         </p>
       </div>
 
-      <div class="flex flex-col sm:flex-row gap-3">
-        <select v-model="localYear" class="input-field min-w-[130px]" @change="handleYearChange">
-          <option v-for="year in availableYears" :key="year" :value="year">{{ year }}</option>
-        </select>
-        <input v-model="startDate" type="date" class="input-field min-w-[160px]" />
-        <input v-model="endDate" type="date" class="input-field min-w-[160px]" />
+      <div class="flex flex-col sm:flex-row items-center gap-3">
+        <Combobox
+          v-model="localYear"
+          :options="yearOptions"
+          placeholder="Year"
+          class="min-w-[130px]"
+        />
+        <DatePicker v-model="startDate" placeholder="Start Date" class="min-w-[160px]" />
+        <DatePicker v-model="endDate" placeholder="End Date" class="min-w-[160px]" />
         <button
           type="button"
-          class="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium bg-[#012D5A] text-white rounded-lg hover:bg-[#012D5A]/90"
+          class="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium bg-[#012D5A] text-white rounded-lg hover:bg-[#012D5A]/90 h-10"
           @click="emit('export', $event)"
         >
           <Download class="w-4 h-4" />
