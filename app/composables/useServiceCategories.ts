@@ -7,6 +7,8 @@ export interface ServiceCategoryStats {
 
 export interface CreateServiceCategoryInput {
   name: string;
+  defaultRevenueAccountId?: string | null;
+  defaultCostAccountId?: string | null;
 }
 
 type ErrorResponse = {

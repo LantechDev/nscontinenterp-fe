@@ -1,5 +1,6 @@
 export interface ExpenseItem {
   id?: string;
+  serviceId?: string | null;
   description: string;
   quantity: number;
   unitPrice: number;

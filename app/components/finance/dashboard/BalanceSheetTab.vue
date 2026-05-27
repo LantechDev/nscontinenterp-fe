@@ -3,6 +3,8 @@ import { AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, Download } from "l
 import FinanceStatCard from "~/components/finance/StatCard.vue";
 import { cn, formatFullRupiah } from "~/lib/utils";
 import type { BalanceSheetGroup, BalanceSheetReport } from "~/types/finance-dashboard";
+import Combobox from "~/components/ui/Combobox.vue";
+import DatePicker from "~/components/ui/DatePicker.vue";
 
 const props = defineProps<{
   selectedYear: string;
@@ -20,6 +22,7 @@ const error = ref<string | null>(null);
 const report = ref<BalanceSheetReport | null>(null);
 const asOfDate = ref(new Date().toISOString().split("T")[0]);
 const localYear = ref(props.selectedYear || new Date().getFullYear().toString());
+const yearOptions = computed(() => props.availableYears.map((year) => ({ id: year, name: year })));
 const expandedGroups = ref<string[]>(["ASSET", "LIABILITY", "EQUITY"]);
 
 const statCards = computed(() => [
@@ -81,12 +84,11 @@ function isGroupExpanded(groupType: string) {
   return expandedGroups.value.includes(groupType);
 }
 
-function handleYearChange() {
-  if (localYear.value) {
-    asOfDate.value = `${localYear.value}-12-31`;
+watch(localYear, (newYear) => {
+  if (newYear) {
+    asOfDate.value = `${newYear}-12-31`;
   }
-  fetchBalanceSheet();
-}
+});
 
 const groups = computed<BalanceSheetGroup[]>(() =>
   report.value ? [report.value.assets, report.value.liabilities, report.value.equity] : [],
@@ -113,14 +115,17 @@ onMounted(() => {
         </div>
       </div>
 
-      <div class="flex flex-col sm:flex-row gap-3">
-        <select v-model="localYear" class="input-field min-w-[130px]" @change="handleYearChange">
-          <option v-for="year in availableYears" :key="year" :value="year">{{ year }}</option>
-        </select>
-        <input v-model="asOfDate" type="date" class="input-field min-w-[160px]" />
+      <div class="flex flex-col sm:flex-row items-center gap-3">
+        <Combobox
+          v-model="localYear"
+          :options="yearOptions"
+          placeholder="Year"
+          class="min-w-[130px]"
+        />
+        <DatePicker v-model="asOfDate" placeholder="As of Date" class="min-w-[160px]" />
         <button
           type="button"
-          class="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium bg-[#012D5A] text-white rounded-lg hover:bg-[#012D5A]/90"
+          class="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium bg-[#012D5A] text-white rounded-lg hover:bg-[#012D5A]/90 h-10"
           @click="emit('export', $event)"
         >
           <Download class="w-4 h-4" />
