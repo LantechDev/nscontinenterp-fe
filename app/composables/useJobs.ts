@@ -247,6 +247,13 @@ export interface CreateJob {
   serviceId?: string;
   containerTypeId?: string;
   serviceType?: string;
+  pickupAddress?: string | null;
+  deliveryAddress?: string | null;
+  pickupDate?: string | null;
+  pickupTime?: string | null;
+  deliveryDate?: string | null;
+  deliveryTime?: string | null;
+  truckType?: string | null;
   shipmentType?: string;
   pol?: string | null;
   pod?: string | null;

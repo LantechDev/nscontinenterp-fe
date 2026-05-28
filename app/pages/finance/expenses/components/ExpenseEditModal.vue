@@ -77,8 +77,8 @@ const computedCategory = computed({
 </script>
 
 <template>
-  <Teleport to="body">
-    <div v-if="isOpen" class="fixed inset-0 z-[1100] flex items-center justify-center">
+  <Teleport v-if="isOpen" to="body">
+    <div class="fixed inset-0 z-[1100] flex items-center justify-center">
       <!-- Backdrop -->
       <div class="absolute inset-0 bg-black/50" @click="emit('close')"></div>
 

@@ -52,10 +52,10 @@ function test() {
     `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
 <fonts count="2">
-<font><sz val="11"/><color rgb="FF${C.white}"/><name val="Arial"/><b/></font>
-<font><sz val="10"/><color rgb="FF${C.black}"/><name val="Arial"/></font>
+<font><color rgb="FF${C.black}"/><sz val="10"/><name val="Arial"/></font>
+<font><b/><color rgb="FF${C.white}"/><sz val="11"/><name val="Arial"/></font>
 </fonts>
-<fills count="4">
+<fills count="5">
 <fill><patternFill patternType="none"/></fill>
 <fill><patternFill patternType="gray125"/></fill>
 <fill><patternFill patternType="solid"><fgColor rgb="FF${C.darkNavy}"/></patternFill></fill>
@@ -65,24 +65,29 @@ function test() {
 <borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>
 <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
 <cellXfs count="3">
-<xf numFmtId="0" fontId="0" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"><alignment horizontal="center" vertical="center"/></xf>
-<xf numFmtId="0" fontId="1" fillId="3" borderId="0" xfId="0" applyFont="1" applyFill="1"><alignment horizontal="left" vertical="center"/></xf>
-<xf numFmtId="0" fontId="1" fillId="4" borderId="0" xfId="0" applyFont="1" applyFill="1"><alignment horizontal="left" vertical="center"/></xf>
+<xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+<xf numFmtId="0" fontId="0" fillId="3" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment horizontal="left" vertical="center"/></xf>
+<xf numFmtId="0" fontId="0" fillId="4" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment horizontal="left" vertical="center"/></xf>
 </cellXfs>
 </styleSheet>`,
   );
 
   let sheetData = "";
   rows.forEach((row, ri) => {
+    const cells: string[] = [];
     row.cells.forEach((val, ci) => {
       const ref = String.fromCharCode(65 + ci) + (ri + 1);
-      if (val == null) return;
-      if (typeof val === "number") {
-        sheetData += `<row r="${ri + 1}"><c r="${ref}" s="${row.style}"><v>${val}</v></c></row>`;
+      if (val == null) {
+        cells.push(`<c r="${ref}" s="${row.style}"/>`);
+      } else if (typeof val === "number") {
+        cells.push(`<c r="${ref}" s="${row.style}"><v>${val}</v></c>`);
       } else {
-        sheetData += `<row r="${ri + 1}"><c r="${ref}" s="${row.style}" t="inlineStr"><is><t>${escapeXml(String(val))}</t></is></c></row>`;
+        cells.push(
+          `<c r="${ref}" s="${row.style}" t="inlineStr"><is><t>${escapeXml(String(val))}</t></is></c>`,
+        );
       }
     });
+    sheetData += `<row r="${ri + 1}">${cells.join("")}</row>`;
   });
 
   zip.file(

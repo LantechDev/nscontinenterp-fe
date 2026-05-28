@@ -10,11 +10,13 @@ export function cn(...inputs: ClassValue[]) {
  */
 export const formatDate = (date: string | Date | null | undefined): string => {
   if (!date) return "-";
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return "-";
   return new Intl.DateTimeFormat("id-ID", {
     day: "2-digit",
     month: "short",
     year: "numeric",
-  }).format(new Date(date));
+  }).format(d);
 };
 
 /**
@@ -22,7 +24,9 @@ export const formatDate = (date: string | Date | null | undefined): string => {
  */
 export const formatDateTime = (date: string | Date | null | undefined): string => {
   if (!date) return "-";
-  return new Date(date).toLocaleString("en-US", {
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return "-";
+  return d.toLocaleString("en-US", {
     year: "numeric",
     month: "short",
     day: "numeric",

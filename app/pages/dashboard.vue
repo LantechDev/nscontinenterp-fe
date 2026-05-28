@@ -200,7 +200,7 @@ const handleExportPdf = async () => {
     doc.setTextColor(...white);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(14);
-    doc.text("PT NOVA SYNC", margin, 11);
+    doc.text("PT Nova Sync Continent", margin, 11);
     doc.setFontSize(11);
     doc.text("Dashboard Summary", pageWidth / 2, 11, { align: "center" });
     doc.setFontSize(9);
@@ -323,7 +323,7 @@ const handleExportExcel = () => {
     const rows: StyledRow[] = [];
 
     // Row 0: Title
-    rows.push({ cells: ["PT NOVA SYNC — DASHBOARD SUMMARY", "", "", ""], style: 7 });
+    rows.push({ cells: ["PT Nova Sync Continent — DASHBOARD SUMMARY", "", "", ""], style: 7 });
     // Row 1: Period
     rows.push({
       cells: [

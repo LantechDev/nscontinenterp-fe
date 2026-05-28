@@ -70,7 +70,7 @@ const openCreateModal = () => {
   editingAccount.value = null;
   formData.bankName = "";
   formData.accountNumber = "";
-  formData.accountHolder = "PT NOVA SYNC CONTINENT";
+  formData.accountHolder = "PT Nova Sync Continent";
   formData.currency = "IDR";
   formData.swiftCode = "";
   formData.isActive = true;

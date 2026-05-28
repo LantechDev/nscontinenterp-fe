@@ -24,15 +24,15 @@ export interface StyledRow {
 }
 
 export type StyleIdx =
-  | 0 // header: darkNavy bg, white bold, center
+  | 0 // column header: lightBlue bg, darkNavy bold, center
   | 1 // data even: white bg
   | 2 // data odd: lightGray bg
   | 3 // total: lightBlue bold, right-aligned
-  | 4 // header merged: darkNavy bg, white bold, center, merged
+  | 4 // merged section header: lightBlue bg, darkNavy bold, center
   | 5 // data even right: white bg, right-aligned (for currency)
   | 6 // data odd right: lightGray bg, right-aligned (for currency)
-  | 7 // title merged: darkNavy bg, white bold, center, larger font
-  | 8 // period merged: darkNavy bg, white normal, center
+  | 7 // title merged: lightBlue bg, darkNavy bold, center, larger font
+  | 8 // period merged: white bg, darkNavy bold, center
   | 9; // total label: lightBlue bold, left-aligned
 
 function escapeXml(val: string): string {
@@ -40,7 +40,14 @@ function escapeXml(val: string): string {
 }
 
 function colLetter(c: number): string {
-  return String.fromCharCode(65 + c);
+  let n = c + 1;
+  let result = "";
+  while (n > 0) {
+    const remainder = (n - 1) % 26;
+    result = String.fromCharCode(65 + remainder) + result;
+    n = Math.floor((n - 1) / 26);
+  }
+  return result;
 }
 
 function cellRef(c: number, r: number): string {
@@ -52,10 +59,10 @@ function buildStylesXml(): string {
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
 <fonts count="4">
-<font><sz val="${EXCEL_FONTS.headerSize}"/><color rgb="FF${C.white}"/><name val="${EXCEL_FONTS.name}"/><b/></font>
-<font><sz val="${EXCEL_FONTS.dataSize}"/><color rgb="FF${C.black}"/><name val="${EXCEL_FONTS.name}"/></font>
-<font><sz val="${EXCEL_FONTS.dataSize}"/><color rgb="FF${C.darkNavy}"/><name val="${EXCEL_FONTS.name}"/><b/></font>
-<font><sz val="14"/><color rgb="FF${C.white}"/><name val="${EXCEL_FONTS.name}"/><b/></font>
+<font><color rgb="FF${C.black}"/><sz val="${EXCEL_FONTS.dataSize}"/><name val="${EXCEL_FONTS.name}"/></font>
+<font><b/><color rgb="FF${C.white}"/><sz val="${EXCEL_FONTS.headerSize}"/><name val="${EXCEL_FONTS.name}"/></font>
+<font><b/><color rgb="FF${C.darkNavy}"/><sz val="${EXCEL_FONTS.dataSize}"/><name val="${EXCEL_FONTS.name}"/></font>
+<font><b/><color rgb="FF${C.white}"/><sz val="14"/><name val="${EXCEL_FONTS.name}"/></font>
 </fonts>
 <fills count="6">
 <fill><patternFill patternType="none"/></fill>
@@ -72,30 +79,31 @@ function buildStylesXml(): string {
 <right style="thin"><color rgb="FF${C.darkNavy}"/></right>
 <top style="thin"><color rgb="FF${C.darkNavy}"/></top>
 <bottom style="thin"><color rgb="FF${C.darkNavy}"/></bottom>
+<diagonal/>
 </border>
 </borders>
 <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
 <cellXfs count="10">
-<!-- 0: header darkNavy, white bold, center -->
-<xf numFmtId="0" fontId="0" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"><alignment horizontal="center" vertical="center"/></xf>
+<!-- 0: column header lightBlue, darkNavy bold, center -->
+<xf numFmtId="0" fontId="2" fillId="5" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
 <!-- 1: data even white, left -->
-<xf numFmtId="0" fontId="1" fillId="3" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"><alignment horizontal="left" vertical="center"/></xf>
+<xf numFmtId="0" fontId="0" fillId="3" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="left" vertical="center"/></xf>
 <!-- 2: data odd lightGray, left -->
-<xf numFmtId="0" fontId="1" fillId="4" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"><alignment horizontal="left" vertical="center"/></xf>
+<xf numFmtId="0" fontId="0" fillId="4" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="left" vertical="center"/></xf>
 <!-- 3: total lightBlue bold, right -->
-<xf numFmtId="0" fontId="2" fillId="5" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"><alignment horizontal="right" vertical="center"/></xf>
-<!-- 4: header darkNavy (same as 0, for explicit use) -->
-<xf numFmtId="0" fontId="0" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"><alignment horizontal="center" vertical="center"/></xf>
+<xf numFmtId="3" fontId="2" fillId="5" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyNumberFormat="1" applyAlignment="1"><alignment horizontal="right" vertical="center"/></xf>
+<!-- 4: merged section header lightBlue, darkNavy bold, center -->
+<xf numFmtId="0" fontId="2" fillId="5" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
 <!-- 5: data even white, right (currency) -->
-<xf numFmtId="2" fontId="1" fillId="3" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyNumberFormat="1"><alignment horizontal="right" vertical="center"/></xf>
+<xf numFmtId="3" fontId="0" fillId="3" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyNumberFormat="1" applyAlignment="1"><alignment horizontal="right" vertical="center"/></xf>
 <!-- 6: data odd lightGray, right (currency) -->
-<xf numFmtId="2" fontId="1" fillId="4" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyNumberFormat="1"><alignment horizontal="right" vertical="center"/></xf>
-<!-- 7: title merged, darkNavy, white bold, 14pt -->
-<xf numFmtId="0" fontId="3" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"><alignment horizontal="center" vertical="center"/></xf>
-<!-- 8: period merged, darkNavy, white normal, center -->
-<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"><alignment horizontal="center" vertical="center"/></xf>
+<xf numFmtId="3" fontId="0" fillId="4" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyNumberFormat="1" applyAlignment="1"><alignment horizontal="right" vertical="center"/></xf>
+<!-- 7: title merged, lightBlue, darkNavy bold, 14pt -->
+<xf numFmtId="0" fontId="2" fillId="5" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
+<!-- 8: period merged, white, darkNavy bold, center -->
+<xf numFmtId="0" fontId="2" fillId="3" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
 <!-- 9: total label, lightBlue bold, left -->
-<xf numFmtId="0" fontId="2" fillId="5" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"><alignment horizontal="left" vertical="center"/></xf>
+<xf numFmtId="0" fontId="2" fillId="5" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="left" vertical="center"/></xf>
 </cellXfs>
 </styleSheet>`;
 }
@@ -104,10 +112,15 @@ function buildSheetXml(rows: StyledRow[], colWidths?: number[]): string {
   const numRows = rows.length;
   const numCols = numRows > 0 ? Math.max(...rows.map((r) => r.cells.length)) : 0;
   const lastCol = numCols > 0 ? colLetter(numCols - 1) : "A";
+  const mergeRefs: string[] = [];
 
   let sheetData = "";
   rows.forEach((row, ri) => {
     const cells: string[] = [];
+    const shouldMergeRow = numCols > 1 && [4, 7, 8].includes(row.style);
+    if (shouldMergeRow) mergeRefs.push(`A${ri + 1}:${lastCol}${ri + 1}`);
+    const rowHeight = row.style === 7 ? 24 : row.style === 8 ? 20 : row.style === 0 ? 19 : 18;
+
     row.cells.forEach((val, ci) => {
       const ref = cellRef(ci, ri);
       const s = row.cellStyles && row.cellStyles[ci] !== undefined ? row.cellStyles[ci] : row.style;
@@ -121,7 +134,7 @@ function buildSheetXml(rows: StyledRow[], colWidths?: number[]): string {
         cells.push(`<c r="${ref}" s="${s}"/>`);
       }
     });
-    sheetData += `<row r="${ri + 1}">${cells.join("")}</row>`;
+    sheetData += `<row r="${ri + 1}" ht="${rowHeight}" customHeight="1">${cells.join("")}</row>`;
   });
 
   let colsXml = "";
@@ -134,10 +147,14 @@ function buildSheetXml(rows: StyledRow[], colWidths?: number[]): string {
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
 <dimension ref="A1:${lastCol}${numRows}"/>
+<sheetViews><sheetView workbookViewId="0"/></sheetViews>
+<sheetFormatPr defaultRowHeight="18"/>
 ${colsXml ? `<cols>${colsXml}</cols>` : ""}
 <sheetData>
 ${sheetData}
 </sheetData>
+${mergeRefs.length > 0 ? `<mergeCells count="${mergeRefs.length}">${mergeRefs.map((ref) => `<mergeCell ref="${ref}"/>`).join("")}</mergeCells>` : ""}
+<pageMargins left="0.7" right="0.7" top="0.75" bottom="0.75" header="0.3" footer="0.3"/>
 </worksheet>`;
 }
 

@@ -188,21 +188,6 @@ const toggleEditMode = () => {
     { id: "EXPORT", name: "Export" },
     { id: "IMPORT", name: "Import" },
   ];
-  const CARGO_MOVEMENTS = [
-    { id: "FCL_FCL", name: "FCL/FCL" },
-    { id: "LCL_LCL", name: "LCL/LCL" },
-    { id: "FCL_LCL", name: "FCL/LCL" },
-    { id: "LCL_FCL", name: "LCL/FCL" },
-    { id: "AIR_AIR", name: "AIR/AIR" },
-  ];
-  const DELIVERY_MOVEMENTS = [
-    { id: "CY_CY", name: "CY-CY" },
-    { id: "CY_DOOR", name: "CY-DOOR" },
-    { id: "DOOR_CY", name: "DOOR-CY" },
-    { id: "DOOR_DOOR", name: "DOOR-DOOR" },
-    { id: "AIR_AIR", name: "AIR/AIR" },
-  ];
-
   editForm.value = {
     shipperId: findRole("SHIPPER")?.companyId || "",
     shipperAddressId: findRole("SHIPPER")?.addressBookId || "",
@@ -257,23 +242,17 @@ const toggleEditMode = () => {
           (d?.tradeType?.code || d?.job?.tradeType?.code || d?.tradeTypeId || d?.job?.tradeTypeId),
       )?.id || "EXPORT",
     cargoMovementId:
-      CARGO_MOVEMENTS.find(
-        (m) =>
-          m.id ===
-          (d?.cargoMovement?.code ||
-            d?.job?.cargoMovement?.code ||
-            d?.cargoMovementId ||
-            d?.job?.cargoMovementId),
-      )?.id || "FCL_FCL",
+      d?.cargoMovement?.code ||
+      d?.job?.cargoMovement?.code ||
+      d?.cargoMovementId ||
+      d?.job?.cargoMovementId ||
+      "FCL_FCL",
     deliveryMovementId:
-      DELIVERY_MOVEMENTS.find(
-        (m) =>
-          m.id ===
-          (d?.deliveryMovement?.code ||
-            d?.job?.deliveryMovement?.code ||
-            d?.deliveryMovementId ||
-            d?.job?.deliveryMovementId),
-      )?.id || "CY_CY",
+      d?.deliveryMovement?.code ||
+      d?.job?.deliveryMovement?.code ||
+      d?.deliveryMovementId ||
+      d?.job?.deliveryMovementId ||
+      "CY_CY",
     shipperReferences: blDoc?.shipperReferences ? [...blDoc.shipperReferences] : [],
     showShipperReferencesOnBl: blDoc?.showShipperReferencesOnBl !== false,
 

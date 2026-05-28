@@ -1,5 +1,5 @@
 import { jsPDF } from "jspdf";
-import { toNumber, formatRupiah } from "~/lib/utils";
+import { toNumber, formatFullRupiah } from "~/lib/utils";
 import type { InvoiceDetail } from "~/composables/useInvoices";
 
 /**
@@ -186,10 +186,10 @@ export async function generateInvoicePdf(invoice: InvoiceDetail): Promise<void> 
     doc.text(String(item.quantity), contentMargin + contentWidth - 65, yPos + 5, {
       align: "center",
     });
-    doc.text(formatRupiah(item.unitPrice), contentMargin + contentWidth - 35, yPos + 5, {
+    doc.text(formatFullRupiah(item.unitPrice), contentMargin + contentWidth - 35, yPos + 5, {
       align: "right",
     });
-    doc.text(formatRupiah(item.amount), contentMargin + contentWidth - 3, yPos + 5, {
+    doc.text(formatFullRupiah(item.amount), contentMargin + contentWidth - 3, yPos + 5, {
       align: "right",
     });
 
@@ -205,7 +205,7 @@ export async function generateInvoicePdf(invoice: InvoiceDetail): Promise<void> 
     doc.setFont("helvetica", isBold ? "bold" : "normal");
     doc.setTextColor(...(isBold ? primaryColor : textColor));
     doc.text(label, totalsX, yPos);
-    doc.text(formatRupiah(value), contentMargin + contentWidth - 3, yPos, { align: "right" });
+    doc.text(formatFullRupiah(value), contentMargin + contentWidth - 3, yPos, { align: "right" });
     yPos += 6;
   };
 

@@ -849,7 +849,7 @@ defineExpose({
                   }}</span>
                   <span class="text-[#062c58]/70">ACCOUNT NAME:</span>
                   <span class="font-medium">{{
-                    matchedBankAccount?.accountHolder || "PT NOVA SYNC CONTINENT"
+                    matchedBankAccount?.accountHolder || "PT Nova Sync Continent"
                   }}</span>
                   <span class="text-[#062c58]/70">ACCOUNT NO:</span>
                   <span class="font-bold text-sm"
@@ -944,7 +944,7 @@ defineExpose({
             </div>
             <div class="w-full h-[0.5px] bg-[#062c58] mb-1"></div>
             <div class="text-[0.7rem] font-black text-[#062c58] uppercase">
-              PT NOVA SYNC CONTINENT
+              PT Nova Sync Continent
             </div>
           </div>
         </div>

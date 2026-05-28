@@ -28,6 +28,7 @@ import {
   Globe,
   Tag,
   Scale,
+  ArrowLeftRight,
 } from "lucide-vue-next";
 import type { Organization } from "~/types/auth";
 
@@ -54,6 +55,9 @@ export const NAV_ITEMS: NavItem[] = [
       { title: "Service", href: "/master/services", icon: Wrench },
       { title: "Service Category", href: "/master/service-categories", icon: Tag },
       { title: "Service Unit", href: "/master/service-units", icon: Scale },
+      { title: "Package Unit", href: "/master/package-types", icon: Package },
+      { title: "Cargo Movement", href: "/master/cargo-movements", icon: ArrowLeftRight },
+      { title: "Delivery Movement", href: "/master/delivery-movements", icon: ArrowLeftRight },
       { title: "Vessel", href: "/master/vessel", icon: Anchor },
       { title: "Plane", href: "/master/plane", icon: Plane },
       { title: "Bank Account", href: "/master/bank-account", icon: Landmark },

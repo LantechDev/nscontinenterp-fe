@@ -155,7 +155,7 @@ const handleExportExcel = () => {
     const filterLabel = `Exported Invoices | Total: ${filteredInvoices.value.length} | Generated: ${new Date().toLocaleDateString("id-ID")}`;
 
     const rows: StyledRow[] = [
-      { cells: ["NS CONTINENT — INVOICE LIST REPORT", "", "", "", "", "", ""], style: 7 },
+      { cells: ["PT Nova Sync Continent — INVOICE LIST REPORT", "", "", "", "", "", ""], style: 7 },
       { cells: [filterLabel, "", "", "", "", "", ""], style: 8 },
       { cells: colHeaders, style: 0 },
     ];
@@ -180,7 +180,7 @@ const handleExportExcel = () => {
           isEven ? 1 : 2,
           isEven ? 5 : 6,
           isEven ? 5 : 6,
-          isEven ? 11 : 11,
+          isEven ? 1 : 2,
         ],
       });
     });
@@ -198,7 +198,7 @@ const handleExportExcel = () => {
     rows.push({
       cells: ["", "", "GRAND TOTALS", "", totalAmount, totalBalance, ""],
       style: 3,
-      cellStyles: [10, 10, 10, 10, 3, 3, 10],
+      cellStyles: [9, 9, 9, 9, 3, 3, 9],
     });
 
     const colWidths = [15, 20, 35, 18, 18, 18, 15];

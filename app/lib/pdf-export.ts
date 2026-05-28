@@ -1,5 +1,5 @@
 import { jsPDF } from "jspdf";
-import { formatRupiah } from "~/lib/utils";
+import { formatFullRupiah } from "~/lib/utils";
 
 const C = {
   primary: [6, 44, 88] as [number, number, number], // #062c58
@@ -83,7 +83,7 @@ export async function exportStyledPdf(opts: PdfExportOptions): Promise<void> {
       doc.setTextColor(...C.primary);
       doc.setFont("helvetica", "bold");
       doc.setFontSize(14);
-      doc.text("NS CONTINENT", contentMargin, contentMargin + 5);
+      doc.text("PT Nova Sync Continen", contentMargin, contentMargin + 5);
     }
 
     doc.setFontSize(7);
@@ -185,7 +185,7 @@ export async function exportStyledPdf(opts: PdfExportOptions): Promise<void> {
       const val =
         typeof cell === "number"
           ? cols[i]?.isCurrency
-            ? formatRupiah(cell)
+            ? formatFullRupiah(cell)
             : String(cell)
           : String(cell ?? "-");
       const offset = align === "left" ? 2 : align === "right" ? colW[i]! - 2 : colW[i]! / 2;
@@ -220,7 +220,7 @@ export async function exportStyledPdf(opts: PdfExportOptions): Promise<void> {
       } else if (totals.includes(i)) {
         const sum = rows.reduce((s, r) => s + (typeof r[i] === "number" ? (r[i] as number) : 0), 0);
         const offset = align === "left" ? 2 : align === "right" ? colW[i]! - 2 : colW[i]! / 2;
-        doc.text(formatRupiah(sum), cx + offset, y + headerRowH / 2 + 1, { align });
+        doc.text(formatFullRupiah(sum), cx + offset, y + headerRowH / 2 + 1, { align });
       }
       cx += colW[i]!;
     });

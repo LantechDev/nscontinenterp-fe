@@ -335,6 +335,28 @@ const getPod = computed(() => {
 });
 const getTotalContainers = computed(() => job.value?.totalBlCount || 2);
 
+const getServiceTypeBadge = computed(() => {
+  const sType = job.value?.serviceType || "OCEAN";
+  const shType = job.value?.shipmentType || "OCEAN";
+
+  if (sType === "TRUCKING") {
+    return {
+      name: "Trucking",
+      class: "bg-amber-50 text-amber-700 border-amber-200",
+    };
+  }
+  if (sType === "AIR" || shType === "AIR") {
+    return {
+      name: "Air Freight",
+      class: "bg-sky-50 text-sky-700 border-sky-200",
+    };
+  }
+  return {
+    name: "Ocean Freight",
+    class: "bg-indigo-50 text-indigo-700 border-indigo-200",
+  };
+});
+
 const getPartyAddress = (roleCode: string) => {
   const party = job.value?.jobParties?.find((p) => p.partyRole?.code === roleCode);
   if (!party) return "-";
@@ -605,10 +627,32 @@ watch(
                   </div>
 
                   <div class="flex items-center gap-2 text-muted-foreground">
-                    <CalendarClock class="w-4 h-4" /> ETD - ETA
+                    <Box class="w-4 h-4" /> Service Type
+                  </div>
+                  <div>
+                    <span
+                      :class="
+                        cn(
+                          'inline-flex items-center px-3 py-1 rounded-md text-xs font-bold leading-none border',
+                          getServiceTypeBadge.class,
+                        )
+                      "
+                    >
+                      {{ getServiceTypeBadge.name }}
+                    </span>
+                  </div>
+
+                  <div class="flex items-center gap-2 text-muted-foreground">
+                    <CalendarClock class="w-4 h-4" />
+                    {{ job.serviceType === "TRUCKING" ? "Target Dates" : "ETD - ETA" }}
                   </div>
                   <div class="font-medium">
-                    {{ formatDate(job.etd) }} - {{ formatDate(finalEta) }}
+                    <template v-if="job.serviceType === 'TRUCKING'">
+                      {{ formatDate(job.pickupDate) }} - {{ formatDate(job.deliveryDate) }}
+                    </template>
+                    <template v-else>
+                      {{ formatDate(job.etd) }} - {{ formatDate(finalEta) }}
+                    </template>
                   </div>
                 </div>
               </div>
@@ -1018,6 +1062,46 @@ watch(
                           <p class="text-xs text-muted-foreground mb-0.5">Truck Type</p>
                           <p class="font-bold text-sm text-foreground uppercase">
                             {{ job.truckType || "Standard Truck" }}
+                          </p>
+                        </div>
+                      </div>
+
+                      <!-- Pickup Target (Trucking Only) -->
+                      <div v-if="job.serviceType === 'TRUCKING'" class="flex gap-4 items-center">
+                        <div
+                          class="w-10 h-10 rounded-full bg-blue-50/80 flex items-center justify-center text-[#012D5A] shrink-0 border border-blue-100"
+                        >
+                          <Calendar class="w-5 h-5 text-[#012D5A]/80" />
+                        </div>
+                        <div>
+                          <p class="text-xs text-muted-foreground mb-0.5">Target Pickup</p>
+                          <p class="font-bold text-sm text-foreground">
+                            {{ formatDate(job.pickupDate) }}
+                            <span
+                              v-if="job.pickupTime"
+                              class="text-xs font-semibold text-muted-foreground"
+                              >({{ job.pickupTime }})</span
+                            >
+                          </p>
+                        </div>
+                      </div>
+
+                      <!-- Delivery Target (Trucking Only) -->
+                      <div v-if="job.serviceType === 'TRUCKING'" class="flex gap-4 items-center">
+                        <div
+                          class="w-10 h-10 rounded-full bg-blue-50/80 flex items-center justify-center text-[#012D5A] shrink-0 border border-blue-100"
+                        >
+                          <Calendar class="w-5 h-5 text-[#012D5A]/80" />
+                        </div>
+                        <div>
+                          <p class="text-xs text-muted-foreground mb-0.5">Target Delivery</p>
+                          <p class="font-bold text-sm text-foreground">
+                            {{ formatDate(job.deliveryDate) }}
+                            <span
+                              v-if="job.deliveryTime"
+                              class="text-xs font-semibold text-muted-foreground"
+                              >({{ job.deliveryTime }})</span
+                            >
                           </p>
                         </div>
                       </div>

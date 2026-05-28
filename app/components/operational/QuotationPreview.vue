@@ -593,7 +593,7 @@ defineExpose({
 
             <div class="text-center min-w-[160px] flex flex-col justify-between">
               <span class="text-[0.55rem] font-bold text-[#062c58]/70 uppercase leading-none mb-10"
-                >PT NOVA SYNC CONTINENT</span
+                >PT Nova Sync Continent</span
               >
               <div class="w-full h-[0.5px] bg-[#062c58] mb-1"></div>
               <span class="text-[0.6rem] font-black text-[#062c58] uppercase"

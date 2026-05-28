@@ -30,6 +30,7 @@ import type {
   PackageType,
   Vessel,
   Port,
+  MovementType,
 } from "~/composables/useMasterData";
 
 const props = defineProps<{
@@ -45,6 +46,8 @@ const {
   fetchVessels,
   fetchPlanes,
   fetchPorts,
+  fetchCargoMovements,
+  fetchDeliveryMovements,
   createVessel,
   createPlane,
 } = useMasterData();
@@ -54,22 +57,28 @@ const { confirm } = useConfirm();
 const companies = ref<Company[]>([]);
 const containerTypes = ref<ContainerType[]>([]);
 const packageTypes = ref<PackageType[]>([]);
+const cargoMovementOptions = ref<MovementType[]>([]);
+const deliveryMovementOptions = ref<MovementType[]>([]);
 const vessels = ref<Vessel[]>([]);
 const planes = ref<Plane[]>([]);
 const portsPol = ref<Port[]>([]);
 const portsPod = ref<Port[]>([]);
 
 onMounted(async () => {
-  const [c, ct, pt, v, p] = await Promise.all([
+  const [c, ct, pt, cargoMoves, deliveryMoves, v, p] = await Promise.all([
     fetchCompanies(),
     fetchContainerTypes(),
     fetchPackageTypes(),
+    fetchCargoMovements(),
+    fetchDeliveryMovements(),
     fetchVessels(),
     fetchPlanes(),
   ]);
   companies.value = c;
   containerTypes.value = ct;
   packageTypes.value = pt;
+  cargoMovementOptions.value = cargoMoves;
+  deliveryMovementOptions.value = deliveryMoves;
   vessels.value = v;
   planes.value = p;
 
@@ -380,25 +389,6 @@ const TRADE_TYPES = [
   { id: "IMPORT", name: "Import" },
 ];
 
-const CARGO_MOVEMENTS = [
-  { id: "FCL_FCL", name: "FCL/FCL" },
-  { id: "LCL_LCL", name: "LCL/LCL" },
-  { id: "FCL_LCL", name: "FCL/LCL" },
-  { id: "LCL_FCL", name: "LCL/FCL" },
-  { id: "AIR_AIR", name: "AIR/AIR" },
-];
-
-const DELIVERY_MOVEMENTS = [
-  { id: "CY_CY", name: "CY-CY" },
-  { id: "CY_DOOR", name: "CY-DOOR" },
-  { id: "DOOR_CY", name: "DOOR-CY" },
-  { id: "DOOR_DOOR", name: "DOOR-DOOR" },
-  { id: "CFS_CY", name: "CFS-CY" },
-  { id: "CFS_CFS", name: "CFS-CFS" },
-  { id: "CY_CFS", name: "CY-CFS" },
-  { id: "AIR_AIR", name: "AIR/AIR" },
-];
-
 const BL_TYPES = [
   { id: "DRAFT", name: "DRAFT" },
   { id: "ORIGINAL", name: "ORIGINAL" },
@@ -692,13 +682,21 @@ const removeShipperRef = (index: number) => {
             <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
               >CARGO MOVEMENT</label
             >
-            <Combobox v-model="editForm.cargoMovementId" :options="CARGO_MOVEMENTS" />
+            <Combobox
+              v-model="editForm.cargoMovementId"
+              :options="cargoMovementOptions"
+              value-key="code"
+            />
           </div>
           <div class="space-y-2">
             <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
               >DELIVERY MOVEMENT</label
             >
-            <Combobox v-model="editForm.deliveryMovementId" :options="DELIVERY_MOVEMENTS" />
+            <Combobox
+              v-model="editForm.deliveryMovementId"
+              :options="deliveryMovementOptions"
+              value-key="code"
+            />
           </div>
         </div>
 

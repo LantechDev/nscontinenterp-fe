@@ -22,6 +22,7 @@ import type {
   Vessel,
   Port,
   PackageType,
+  MovementType,
 } from "~/composables/useMasterData";
 import type { Plane } from "~/composables/usePlanes";
 import SectionCard from "./components/SectionCard.vue";
@@ -39,6 +40,7 @@ import { useJobs, type CreateJob } from "~/composables/useJobs";
 const { createJob, getJob, isLoading } = useJobs();
 const { confirm } = useConfirm();
 const { createVessel, createPlane } = useMasterData();
+const { createPackageType } = usePackageTypes();
 const router = useRouter();
 const route = useRoute();
 import { toast } from "vue-sonner";
@@ -57,17 +59,22 @@ const {
   planes: Plane[];
   ports: Port[];
   packageTypes: PackageType[];
+  cargoMovements: MovementType[];
+  deliveryMovements: MovementType[];
 }>(
   "job-create-master-data",
   async () => {
-    const [comps, types, packs, vess, plns, initialPorts] = await Promise.all([
-      $fetch<Company[]>("/api/master/companies"),
-      $fetch<ContainerType[]>("/api/master/container-types"),
-      $fetch<PackageType[]>("/api/master/package-types"),
-      $fetch<Vessel[]>("/api/master/vessels"),
-      $fetch<Plane[]>("/api/master/planes"),
-      $fetch<Port[]>("/api/master/ports"),
-    ]);
+    const [comps, types, packs, cargoMoves, deliveryMoves, vess, plns, initialPorts] =
+      await Promise.all([
+        $fetch<Company[]>("/api/master/companies"),
+        $fetch<ContainerType[]>("/api/master/container-types"),
+        $fetch<PackageType[]>("/api/master/package-types"),
+        $fetch<MovementType[]>("/api/master/cargo-movements"),
+        $fetch<MovementType[]>("/api/master/delivery-movements"),
+        $fetch<Vessel[]>("/api/master/vessels"),
+        $fetch<Plane[]>("/api/master/planes"),
+        $fetch<Port[]>("/api/master/ports"),
+      ]);
     return {
       companies: comps,
       containerTypes: types,
@@ -75,6 +82,8 @@ const {
       planes: plns,
       ports: initialPorts,
       packageTypes: packs,
+      cargoMovements: cargoMoves,
+      deliveryMovements: deliveryMoves,
     };
   },
   { server: false },
@@ -85,6 +94,8 @@ const containerTypes = computed(() => masterData.value?.containerTypes || []);
 const vessels = computed(() => masterData.value?.vessels || []);
 const planes = computed(() => masterData.value?.planes || []);
 const packageTypes = computed(() => masterData.value?.packageTypes || []);
+const cargoMovementOptions = computed(() => masterData.value?.cargoMovements || []);
+const deliveryMovementOptions = computed(() => masterData.value?.deliveryMovements || []);
 
 const searchedPorts = ref<Port[]>([]);
 watch(
@@ -625,25 +636,6 @@ const TRUCK_TYPES = [
   "45HC",
 ];
 
-const CARGO_MOVEMENTS = [
-  { id: "FCL_FCL", name: "FCL/FCL" },
-  { id: "LCL_LCL", name: "LCL/LCL" },
-  { id: "FCL_LCL", name: "FCL/LCL" },
-  { id: "LCL_FCL", name: "LCL/FCL" },
-  { id: "AIR_AIR", name: "AIR/AIR" },
-];
-
-const DELIVERY_MOVEMENTS = [
-  { id: "CY_CY", name: "CY-CY" },
-  { id: "CY_DOOR", name: "CY-DOOR" },
-  { id: "DOOR_CY", name: "DOOR-CY" },
-  { id: "DOOR_DOOR", name: "DOOR-DOOR" },
-  { id: "CFS_CY", name: "CFS-CY" },
-  { id: "CFS_CFS", name: "CFS-CFS" },
-  { id: "CY_CFS", name: "CY-CFS" },
-  { id: "AIR_AIR", name: "AIR/AIR" },
-];
-
 const BL_TYPES = [
   { id: "DRAFT", name: "DRAFT" },
   { id: "ORIGINAL", name: "ORIGINAL" },
@@ -755,6 +747,23 @@ const onPlaneCreateSuccess = async (plane: { id: string; name: string }) => {
   toast.success(`Plane "${plane.name}" created successfully.`);
 };
 
+async function handleCreatePackageType(
+  name: string,
+  item: {
+    packageTypeCode: string;
+  },
+) {
+  const result = await createPackageType({ name });
+
+  if (result.success && result.data) {
+    await refreshMasterData();
+    item.packageTypeCode = result.data.code;
+    toast.success(`Unit "${result.data.name}" created successfully.`);
+  } else {
+    toast.error(result.error || "Failed to create unit.");
+  }
+}
+
 async function handleSubmit(isDraft: boolean = false) {
   if (
     !formData.shipperId ||
@@ -786,12 +795,14 @@ async function handleSubmit(isDraft: boolean = false) {
       toast.error("Measurement (CBM) must be greater than 0 before finalizing the job.");
       return;
     }
-    const validContainers = formData.containers.filter((c) => c.containerNumber && c.sealNumber);
-    if (validContainers.length === 0) {
-      toast.error(
-        "At least one fully detailed Container (with Container No and Seal No) is required.",
-      );
-      return;
+    if (formData.serviceType === "OCEAN") {
+      const validContainers = formData.containers.filter((c) => c.containerNumber && c.sealNumber);
+      if (validContainers.length === 0) {
+        toast.error(
+          "At least one fully detailed Container (with Container No and Seal No) is required.",
+        );
+        return;
+      }
     }
   }
 
@@ -799,6 +810,7 @@ async function handleSubmit(isDraft: boolean = false) {
   const payload: CreateJob = {
     shipperId: formData.shipperId,
     customerId: formData.customerId,
+    serviceType: formData.serviceType,
     shipmentType: formData.shipmentType,
     shipperAddressId: formData.shipperAddressId || undefined,
     consigneeId: formData.consigneeId,
@@ -837,6 +849,14 @@ async function handleSubmit(isDraft: boolean = false) {
     dateOfIssue: formData.dateOfIssue || undefined,
     shipperReferences: formData.shipperReferences,
     showShipperReferencesOnBl: true, // Default to true for new jobs
+
+    pickupAddress: formData.pickupAddress || undefined,
+    deliveryAddress: formData.deliveryAddress || undefined,
+    pickupDate: formData.pickupDate || undefined,
+    pickupTime: formData.pickupTime || undefined,
+    deliveryDate: formData.deliveryDate || undefined,
+    deliveryTime: formData.deliveryTime || undefined,
+    truckType: formData.truckType || undefined,
 
     tradeTypeId: formData.tradeTypeId || undefined,
     cargoMovementId: formData.cargoMovementId || undefined,
@@ -1865,7 +1885,9 @@ async function populateFormFromExistingJob(jobInput: unknown) {
                                 value-key="code"
                                 label-key="code"
                                 placeholder="PKGS"
+                                allow-create
                                 class="h-9"
+                                @create="(name) => handleCreatePackageType(name, item)"
                               />
                             </div>
                             <div class="col-span-2 space-y-1.5 relative">
@@ -2088,14 +2110,22 @@ async function populateFormFromExistingJob(jobInput: unknown) {
                     class="text-xs font-semibold text-muted-foreground tracking-wider uppercase pl-1"
                     >CARGO MOVEMENT <span class="text-destructive">*</span></label
                   >
-                  <Combobox v-model="formData.cargoMovementId" :options="CARGO_MOVEMENTS" />
+                  <Combobox
+                    v-model="formData.cargoMovementId"
+                    :options="cargoMovementOptions"
+                    value-key="code"
+                  />
                 </div>
                 <div class="space-y-2">
                   <label
                     class="text-xs font-semibold text-muted-foreground tracking-wider uppercase pl-1"
                     >DELIVERY MOVEMENT <span class="text-destructive">*</span></label
                   >
-                  <Combobox v-model="formData.deliveryMovementId" :options="DELIVERY_MOVEMENTS" />
+                  <Combobox
+                    v-model="formData.deliveryMovementId"
+                    :options="deliveryMovementOptions"
+                    value-key="code"
+                  />
                 </div>
               </div>
 
