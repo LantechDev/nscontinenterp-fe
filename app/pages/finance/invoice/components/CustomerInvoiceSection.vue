@@ -49,6 +49,7 @@ const {
   toggleTax,
   initialize,
 } = useInvoicePage();
+const { requireManage } = useFeatureAccess("finance.invoice");
 
 const { showExportOptions, triggerX, triggerY, triggerWidth, triggerHeight, openExportPopup } =
   useExportPopup();
@@ -143,7 +144,23 @@ const handleInvoiceClick = (id: string) => {
 };
 
 const handleEdit = (id: string) => {
+  if (!requireManage("You only have view access for invoices.")) return;
   openEditModal(id);
+};
+
+const handleFullUpdateIfAllowed = () => {
+  if (!requireManage("You only have view access for invoices.")) return;
+  handleFullUpdate();
+};
+
+const addLineItemIfAllowed = () => {
+  if (!requireManage("You only have view access for invoices.")) return;
+  addLineItem();
+};
+
+const removeLineItemIfAllowed = (index: number) => {
+  if (!requireManage("You only have view access for invoices.")) return;
+  removeLineItem(index);
 };
 
 const handleExportExcel = () => {
@@ -395,9 +412,9 @@ const handleExportPdf = async () => {
       :jobs="jobs"
       :services="services"
       @close="closeEditModal"
-      @submit="handleFullUpdate"
-      @add-line-item="addLineItem"
-      @remove-line-item="removeLineItem"
+      @submit="handleFullUpdateIfAllowed"
+      @add-line-item="addLineItemIfAllowed"
+      @remove-line-item="removeLineItemIfAllowed"
       @update-item-amount="updateItemAmount"
       @toggle-tax="toggleTax"
     />

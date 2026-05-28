@@ -29,6 +29,7 @@ const normalBalances = ["DEBIT", "CREDIT"];
 const { isLoading, accounts, fetchAccounts, createAccount, updateAccount, deleteAccount } =
   useChartOfAccounts();
 const { confirm } = useConfirm();
+const { canManage, requireManage } = useFeatureAccess("finance.accounting");
 
 const searchQuery = ref("");
 const isModalOpen = ref(false);
@@ -83,12 +84,14 @@ function resetForm() {
 }
 
 function openCreateModal() {
+  if (!requireManage("You only have view access for accounting setup.")) return;
   editingAccount.value = null;
   resetForm();
   isModalOpen.value = true;
 }
 
 function openEditModal(account: ChartOfAccount) {
+  if (!requireManage("You only have view access for accounting setup.")) return;
   editingAccount.value = account;
   form.accountCode = account.accountCode;
   form.accountName = account.accountName;
@@ -125,6 +128,8 @@ async function handleSubmit() {
 }
 
 async function handleDeactivate(account: ChartOfAccount) {
+  if (!requireManage("You only have view access for accounting setup.")) return;
+
   const isConfirmed = await confirm({
     title: "Nonaktifkan Akun?",
     message: `Apakah Anda yakin ingin menonaktifkan akun "${account.accountCode} - ${account.accountName}"?`,
@@ -155,6 +160,7 @@ onMounted(() => fetchAccounts());
       </div>
 
       <button
+        v-if="canManage"
         type="button"
         class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium bg-[#012D5A] text-white hover:bg-[#012D5A]/90 rounded-lg transition-colors"
         @click="openCreateModal"
@@ -204,7 +210,9 @@ onMounted(() => fetchAccounts());
               <th class="py-3 px-4 text-sm font-medium text-foreground">Tipe</th>
               <th class="py-3 px-4 text-sm font-medium text-foreground">Normal</th>
               <th class="py-3 px-4 text-sm font-medium text-foreground">Mode</th>
-              <th class="py-3 px-4 text-sm font-medium text-foreground text-right">Action</th>
+              <th v-if="canManage" class="py-3 px-4 text-sm font-medium text-foreground text-right">
+                Action
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -221,7 +229,7 @@ onMounted(() => fetchAccounts());
                 </span>
               </td>
               <td class="py-3 px-4 text-sm">{{ account.normalBalance || "-" }}</td>
-              <td class="py-3 px-4">
+              <td v-if="canManage" class="py-3 px-4">
                 <span
                   class="px-2 py-1 rounded-full border text-xs"
                   :class="
@@ -253,7 +261,7 @@ onMounted(() => fetchAccounts());
               </td>
             </tr>
             <tr v-if="filteredAccounts.length === 0">
-              <td colspan="6" class="py-12 text-center text-muted-foreground">
+              <td :colspan="canManage ? 6 : 5" class="py-12 text-center text-muted-foreground">
                 Tidak ada akun ditemukan.
               </td>
             </tr>

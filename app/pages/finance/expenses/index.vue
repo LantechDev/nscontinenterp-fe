@@ -73,6 +73,35 @@ const {
   handleDelete,
   setData,
 } = useExpensePage();
+const { canManage, requireManage } = useFeatureAccess("finance.payment");
+const { canView: canViewCompanies } = useFeatureAccess("master.company");
+const { canView: canViewJobs } = useFeatureAccess("operational.job");
+const { canView: canViewAccounting } = useFeatureAccess("finance.accounting");
+
+const openCreateModalIfAllowed = () => {
+  if (!requireManage("You only have view access for payments and expenses.")) return;
+  openCreateModal();
+};
+
+const openEditModalIfAllowed = (id: string) => {
+  if (!requireManage("You only have view access for payments and expenses.")) return;
+  openEditModal(id);
+};
+
+const handleDeleteIfAllowed = (id: string) => {
+  if (!requireManage("You only have view access for payments and expenses.")) return;
+  handleDelete(id);
+};
+
+const handleUpdateIfAllowed = () => {
+  if (!requireManage("You only have view access for payments and expenses.")) return;
+  handleUpdate();
+};
+
+const handleRowClickIfAllowed = (id: string) => {
+  if (!canManage.value) return;
+  handleRowClick(id);
+};
 
 const statsCards = computed(() => {
   return [
@@ -115,24 +144,39 @@ const {
 } = await useAsyncData<ExpenseBootstrapData>(
   "expense-list",
   async () => {
-    const [expensesResp, companiesResp, jobsResp, taxesResp] = await Promise.all([
-      $fetch<{
-        items: Expense[];
-        pagination: Pagination;
-        summary: {
-          totalAmount: number;
-          totalPaid: number;
-          totalOutstanding: number;
-          count: number;
-        };
-      }>("/api/finance/expense", {
-        query: { type: "GENERAL" },
-      }),
-      $fetch<Company[]>("/api/master/companies?type=VENDOR"),
-      $fetch<JobWithBls[]>("/api/operational/jobs"),
-      $fetch<{ items: Tax[] }>("/api/finance/tax?isActive=true"),
+    const expensesResp = await $fetch<{
+      items: Expense[];
+      pagination: Pagination;
+      summary: {
+        totalAmount: number;
+        totalPaid: number;
+        totalOutstanding: number;
+        count: number;
+      };
+    }>("/api/finance/expense", {
+      query: { type: "GENERAL" },
+    });
+
+    if (!canManage.value) {
+      return { expenses: expensesResp, companies: [], jobs: [], taxes: { items: [] } };
+    }
+
+    const [companiesResp, jobsResp, taxesResp] = await Promise.allSettled([
+      canViewCompanies.value
+        ? $fetch<Company[]>("/api/master/companies?type=VENDOR")
+        : Promise.resolve([]),
+      canViewJobs.value ? $fetch<JobWithBls[]>("/api/operational/jobs") : Promise.resolve([]),
+      canViewAccounting.value
+        ? $fetch<{ items: Tax[] }>("/api/finance/tax?isActive=true")
+        : Promise.resolve({ items: [] }),
     ]);
-    return { expenses: expensesResp, companies: companiesResp, jobs: jobsResp, taxes: taxesResp };
+
+    return {
+      expenses: expensesResp,
+      companies: companiesResp.status === "fulfilled" ? companiesResp.value : [],
+      jobs: jobsResp.status === "fulfilled" ? jobsResp.value : [],
+      taxes: taxesResp.status === "fulfilled" ? taxesResp.value : { items: [] },
+    };
   },
   { server: false },
 );
@@ -246,8 +290,9 @@ const isPageLoading = computed(() => isLoading.value || isBootstrapping.value);
           </option>
         </select>
         <button
+          v-if="canManage"
           type="button"
-          @click="openCreateModal"
+          @click="openCreateModalIfAllowed"
           class="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-[#012D5A] text-white hover:bg-[#012D5A]/90 rounded-lg transition-colors min-w-fit whitespace-nowrap"
         >
           <Plus class="w-4 h-4" />
@@ -294,7 +339,7 @@ const isPageLoading = computed(() => isLoading.value || isBootstrapping.value);
                 v-for="expense in expenses"
                 :key="expense.id"
                 class="border-b border-border last:border-0 hover:bg-muted/30 transition-colors cursor-pointer"
-                @click="handleRowClick(expense.id)"
+                @click="handleRowClickIfAllowed(expense.id)"
               >
                 <td class="py-3 px-4">
                   <div class="flex items-center gap-2">
@@ -322,14 +367,16 @@ const isPageLoading = computed(() => isLoading.value || isBootstrapping.value);
                 <td class="py-3 px-4 text-right">
                   <div class="flex gap-1 justify-end">
                     <button
+                      v-if="canManage"
                       class="p-1.5 rounded hover:bg-muted transition-colors"
-                      @click.stop="openEditModal(expense.id)"
+                      @click.stop="openEditModalIfAllowed(expense.id)"
                     >
                       <Pencil class="w-4 h-4 text-muted-foreground" />
                     </button>
                     <button
+                      v-if="canManage"
                       class="p-1.5 rounded hover:bg-muted transition-colors"
-                      @click.stop="handleDelete(expense.id)"
+                      @click.stop="handleDeleteIfAllowed(expense.id)"
                     >
                       <Trash2 class="w-4 h-4 text-muted-foreground" />
                     </button>
@@ -358,7 +405,7 @@ const isPageLoading = computed(() => isLoading.value || isBootstrapping.value);
           v-for="expense in expenses"
           :key="expense.id"
           class="border border-border rounded-xl bg-white p-5 hover:shadow-sm transition-shadow cursor-pointer"
-          @click="handleRowClick(expense.id)"
+          @click="handleRowClickIfAllowed(expense.id)"
         >
           <div class="flex items-start justify-between mb-4">
             <div class="flex items-start gap-4">
@@ -380,14 +427,16 @@ const isPageLoading = computed(() => isLoading.value || isBootstrapping.value);
 
           <div class="flex gap-2">
             <button
+              v-if="canManage"
               class="text-muted-foreground hover:text-foreground p-1"
-              @click.stop="openEditModal(expense.id)"
+              @click.stop="openEditModalIfAllowed(expense.id)"
             >
               <Pencil class="w-4 h-4" />
             </button>
             <button
+              v-if="canManage"
               class="text-muted-foreground hover:text-foreground p-1"
-              @click.stop="handleDelete(expense.id)"
+              @click.stop="handleDeleteIfAllowed(expense.id)"
             >
               <Trash2 class="w-4 h-4" />
             </button>
@@ -460,10 +509,11 @@ const isPageLoading = computed(() => isLoading.value || isBootstrapping.value);
       @close="closeEditModal"
       @create-vendor="handleCreateVendor"
       @create-category="handleCreateCategory"
-      @submit="handleUpdate"
+      @submit="handleUpdateIfAllowed"
     />
 
     <CompanyCreateModal
+      v-if="canManage"
       v-model="isVendorCreateModalOpen"
       :preset-name="presetVendorName"
       preset-role="vendor"

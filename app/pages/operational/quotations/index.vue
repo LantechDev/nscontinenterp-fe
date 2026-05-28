@@ -31,6 +31,7 @@ definePageMeta({
 const { quotations, isLoading, fetchQuotations, deleteQuotation } = useQuotations();
 const { confirm } = useConfirm();
 const router = useRouter();
+const { canManage, requireManage } = useFeatureAccess("operational.quotation");
 
 const page = ref(1);
 const limit = ref(10);
@@ -128,6 +129,8 @@ const getStatusClass = (status: string) => {
 
 // Actions
 async function handleDelete(q: Quotation) {
+  if (!requireManage("You only have view access for quotations.")) return;
+
   const yes = await confirm({
     title: "Delete Quotation",
     message: `Apakah Anda yakin ingin menghapus quotation ${q.number}?`,
@@ -171,6 +174,7 @@ function openDetail(id: string) {
         </div>
         <div class="flex items-center gap-2">
           <NuxtLink
+            v-if="canManage"
             to="/operational/quotations/create"
             class="flex items-center gap-2 px-4 py-2 text-sm font-semibold bg-[#062c58] hover:bg-[#062c58]/90 text-white rounded-lg transition-all shadow-sm active:scale-95"
           >
@@ -486,6 +490,7 @@ function openDetail(id: string) {
                               View Details
                             </button>
                             <NuxtLink
+                              v-if="canManage"
                               :to="`/operational/quotations/${q.id}/edit`"
                               class="w-full px-4 py-2 text-left text-sm hover:bg-muted flex items-center gap-2"
                             >
@@ -493,6 +498,7 @@ function openDetail(id: string) {
                               Edit
                             </NuxtLink>
                             <button
+                              v-if="canManage"
                               class="w-full px-4 py-2 text-left text-sm hover:bg-muted flex items-center gap-2 text-rose-600"
                               @click="handleDelete(q)"
                             >

@@ -45,6 +45,7 @@ const { currentQuotation, getQuotation, updateQuotation, isLoading } = useQuotat
 const { confirm } = useConfirm();
 const { fetchTaxes } = useFinanceTax();
 const router = useRouter();
+const { canManage, requireManage } = useFeatureAccess("operational.quotation");
 
 const activeTab = ref("overview");
 const tabs = [
@@ -145,6 +146,7 @@ const getStatusBadgeClass = (status?: string) => {
 // Update Status quick action
 const handleUpdateStatus = async (newStatus: string) => {
   if (!quotation.value) return;
+  if (!requireManage("You only have view access for quotations.")) return;
 
   const yes = await confirm({
     title: "Update Quotation Status",
@@ -223,7 +225,7 @@ const handleGeneratePDF = async () => {
 
               <!-- Edit Button -->
               <button
-                v-if="quotation && quotation.status !== 'CONVERTED'"
+                v-if="quotation && quotation.status !== 'CONVERTED' && canManage"
                 @click="router.push(`/operational/quotations/${quotation.id}/edit`)"
                 class="px-3 py-1.5 rounded-lg text-xs font-bold border border-border bg-white text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition-colors flex items-center gap-1.5 shadow-sm"
               >
@@ -475,7 +477,7 @@ const handleGeneratePDF = async () => {
 
                   <!-- Quotation Workflow Actions Panel -->
                   <section
-                    v-if="quotation.status !== 'CONVERTED'"
+                    v-if="quotation.status !== 'CONVERTED' && canManage"
                     class="bg-white border border-border rounded-xl p-5 shadow-sm space-y-4"
                   >
                     <h3 class="text-sm font-bold text-gray-800 flex items-center gap-1.5">

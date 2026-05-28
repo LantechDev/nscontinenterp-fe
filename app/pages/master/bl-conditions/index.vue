@@ -40,6 +40,37 @@ const {
   initialize,
   setData,
 } = useBlConditionsPage();
+const { canManage, requireManage } = useFeatureAccess("master.logistics");
+
+const openAddModalIfAllowed = () => {
+  if (!requireManage("You only have view access for logistics master data.")) return;
+  openAddModal();
+};
+
+const openEditModalIfAllowed = (id: string) => {
+  if (!requireManage("You only have view access for logistics master data.")) return;
+  openEditModal(id);
+};
+
+const handleDeleteIfAllowed = (id: string) => {
+  if (!requireManage("You only have view access for logistics master data.")) return;
+  handleDelete(id);
+};
+
+const toggleStatusIfAllowed = (item: BlCondition) => {
+  if (!requireManage("You only have view access for logistics master data.")) return;
+  toggleStatus(item);
+};
+
+const moveIfAllowed = (index: number, direction: "up" | "down") => {
+  if (!requireManage("You only have view access for logistics master data.")) return;
+  move(index, direction);
+};
+
+const handleSubmitIfAllowed = () => {
+  if (!requireManage("You only have view access for logistics master data.")) return;
+  handleSubmit();
+};
 
 // SSR Data Injection pattern
 const {
@@ -119,7 +150,8 @@ const isPageLoading = computed(() => isLoading.value || isBootstrapping.value);
         </div>
 
         <button
-          @click="openAddModal"
+          v-if="canManage"
+          @click="openAddModalIfAllowed"
           class="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-[#012D5A] text-white hover:bg-[#012D5A]/90 rounded-lg transition-colors"
         >
           <Plus class="w-4 h-4" />
@@ -199,14 +231,14 @@ const isPageLoading = computed(() => isLoading.value || isBootstrapping.value);
                 <td class="py-3 px-4">
                   <div class="flex flex-col items-center gap-0.5">
                     <button
-                      @click="move(index, 'up')"
+                      @click="moveIfAllowed(index, 'up')"
                       :disabled="index === 0"
                       class="p-0.5 hover:bg-gray-100 rounded disabled:opacity-30 text-[#012D5A]"
                     >
                       <ChevronUp class="w-3.5 h-3.5" />
                     </button>
                     <button
-                      @click="move(index, 'down')"
+                      @click="moveIfAllowed(index, 'down')"
                       :disabled="index === conditions.length - 1"
                       class="p-0.5 hover:bg-gray-100 rounded disabled:opacity-30 text-[#012D5A]"
                     >
@@ -229,7 +261,8 @@ const isPageLoading = computed(() => isLoading.value || isBootstrapping.value);
                 </td>
                 <td class="py-3 px-4">
                   <button
-                    @click="toggleStatus(item)"
+                    :disabled="!canManage"
+                    @click="toggleStatusIfAllowed(item)"
                     :class="
                       cn(
                         'px-2 py-0.5 rounded border text-[10px] font-bold uppercase tracking-wider transition-colors',
@@ -242,17 +275,17 @@ const isPageLoading = computed(() => isLoading.value || isBootstrapping.value);
                     {{ item.isActive ? "Active" : "Inactive" }}
                   </button>
                 </td>
-                <td class="py-3 px-4 text-right">
+                <td v-if="canManage" class="py-3 px-4 text-right">
                   <div class="flex gap-1 justify-end">
                     <button
                       class="p-1.5 rounded hover:bg-muted transition-colors"
-                      @click="openEditModal(item.id)"
+                      @click="openEditModalIfAllowed(item.id)"
                     >
                       <Pencil class="w-4 h-4 text-muted-foreground" />
                     </button>
                     <button
                       class="p-1.5 rounded hover:bg-muted transition-colors"
-                      @click="handleDelete(item.id)"
+                      @click="handleDeleteIfAllowed(item.id)"
                     >
                       <Trash2 class="w-4 h-4 text-muted-foreground" />
                     </button>
@@ -260,7 +293,10 @@ const isPageLoading = computed(() => isLoading.value || isBootstrapping.value);
                 </td>
               </tr>
               <tr v-if="filteredConditions.length === 0">
-                <td colspan="6" class="py-12 text-center text-muted-foreground italic">
+                <td
+                  :colspan="canManage ? 6 : 5"
+                  class="py-12 text-center text-muted-foreground italic"
+                >
                   No clauses found.
                 </td>
               </tr>
@@ -293,16 +329,19 @@ const isPageLoading = computed(() => isLoading.value || isBootstrapping.value);
               </div>
             </div>
 
-            <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <div
+              v-if="canManage"
+              class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
+            >
               <button
                 class="p-1.5 rounded hover:bg-muted transition-colors"
-                @click="openEditModal(item.id)"
+                @click="openEditModalIfAllowed(item.id)"
               >
                 <Pencil class="w-3.5 h-3.5 text-muted-foreground" />
               </button>
               <button
                 class="p-1.5 rounded hover:bg-muted transition-colors"
-                @click="handleDelete(item.id)"
+                @click="handleDeleteIfAllowed(item.id)"
               >
                 <Trash2 class="w-3.5 h-3.5 text-muted-foreground" />
               </button>
@@ -317,7 +356,8 @@ const isPageLoading = computed(() => isLoading.value || isBootstrapping.value);
 
           <div class="pt-3 border-t border-border flex items-center justify-between">
             <button
-              @click="toggleStatus(item)"
+              :disabled="!canManage"
+              @click="toggleStatusIfAllowed(item)"
               :class="
                 cn(
                   'px-2 py-0.5 rounded border text-[10px] font-bold uppercase tracking-wider transition-colors',
@@ -350,6 +390,6 @@ const isPageLoading = computed(() => isLoading.value || isBootstrapping.value);
     :editing-id="editingId"
     :form-data="formData"
     @close="closeEditModal"
-    @submit="handleSubmit"
+    @submit="handleSubmitIfAllowed"
   />
 </template>

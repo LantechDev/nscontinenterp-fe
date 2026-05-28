@@ -26,8 +26,14 @@ definePageMeta({
 
 const route = useRoute();
 const userId = route.params.id as string;
+const { canManage } = useFeatureAccess("settings.user");
 
 const { fetchUserById } = useAuth();
+const isUserInactive = (user: AuthUser) => {
+  const banned = user.banned === true || user.banned === "true";
+  return user.isActive === false || banned;
+};
+
 const { data: rawUser, error: fetchError } = await useAsyncData<DisplayUser>(
   `user-${userId}`,
   async () => {
@@ -41,7 +47,7 @@ const { data: rawUser, error: fetchError } = await useAsyncData<DisplayUser>(
       name: u.name,
       email: u.email,
       role: u.role,
-      status: u.banned ? "inactive" : "active",
+      status: isUserInactive(u) ? "inactive" : "active",
       lastLogin: u.lastLogin
         ? new Date(u.lastLogin).toLocaleString("id-ID", {
             day: "numeric",
@@ -81,6 +87,7 @@ const errorMessage = computed(() => fetchError.value?.message || "");
         </div>
       </div>
       <NuxtLink
+        v-if="canManage"
         :to="`/settings/users/${userId}/edit`"
         class="btn-primary"
         :class="{ 'opacity-50 pointer-events-none': isLoading || !user }"

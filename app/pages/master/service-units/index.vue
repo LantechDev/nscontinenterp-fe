@@ -18,6 +18,7 @@ const {
 } = useServiceUnits();
 
 const { pending } = await useAsyncData("units-list", () => fetchUnits(), { server: false });
+const { canManage, requireManage } = useFeatureAccess("master.service");
 
 // Search state
 const searchQuery = ref("");
@@ -76,11 +77,13 @@ const formError = ref<string | null>(null);
 const editingUnit = ref<ServiceUnit | null>(null);
 
 const openCreateModal = () => {
+  if (!requireManage("You only have view access for service units.")) return;
   editingUnit.value = null;
   isModalOpen.value = true;
 };
 
 const openEditModal = (unit: ServiceUnit) => {
+  if (!requireManage("You only have view access for service units.")) return;
   editingUnit.value = unit;
   isModalOpen.value = true;
 };
@@ -121,6 +124,7 @@ const isDeleteModalOpen = ref(false);
 const unitToDelete = ref<ServiceUnit | null>(null);
 
 const openDeleteModal = (unit: ServiceUnit) => {
+  if (!requireManage("You only have view access for service units.")) return;
   unitToDelete.value = unit;
   isDeleteModalOpen.value = true;
 };
@@ -166,6 +170,7 @@ const handleDelete = async () => {
       </div>
 
       <button
+        v-if="canManage"
         @click="openCreateModal"
         class="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-[#012D5A] text-white hover:bg-[#012D5A]/90 rounded-lg transition-colors min-w-fit whitespace-nowrap"
       >
@@ -188,6 +193,7 @@ const handleDelete = async () => {
       @toggle-sort="toggleSort"
       @edit="openEditModal"
       @delete="openDeleteModal"
+      :can-manage="canManage"
     />
 
     <!-- Create/Edit Modal -->

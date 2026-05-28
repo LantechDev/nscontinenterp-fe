@@ -37,6 +37,11 @@ definePageMeta({
   hideHeader: true,
 });
 
+const { canManage: canManagePayment, requireManage: requirePaymentManage } =
+  useFeatureAccess("finance.payment");
+const { canManage: canManageAccounting, requireManage: requireAccountingManage } =
+  useFeatureAccess("finance.accounting");
+
 // Use the extracted composable
 const {
   // State
@@ -739,6 +744,8 @@ function handleCashFlowExportExcel() {
 }
 
 async function handleAssetsAdd() {
+  if (!requireAccountingManage("You only have view access for accounting.")) return;
+
   showAssetModal.value = true;
   if (assetTaxOptions.value.length === 0) {
     try {
@@ -764,6 +771,8 @@ function resetAssetForm() {
 
 async function handleAssetSave() {
   if (!assetForm.value.name || !assetForm.value.date || assetForm.value.price <= 0) return;
+  if (!requireAccountingManage("You only have view access for accounting.")) return;
+
   isSavingAsset.value = true;
   try {
     const result = await createAsset({
@@ -784,6 +793,26 @@ async function handleAssetSave() {
     isSavingAsset.value = false;
   }
 }
+
+const handleTransactionCreateIfAllowed = () => {
+  if (!requirePaymentManage("You only have view access for transactions.")) return;
+  handleTransactionCreate();
+};
+
+const handleTransactionEditIfAllowed: typeof handleTransactionEdit = async (transaction) => {
+  if (!requirePaymentManage("You only have view access for transactions.")) return;
+  await handleTransactionEdit(transaction);
+};
+
+const handleTransactionDeleteIfAllowed: typeof handleTransactionDelete = async (transaction) => {
+  if (!requirePaymentManage("You only have view access for transactions.")) return;
+  await handleTransactionDelete(transaction);
+};
+
+const handleReopenPeriodIfAllowed: typeof handleReopenPeriod = async (periodCloseId) => {
+  if (!requireAccountingManage("You only have view access for accounting.")) return;
+  await handleReopenPeriod(periodCloseId);
+};
 
 function dispatchExportPdf() {
   if (activeTab.value === "Transaction") {
@@ -1285,6 +1314,7 @@ function handleTaxReportExportExcel() {
           :available-years="availableYears"
           :sort-options="transactionSortOptions"
           :type-options="transactionTypeOptions"
+          :can-manage="canManagePayment"
           @year-change="handleTransactionYearChange"
           @type-change="handleTransactionTypeChange"
           @customer-change="handleTransactionCustomerChange"
@@ -1295,9 +1325,9 @@ function handleTaxReportExportExcel() {
           @toggle-sort-dropdown="handleTransactionSortDropdownToggle"
           @export="openExportPopup($event)"
           @page-change="handlePageChange"
-          @create="handleTransactionCreate"
-          @edit="handleTransactionEdit"
-          @delete="handleTransactionDelete"
+          @create="handleTransactionCreateIfAllowed"
+          @edit="handleTransactionEditIfAllowed"
+          @delete="handleTransactionDeleteIfAllowed"
         />
 
         <FinanceCloseTab
@@ -1319,6 +1349,7 @@ function handleTaxReportExportExcel() {
           :sort-options="transactionSortOptions"
           :type-options="transactionTypeOptions"
           :closed-periods="closedPeriods"
+          :can-manage="canManageAccounting"
           @year-change="handleFinanceCloseYearChange"
           @type-change="handleFinanceCloseTypeChange"
           @customer-change="handleFinanceCloseCustomerChange"
@@ -1328,7 +1359,7 @@ function handleTaxReportExportExcel() {
           @sort="handleFinanceCloseSort"
           @toggle-sort-dropdown="handleFinanceCloseSortDropdownToggle"
           @page-change="handlePageChange"
-          @reopen-period="handleReopenPeriod"
+          @reopen-period="handleReopenPeriodIfAllowed"
           @export="openExportPopup($event)"
         />
 
@@ -1399,6 +1430,7 @@ function handleTaxReportExportExcel() {
           v-model:show-sort-dropdown="assetsShowSortDropdown"
           :available-years="availableYears"
           :sort-options="assetsSortOptions"
+          :can-manage="canManageAccounting"
           @year-change="(y) => (assetsYear = y)"
           @service-change="(s) => (assetsServiceId = s)"
           @company-change="(c) => (assetsCompanyId = c)"

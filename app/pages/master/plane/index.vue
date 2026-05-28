@@ -18,6 +18,7 @@ const {
 } = usePlanes();
 
 const { pending } = await useAsyncData("planes-list", () => fetchPlanes(), { server: false });
+const { canManage, requireManage } = useFeatureAccess("master.logistics");
 
 // Search state
 const searchQuery = ref("");
@@ -92,11 +93,13 @@ const formError = ref<string | null>(null);
 const editingPlane = ref<Plane | null>(null);
 
 const openCreateModal = () => {
+  if (!requireManage("You only have view access for logistics master data.")) return;
   editingPlane.value = null;
   isModalOpen.value = true;
 };
 
 const openEditModal = (id: string) => {
+  if (!requireManage("You only have view access for logistics master data.")) return;
   editingPlane.value = planesList.value.find((p) => p.id === id) || null;
   isModalOpen.value = true;
 };
@@ -145,6 +148,7 @@ const isDeleteModalOpen = ref(false);
 const planeToDelete = ref<Plane | null>(null);
 
 const openDeleteModal = (id: string) => {
+  if (!requireManage("You only have view access for logistics master data.")) return;
   planeToDelete.value = planesList.value.find((p) => p.id === id) || null;
   isDeleteModalOpen.value = true;
 };
@@ -190,6 +194,7 @@ const handleDelete = async () => {
       </div>
 
       <button
+        v-if="canManage"
         @click="openCreateModal"
         class="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-[#012D5A] text-white hover:bg-[#012D5A]/90 rounded-lg transition-colors min-w-fit whitespace-nowrap"
       >
@@ -212,6 +217,7 @@ const handleDelete = async () => {
       @toggle-sort="toggleSort"
       @edit="openEditModal"
       @delete="openDeleteModal"
+      :can-manage="canManage"
     />
 
     <!-- Create/Edit Modal -->

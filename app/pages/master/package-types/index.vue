@@ -26,6 +26,7 @@ const {
 } = usePackageTypes();
 
 await useAsyncData("package-types-list", () => fetchPackageTypes(), { server: false });
+const { canManage, requireManage } = useFeatureAccess("master.logistics");
 
 const searchQuery = ref("");
 const sortField = ref<"code" | "name" | "createdAt">("code");
@@ -80,12 +81,14 @@ const resetForm = () => {
 };
 
 const openCreateModal = () => {
+  if (!requireManage("You only have view access for logistics master data.")) return;
   editingPackageType.value = null;
   resetForm();
   isModalOpen.value = true;
 };
 
 const openEditModal = (packageType: PackageType) => {
+  if (!requireManage("You only have view access for logistics master data.")) return;
   editingPackageType.value = packageType;
   formData.value = {
     code: packageType.code,
@@ -130,6 +133,7 @@ const handleSubmit = async () => {
 };
 
 const openDeleteModal = (packageType: PackageType) => {
+  if (!requireManage("You only have view access for logistics master data.")) return;
   packageTypeToDelete.value = packageType;
   formError.value = null;
   isDeleteModalOpen.value = true;
@@ -197,6 +201,7 @@ const formatDate = (dateStr?: string) => {
       </div>
 
       <button
+        v-if="canManage"
         type="button"
         class="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-[#012D5A] text-white hover:bg-[#012D5A]/90 rounded-lg transition-colors min-w-fit whitespace-nowrap"
         @click="openCreateModal"
@@ -253,7 +258,7 @@ const formatDate = (dateStr?: string) => {
                 />
               </div>
             </th>
-            <th class="py-3 px-4 w-10"></th>
+            <th v-if="canManage" class="py-3 px-4 w-10"></th>
           </tr>
         </thead>
         <tbody>
@@ -267,7 +272,7 @@ const formatDate = (dateStr?: string) => {
             <td class="py-3 px-4 text-sm text-muted-foreground">
               {{ formatDate(packageType.createdAt) }}
             </td>
-            <td class="py-3 px-4 text-right">
+            <td v-if="canManage" class="py-3 px-4 text-right">
               <UiActionMenu>
                 <template #trigger>
                   <button class="text-muted-foreground hover:text-foreground">
@@ -294,7 +299,7 @@ const formatDate = (dateStr?: string) => {
             </td>
           </tr>
           <tr v-if="sortedPackageTypes.length === 0">
-            <td colspan="4" class="py-8 text-center text-muted-foreground">
+            <td :colspan="canManage ? 4 : 3" class="py-8 text-center text-muted-foreground">
               No package units found
             </td>
           </tr>

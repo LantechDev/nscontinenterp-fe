@@ -23,7 +23,9 @@ interface UserResponseData {
       name: string;
       email: string;
       role: string;
-      banned: boolean;
+      roleId?: string | null;
+      isActive?: boolean | null;
+      banned: boolean | string | null;
       createdAt?: string;
       lastLogin?: string;
     };
@@ -98,6 +100,11 @@ const form = ref({
 
 const errors = ref<Record<string, string>>({});
 
+const isUserInactive = (user: UserResponseData["data"]["user"]) => {
+  const banned = user.banned === true || user.banned === "true";
+  return user.isActive === false || banned;
+};
+
 watch(
   () => userData.value,
   (user) => {
@@ -107,8 +114,8 @@ watch(
         email: user.email || "",
         password: "",
         confirmPassword: "",
-        role: user.role || "",
-        status: user.banned === true ? "inactive" : "active",
+        role: user.roleId || "",
+        status: isUserInactive(user) ? "inactive" : "active",
       };
     }
   },
@@ -134,8 +141,9 @@ const handleSubmit = async () => {
     const updateData: Record<string, unknown> = {
       name: form.value.name,
       email: form.value.email,
-      role: form.value.role,
+      roleId: form.value.role,
       banned: form.value.status === "inactive",
+      isActive: form.value.status === "active",
     };
 
     if (form.value.password) {
@@ -288,7 +296,7 @@ const handleDelete = async () => {
               :class="{ 'border-red-500': errors.role }"
             >
               <option value="">Pilih role</option>
-              <option v-for="role in roles" :key="role.id" :value="role.code">
+              <option v-for="role in roles" :key="role.id" :value="role.id">
                 {{ role.name }}
               </option>
             </select>

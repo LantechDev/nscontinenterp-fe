@@ -18,6 +18,7 @@ const {
 } = useVessels();
 
 const { pending } = await useAsyncData("vessels-list", () => fetchVessels(), { server: false });
+const { canManage, requireManage } = useFeatureAccess("master.logistics");
 
 // Search state
 const searchQuery = ref("");
@@ -92,11 +93,13 @@ const formError = ref<string | null>(null);
 const editingVessel = ref<Vessel | null>(null);
 
 const openCreateModal = () => {
+  if (!requireManage("You only have view access for logistics master data.")) return;
   editingVessel.value = null;
   isModalOpen.value = true;
 };
 
 const openEditModal = (id: string) => {
+  if (!requireManage("You only have view access for logistics master data.")) return;
   editingVessel.value = vesselsList.value.find((v) => v.id === id) || null;
   isModalOpen.value = true;
 };
@@ -145,6 +148,7 @@ const isDeleteModalOpen = ref(false);
 const vesselToDelete = ref<Vessel | null>(null);
 
 const openDeleteModal = (id: string) => {
+  if (!requireManage("You only have view access for logistics master data.")) return;
   vesselToDelete.value = vesselsList.value.find((v) => v.id === id) || null;
   isDeleteModalOpen.value = true;
 };
@@ -190,6 +194,7 @@ const handleDelete = async () => {
       </div>
 
       <button
+        v-if="canManage"
         @click="openCreateModal"
         class="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-[#012D5A] text-white hover:bg-[#012D5A]/90 rounded-lg transition-colors min-w-fit whitespace-nowrap"
       >
@@ -212,6 +217,7 @@ const handleDelete = async () => {
       @toggle-sort="toggleSort"
       @edit="openEditModal"
       @delete="openDeleteModal"
+      :can-manage="canManage"
     />
 
     <!-- Create/Edit Modal -->

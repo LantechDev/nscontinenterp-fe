@@ -27,6 +27,7 @@ interface ExpenseCategoryAccount {
 type MappingMode = "expense" | "service";
 
 const { fetchAccounts } = useChartOfAccounts();
+const { canManage, requireManage } = useFeatureAccess("finance.accounting");
 
 const isLoading = ref(false);
 const savingId = ref<string | null>(null);
@@ -180,6 +181,8 @@ function toDefaultAccount(account: ChartOfAccount | undefined) {
 }
 
 async function saveExpenseMapping(category: ExpenseCategoryAccount) {
+  if (!requireManage("You only have view access for accounting.")) return;
+
   savingId.value = category.id;
   try {
     const updated = await $fetch<ExpenseCategoryAccount>(
@@ -213,6 +216,8 @@ async function saveExpenseMapping(category: ExpenseCategoryAccount) {
 }
 
 async function saveServiceMapping(category: ServiceCategory) {
+  if (!requireManage("You only have view access for accounting.")) return;
+
   savingId.value = category.id;
   try {
     const updated = await $fetch<ServiceCategory>(`/api/master/service-categories/${category.id}`, {
@@ -352,6 +357,7 @@ onMounted(loadData);
               </td>
               <td class="py-3 px-4 text-right">
                 <button
+                  v-if="canManage"
                   type="button"
                   class="inline-flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium bg-[#012D5A] text-white hover:bg-[#012D5A]/90 rounded-lg transition-colors disabled:opacity-50 min-w-[96px]"
                   :disabled="savingId === category.id"
@@ -425,6 +431,7 @@ onMounted(loadData);
               </td>
               <td class="py-3 px-4 text-right">
                 <button
+                  v-if="canManage"
                   type="button"
                   class="inline-flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium bg-[#012D5A] text-white hover:bg-[#012D5A]/90 rounded-lg transition-colors disabled:opacity-50 min-w-[96px]"
                   :disabled="savingId === category.id"

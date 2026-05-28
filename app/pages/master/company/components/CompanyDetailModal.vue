@@ -12,6 +12,10 @@ const props = defineProps<{ modelValue: boolean; company: MappedCompany | null }
 const emit = defineEmits<{ (e: "update:modelValue", value: boolean): void }>();
 
 const { getCompanyDetails } = useCompanies();
+const { canManage: canManageCompany, requireManage: requireCompanyManage } =
+  useFeatureAccess("master.company");
+const { canManage: canManageJob, requireManage: requireJobManage } =
+  useFeatureAccess("operational.job");
 
 const isOpen = computed({
   get: () => props.modelValue,
@@ -71,8 +75,37 @@ watch(
 );
 
 const navigateToNewJob = () => {
+  if (!requireJobManage("You only have view access for jobs.")) return;
+
   isOpen.value = false;
   navigateTo("/operational/jobs/create");
+};
+
+const openAddAddressModeIfAllowed = () => {
+  if (!requireCompanyManage("You only have view access for company data.")) return;
+  openAddAddressMode();
+};
+
+const openEditAddressModeIfAllowed = (addressId: string) => {
+  if (!requireCompanyManage("You only have view access for company data.")) return;
+  openEditAddressMode(addressId);
+};
+
+const showAddressMenuIfAllowed = (addressId: string) => {
+  if (!canManageCompany.value) return;
+  showAddressMenu(addressId);
+};
+
+const handleDeleteAddressIfAllowed = async (addressId: string) => {
+  if (!requireCompanyManage("You only have view access for company data.")) return;
+  await handleDeleteAddress(addressId);
+};
+
+type AddressFormPayload = Parameters<typeof handleAddressSave>[0];
+
+const handleAddressSaveIfAllowed = async (formData: AddressFormPayload) => {
+  if (!requireCompanyManage("You only have view access for company data.")) return;
+  await handleAddressSave(formData);
 };
 
 // Click outside to close menu
@@ -148,12 +181,14 @@ onUnmounted(() => {
                 :company="companyDetails"
                 :addresses="companyAddresses"
                 :active-address-menu="activeAddressMenu"
+                :can-manage-company="canManageCompany"
+                :can-manage-job="canManageJob"
                 @new-job="navigateToNewJob"
-                @add-address="openAddAddressMode"
-                @edit-address="openEditAddressMode"
-                @toggle-menu="showAddressMenu"
+                @add-address="openAddAddressModeIfAllowed"
+                @edit-address="openEditAddressModeIfAllowed"
+                @toggle-menu="showAddressMenuIfAllowed"
                 @close-menu="closeAddressMenu"
-                @delete-address="handleDeleteAddress"
+                @delete-address="handleDeleteAddressIfAllowed"
               />
 
               <!-- Address Edit/Add Form -->
@@ -163,7 +198,7 @@ onUnmounted(() => {
                 :company-id="companyDetails.id"
                 :address="editingAddress"
                 @cancel="closeAddressMode"
-                @save="handleAddressSave"
+                @save="handleAddressSaveIfAllowed"
               />
 
               <!-- Main Content Area -->
@@ -173,11 +208,12 @@ onUnmounted(() => {
                 :active-tab="activeTab"
                 :tab-list="tabList"
                 :active-address-menu="activeAddressMenu"
+                :can-manage-company="canManageCompany"
                 @update:active-tab="activeTab = $event"
-                @add-address="openAddAddressMode"
-                @edit-address="openEditAddressMode"
-                @toggle-menu="showAddressMenu"
-                @delete-address="handleDeleteAddress"
+                @add-address="openAddAddressModeIfAllowed"
+                @edit-address="openEditAddressModeIfAllowed"
+                @toggle-menu="showAddressMenuIfAllowed"
+                @delete-address="handleDeleteAddressIfAllowed"
               />
             </div>
           </div>

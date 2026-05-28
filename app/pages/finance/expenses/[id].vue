@@ -32,6 +32,7 @@ const route = useRoute();
 const expenseId = route.params.id as string;
 const { fetchExpenseById, deleteExpense } = useFinanceExpense();
 const { confirm } = useConfirm();
+const { canManage, requireManage } = useFeatureAccess("finance.payment");
 
 // SSR-first: fetch expense detail
 const {
@@ -72,11 +73,15 @@ const {
 
 // Wrapped handleUpdate to refresh data on success
 const handleFormSubmit = async () => {
+  if (!requireManage("You only have view access for expenses.")) return;
+
   await handleUpdate();
   await refresh();
 };
 
 async function handleDelete() {
+  if (!requireManage("You only have view access for expenses.")) return;
+
   const confirmed = await confirm({
     title: "Hapus Biaya",
     message: `Apakah Anda yakin ingin menghapus biaya ${expense.value?.number || ""}? Tindakan ini tidak dapat dibatalkan.`,
@@ -197,13 +202,14 @@ onMounted(() => {
           </button>
 
           <!-- Edit Button -->
-          <button @click="openEditModal(expense.id)" class="btn-secondary">
+          <button v-if="canManage" @click="openEditModal(expense.id)" class="btn-secondary">
             <Pencil class="w-4 h-4 mr-2" />
             Edit
           </button>
 
           <!-- Delete Button -->
           <button
+            v-if="canManage"
             @click="handleDelete"
             class="btn-secondary text-red-600 border-red-200 hover:bg-red-50"
           >

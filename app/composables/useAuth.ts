@@ -50,10 +50,16 @@ export function useAuth() {
     }
   }
 
-  async function createUser(name: string, email: string, password: string, role: string) {
+  async function createUser(
+    name: string,
+    email: string,
+    password: string,
+    roleId: string,
+    status: "active" | "inactive" = "active",
+  ) {
     isLoading.value = true;
     try {
-      return await authApi.createUser(name, email, password, role);
+      return await authApi.createUser(name, email, password, roleId, status);
     } finally {
       isLoading.value = false;
     }
@@ -124,7 +130,10 @@ export function useAuth() {
       email?: string;
       password?: string;
       role?: string;
+      roleId?: string;
       status?: "active" | "inactive";
+      banned?: boolean;
+      isActive?: boolean;
     },
   ) {
     isLoading.value = true;

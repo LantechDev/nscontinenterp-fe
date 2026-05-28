@@ -11,6 +11,7 @@ definePageMeta({
 const route = useRoute();
 const id = route.params.id as string;
 const { updateService } = useServices();
+const { canManage, requireManage } = useFeatureAccess("master.service");
 
 // SSR-first: fetch service detail
 const {
@@ -52,6 +53,8 @@ const formatDate = (date: string) => {
 
 // Handle update - refresh data after success
 const handleUpdateService = async (formData: ServiceFormData) => {
+  if (!requireManage("You only have view access for services.")) return;
+
   isSubmitting.value = true;
   formError.value = null;
 
@@ -102,7 +105,7 @@ const handleUpdateService = async (formData: ServiceFormData) => {
           >
             {{ service.isActive ? "Active" : "Inactive" }}
           </div>
-          <button @click="isEditOpen = true" class="btn-secondary">
+          <button v-if="canManage" @click="isEditOpen = true" class="btn-secondary">
             <Edit class="w-4 h-4 mr-2" />
             Edit
           </button>

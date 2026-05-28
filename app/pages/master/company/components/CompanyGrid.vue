@@ -4,6 +4,7 @@ import type { MappedCompany } from "~/composables/useCompanies";
 
 defineProps<{
   companies: MappedCompany[];
+  canManage?: boolean;
 }>();
 
 defineEmits<{
@@ -32,7 +33,7 @@ defineEmits<{
             <p class="text-xs text-muted-foreground">{{ company.code }}</p>
           </div>
         </div>
-        <UiActionMenu>
+        <UiActionMenu v-if="canManage">
           <template #trigger>
             <button class="text-muted-foreground hover:text-foreground">
               <MoreVertical class="w-4 h-4" />

@@ -25,6 +25,9 @@ definePageMeta({
 
 const { pendingApprovals } = useDashboard();
 const { canApproveJobs, user } = useAuth();
+const { canManage: canManageJobs } = useFeatureAccess("operational.job");
+const { canAccessFinance } = useRoleAccess();
+const showFinanceStats = computed(() => canAccessFinance());
 const { showExportOptions, triggerX, triggerY, triggerWidth, triggerHeight, openExportPopup } =
   useExportPopup();
 
@@ -545,6 +548,7 @@ onClickOutside(periodDropdownRef as Ref<HTMLElement>, () => {
           <span>{{ isExporting ? "Exporting..." : "Export" }}</span>
         </button>
         <NuxtLink
+          v-if="canManageJobs"
           to="/operational/jobs/create"
           class="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-[#012D5A] text-white hover:bg-[#012D5A]/90 rounded-lg transition-colors"
         >
@@ -629,8 +633,15 @@ onClickOutside(periodDropdownRef as Ref<HTMLElement>, () => {
     </div>
 
     <!-- Stats grid -->
-    <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div
+      v-else
+      :class="[
+        'grid grid-cols-1 md:grid-cols-2 gap-4',
+        showFinanceStats ? 'lg:grid-cols-4' : 'lg:grid-cols-2',
+      ]"
+    >
       <DashboardStatCard
+        v-if="showFinanceStats"
         title="Total Revenue"
         :value="dashboardData?.stats?.totalIncome || 'Rp0'"
         :change="dashboardData?.stats?.totalIncomeChange ?? 0"
@@ -644,8 +655,10 @@ onClickOutside(periodDropdownRef as Ref<HTMLElement>, () => {
         :change="dashboardData?.stats?.activeJobsChange ?? 0"
         change-label="vs Last Year"
         :icon="Ship"
+        :variant="!showFinanceStats ? 'primary' : 'default'"
       />
       <DashboardStatCard
+        v-if="showFinanceStats"
         title="Invoice Pending"
         :value="String(dashboardData?.stats?.pendingInvoices || 0)"
         :change="dashboardData?.stats?.pendingInvoicesChange ?? 0"
@@ -663,10 +676,10 @@ onClickOutside(periodDropdownRef as Ref<HTMLElement>, () => {
 
     <!-- Charts and tables row -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      <div class="lg:col-span-2">
+      <div v-if="showFinanceStats" class="lg:col-span-2">
         <DashboardRevenueChart :data="dashboardData?.financialOverview" />
       </div>
-      <div>
+      <div :class="[showFinanceStats ? 'lg:col-span-1' : 'lg:col-span-3']">
         <DashboardUpcomingActivities :events="dashboardData?.upcomingEvents?.slice(0, 3)" />
       </div>
     </div>

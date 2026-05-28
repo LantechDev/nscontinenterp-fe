@@ -22,6 +22,7 @@ const props = defineProps<{
   sortOptions: { value: string; label: string }[];
   typeOptions: { value: string; label: string }[];
   closedPeriods: FinanceClosePeriod[];
+  canManage?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -114,6 +115,7 @@ function handleRowClick(period: FinanceClosePeriod) {
               </td>
               <td class="px-4 py-3 text-center" @click.stop>
                 <button
+                  v-if="canManage"
                   @click="emit('reopenPeriod', period.id)"
                   class="px-3 py-1 text-xs bg-blue-50 text-blue-600 rounded hover:bg-blue-100 font-medium transition-colors"
                 >

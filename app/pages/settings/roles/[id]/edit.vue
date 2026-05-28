@@ -3,6 +3,7 @@ import { ArrowLeft, Save, Loader2 } from "lucide-vue-next";
 import { z } from "zod";
 import { PermissionsTable } from "../components";
 import type { Role } from "~/composables/useRoles";
+import { type AccessLevel, hasAccessLevel, normalizeAccessLevel } from "~/lib/permission-registry";
 
 definePageMeta({
   layout: "dashboard",
@@ -45,7 +46,7 @@ const form = ref({
   name: "",
   code: "",
   description: "",
-  permissions: {} as Record<string, string[]>,
+  permissions: {} as Record<string, AccessLevel>,
 });
 
 // Auto-format code input
@@ -64,42 +65,57 @@ watch(
   },
 );
 
-const availableActions = ["create", "read", "update", "delete"];
-
-const availableResources = [
-  { key: "organization", label: "Organization", description: "Manage company settings" },
-  { key: "member", label: "Member", description: "Manage team members" },
-  { key: "invitation", label: "Invitation", description: "Manage invites" },
-  { key: "job", label: "Job", description: "Operational jobs" },
-  { key: "ebl", label: "eBL", description: "Electronic Bill of Lading" },
-  { key: "invoice", label: "Invoice", description: "Financial invoices" },
-  { key: "payment", label: "Payment", description: "Payment records" },
-  { key: "company", label: "Company", description: "Master data companies" },
-  { key: "report", label: "Report", description: "View analytical reports" },
-];
-
 const errors = ref<Record<string, string>>({});
 
-const togglePermission = (resource: string, action: string) => {
-  if (!form.value.permissions[resource]) {
-    form.value.permissions[resource] = [];
-  }
-  const actions = form.value.permissions[resource];
-  if (actions.includes(action)) {
-    form.value.permissions[resource] = actions.filter((a) => a !== action);
-  } else {
-    form.value.permissions[resource].push(action);
-  }
+const legacyFeatureMap: Record<string, string> = {
+  company: "master.company",
+  job: "operational.job",
+  ebl: "operational.ebl",
+  invoice: "finance.invoice",
+  payment: "finance.payment",
+  report: "finance.report",
+  organization: "settings.tenant",
+  member: "settings.user",
+  invitation: "settings.user",
 };
 
-const toggleAll = (resource: string) => {
-  const isAll =
-    form.value.permissions[resource] &&
-    form.value.permissions[resource].length === availableActions.length;
-  if (isAll) {
-    form.value.permissions[resource] = [];
+const legacyActionLevel = (actions: string[]): AccessLevel => {
+  if (actions.some((action) => ["approve", "post", "void"].includes(action))) return "approve";
+  if (actions.some((action) => ["create", "update", "delete", "remove"].includes(action))) {
+    return "manage";
+  }
+  if (actions.includes("read")) return "view";
+  return "none";
+};
+
+const normalizePermissions = (permissions: Role["permissions"]): Record<string, AccessLevel> => {
+  const normalized: Record<string, AccessLevel> = {};
+  for (const [key, value] of Object.entries(permissions || {})) {
+    if (typeof value === "string") {
+      const level = normalizeAccessLevel(value);
+      if (level !== "none") normalized[key] = level;
+      continue;
+    }
+
+    if (Array.isArray(value)) {
+      const feature = legacyFeatureMap[key] || key;
+      const level = legacyActionLevel(value);
+      if (
+        level !== "none" &&
+        (!normalized[feature] || hasAccessLevel(level, normalized[feature]))
+      ) {
+        normalized[feature] = level;
+      }
+    }
+  }
+  return normalized;
+};
+
+const setPermissionLevel = (feature: string, level: AccessLevel) => {
+  if (level === "none") {
+    delete form.value.permissions[feature];
   } else {
-    form.value.permissions[resource] = [...availableActions];
+    form.value.permissions[feature] = level;
   }
 };
 
@@ -112,7 +128,7 @@ watch(
         name: role.name,
         code: role.code,
         description: role.description || "",
-        permissions: role.permissions || {},
+        permissions: normalizePermissions(role.permissions),
       };
     }
   },
@@ -133,18 +149,11 @@ const handleSubmit = async () => {
 
   isLoading.value = true;
   try {
-    const cleanPermissions: Record<string, string[]> = {};
-    for (const [key, actions] of Object.entries(form.value.permissions)) {
-      if (actions.length > 0) {
-        cleanPermissions[key] = actions;
-      }
-    }
-
     const result = await updateRole(roleId, {
       name: form.value.name,
       code: form.value.code,
       description: form.value.description,
-      permissions: cleanPermissions,
+      permissions: form.value.permissions,
     });
 
     if (result.success) {
@@ -244,13 +253,7 @@ const handleSubmit = async () => {
             <div class="flex items-center justify-between mb-4">
               <label class="text-sm font-medium">Permissions</label>
             </div>
-            <PermissionsTable
-              :permissions="form.permissions"
-              :available-actions="availableActions"
-              :available-resources="availableResources"
-              @toggle="togglePermission"
-              @toggle-all="toggleAll"
-            />
+            <PermissionsTable :permissions="form.permissions" @update="setPermissionLevel" />
           </div>
         </div>
 

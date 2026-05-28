@@ -6,6 +6,7 @@ interface Props {
   categories: ServiceCategory[];
   sortField: string;
   sortDirection: "asc" | "desc";
+  canManage?: boolean;
 }
 
 defineProps<Props>();
@@ -69,7 +70,7 @@ const formatDate = (dateStr: string) => {
               />
             </div>
           </th>
-          <th class="py-3 px-4 w-10"></th>
+          <th v-if="canManage" class="py-3 px-4 w-10"></th>
         </tr>
       </thead>
       <tbody>
@@ -83,7 +84,7 @@ const formatDate = (dateStr: string) => {
           <td class="py-3 px-4 text-sm text-muted-foreground">
             {{ formatDate(category.createdAt) }}
           </td>
-          <td class="py-3 px-4 text-right">
+          <td v-if="canManage" class="py-3 px-4 text-right">
             <UiActionMenu>
               <template #trigger>
                 <button class="text-muted-foreground hover:text-foreground">
@@ -110,7 +111,9 @@ const formatDate = (dateStr: string) => {
           </td>
         </tr>
         <tr v-if="categories.length === 0">
-          <td colspan="4" class="py-8 text-center text-muted-foreground">No categories found</td>
+          <td :colspan="canManage ? 4 : 3" class="py-8 text-center text-muted-foreground">
+            No categories found
+          </td>
         </tr>
       </tbody>
     </table>

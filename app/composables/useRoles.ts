@@ -1,12 +1,13 @@
 import { ref } from "vue";
 import type { AuthResponse } from "../types/auth";
+import type { AccessLevel } from "~/lib/permission-registry";
 
 export interface Role {
   id: string;
   code: string;
   name: string;
-  description?: string;
-  permissions: Record<string, string[]>;
+  description?: string | null;
+  permissions: Record<string, AccessLevel | string | string[]>;
   isActive: boolean;
   createdAt?: string;
   updatedAt?: string;
@@ -52,7 +53,7 @@ export function useRoles() {
     code: string;
     name: string;
     description?: string;
-    permissions: Record<string, string[]>;
+    permissions: Record<string, AccessLevel>;
   }): Promise<AuthResponse<Role>> {
     isLoading.value = true;
     try {
@@ -75,7 +76,7 @@ export function useRoles() {
       code?: string;
       name?: string;
       description?: string;
-      permissions?: Record<string, string[]>;
+      permissions?: Record<string, AccessLevel>;
     },
   ): Promise<AuthResponse<Role>> {
     isLoading.value = true;

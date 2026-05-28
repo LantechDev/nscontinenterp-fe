@@ -34,6 +34,7 @@ const emit = defineEmits<{
 }>();
 
 const { fetchExpenses, voidExpense, isLoading: isGlobalLoading } = useFinanceExpense();
+const { canManage, requireManage } = useFeatureAccess("finance.payment");
 
 const expenses = ref<Expense[]>([]);
 const isLoading = ref(false);
@@ -127,11 +128,15 @@ watch(
 );
 
 const openCreateForm = () => {
+  if (!requireManage("You only have view access for vendor invoices.")) return;
+
   editingExpense.value = null;
   showForm.value = true;
 };
 
 const openEditForm = () => {
+  if (!requireManage("You only have view access for vendor invoices.")) return;
+
   editingExpense.value = activeExpense.value;
   showForm.value = true;
 };
@@ -148,6 +153,7 @@ const closeDetail = () => {
 
 const handleVoid = async () => {
   if (!activeExpense.value) return;
+  if (!requireManage("You only have view access for vendor invoices.")) return;
 
   isVoiding.value = true;
   const result = await voidExpense(activeExpense.value.id);
@@ -327,7 +333,11 @@ const getStatusColor = (code?: string) => {
           <div class="flex items-center gap-3">
             <!-- Record Payment (Primary Action) -->
             <button
-              v-if="!['PAID', 'VOIDED', 'VOID'].includes(activeExpenseStatusCode) && !isCompleted"
+              v-if="
+                canManage &&
+                !['PAID', 'VOIDED', 'VOID'].includes(activeExpenseStatusCode) &&
+                !isCompleted
+              "
               @click="showPaymentForm = true"
               class="inline-flex items-center px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg shadow-md hover:shadow-emerald-200/50 text-[11px] font-black uppercase tracking-wider gap-2 transition-all hover:-translate-y-0.5 active:translate-y-0"
             >
@@ -376,7 +386,7 @@ const getStatusColor = (code?: string) => {
                 </div>
 
                 <button
-                  v-if="!isCompleted"
+                  v-if="canManage && !isCompleted"
                   @click="
                     openEditForm();
                     showMoreActions = false;
@@ -388,7 +398,11 @@ const getStatusColor = (code?: string) => {
                 </button>
 
                 <button
-                  v-if="!['VOIDED', 'VOID'].includes(activeExpenseStatusCode) && !isCompleted"
+                  v-if="
+                    canManage &&
+                    !['VOIDED', 'VOID'].includes(activeExpenseStatusCode) &&
+                    !isCompleted
+                  "
                   @click="
                     showVoidConfirm = true;
                     showMoreActions = false;
@@ -494,7 +508,7 @@ const getStatusColor = (code?: string) => {
           </button>
 
           <button
-            v-if="!isCompleted"
+            v-if="canManage && !isCompleted"
             @click="openCreateForm"
             class="inline-flex items-center px-3 py-1.5 bg-[#012D5A] text-white text-xs font-semibold rounded-md hover:bg-[#012D5A]/90 transition-colors gap-1.5 shadow-sm uppercase tracking-wider"
           >

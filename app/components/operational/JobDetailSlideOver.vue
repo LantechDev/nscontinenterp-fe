@@ -52,6 +52,7 @@ const emit = defineEmits<{
 }>();
 
 const { currentJob, getJob, isLoading, updateJob, completeJob, cancelCompleteJob } = useJobs();
+const { canManage, requireManage } = useFeatureAccess("operational.job");
 
 const activeTab = ref("overview");
 const tabs = [
@@ -92,6 +93,8 @@ const presetPlaneName = ref("");
 
 // Unified create handler for Vessel or Plane
 const handleCreateTransport = async (name: string, item?: EblVessel) => {
+  if (!requireManage("You only have view access for jobs.")) return;
+
   if (isAir.value) {
     presetPlaneName.value = name;
     activeVesselObj.value = item || null; // reuse for simplicity
@@ -129,6 +132,8 @@ const onPlaneCreateSuccess = async (plane: { id: string; name: string }) => {
 };
 
 const startEditVessels = () => {
+  if (!requireManage("You only have view access for jobs.")) return;
+
   editableVessels.value = JSON.parse(JSON.stringify(job.value?.vessels || []));
   editablePol.value = job.value?.pol || "";
   editablePod.value = job.value?.pod || "";
@@ -140,6 +145,8 @@ const cancelEditVessels = () => {
 };
 
 const addVessel = () => {
+  if (!requireManage("You only have view access for jobs.")) return;
+
   const lastVessel = editableVessels.value[editableVessels.value.length - 1];
   editableVessels.value.push({
     vesselId: "",
@@ -154,11 +161,14 @@ const addVessel = () => {
 };
 
 const removeVessel = (idx: number) => {
+  if (!requireManage("You only have view access for jobs.")) return;
+
   editableVessels.value.splice(idx, 1);
 };
 
 const saveVessels = async () => {
   if (!props.jobId) return;
+  if (!requireManage("You only have view access for jobs.")) return;
 
   syncTransportNames();
 
@@ -750,7 +760,7 @@ watch(
                               {{ isAir ? "Plane Schedule" : "Vessel Schedule" }}
                             </p>
                             <div
-                              v-if="!isEditingVessels && !isCompleted"
+                              v-if="canManage && !isEditingVessels && !isCompleted"
                               class="flex items-center gap-2"
                             >
                               <button
@@ -761,7 +771,10 @@ watch(
                                 <Edit class="w-3.5 h-3.5" />
                               </button>
                             </div>
-                            <div v-else class="flex items-center gap-2">
+                            <div
+                              v-else-if="canManage && isEditingVessels"
+                              class="flex items-center gap-2"
+                            >
                               <button
                                 @click="addVessel"
                                 class="flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors text-[10px] font-bold uppercase tracking-wider"
@@ -888,7 +901,7 @@ watch(
                           </div>
 
                           <!-- Edit Mode -->
-                          <div v-else class="space-y-4">
+                          <div v-else-if="canManage" class="space-y-4">
                             <div
                               v-for="(vessel, idx) in editableVessels"
                               :key="idx"
@@ -1484,6 +1497,7 @@ watch(
                     :initial-bl-id="initialBlId"
                     @refresh="getJob(props.jobId)"
                     :is-completed="isCompleted"
+                    :can-manage-job="canManage"
                   />
                 </div>
 
@@ -1505,7 +1519,7 @@ watch(
             <div class="p-4 border-t border-border flex justify-end bg-white shrink-0">
               <div class="flex gap-3">
                 <NuxtLink
-                  v-if="job?.id"
+                  v-if="canManage && job?.id"
                   :to="`/operational/jobs/${job.id}/edit`"
                   @click="$emit('update:modelValue', false)"
                   class="px-4 py-2 font-medium border border-border hover:bg-muted text-foreground rounded-md transition-colors flex items-center gap-2 text-sm shadow-sm"

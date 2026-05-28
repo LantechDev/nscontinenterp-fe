@@ -10,6 +10,7 @@ defineProps<{
   sortDirection: "asc" | "desc";
   selectAll: boolean;
   selectedIds: Set<string>;
+  canManage?: boolean;
 }>();
 
 defineEmits<{
@@ -102,7 +103,7 @@ defineEmits<{
                 />
               </div>
             </th>
-            <th class="py-3 px-4 w-10"></th>
+            <th v-if="canManage" class="py-3 px-4 w-10"></th>
           </tr>
         </thead>
         <tbody>
@@ -155,7 +156,7 @@ defineEmits<{
                 {{ company.status }}
               </span>
             </td>
-            <td class="py-3 px-4 text-right">
+            <td v-if="canManage" class="py-3 px-4 text-right">
               <UiActionMenu>
                 <template #trigger>
                   <button class="text-muted-foreground hover:text-foreground">
@@ -182,7 +183,9 @@ defineEmits<{
             </td>
           </tr>
           <tr v-if="companies.length === 0">
-            <td colspan="8" class="py-8 text-center text-muted-foreground">No companies found</td>
+            <td :colspan="canManage ? 9 : 8" class="py-8 text-center text-muted-foreground">
+              No companies found
+            </td>
           </tr>
         </tbody>
       </table>

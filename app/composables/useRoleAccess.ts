@@ -1,4 +1,5 @@
 import type { Role } from "./useRoles";
+import { type AccessLevel, hasAccessLevel, normalizeAccessLevel } from "~/lib/permission-registry";
 
 type PermissionAction = "create" | "read" | "update" | "delete";
 
@@ -11,12 +12,54 @@ function hasResourcePermission(
   resource: string,
   action?: PermissionAction,
 ) {
-  const actions = role?.permissions?.[resource] || [];
+  const value = role?.permissions?.[resource];
+  const actions = Array.isArray(value) ? value : [];
   if (!action) {
     return actions.length > 0;
   }
 
   return actions.includes(action);
+}
+
+const legacyFeatureMap: Record<string, string> = {
+  company: "master.company",
+  job: "operational.job",
+  ebl: "operational.ebl",
+  invoice: "finance.invoice",
+  payment: "finance.payment",
+  report: "finance.report",
+  organization: "settings.tenant",
+  member: "settings.user",
+  invitation: "settings.user",
+};
+
+function legacyActionLevel(actions: string[]): AccessLevel {
+  if (actions.some((action) => ["approve", "post", "void"].includes(action))) return "approve";
+  if (actions.some((action) => ["create", "update", "delete", "remove"].includes(action))) {
+    return "manage";
+  }
+  if (actions.includes("read")) return "view";
+  return "none";
+}
+
+function getFeatureAccess(role: Role | null | undefined, feature: string): AccessLevel {
+  const permissions = role?.permissions || {};
+  const direct = (permissions as Record<string, unknown>)[feature];
+  if (typeof direct === "string") {
+    return normalizeAccessLevel(direct);
+  }
+
+  let resolved: AccessLevel = "none";
+  for (const [key, value] of Object.entries(permissions as Record<string, unknown>)) {
+    if (legacyFeatureMap[key] !== feature || !Array.isArray(value)) continue;
+    const level = legacyActionLevel(
+      value.filter((item): item is string => typeof item === "string"),
+    );
+    if (hasAccessLevel(level, resolved)) {
+      resolved = level;
+    }
+  }
+  return resolved;
 }
 
 export function useRoleAccess() {
@@ -26,17 +69,46 @@ export function useRoleAccess() {
   const isFetchingRoles = useState("role-access-loading", () => false);
 
   const normalizedUserRole = computed(() => normalizeRoleCode(user.value?.role));
+  const normalizedOrganizationRole = computed(() =>
+    normalizeRoleCode(user.value?.organizationRole),
+  );
 
   const isAdminRole = computed(() => {
-    const role = normalizedUserRole.value;
-    if (!role) {
+    if (user.value?.customRole) {
       return false;
     }
 
-    return ["admin", "administrator", "superadmin", "super_admin"].includes(role);
+    const elevatedRoles = [
+      "admin",
+      "administrator",
+      "superadmin",
+      "super_admin",
+      "owner",
+      "director",
+    ];
+    const role = normalizedUserRole.value;
+    const organizationRole = normalizedOrganizationRole.value;
+    if (!role && !organizationRole) {
+      return false;
+    }
+
+    return elevatedRoles.includes(role) || elevatedRoles.includes(organizationRole);
   });
 
   const currentRole = computed(() => {
+    if (user.value?.customRole) {
+      return {
+        id: user.value.customRole.id,
+        code: user.value.customRole.code,
+        name: user.value.customRole.name,
+        description: null,
+        permissions: user.value.customRole.permissions,
+        isActive: true,
+        createdAt: "",
+        updatedAt: "",
+      } satisfies Role;
+    }
+
     if (!user.value?.role) {
       return null;
     }
@@ -47,7 +119,13 @@ export function useRoleAccess() {
   });
 
   const ensureRolesLoaded = async () => {
-    if (process.server || !user.value?.role || isAdminRole.value || roles.value.length > 0) {
+    if (
+      process.server ||
+      !user.value?.role ||
+      user.value?.customRole ||
+      !isAdminRole.value ||
+      roles.value.length > 0
+    ) {
       return;
     }
 
@@ -79,8 +157,19 @@ export function useRoleAccess() {
     return hasResourcePermission(currentRole.value, resource);
   };
 
+  const hasAccess = (feature: string, requiredLevel: AccessLevel = "view") => {
+    if (isAdminRole.value) {
+      return true;
+    }
+
+    return hasAccessLevel(getFeatureAccess(currentRole.value, feature), requiredLevel);
+  };
+
   const canAccessFinance = () =>
-    hasAnyPermission("invoice") || hasAnyPermission("payment") || hasAnyPermission("report");
+    hasAccess("finance.invoice") ||
+    hasAccess("finance.payment") ||
+    hasAccess("finance.accounting") ||
+    hasAccess("finance.report");
 
   const isOwnProfileRoute = (path: string) => {
     const currentUserId = user.value?.id;
@@ -104,6 +193,30 @@ export function useRoleAccess() {
       return true;
     }
 
+    if (path === "/master/tax/create") return hasAccess("master.finance", "manage");
+    if (path === "/master/services/create") return hasAccess("master.service", "manage");
+    if (path === "/operational/jobs/create") return hasAccess("operational.job", "manage");
+    if (path.match(/^\/operational\/jobs\/[^/]+\/edit$/)) {
+      return hasAccess("operational.job", "manage");
+    }
+    if (path === "/operational/quotations/create") {
+      return hasAccess("operational.quotation", "manage");
+    }
+    if (path.match(/^\/operational\/quotations\/[^/]+\/edit$/)) {
+      return hasAccess("operational.quotation", "manage");
+    }
+    if (path === "/finance/invoice/create") return hasAccess("finance.invoice", "manage");
+    if (path === "/finance/transactions/create") {
+      return hasAccess("finance.payment", "manage") || hasAccess("finance.accounting", "manage");
+    }
+    if (path === "/finance/journal/create") return hasAccess("finance.accounting", "manage");
+    if (path === "/settings/users/create" || path.match(/^\/settings\/users\/[^/]+\/edit$/)) {
+      return hasAccess("settings.user", "manage");
+    }
+    if (path === "/settings/roles/create" || path.match(/^\/settings\/roles\/[^/]+\/edit$/)) {
+      return hasAccess("settings.role", "manage");
+    }
+
     if (
       path.startsWith("/master/company") ||
       path.startsWith("/master/services") ||
@@ -118,11 +231,26 @@ export function useRoleAccess() {
       path.startsWith("/master/cargo-movements") ||
       path.startsWith("/master/delivery-movements")
     ) {
-      return hasAnyPermission("company");
+      if (path.startsWith("/master/company")) return hasAccess("master.company");
+      if (path.startsWith("/master/services") || path.startsWith("/master/service-")) {
+        return hasAccess("master.service");
+      }
+      if (path.startsWith("/master/bank-account") || path.startsWith("/master/tax")) {
+        return hasAccess("master.finance");
+      }
+      return hasAccess("master.logistics");
+    }
+
+    if (path.startsWith("/operational/quotations")) {
+      return hasAccess("operational.quotation");
+    }
+
+    if (path.startsWith("/operational/ebl")) {
+      return hasAccess("operational.ebl");
     }
 
     if (path.startsWith("/operational/")) {
-      return hasAnyPermission("job");
+      return hasAccess("operational.job");
     }
 
     if (
@@ -135,7 +263,7 @@ export function useRoleAccess() {
     }
 
     if (path.startsWith("/finance/invoice")) {
-      return hasAnyPermission("invoice");
+      return hasAccess("finance.invoice");
     }
 
     if (
@@ -145,23 +273,23 @@ export function useRoleAccess() {
       path.startsWith("/finance/transactions") ||
       path.startsWith("/finance/journal")
     ) {
-      return hasAnyPermission("payment");
+      return hasAccess("finance.payment") || hasAccess("finance.accounting");
     }
 
     if (path.startsWith("/settings/users")) {
-      return hasAnyPermission("member");
+      return hasAccess("settings.user");
     }
 
     if (path.startsWith("/settings/roles")) {
-      return hasAnyPermission("member");
+      return hasAccess("settings.role");
     }
 
     if (path.startsWith("/settings/activity-logs")) {
-      return hasAnyPermission("report") || hasAnyPermission("organization");
+      return hasAccess("settings.activityLog") || hasAccess("settings.tenant");
     }
 
     if (path.startsWith("/settings/tenant")) {
-      return hasAnyPermission("organization");
+      return hasAccess("settings.tenant");
     }
 
     return true;
@@ -172,6 +300,7 @@ export function useRoleAccess() {
     ensureRolesLoaded,
     hasPermission,
     hasAnyPermission,
+    hasAccess,
     canAccessPath,
     canAccessFinance,
     isAdminRole,

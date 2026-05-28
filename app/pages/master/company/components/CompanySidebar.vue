@@ -7,6 +7,8 @@ const props = defineProps<{
   company: CompanyDetails;
   addresses: Address[];
   activeAddressMenu: string | null;
+  canManageCompany?: boolean;
+  canManageJob?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -51,7 +53,7 @@ const formatDate = (dateString?: string) => {
       </div>
 
       <!-- New Job Button -->
-      <div class="self-stretch inline-flex justify-center items-center gap-4">
+      <div v-if="canManageJob" class="self-stretch inline-flex justify-center items-center gap-4">
         <div
           class="flex-1 px-4 py-2.5 bg-primary rounded-md flex justify-center items-center gap-1.5 cursor-pointer hover:bg-primary/90 transition-colors"
           @click="emit('new-job')"
@@ -118,6 +120,7 @@ const formatDate = (dateString?: string) => {
           <div class="self-stretch inline-flex justify-between items-center">
             <div class="text-black text-sm font-semibold font-['Inter'] leading-5">Address</div>
             <div
+              v-if="canManageCompany"
               class="flex justify-end items-center gap-2 px-4 py-2 cursor-pointer hover:opacity-80"
               @click="emit('add-address')"
             >
@@ -144,7 +147,7 @@ const formatDate = (dateString?: string) => {
                     <div class="text-black text-sm font-semibold font-['Inter'] leading-5">
                       {{ addr.label }}
                     </div>
-                    <div class="address-menu-container relative">
+                    <div v-if="canManageCompany" class="address-menu-container relative">
                       <MoreVertical
                         class="w-4 h-4 text-slate-500 cursor-pointer"
                         @click.stop="emit('toggle-menu', addr.id)"

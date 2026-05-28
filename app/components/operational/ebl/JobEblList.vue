@@ -1,14 +1,12 @@
 <script setup lang="ts">
 import { FileText, ArrowLeft, CheckCircle2, Send, Loader2 } from "lucide-vue-next";
 import type { ActiveJobData } from "./types";
-import { useAuth } from "~/composables/useAuth";
-
-const { canApproveJobs } = useAuth();
-
 const props = defineProps<{
   job: ActiveJobData;
   approvingId?: string | null;
   rejectingId?: string | null;
+  canManage?: boolean;
+  canApprove?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -118,7 +116,7 @@ const getStatusName = (status?: string | { code?: string; name?: string } | null
               }}
             </span>
             <button
-              v-if="canApproveJobs && getStatusCode(bl.status) === 'pending_approval'"
+              v-if="canApprove && getStatusCode(bl.status) === 'pending_approval'"
               @click.stop="bl.id && $emit('reject', bl.id)"
               :disabled="rejectingId === bl.id || approvingId === bl.id"
               class="px-3 py-1 bg-red-50 text-red-600 border border-red-200 text-[10px] font-bold rounded hover:bg-red-100 transition-colors flex items-center gap-1 disabled:opacity-50"
@@ -127,7 +125,7 @@ const getStatusName = (status?: string | { code?: string; name?: string } | null
               {{ rejectingId === bl.id ? "REJECTING..." : "REJECT" }}
             </button>
             <button
-              v-if="canApproveJobs && getStatusCode(bl.status) === 'pending_approval'"
+              v-if="canApprove && getStatusCode(bl.status) === 'pending_approval'"
               @click.stop="bl.id && $emit('approve', bl.id)"
               :disabled="approvingId === bl.id || rejectingId === bl.id"
               class="px-3 py-1 bg-emerald-600 text-white text-[10px] font-bold rounded hover:bg-emerald-700 transition-colors flex items-center gap-1 disabled:opacity-50"
@@ -136,7 +134,7 @@ const getStatusName = (status?: string | { code?: string; name?: string } | null
               {{ approvingId === bl.id ? "APPROVING..." : "APPROVE" }}
             </button>
             <button
-              v-if="getStatusCode(bl.status) === 'draft'"
+              v-if="canManage && getStatusCode(bl.status) === 'draft'"
               @click.stop="bl.id && $emit('request-finalize', bl.id)"
               class="px-3 py-1 bg-blue-600 text-white text-[10px] font-bold rounded hover:bg-blue-700 transition-colors flex items-center gap-1"
             >

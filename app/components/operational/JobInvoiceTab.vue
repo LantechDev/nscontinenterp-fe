@@ -43,6 +43,7 @@ const emit = defineEmits<{
 
 const { fetchInvoices, isLoading, fetchInvoiceById, voidInvoice, deleteInvoice } = useInvoices();
 const { fetchQuotations } = useQuotations();
+const { canManage, requireManage } = useFeatureAccess("finance.invoice");
 const invoices = ref<
   Array<{
     id: string;
@@ -206,12 +207,23 @@ const closeDetail = () => {
 };
 
 const handleEdit = () => {
+  if (!requireManage("You only have view access for invoices.")) return;
+
   isEditing.value = true;
   showForm.value = true;
 };
 
+const openBlankInvoiceForm = () => {
+  if (!requireManage("You only have view access for invoices.")) return;
+
+  showForm.value = true;
+  selectedQuotation.value = null;
+  prefillFromQuotation.value = null;
+};
+
 const handleVoid = async () => {
   if (!activeInvoice.value) return;
+  if (!requireManage("You only have view access for invoices.")) return;
 
   isVoiding.value = true;
   const result = await voidInvoice(activeInvoice.value.id);
@@ -228,6 +240,7 @@ const handleVoid = async () => {
 
 const handleDeleteInvoice = async () => {
   if (!activeInvoice.value) return;
+  if (!requireManage("You only have view access for invoices.")) return;
 
   isDeleting.value = true;
   const result = await deleteInvoice(activeInvoice.value.id);
@@ -251,6 +264,8 @@ onMounted(async () => {
 });
 
 const openQuotationPicker = async () => {
+  if (!requireManage("You only have view access for invoices.")) return;
+
   isLoadingQuotations.value = true;
   showQuotationPicker.value = true;
   const res = await fetchQuotations({
@@ -572,7 +587,7 @@ const handlePaymentVoided = async () => {
         <div class="flex flex-wrap items-center gap-2 lg:justify-end">
           <!-- Record Payment (Primary Action) -->
           <button
-            v-if="activeInvoice.status?.code !== 'VOIDED'"
+            v-if="canManage && activeInvoice.status?.code !== 'VOIDED'"
             @click="showPaymentForm = true"
             class="inline-flex items-center px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg shadow-sm hover:shadow-emerald-100 text-[10px] font-black uppercase tracking-wider gap-1.5 transition-all hover:-translate-y-0.5 active:translate-y-0"
           >
@@ -627,7 +642,7 @@ const handlePaymentVoided = async () => {
               </div>
 
               <button
-                v-if="!isCompleted"
+                v-if="canManage && !isCompleted"
                 @click="
                   handleEdit();
                   showMoreActions = false;
@@ -650,7 +665,7 @@ const handlePaymentVoided = async () => {
               </button>
 
               <button
-                v-if="activeInvoice.status?.code !== 'VOIDED' && !isCompleted"
+                v-if="canManage && activeInvoice.status?.code !== 'VOIDED' && !isCompleted"
                 @click="
                   showVoidConfirm = true;
                   showMoreActions = false;
@@ -665,6 +680,7 @@ const handlePaymentVoided = async () => {
                 v-if="
                   activeInvoice.status?.code !== 'PAID' &&
                   activeInvoice.status?.code !== 'PARTIALLY_PAID' &&
+                  canManage &&
                   !isCompleted
                 "
                 @click="
@@ -779,7 +795,7 @@ const handlePaymentVoided = async () => {
             Job Invoice Logs
           </button>
 
-          <div v-if="!isCompleted" class="flex items-center gap-2">
+          <div v-if="canManage && !isCompleted" class="flex items-center gap-2">
             <button
               @click="openQuotationPicker"
               class="inline-flex items-center px-3 py-1.5 bg-white border border-[#062c58]/20 text-[#062c58] text-xs font-semibold rounded-md hover:bg-blue-50 transition-colors gap-1.5 shadow-sm"
@@ -788,11 +804,7 @@ const handlePaymentVoided = async () => {
               From Quotation
             </button>
             <button
-              @click="
-                showForm = true;
-                selectedQuotation = null;
-                prefillFromQuotation = null;
-              "
+              @click="openBlankInvoiceForm"
               class="inline-flex items-center px-3 py-1.5 bg-[#062c58] text-white text-xs font-semibold rounded-md hover:bg-[#062c58]/90 transition-colors gap-1.5 shadow-sm"
             >
               <Plus class="w-3.5 h-3.5" />
