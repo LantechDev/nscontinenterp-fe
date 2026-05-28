@@ -110,6 +110,13 @@ export function useExpensePage() {
     totalPages: 0,
   });
 
+  const summary = ref({
+    totalAmount: 0,
+    totalPaid: 0,
+    totalOutstanding: 0,
+    count: 0,
+  });
+
   const viewMode = ref<ViewMode>("list");
 
   // Debounced search
@@ -190,6 +197,9 @@ export function useExpensePage() {
       const result = await fetchExpenses(filters.value);
       expenses.value = result.items;
       pagination.value = result.pagination;
+      if (result.summary) {
+        summary.value = result.summary;
+      }
     } catch (error) {
       console.error("Failed to load expenses:", error);
     }
@@ -456,6 +466,12 @@ export function useExpensePage() {
     companies?: Company[];
     jobs?: JobWithBls[];
     taxOptions?: Tax[];
+    summary?: {
+      totalAmount: number;
+      totalPaid: number;
+      totalOutstanding: number;
+      count: number;
+    };
   }) => {
     if (data?.items) {
       expenses.value = data.items;
@@ -472,6 +488,9 @@ export function useExpensePage() {
     if (data?.taxOptions) {
       taxOptions.value = data.taxOptions;
     }
+    if (data?.summary) {
+      summary.value = data.summary;
+    }
   };
 
   return {
@@ -479,6 +498,7 @@ export function useExpensePage() {
     expenses,
     filters,
     pagination,
+    summary,
     viewMode,
     searchQuery,
     isEditModalOpen,

@@ -19,8 +19,9 @@ import {
   PowerOff,
   Briefcase,
   CheckCircle2,
+  Truck,
 } from "lucide-vue-next";
-import { cn } from "~/lib/utils";
+import { cn, formatDate } from "~/lib/utils";
 import { toast } from "vue-sonner";
 import { useConfirm } from "~/composables/useConfirm";
 import Combobox from "~/components/ui/Combobox.vue";
@@ -52,8 +53,24 @@ const filteredJobs = computed(() => {
     const matchesStatus =
       !statusFilter.value || job.status?.code?.toUpperCase() === statusFilter.value.toUpperCase();
 
-    const matchesShipment =
-      !shipmentTypeFilter.value || job.shipmentType === shipmentTypeFilter.value;
+    const matchesShipment = (() => {
+      if (!shipmentTypeFilter.value) return true;
+      if (shipmentTypeFilter.value === "TRUCKING") {
+        return job.serviceType === "TRUCKING";
+      }
+      if (shipmentTypeFilter.value === "AIR") {
+        return job.serviceType === "AIR" || job.shipmentType === "AIR";
+      }
+      if (shipmentTypeFilter.value === "OCEAN") {
+        return (
+          job.serviceType === "OCEAN" ||
+          (job.serviceType !== "TRUCKING" &&
+            job.serviceType !== "AIR" &&
+            job.shipmentType === "OCEAN")
+        );
+      }
+      return true;
+    })();
 
     return matchesSearch && matchesStatus && matchesShipment;
   });
@@ -91,8 +108,9 @@ const statusOptions = [
 
 const shipmentTypeOptions = [
   { value: "", label: "Semua Tipe" },
-  { value: "AIR", label: "AIR (Plane)" },
   { value: "OCEAN", label: "OCEAN (Vessel)" },
+  { value: "AIR", label: "AIR (Plane)" },
+  { value: "TRUCKING", label: "TRUCKING (Truck)" },
 ];
 
 // Stats for header (consistent with other master pages)
@@ -105,10 +123,15 @@ const stats = computed(() => {
     return !["CANCELLED", "VOID", "COMPLETED", "CLOSED", "DONE"].includes(code);
   }).length;
 
-  const air = list.filter((j) => j.shipmentType === "AIR").length;
-  const ocean = list.filter((j) => j.shipmentType === "OCEAN").length;
+  const air = list.filter((j) => j.serviceType === "AIR" || j.shipmentType === "AIR").length;
+  const trucking = list.filter((j) => j.serviceType === "TRUCKING").length;
+  const ocean = list.filter(
+    (j) =>
+      j.serviceType === "OCEAN" ||
+      (j.serviceType !== "TRUCKING" && j.serviceType !== "AIR" && j.shipmentType === "OCEAN"),
+  ).length;
 
-  return { total, active, air, ocean };
+  return { total, active, air, ocean, trucking };
 });
 
 function openJobDetail(id: string, tab?: string, blId?: string) {
@@ -217,11 +240,12 @@ watch(
     </div>
 
     <!-- Stats Cards (same style as Dashboard) -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
       <DashboardStatCard title="Total Jobs" :value="String(stats.total)" :icon="Briefcase" />
       <DashboardStatCard title="Ongoing Jobs" :value="String(stats.active)" :icon="CheckCircle2" />
-      <DashboardStatCard title="AIR (Plane)" :value="String(stats.air)" :icon="Plane" />
       <DashboardStatCard title="OCEAN (Vessel)" :value="String(stats.ocean)" :icon="Ship" />
+      <DashboardStatCard title="AIR (Plane)" :value="String(stats.air)" :icon="Plane" />
+      <DashboardStatCard title="TRUCKING (Truck)" :value="String(stats.trucking)" :icon="Truck" />
     </div>
 
     <!-- Filters -->
@@ -330,7 +354,11 @@ watch(
               <td class="py-3 px-4">
                 <div class="flex items-center gap-2">
                   <div class="p-1.5 rounded bg-blue-50 text-[#012D5A]">
-                    <Plane v-if="job.shipmentType === 'AIR'" class="w-4 h-4" />
+                    <Truck v-if="job.serviceType === 'TRUCKING'" class="w-4 h-4" />
+                    <Plane
+                      v-else-if="job.shipmentType === 'AIR' || job.serviceType === 'AIR'"
+                      class="w-4 h-4"
+                    />
                     <Ship v-else class="w-4 h-4" />
                   </div>
                   <div class="flex flex-col">
@@ -375,36 +403,82 @@ watch(
                   <div class="flex items-center gap-2 text-sm">
                     <span
                       class="text-foreground truncate font-medium"
-                      :title="job.polName || undefined"
-                      >{{ job.polName || job.pol }}</span
+                      :title="
+                        job.serviceType === 'TRUCKING'
+                          ? job.pickupAddress || undefined
+                          : job.polName || undefined
+                      "
                     >
+                      {{
+                        job.serviceType === "TRUCKING"
+                          ? job.pickupAddress || "-"
+                          : job.polName || job.pol || "-"
+                      }}
+                    </span>
                   </div>
                   <div class="flex items-center gap-2 text-xs text-muted-foreground">
                     <ArrowRight class="w-3 h-3" />
-                    <span class="truncate" :title="job.podName || undefined">{{
-                      job.podName || job.pod
-                    }}</span>
+                    <span
+                      class="truncate"
+                      :title="
+                        job.serviceType === 'TRUCKING'
+                          ? job.deliveryAddress || undefined
+                          : job.podName || undefined
+                      "
+                    >
+                      {{
+                        job.serviceType === "TRUCKING"
+                          ? job.deliveryAddress || "-"
+                          : job.podName || job.pod || "-"
+                      }}
+                    </span>
                   </div>
                 </div>
               </td>
               <td class="py-3 px-4">
                 <div class="flex flex-col gap-1">
-                  <div
-                    v-if="job.tradeType?.code === 'EXPORT'"
-                    class="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-orange-50/50 border border-orange-100 text-[#c2410c] text-[11px] font-semibold w-fit"
-                  >
-                    <Calendar class="w-3 h-3 opacity-70" />
-                    <span class="opacity-70 uppercase tracking-tighter mr-0.5 text-[9px]">ETD</span>
-                    {{ formatDate(job.etd || "") || "-" }}
-                  </div>
-                  <div
-                    v-else
-                    class="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-blue-50/50 border border-blue-100 text-[#1d4ed8] text-[11px] font-semibold w-fit"
-                  >
-                    <Calendar class="w-3 h-3 opacity-70" />
-                    <span class="opacity-70 uppercase tracking-tighter mr-0.5 text-[9px]">ETA</span>
-                    {{ formatDate(job.eta || "") || "-" }}
-                  </div>
+                  <template v-if="job.serviceType === 'TRUCKING'">
+                    <div
+                      class="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-amber-50/50 border border-amber-100 text-amber-700 text-[11px] font-semibold w-fit"
+                    >
+                      <Calendar class="w-3 h-3 opacity-70" />
+                      <span class="opacity-70 uppercase tracking-tighter mr-0.5 text-[9px]"
+                        >PKP</span
+                      >
+                      {{ formatDate(job.pickupDate) }}
+                    </div>
+                    <div
+                      class="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-emerald-50/50 border border-emerald-100 text-emerald-700 text-[11px] font-semibold w-fit"
+                    >
+                      <Calendar class="w-3 h-3 opacity-70" />
+                      <span class="opacity-70 uppercase tracking-tighter mr-0.5 text-[9px]"
+                        >DEL</span
+                      >
+                      {{ formatDate(job.deliveryDate) }}
+                    </div>
+                  </template>
+                  <template v-else>
+                    <div
+                      v-if="job.tradeType?.code === 'EXPORT'"
+                      class="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-orange-50/50 border border-orange-100 text-[#c2410c] text-[11px] font-semibold w-fit"
+                    >
+                      <Calendar class="w-3 h-3 opacity-70" />
+                      <span class="opacity-70 uppercase tracking-tighter mr-0.5 text-[9px]"
+                        >ETD</span
+                      >
+                      {{ formatDate(job.etd) }}
+                    </div>
+                    <div
+                      v-else
+                      class="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-blue-50/50 border border-blue-100 text-[#1d4ed8] text-[11px] font-semibold w-fit"
+                    >
+                      <Calendar class="w-3 h-3 opacity-70" />
+                      <span class="opacity-70 uppercase tracking-tighter mr-0.5 text-[9px]"
+                        >ETA</span
+                      >
+                      {{ formatDate(job.eta) }}
+                    </div>
+                  </template>
                 </div>
               </td>
               <td class="py-3 px-4">
@@ -514,7 +588,11 @@ watch(
             <div
               class="w-12 h-12 rounded-lg bg-blue-50 text-[#012D5A] flex items-center justify-center shrink-0"
             >
-              <Plane v-if="job.shipmentType === 'AIR'" class="w-6 h-6" />
+              <Truck v-if="job.serviceType === 'TRUCKING'" class="w-6 h-6" />
+              <Plane
+                v-else-if="job.shipmentType === 'AIR' || job.serviceType === 'AIR'"
+                class="w-6 h-6"
+              />
               <Ship v-else class="w-6 h-6" />
             </div>
             <div>
@@ -595,27 +673,67 @@ watch(
           <div class="space-y-1 pt-1">
             <div class="flex items-center gap-2 text-sm">
               <MapPin class="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-              <span class="font-bold text-[#012D5A] truncate">{{ job.polName || job.pol }}</span>
+              <span
+                class="font-bold text-[#012D5A] truncate"
+                :title="
+                  job.serviceType === 'TRUCKING'
+                    ? job.pickupAddress || undefined
+                    : job.polName || undefined
+                "
+              >
+                {{
+                  job.serviceType === "TRUCKING"
+                    ? job.pickupAddress || "-"
+                    : job.polName || job.pol || "-"
+                }}
+              </span>
             </div>
             <div class="flex items-center gap-2 text-xs pl-5 text-muted-foreground">
               <ArrowRight class="w-3 h-3 shrink-0" />
-              <span class="truncate">{{ job.podName || job.pod }}</span>
+              <span
+                class="truncate"
+                :title="
+                  job.serviceType === 'TRUCKING'
+                    ? job.deliveryAddress || undefined
+                    : job.podName || undefined
+                "
+              >
+                {{
+                  job.serviceType === "TRUCKING"
+                    ? job.deliveryAddress || "-"
+                    : job.podName || job.pod || "-"
+                }}
+              </span>
             </div>
           </div>
           <div class="flex items-center gap-2 text-sm pt-1">
             <Calendar class="w-4 h-4 text-muted-foreground opacity-50" />
-            <div
-              v-if="job.tradeType?.code === 'EXPORT'"
-              class="px-2 py-0.5 rounded bg-orange-50/80 border border-orange-100 text-[#c2410c] text-[10px] font-bold"
-            >
-              ETD: {{ formatDate(job.etd || "") || "-" }}
-            </div>
-            <div
-              v-else
-              class="px-2 py-0.5 rounded bg-blue-50/80 border border-blue-100 text-[#1d4ed8] text-[10px] font-bold"
-            >
-              ETA: {{ formatDate(job.eta || "") || "-" }}
-            </div>
+            <template v-if="job.serviceType === 'TRUCKING'">
+              <div
+                class="px-2 py-0.5 rounded bg-amber-50/80 border border-amber-100 text-amber-700 text-[10px] font-bold"
+              >
+                PKP: {{ formatDate(job.pickupDate) }}
+              </div>
+              <div
+                class="px-2 py-0.5 rounded bg-emerald-50/80 border border-emerald-100 text-emerald-700 text-[10px] font-bold"
+              >
+                DEL: {{ formatDate(job.deliveryDate) }}
+              </div>
+            </template>
+            <template v-else>
+              <div
+                v-if="job.tradeType?.code === 'EXPORT'"
+                class="px-2 py-0.5 rounded bg-orange-50/80 border border-orange-100 text-[#c2410c] text-[10px] font-bold"
+              >
+                ETD: {{ formatDate(job.etd) }}
+              </div>
+              <div
+                v-else
+                class="px-2 py-0.5 rounded bg-blue-50/80 border border-blue-100 text-[#1d4ed8] text-[10px] font-bold"
+              >
+                ETA: {{ formatDate(job.eta) }}
+              </div>
+            </template>
           </div>
           <div
             v-if="job.shipperReferences && job.shipperReferences.length > 0"

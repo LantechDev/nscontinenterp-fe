@@ -1,7 +1,6 @@
 import { getErrorMessage } from "~/lib/utils";
 import { useChartOfAccounts } from "./useChartOfAccounts";
 import type { SearchSelectFetchOptions } from "~/components/ui/SearchSelect.vue";
-import { useFinanceTax } from "./useFinanceTax";
 
 export interface JournalEntryLine {
   id: string;
@@ -54,11 +53,9 @@ export function useJournalEntry() {
   const {
     accounts,
     fetchAccounts,
-    searchAccounts,
     formatAccountDisplay,
     isLoading: isAccountsLoading,
   } = useChartOfAccounts();
-  const { fetchTaxes } = useFinanceTax();
 
   // State
   const isLoading = ref(false);
@@ -70,12 +67,16 @@ export function useJournalEntry() {
   const journalDate = ref(new Date().toISOString().split("T")[0]);
   const referenceNumber = ref("");
   const description = ref("");
-  const taxId = ref("");
-  const taxOptions = ref<Array<{ id: string; name: string; rate: number }>>([]);
   const entries = ref<JournalEntryLine[]>([
     { id: "1", accountId: "", debit: 0, credit: 0 },
     { id: "2", accountId: "", debit: 0, credit: 0 },
   ]);
+
+  const validEntries = computed(() =>
+    entries.value.filter(
+      (entry) => entry.accountId && ((entry.debit || 0) > 0 || (entry.credit || 0) > 0),
+    ),
+  );
 
   // Computed
   const totalDebit = computed(() => {
@@ -87,26 +88,67 @@ export function useJournalEntry() {
   });
 
   const isBalanced = computed(() => {
-    return totalDebit.value > 0 && totalDebit.value === totalCredit.value;
+    return totalDebit.value > 0 && Math.abs(totalDebit.value - totalCredit.value) <= 0.01;
+  });
+
+  const formValidationMessage = computed(() => {
+    if (!journalDate.value) return "Tanggal jurnal wajib diisi.";
+    if (Number.isNaN(new Date(journalDate.value).getTime())) return "Tanggal jurnal tidak valid.";
+    if (!description.value.trim()) return "Deskripsi jurnal wajib diisi.";
+    if (
+      entries.value.some(
+        (entry) => !entry.accountId && ((entry.debit || 0) > 0 || (entry.credit || 0) > 0),
+      )
+    ) {
+      return "Baris dengan nilai debit atau kredit wajib memilih akun.";
+    }
+    if (validEntries.value.length < 2) return "Minimal 2 baris jurnal valid diperlukan.";
+    if (entries.value.some((entry) => entry.accountId && entry.debit > 0 && entry.credit > 0)) {
+      return "Satu baris jurnal hanya boleh berisi debit atau kredit.";
+    }
+    if (
+      entries.value.some(
+        (entry) => entry.accountId && (entry.debit || 0) === 0 && (entry.credit || 0) === 0,
+      )
+    ) {
+      return "Baris yang memiliki akun wajib memiliki nilai debit atau kredit.";
+    }
+    if (!isBalanced.value) return "Total debit dan kredit harus seimbang.";
+    return "";
   });
 
   const canSave = computed(() => {
-    return isBalanced.value && entries.value.length > 0;
+    return !formValidationMessage.value;
   });
 
   // Search accounts handler for SearchSelect
   async function handleAccountSearch(options: SearchSelectFetchOptions) {
-    const result = await searchAccounts(options.query);
-    if (result.success && result.data) {
+    if (accounts.value.length === 0) {
+      const result = await fetchAccounts();
+      if (!result.success) return { success: false, error: result.error };
+    }
+
+    const query = options.query.toLowerCase().trim();
+    const filtered = accounts.value.filter((account) => {
+      if (!account.isActive || !account.isPosting) return false;
+      if (!query) return true;
+      return (
+        account.accountCode.toLowerCase().includes(query) ||
+        account.accountName.toLowerCase().includes(query) ||
+        account.accountType.toLowerCase().includes(query)
+      );
+    });
+
+    if (filtered) {
       return {
         success: true,
-        data: result.data.map((acc) => ({
+        data: filtered.map((acc) => ({
           id: acc.id,
           name: formatAccountDisplay(acc),
         })),
       };
     }
-    return { success: false, error: result.error };
+    return { success: false, error: "Failed to load accounts" };
   }
 
   // Entry manipulation functions
@@ -137,15 +179,12 @@ export function useJournalEntry() {
       const payload = {
         journalDate: journalDate.value,
         referenceNumber: referenceNumber.value,
-        description: description.value,
-        taxId: taxId.value || undefined,
-        entries: entries.value
-          .filter((entry) => entry.accountId && (entry.debit > 0 || entry.credit > 0))
-          .map((entry) => ({
-            accountId: entry.accountId,
-            debit: entry.debit,
-            credit: entry.credit,
-          })),
+        description: description.value.trim(),
+        entries: validEntries.value.map((entry) => ({
+          accountId: entry.accountId,
+          debit: entry.debit,
+          credit: entry.credit,
+        })),
       };
 
       await $fetch(`/api/finance/journal`, {
@@ -169,12 +208,6 @@ export function useJournalEntry() {
   // Initialize
   const initialize = async () => {
     await fetchAccounts();
-    try {
-      const taxes = await fetchTaxes({ isActive: true, limit: 100 });
-      taxOptions.value = taxes.items || [];
-    } catch {
-      taxOptions.value = [];
-    }
     referenceNumber.value = generateReferenceNumber();
   };
 
@@ -187,8 +220,6 @@ export function useJournalEntry() {
     journalDate,
     referenceNumber,
     description,
-    taxId,
-    taxOptions,
     entries,
     // From composable
     accounts,
@@ -198,6 +229,7 @@ export function useJournalEntry() {
     totalCredit,
     isBalanced,
     canSave,
+    formValidationMessage,
     // Methods
     handleAccountSearch,
     addRow,

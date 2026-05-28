@@ -16,7 +16,7 @@ import { jsPDF } from "jspdf";
 import { buildStyledWorkbook, type StyledRow } from "~/lib/excel-styled";
 import { usePayments, type OutstandingReport } from "~/composables/usePayments";
 import { useCompanies } from "~/composables/useCompanies";
-import { formatRupiah } from "~/lib/utils";
+import { formatRupiah, formatFullRupiah } from "~/lib/utils";
 import Combobox from "~/components/ui/Combobox.vue";
 import { exportStyledPdf, type PdfCol } from "~/lib/pdf-export";
 import { useExportPopup } from "~/composables/useExportPopup";
@@ -68,7 +68,7 @@ watch(
   { deep: true },
 );
 
-const formatCurrency = formatRupiah;
+const formatCurrency = formatFullRupiah;
 
 const formatDate = (dateStr: string) => {
   return new Date(dateStr).toLocaleDateString("id-ID", {
@@ -91,7 +91,7 @@ const handleExportExcel = () => {
 
     const rows: StyledRow[] = [
       {
-        cells: ["PT NOVA SYNC CONTINENT — OUTSTANDING PAYMENTS REPORT", "", "", "", "", ""],
+        cells: ["PT Nova Sync Continent — OUTSTANDING PAYMENTS REPORT", "", "", "", "", ""],
         style: 7,
       },
       { cells: [filterLabel, "", "", "", "", ""], style: 8 },
@@ -116,7 +116,7 @@ const handleExportExcel = () => {
           isEven ? 1 : 2,
           isEven ? 5 : 6,
           isEven ? 5 : 6,
-          isEven ? 11 : 11,
+          isEven ? 1 : 2,
         ],
       });
     });
@@ -131,7 +131,7 @@ const handleExportExcel = () => {
         "",
       ],
       style: 3,
-      cellStyles: [10, 10, 10, 3, 3, 10],
+      cellStyles: [9, 9, 9, 3, 3, 9],
     });
 
     const colWidths = [14, 18, 30, 18, 18, 15];

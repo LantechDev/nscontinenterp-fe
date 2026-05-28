@@ -143,7 +143,7 @@ const handleExportExcel = () => {
       "Status",
     ];
     const rows: StyledRow[] = [
-      { cells: ["PT NOVA SYNC CONTINENT — JOB PROFIT REPORT", "", "", "", "", "", ""], style: 7 },
+      { cells: ["PT Nova Sync Continent — JOB PROFIT REPORT", "", "", "", "", "", ""], style: 7 },
       {
         cells: [
           `Generated: ${new Date().toLocaleDateString("id-ID")} | Search: ${searchQuery.value || "All"}`,
@@ -179,7 +179,7 @@ const handleExportExcel = () => {
           isEven ? 5 : 6,
           isEven ? 5 : 6,
           isEven ? 5 : 6,
-          isEven ? 11 : 11,
+          isEven ? 1 : 2,
         ],
       });
     });
@@ -211,6 +211,28 @@ const formatCurrency = (value: unknown) => {
     maximumFractionDigits: 0,
   }).format(Number.isNaN(amount) ? 0 : amount);
 };
+
+const stats = computed(() => {
+  const jobs = closingJobs.value || [];
+  let totalRevenue = 0;
+  let totalCost = 0;
+  let totalProfit = 0;
+
+  jobs.forEach((job) => {
+    totalRevenue += Number(job.revenue || 0);
+    totalCost += Number(job.cogs || 0);
+    totalProfit += Number(job.profit || 0);
+  });
+
+  const avgMargin = jobs.length > 0 ? (totalProfit / (totalRevenue || 1)) * 100 : 0;
+
+  return {
+    totalRevenue,
+    totalCost,
+    totalProfit,
+    avgMargin: Math.round(avgMargin * 10) / 10,
+  };
+});
 </script>
 
 <template>
@@ -254,6 +276,31 @@ const formatCurrency = (value: unknown) => {
           </button>
         </div>
       </div>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <DashboardStatCard
+        title="Total Job Selesai"
+        :value="String(pagination.total)"
+        :icon="CheckCircle"
+        variant="primary"
+      />
+      <DashboardStatCard
+        title="Total Revenue"
+        :value="formatCurrency(stats.totalRevenue)"
+        :icon="TrendingUp"
+      />
+      <DashboardStatCard
+        title="Total Cost"
+        :value="formatCurrency(stats.totalCost)"
+        :icon="TrendingDown"
+      />
+      <DashboardStatCard
+        title="Total Profit"
+        :value="formatCurrency(stats.totalProfit)"
+        :icon="DollarSign"
+      />
     </div>
 
     <!-- Filters -->

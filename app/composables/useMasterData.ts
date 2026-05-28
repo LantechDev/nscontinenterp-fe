@@ -55,6 +55,16 @@ export interface PackageType {
   id: string;
   code: string;
   name: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface MovementType {
+  id: string;
+  code: string;
+  name: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Port {
@@ -132,6 +142,24 @@ export function useMasterData() {
   async function fetchPackageTypes() {
     try {
       const data = await $fetch<PackageType[]>("/api/master/package-types");
+      return data;
+    } catch {
+      return [];
+    }
+  }
+
+  async function fetchCargoMovements() {
+    try {
+      const data = await $fetch<MovementType[]>("/api/master/cargo-movements");
+      return data;
+    } catch {
+      return [];
+    }
+  }
+
+  async function fetchDeliveryMovements() {
+    try {
+      const data = await $fetch<MovementType[]>("/api/master/delivery-movements");
       return data;
     } catch {
       return [];
@@ -273,6 +301,8 @@ export function useMasterData() {
     fetchCompaniesWithParams,
     fetchContainerTypes,
     fetchPackageTypes,
+    fetchCargoMovements,
+    fetchDeliveryMovements,
     fetchVessels,
     fetchPlanes,
     fetchPorts,

@@ -25,7 +25,16 @@ definePageMeta({
 });
 
 interface ExpenseBootstrapData {
-  expenses: { items: Expense[]; pagination: Pagination };
+  expenses: {
+    items: Expense[];
+    pagination: Pagination;
+    summary: {
+      totalAmount: number;
+      totalPaid: number;
+      totalOutstanding: number;
+      count: number;
+    };
+  };
   companies: Company[];
   jobs: JobWithBls[];
   taxes: { items: Tax[] };
@@ -35,6 +44,7 @@ const {
   expenses,
   filters,
   pagination,
+  summary,
   viewMode,
   searchQuery,
   isEditModalOpen,
@@ -64,6 +74,29 @@ const {
   setData,
 } = useExpensePage();
 
+const statsCards = computed(() => {
+  return [
+    {
+      title: "Total Biaya",
+      value: formatCurrency(summary.value.totalAmount),
+      changeLabel: `Dari ${summary.value.count} biaya`,
+      isPrimary: false,
+    },
+    {
+      title: "Terbayar",
+      value: formatCurrency(summary.value.totalPaid),
+      changeLabel: "Dana terbayarkan",
+      isPrimary: false,
+    },
+    {
+      title: "Belum Terbayar",
+      value: formatCurrency(summary.value.totalOutstanding),
+      changeLabel: "Biaya outstanding",
+      isPrimary: true,
+    },
+  ];
+});
+
 filters.value.type = "GENERAL";
 
 const { fetchExpenseById } = useFinanceExpense();
@@ -83,7 +116,16 @@ const {
   "expense-list",
   async () => {
     const [expensesResp, companiesResp, jobsResp, taxesResp] = await Promise.all([
-      $fetch<{ items: Expense[]; pagination: Pagination }>("/api/finance/expense", {
+      $fetch<{
+        items: Expense[];
+        pagination: Pagination;
+        summary: {
+          totalAmount: number;
+          totalPaid: number;
+          totalOutstanding: number;
+          count: number;
+        };
+      }>("/api/finance/expense", {
         query: { type: "GENERAL" },
       }),
       $fetch<Company[]>("/api/master/companies?type=VENDOR"),
@@ -112,6 +154,12 @@ watch(
         : (value.companies as unknown as { data: Company[] })?.data || [],
       jobs: value.jobs,
       taxOptions: value.taxes?.items,
+      summary: value.expenses?.summary || {
+        totalAmount: 0,
+        totalPaid: 0,
+        totalOutstanding: 0,
+        count: 0,
+      },
     });
   },
   { immediate: true },
@@ -159,6 +207,16 @@ const isPageLoading = computed(() => isLoading.value || isBootstrapping.value);
           </button>
         </div>
       </div>
+    </div>
+
+    <!-- Rekap Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <FinanceStatCard
+        v-for="(card, index) in statsCards"
+        :key="index"
+        :card="card"
+        :index="index"
+      />
     </div>
 
     <!-- Filters -->
@@ -387,27 +445,29 @@ const isPageLoading = computed(() => isLoading.value || isBootstrapping.value);
   </div>
 
   <!-- Edit Modal -->
-  <ExpenseEditModal
-    :is-open="isEditModalOpen"
-    :is-submitting="isSubmitting"
-    :edit-error="editError"
-    :editing-expense-id="editingExpenseId"
-    :form-data="formData"
-    :category-options="categoryOptions"
-    :companies="companies"
-    :jobs="jobs"
-    :tax-options="taxOptions"
-    :hide-job="true"
-    @close="closeEditModal"
-    @create-vendor="handleCreateVendor"
-    @create-category="handleCreateCategory"
-    @submit="handleUpdate"
-  />
+  <client-only>
+    <ExpenseEditModal
+      :is-open="isEditModalOpen"
+      :is-submitting="isSubmitting"
+      :edit-error="editError"
+      :editing-expense-id="editingExpenseId"
+      :form-data="formData"
+      :category-options="categoryOptions"
+      :companies="companies"
+      :jobs="jobs"
+      :tax-options="taxOptions"
+      :hide-job="true"
+      @close="closeEditModal"
+      @create-vendor="handleCreateVendor"
+      @create-category="handleCreateCategory"
+      @submit="handleUpdate"
+    />
 
-  <CompanyCreateModal
-    v-model="isVendorCreateModalOpen"
-    :preset-name="presetVendorName"
-    preset-role="vendor"
-    @success="handleVendorCreateSuccess"
-  />
+    <CompanyCreateModal
+      v-model="isVendorCreateModalOpen"
+      :preset-name="presetVendorName"
+      preset-role="vendor"
+      @success="handleVendorCreateSuccess"
+    />
+  </client-only>
 </template>

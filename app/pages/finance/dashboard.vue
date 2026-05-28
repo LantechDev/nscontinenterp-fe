@@ -308,11 +308,7 @@ onMounted(async () => {
   isHydrated.value = true;
   // Ensure we fetch data safely after hydration
   await nextTick();
-  if (activeTab.value === "Overview" || activeTab.value === "Assets") {
-    await fetchData();
-  } else if (activeTab.value === "Tax Report") {
-    loadTaxReport();
-  }
+  await fetchData();
 });
 
 // Assets event handlers
@@ -387,7 +383,7 @@ function handleTransactionExportExcel() {
   }
   const periodLabel = `Year: ${transactionYear.value || "All"} | Generated: ${new Date().toLocaleDateString("id-ID")}`;
   const rows: StyledRow[] = [
-    { cells: ["PT NOVA SYNC — TRANSACTIONS REPORT", "", "", "", "", "", ""], style: 7 },
+    { cells: ["PT Nova Sync Continent — TRANSACTIONS REPORT", "", "", "", "", "", ""], style: 7 },
     { cells: [periodLabel, "", "", "", "", "", ""], style: 8 },
     {
       cells: ["No.", "Tanggal", "Job Number", "Customer", "Type", "Payment Method", "Total"],
@@ -422,7 +418,7 @@ function handleTransactionExportExcel() {
   rows.push({
     cells: ["", "", "", "", "", "GRAND TOTAL", grandTotal],
     style: 3,
-    cellStyles: [10, 10, 10, 10, 10, 3, 3],
+    cellStyles: [9, 9, 9, 9, 9, 3, 3],
   });
   const colWidths = [6, 15, 18, 25, 15, 18, 18];
   buildStyledWorkbook(
@@ -441,7 +437,7 @@ function handleAssetsExportExcel() {
   }
   const periodLabel = `Year: ${assetsYear.value || "All"} | Generated: ${new Date().toLocaleDateString("id-ID")}`;
   const rows: StyledRow[] = [
-    { cells: ["PT NOVA SYNC — ASSETS REPORT", "", "", "", "", ""], style: 7 },
+    { cells: ["PT Nova Sync Continent — ASSETS REPORT", "", "", "", "", ""], style: 7 },
     { cells: [periodLabel, "", "", "", "", ""], style: 8 },
     { cells: ["No.", "Name", "Date", "Service", "Company", "Price"], style: 0 },
   ];
@@ -471,7 +467,7 @@ function handleAssetsExportExcel() {
   rows.push({
     cells: ["", "", "", "", "TOTAL", totalValue],
     style: 3,
-    cellStyles: [10, 10, 10, 10, 9, 3],
+    cellStyles: [9, 9, 9, 9, 9, 3],
   });
   const colWidths = [6, 25, 15, 20, 20, 18];
   buildStyledWorkbook(
@@ -493,7 +489,7 @@ function handleFinanceCloseExportExcel() {
 
   const periodLabel = `Year: ${financeCloseYear.value || "All"} | Generated: ${new Date().toLocaleDateString("id-ID")}`;
   const rows: StyledRow[] = [
-    { cells: ["PT NOVA SYNC — FINANCE CLOSE REPORT", "", "", "", "", ""], style: 7 },
+    { cells: ["PT Nova Sync Continent — FINANCE CLOSE REPORT", "", "", "", "", ""], style: 7 },
     { cells: [periodLabel, "", "", "", "", ""], style: 8 },
   ];
 
@@ -601,7 +597,7 @@ function handleBalanceSheetExportExcel() {
   }
 
   const rows: StyledRow[] = [
-    { cells: ["PT NOVA SYNC — BALANCE SHEET", "", ""], style: 7 },
+    { cells: ["PT Nova Sync Continent — BALANCE SHEET", "", ""], style: 7 },
     {
       cells: [`As of ${new Date(report.asOfDate).toLocaleDateString("id-ID")}`, "", ""],
       style: 8,
@@ -687,8 +683,12 @@ function handleCashFlowExportExcel() {
   }
 
   const periodLabel = `${new Date(report.startDate).toLocaleDateString("id-ID")} - ${new Date(report.endDate).toLocaleDateString("id-ID")}`;
+  const generatedAt = new Date()
+    .toISOString()
+    .replace(/[-:]/g, "")
+    .replace(/\.\d{3}Z$/, "");
   const rows: StyledRow[] = [
-    { cells: ["PT NOVA SYNC — CASH FLOW", "", "", "", ""], style: 7 },
+    { cells: ["PT Nova Sync Continent — CASH FLOW", "", "", "", ""], style: 7 },
     { cells: [periodLabel, "", "", "", ""], style: 8 },
     { cells: ["Account Code", "Account Name", "Cash In", "Cash Out", "Net"], style: 0 },
     {
@@ -696,10 +696,12 @@ function handleCashFlowExportExcel() {
       style: 3,
       cellStyles: [3, 3, 3, 3, 3],
     },
+    { cells: ["", "", "", "", ""], style: 1 },
   ];
 
   [report.groups.operating, report.groups.investing, report.groups.financing].forEach((group) => {
-    rows.push({ cells: [group.label.toUpperCase(), "", "", "", group.netCashFlow], style: 0 });
+    rows.push({ cells: [group.label.toUpperCase(), "", "", "", ""], style: 0 });
+    rows.push({ cells: ["Account Code", "Account Name", "Cash In", "Cash Out", "Net"], style: 0 });
     group.items.forEach((item, index) => {
       const style = index % 2 === 0 ? 1 : 2;
       rows.push({
@@ -719,6 +721,7 @@ function handleCashFlowExportExcel() {
       style: 3,
       cellStyles: [3, 3, 3, 3, 3],
     });
+    rows.push({ cells: ["", "", "", "", ""], style: 1 });
   });
 
   rows.push({
@@ -731,7 +734,7 @@ function handleCashFlowExportExcel() {
     "Cash Flow",
     rows,
     [18, 34, 18, 18, 18],
-    `CASH_FLOW_${report.startDate}_${report.endDate}.xlsx`,
+    `CASH_FLOW_${report.startDate}_${report.endDate}_${generatedAt}.xlsx`,
   );
 }
 
@@ -907,7 +910,7 @@ function handleArApExportExcel() {
   const periodLabel = `Generated: ${new Date().toLocaleDateString("id-ID")}`;
 
   const rows: StyledRow[] = [
-    { cells: [`PT NOVA SYNC — ${typeLabel}`, "", "", "", "", "", ""], style: 7 },
+    { cells: [`PT Nova Sync Continent — ${typeLabel}`, "", "", "", "", "", ""], style: 7 },
     { cells: [periodLabel, "", "", "", "", "", ""], style: 8 },
     { cells: ["Inv No.", "Company", "Total", "Paid", "Remaining", "Due Date", "Status"], style: 0 },
   ];
@@ -1110,7 +1113,7 @@ function handleTaxReportExportExcel() {
   const periodLabel = `Tahun: ${selectedYear.value || new Date().getFullYear()} | Dibuat: ${new Date().toLocaleDateString("id-ID")}`;
 
   const rows: StyledRow[] = [
-    { cells: ["PT NOVA SYNC — LAPORAN PAJAK (DETAIL)", "", "", "", "", ""], style: 7 },
+    { cells: ["PT Nova Sync Continent — LAPORAN PAJAK (DETAIL)", "", "", "", "", ""], style: 7 },
     { cells: [periodLabel, "", "", "", "", ""], style: 8 },
     {
       cells: ["No. Invoice", "Tanggal", "Customer", "Pajak", "Dasar Pengenaan", "Total Pajak"],

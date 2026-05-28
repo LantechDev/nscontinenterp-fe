@@ -113,7 +113,10 @@ export function useRoleAccess() {
       path.startsWith("/master/tax") ||
       path.startsWith("/master/bl-conditions") ||
       path.startsWith("/master/service-categories") ||
-      path.startsWith("/master/service-units")
+      path.startsWith("/master/service-units") ||
+      path.startsWith("/master/package-types") ||
+      path.startsWith("/master/cargo-movements") ||
+      path.startsWith("/master/delivery-movements")
     ) {
       return hasAnyPermission("company");
     }

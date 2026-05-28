@@ -525,7 +525,7 @@ const formatDate = (dateStr?: string | null) => {
           <div
             class="w-[32%] px-2 py-1 text-[0.55rem] italic flex items-center border-r border-[#062c58]"
           >
-            (CHECK "HM" COLUMN IF HAZARDOUS MATERIAL)
+            (CHECK "DG" COLUMN IF DANGEROUS GOODS)
           </div>
           <div
             class="flex-1 text-center font-bold text-[0.65rem] px-2 py-1 flex items-center justify-center"

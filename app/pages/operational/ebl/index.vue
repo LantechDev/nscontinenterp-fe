@@ -11,8 +11,14 @@ import {
   Briefcase,
   ArrowRight,
   MapPin,
+  Eye,
+  CheckCircle2,
+  XCircle,
+  AlertTriangle,
+  Loader2,
 } from "lucide-vue-next";
 import { cn } from "~/lib/utils";
+import { toast } from "vue-sonner";
 
 definePageMeta({
   layout: "dashboard",
@@ -52,6 +58,75 @@ interface EblItem {
 const { ebls, fetchEbls, isLoading } = useEbls();
 
 const { pending } = await useAsyncData("ebls-list", () => fetchEbls(), { server: false });
+
+const { canApproveJobs } = useAuth();
+const { finalizeBl, rejectBl } = useJobs();
+const { confirm } = useConfirm();
+
+// State for Approve/Reject actions
+const showRejectModal = ref(false);
+const rejectReasonForm = ref("");
+const isRejecting = ref(false);
+const rejectingBlId = ref<string | null>(null);
+const approvingBlId = ref<string | null>(null);
+
+const getErrorMessage = (error: unknown) => {
+  return error instanceof Error ? error.message : "Unknown error";
+};
+
+const handleApprove = async (blId: string) => {
+  const isConfirmed = await confirm({
+    title: "Approve Bill of Lading",
+    message:
+      "Are you sure you want to approve this BL? This action will finalize the BL and lock all details.",
+    confirmText: "Approve BL",
+    type: "warning",
+  });
+
+  if (isConfirmed) {
+    approvingBlId.value = blId;
+    try {
+      const resp = await finalizeBl(blId);
+      if (resp.success) {
+        toast.success("eBL approved and finalized successfully!");
+        await fetchEbls();
+      } else {
+        toast.error(resp.error || "Failed to approve eBL");
+      }
+    } catch (err: unknown) {
+      toast.error("An error occurred: " + getErrorMessage(err));
+    } finally {
+      approvingBlId.value = null;
+    }
+  }
+};
+
+const openRejectModal = (blId: string) => {
+  rejectingBlId.value = blId;
+  rejectReasonForm.value = "";
+  showRejectModal.value = true;
+};
+
+const submitReject = async () => {
+  if (!rejectingBlId.value || !rejectReasonForm.value.trim()) return;
+
+  isRejecting.value = true;
+  try {
+    const resp = await rejectBl(rejectingBlId.value, rejectReasonForm.value.trim());
+    if (resp.success) {
+      toast.success("eBL rejected and sent back to Draft.");
+      showRejectModal.value = false;
+      await fetchEbls();
+    } else {
+      toast.error(resp.error || "Failed to reject eBL");
+    }
+  } catch (err: unknown) {
+    toast.error("An error occurred: " + getErrorMessage(err));
+  } finally {
+    isRejecting.value = false;
+    rejectingBlId.value = null;
+  }
+};
 
 // Helper functions for status (sync with JobEblList.vue)
 const getStatusCode = (ebl: EblItem) => {
@@ -256,13 +331,14 @@ const groupedEbls = computed(() => {
               >
                 Status
               </th>
+              <th class="py-3 px-4 w-10"></th>
             </tr>
           </thead>
           <tbody>
             <template v-for="group in groupedEbls" :key="group.jobId">
               <!-- Job Header Row -->
               <tr class="bg-gray-50/80 border-b border-border group">
-                <td colspan="5" class="py-2.5 px-4">
+                <td colspan="6" class="py-2.5 px-4">
                   <div class="flex items-center gap-2">
                     <div class="p-1 rounded bg-[#012D5A]/5 text-[#012D5A]">
                       <Briefcase class="w-3.5 h-3.5" />
@@ -339,10 +415,51 @@ const groupedEbls = computed(() => {
                     {{ getStatusInfo(ebl).label }}
                   </span>
                 </td>
+                <td class="py-3.5 px-4 text-right" @click.stop>
+                  <div class="flex items-center justify-end gap-2 relative">
+                    <UiActionMenu>
+                      <template #trigger>
+                        <button
+                          class="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors"
+                        >
+                          <MoreVertical class="w-4 h-4" />
+                        </button>
+                      </template>
+                      <template #content>
+                        <button
+                          class="w-full px-4 py-2 text-left text-sm hover:bg-muted flex items-center gap-2"
+                          @click="openBlDetail(ebl.id)"
+                        >
+                          <Eye class="w-4 h-4 text-muted-foreground" />
+                          View Details
+                        </button>
+                        <button
+                          v-if="canApproveJobs && getStatusCode(ebl) === 'pending_approval'"
+                          class="w-full px-4 py-2 text-left text-sm hover:bg-muted text-emerald-600 flex items-center gap-2"
+                          @click="handleApprove(ebl.id)"
+                          :disabled="approvingBlId === ebl.id || isRejecting"
+                        >
+                          <Loader2 v-if="approvingBlId === ebl.id" class="w-4 h-4 animate-spin" />
+                          <CheckCircle2 v-else class="w-4 h-4" />
+                          {{ approvingBlId === ebl.id ? "Approving..." : "Approve" }}
+                        </button>
+                        <button
+                          v-if="canApproveJobs && getStatusCode(ebl) === 'pending_approval'"
+                          class="w-full px-4 py-2 text-left text-sm hover:bg-muted text-red-600 flex items-center gap-2"
+                          @click="openRejectModal(ebl.id)"
+                          :disabled="approvingBlId === ebl.id || isRejecting"
+                        >
+                          <XCircle class="w-4 h-4" />
+                          Reject
+                        </button>
+                      </template>
+                    </UiActionMenu>
+                  </div>
+                </td>
               </tr>
             </template>
             <tr v-if="ebls.length === 0">
-              <td colspan="5" class="p-20 text-center text-muted-foreground">
+              <td colspan="6" class="p-20 text-center text-muted-foreground">
                 <div class="flex flex-col items-center gap-2">
                   <FileText class="w-10 h-10 opacity-20 mb-2" />
                   <p class="font-medium">Belum ada data eBL.</p>
@@ -391,12 +508,44 @@ const groupedEbls = computed(() => {
               </div>
             </div>
           </div>
-          <button
-            class="p-2 hover:bg-gray-100 rounded-full text-muted-foreground transition-colors"
-            @click.stop
-          >
-            <MoreVertical class="w-4 h-4" />
-          </button>
+          <UiActionMenu>
+            <template #trigger>
+              <button
+                class="p-2 hover:bg-gray-100 rounded-full text-muted-foreground transition-colors"
+                @click.stop
+              >
+                <MoreVertical class="w-4 h-4" />
+              </button>
+            </template>
+            <template #content>
+              <button
+                class="w-full px-4 py-2 text-left text-sm hover:bg-muted flex items-center gap-2"
+                @click="openBlDetail(ebl.id)"
+              >
+                <Eye class="w-4 h-4 text-muted-foreground" />
+                View Details
+              </button>
+              <button
+                v-if="canApproveJobs && getStatusCode(ebl) === 'pending_approval'"
+                class="w-full px-4 py-2 text-left text-sm hover:bg-muted text-emerald-600 flex items-center gap-2"
+                @click="handleApprove(ebl.id)"
+                :disabled="approvingBlId === ebl.id || isRejecting"
+              >
+                <Loader2 v-if="approvingBlId === ebl.id" class="w-4 h-4 animate-spin" />
+                <CheckCircle2 v-else class="w-4 h-4" />
+                {{ approvingBlId === ebl.id ? "Approving..." : "Approve" }}
+              </button>
+              <button
+                v-if="canApproveJobs && getStatusCode(ebl) === 'pending_approval'"
+                class="w-full px-4 py-2 text-left text-sm hover:bg-muted text-red-600 flex items-center gap-2"
+                @click="openRejectModal(ebl.id)"
+                :disabled="approvingBlId === ebl.id || isRejecting"
+              >
+                <XCircle class="w-4 h-4" />
+                Reject
+              </button>
+            </template>
+          </UiActionMenu>
         </div>
 
         <div class="space-y-4 mb-6">
@@ -469,6 +618,57 @@ const groupedEbls = computed(() => {
         </button>
       </div>
     </div>
+
+    <!-- Rejection Modal -->
+    <UiModal v-model="showRejectModal" width="max-w-lg">
+      <div class="p-4">
+        <div class="flex flex-col items-center text-center gap-4 py-4">
+          <div
+            class="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center text-red-600"
+          >
+            <AlertTriangle class="w-6 h-6" />
+          </div>
+          <div class="space-y-2 w-full">
+            <h3 class="text-lg font-semibold">Reject Bill of Lading</h3>
+            <p class="text-sm text-muted-foreground w-full mb-6">
+              Please provide a reason for rejecting this BL. It will be reverted to Draft for
+              revision.
+            </p>
+            <div class="text-left w-full pt-2">
+              <label
+                class="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1.5"
+              >
+                Rejection Reason <span class="text-red-500">*</span>
+              </label>
+              <textarea
+                v-model="rejectReasonForm"
+                class="input-field min-h-[120px] py-3 resize-y transition-all duration-200"
+                placeholder="E.g., Cargo description is incomplete"
+              ></textarea>
+            </div>
+          </div>
+        </div>
+        <div class="flex items-center gap-3 mt-4">
+          <button
+            type="button"
+            class="btn-secondary flex-1 justify-center"
+            @click="showRejectModal = false"
+            :disabled="isRejecting"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            class="btn-primary flex-1 justify-center bg-red-600 hover:bg-red-700 border-red-600 disabled:opacity-50"
+            @click="submitReject"
+            :disabled="!rejectReasonForm.trim() || isRejecting"
+          >
+            <Loader2 v-if="isRejecting" class="w-4 h-4 animate-spin mr-2" />
+            {{ isRejecting ? "Rejecting..." : "Confirm Reject" }}
+          </button>
+        </div>
+      </div>
+    </UiModal>
 
     <!-- Job Details Slide-over showing eBL tab -->
     <OperationalJobDetailSlideOver

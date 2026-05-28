@@ -16,14 +16,13 @@ const {
   journalDate,
   referenceNumber,
   description,
-  taxId,
-  taxOptions,
   entries,
   isAccountsLoading,
   totalDebit,
   totalCredit,
   isBalanced,
   canSave,
+  formValidationMessage,
   handleAccountSearch,
   addRow,
   removeRow,
@@ -32,11 +31,6 @@ const {
   saveJournalEntry,
   initialize,
 } = useJournalEntry();
-
-// Computed for SearchSelect
-const formattedTaxOptions = computed(() =>
-  taxOptions.value.map((tax) => ({ id: tax.id, name: `${tax.name} (${tax.rate}%)` })),
-);
 
 onMounted(() => {
   initialize();
@@ -76,7 +70,7 @@ onMounted(() => {
     <!-- Main Card -->
     <div class="card-elevated p-8 space-y-8 bg-card shadow-soft border-border">
       <!-- Header Grid -->
-      <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
         <!-- Tanggal -->
         <div class="space-y-2">
           <label class="text-sm font-medium text-foreground">Tanggal</label>
@@ -106,16 +100,6 @@ onMounted(() => {
             placeholder="Deskripsi jurnal"
             class="input-field"
             v-uppercase
-          />
-        </div>
-
-        <!-- Tax -->
-        <div class="space-y-2">
-          <label class="text-sm font-medium text-foreground">Pajak</label>
-          <SearchSelect
-            v-model="taxId"
-            :initial-options="formattedTaxOptions"
-            placeholder="Pilih Pajak (Opsional)"
           />
         </div>
       </div>
@@ -231,6 +215,10 @@ onMounted(() => {
             Tidak Seimbang
           </span>
         </div>
+
+        <p v-if="formValidationMessage" class="text-center text-xs text-muted-foreground">
+          {{ formValidationMessage }}
+        </p>
       </div>
 
       <!-- Footer Section -->

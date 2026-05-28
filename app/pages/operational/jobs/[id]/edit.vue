@@ -18,7 +18,13 @@ import DatePicker from "~/components/ui/DatePicker.vue";
 import TimePicker from "~/components/ui/TimePicker.vue";
 import Checkbox from "~/components/ui/Checkbox.vue";
 import Modal from "~/components/ui/Modal.vue";
-import type { Company, ContainerType, Vessel, Port } from "~/composables/useMasterData";
+import type {
+  Company,
+  ContainerType,
+  Vessel,
+  Port,
+  MovementType,
+} from "~/composables/useMasterData";
 import type { Plane } from "~/composables/usePlanes";
 import SectionCard from "../components/SectionCard.vue";
 import JobPartyRow from "../components/JobPartyRow.vue";
@@ -69,6 +75,8 @@ const {
   createVessel,
   createPlane,
   fetchPackageTypes,
+  fetchCargoMovements,
+  fetchDeliveryMovements,
 } = useMasterData();
 import { toast } from "vue-sonner";
 
@@ -77,6 +85,8 @@ const { user } = useAuth();
 const companies = ref<Company[]>([]);
 const containerTypes = ref<ContainerType[]>([]);
 const packageTypes = ref<PackageType[]>([]);
+const cargoMovementOptions = ref<MovementType[]>([]);
+const deliveryMovementOptions = ref<MovementType[]>([]);
 const vessels = ref<Vessel[]>([]);
 const planes = ref<Plane[]>([]);
 
@@ -536,17 +546,22 @@ function populateFormData(job: JobWithBls) {
 
 async function refreshMasterData(polCode?: string, podCode?: string) {
   const type = formData.shipmentType === "AIR" ? "air" : "ocean";
-  const [comps, types, packs, vess, plns, initialPorts] = await Promise.all([
-    fetchCompanies(),
-    fetchContainerTypes(),
-    fetchPackageTypes(),
-    fetchVessels(),
-    fetchPlanes(),
-    $fetch<Port[]>(`/api/master/ports?type=${type}`),
-  ]);
+  const [comps, types, packs, cargoMoves, deliveryMoves, vess, plns, initialPorts] =
+    await Promise.all([
+      fetchCompanies(),
+      fetchContainerTypes(),
+      fetchPackageTypes(),
+      fetchCargoMovements(),
+      fetchDeliveryMovements(),
+      fetchVessels(),
+      fetchPlanes(),
+      $fetch<Port[]>(`/api/master/ports?type=${type}`),
+    ]);
   companies.value = comps;
   containerTypes.value = types;
   packageTypes.value = packs;
+  cargoMovementOptions.value = cargoMoves;
+  deliveryMovementOptions.value = deliveryMoves;
   vessels.value = vess;
   planes.value = plns;
 
@@ -921,25 +936,6 @@ const TRUCK_TYPES = [
   "20FT",
   "40FT/HC",
   "45HC",
-];
-
-const CARGO_MOVEMENTS = [
-  { id: "FCL_FCL", name: "FCL/FCL" },
-  { id: "LCL_LCL", name: "LCL/LCL" },
-  { id: "FCL_LCL", name: "FCL/LCL" },
-  { id: "LCL_FCL", name: "LCL/FCL" },
-  { id: "AIR_AIR", name: "AIR/AIR" },
-];
-
-const DELIVERY_MOVEMENTS = [
-  { id: "CY_CY", name: "CY-CY" },
-  { id: "CY_DOOR", name: "CY-DOOR" },
-  { id: "DOOR_CY", name: "DOOR-CY" },
-  { id: "DOOR_DOOR", name: "DOOR-DOOR" },
-  { id: "CFS_CY", name: "CFS-CY" },
-  { id: "CFS_CFS", name: "CFS-CFS" },
-  { id: "CY_CFS", name: "CY-CFS" },
-  { id: "AIR_AIR", name: "AIR/AIR" },
 ];
 
 const BL_TYPES = [
@@ -1995,7 +1991,11 @@ function addVessel() {
                   >
                     CARGO MOVEMENT <span class="text-destructive">*</span>
                   </label>
-                  <Combobox v-model="formData.cargoMovementId" :options="CARGO_MOVEMENTS" />
+                  <Combobox
+                    v-model="formData.cargoMovementId"
+                    :options="cargoMovementOptions"
+                    value-key="code"
+                  />
                 </div>
                 <div class="space-y-2">
                   <label
@@ -2003,7 +2003,11 @@ function addVessel() {
                   >
                     DELIVERY MOVEMENT <span class="text-destructive">*</span>
                   </label>
-                  <Combobox v-model="formData.deliveryMovementId" :options="DELIVERY_MOVEMENTS" />
+                  <Combobox
+                    v-model="formData.deliveryMovementId"
+                    :options="deliveryMovementOptions"
+                    value-key="code"
+                  />
                 </div>
               </div>
 

@@ -49,6 +49,7 @@ export interface Expense {
   status?: { id: string; code: string; name: string };
   notes?: string;
   createdAt: string;
+  updatedAt?: string;
   currency?: string;
   exchangeRate?: number;
   items?: ExpenseItem[];
@@ -91,9 +92,16 @@ export function useFinanceExpense() {
           }
         });
       }
-      return await $fetch<{ items: Expense[]; pagination: Pagination }>(
-        `/api/finance/expense?${query.toString()}`,
-      );
+      return await $fetch<{
+        items: Expense[];
+        pagination: Pagination;
+        summary: {
+          totalAmount: number;
+          totalPaid: number;
+          totalOutstanding: number;
+          count: number;
+        };
+      }>(`/api/finance/expense?${query.toString()}`);
     } catch (error) {
       console.error("[Expense] Failed to fetch:", error);
       throw error;
