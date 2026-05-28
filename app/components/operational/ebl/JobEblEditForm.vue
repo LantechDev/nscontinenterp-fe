@@ -144,16 +144,16 @@ onMounted(async () => {
     if (jobVessels.length > 0) {
       const formVessels = editForm.value.vessels;
       if (!formVessels || formVessels.length === 0) {
-        editForm.value.vessels = jobVessels.map((v, idx) => ({
+        editForm.value.vessels = jobVessels.map((vessel, idx) => ({
           id: Date.now() + idx,
-          vesselId: v.vesselId || v.transportId || "",
-          vesselName: v.vesselName || v.vessel?.name || v.plane?.name || "",
-          voyageNumber: v.voyageNumber || "",
-          etd: v.etd || "",
-          eta: v.eta || "",
-          sequence: v.sequence || idx,
-          vesselType: v.vesselType || (idx === 0 ? "feeder" : "mother"),
-          tsPortId: v.tsPortId || "",
+          vesselId: vessel.vesselId || vessel.transportId || "",
+          vesselName: vessel.vesselName || vessel.vessel?.name || vessel.plane?.name || "",
+          voyageNumber: vessel.voyageNumber || "",
+          etd: vessel.etd || "",
+          eta: vessel.eta || "",
+          sequence: vessel.sequence || idx,
+          vesselType: vessel.vesselType || (idx === 0 ? "feeder" : "mother"),
+          tsPortId: vessel.tsPortId || "",
         }));
       } else {
         // Backfill *all* legs (incl. last leg ETA POD) when eBL already has vessel entries

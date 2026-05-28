@@ -235,7 +235,7 @@ async function submitServiceForm(formData: {
 
 const subTotal = computed(() => {
   const sum = form.value.items.reduce(
-    (sum, item) => sum + Number(item.quantity) * Number(item.unitPrice),
+    (acc, item) => acc + Number(item.quantity) * Number(item.unitPrice),
     0,
   );
   return form.value.currency === "IDR" ? Math.round(sum) : sum;

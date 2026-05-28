@@ -335,17 +335,17 @@ watch(
 // Mathematical Calculations
 const subTotal = computed(() => {
   const sum = formData.charges.reduce(
-    (sum, ch) => sum + Number(ch.quantity || 0) * Number(ch.unitPrice || 0),
+    (acc, ch) => acc + Number(ch.quantity || 0) * Number(ch.unitPrice || 0),
     0,
   );
   return formData.currency === "IDR" ? Math.round(sum) : sum;
 });
 
 const taxAmount = computed(() => {
-  const sum = formData.charges.reduce((sum, ch) => {
+  const sum = formData.charges.reduce((acc, ch) => {
     const tax = masterData.value?.taxes.find((t) => t.id === ch.taxId);
     const rate = tax ? tax.rate : 0;
-    return sum + Number(ch.quantity || 0) * Number(ch.unitPrice || 0) * (rate / 100);
+    return acc + Number(ch.quantity || 0) * Number(ch.unitPrice || 0) * (rate / 100);
   }, 0);
   return formData.currency === "IDR" ? Math.round(sum) : sum;
 });
