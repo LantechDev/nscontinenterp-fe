@@ -17,6 +17,7 @@ const router = useRouter();
 const invoiceId = route.params.id as string;
 
 const { fetchInvoiceById, updateInvoice } = useInvoices();
+const { canManage, requireManage } = useFeatureAccess("finance.invoice");
 
 // SSR-first: fetch invoice detail
 const {
@@ -142,6 +143,8 @@ const calculateTotal = () => {
 
 // Add new line item
 const addLineItem = () => {
+  if (!requireManage("You only have view access for invoices.")) return;
+
   formData.value.items.push({
     description: "",
     quantity: 1,
@@ -152,6 +155,8 @@ const addLineItem = () => {
 
 // Remove line item
 const removeLineItem = (index: number) => {
+  if (!requireManage("You only have view access for invoices.")) return;
+
   formData.value.items.splice(index, 1);
   recalculateTotals();
 };
@@ -183,22 +188,23 @@ const loadInvoice = async () => {
 // Load dropdown data
 const loadDropdownData = async () => {
   const [companiesResult, jobsResult, servicesResult, taxesResult] = await Promise.all([
-    $fetch<{ data: Company[] }>("/api/companies", { query: { type: "CUSTOMER", limit: 100 } }),
-    $fetch<{ data: JobWithBls[] }>("/api/jobs", { query: { limit: 100 } }),
-    $fetch<{ data: Service[] }>("/api/services", { query: { limit: 100 } }),
-    $fetch<{ data: { id: string; name: string; rate: number }[] }>("/api/taxes", {
+    $fetch<Company[]>("/api/master/companies", { query: { type: "CUSTOMER", limit: 100 } }),
+    $fetch<JobWithBls[]>("/api/operational/jobs", { query: { limit: 100 } }),
+    $fetch<Service[]>("/api/master/services", { query: { limit: 100 } }),
+    $fetch<{ items: Tax[] }>("/api/finance/tax", {
       query: { isActive: true, limit: 100 },
     }),
   ]);
-  companies.value = companiesResult?.data || [];
-  jobs.value = jobsResult?.data || [];
-  services.value = servicesResult?.data || [];
-  taxOptions.value = taxesResult?.data || [];
+  companies.value = companiesResult || [];
+  jobs.value = jobsResult || [];
+  services.value = servicesResult || [];
+  taxOptions.value = taxesResult?.items || [];
 };
 
 // Open edit modal with full form
 const openEditModal = async () => {
   if (!invoice.value) return;
+  if (!requireManage("You only have view access for invoices.")) return;
 
   await loadDropdownData();
 
@@ -253,6 +259,7 @@ const closeEditModal = () => {
 // Submit full invoice update
 const handleFullUpdate = async () => {
   if (!invoice.value || !formData.value.companyId) return;
+  if (!requireManage("You only have view access for invoices.")) return;
 
   try {
     isSubmitting.value = true;
@@ -347,7 +354,7 @@ watch(selectedTaxId, () => {
           <Download class="w-4 h-4 mr-2" />
           Download
         </button>
-        <button class="btn-primary" @click="openEditModal">
+        <button v-if="canManage" class="btn-primary" @click="openEditModal">
           <Edit class="w-4 h-4 mr-2" />
           Edit Invoice
         </button>

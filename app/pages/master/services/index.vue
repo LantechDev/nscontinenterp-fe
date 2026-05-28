@@ -11,6 +11,7 @@ definePageMeta({
 const { services: servicesList, isLoading, fetchServices, createService } = useServices();
 
 const { pending } = await useAsyncData("services-list", () => fetchServices(), { server: false });
+const { canManage, requireManage } = useFeatureAccess("master.service");
 
 // Search and filter state
 const searchQuery = ref("");
@@ -91,6 +92,7 @@ const formError = ref<string | null>(null);
 const createModalRef = ref<{ resetForm: () => void } | null>(null);
 
 const openCreateModal = () => {
+  if (!requireManage("You only have view access for services.")) return;
   if (createModalRef.value) {
     createModalRef.value.resetForm();
   }
@@ -212,6 +214,7 @@ const handlePageChange = (page: number) => {
           <option value="inactive">Inactive</option>
         </select>
         <button
+          v-if="canManage"
           @click="openCreateModal"
           class="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-[#012D5A] text-white hover:bg-[#012D5A]/90 rounded-lg transition-colors min-w-fit whitespace-nowrap"
         >

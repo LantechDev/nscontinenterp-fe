@@ -35,6 +35,7 @@ const { jobs, fetchJobs, isLoading, updateJob } = useJobs();
 const route = useRoute();
 const router = useRouter();
 const { confirm } = useConfirm();
+const { canManage, requireManage } = useFeatureAccess("operational.job");
 
 const { pending } = await useAsyncData("jobs-list", () => fetchJobs(), { server: false });
 
@@ -142,11 +143,13 @@ function openJobDetail(id: string, tab?: string, blId?: string) {
 }
 
 function copyJob(jobId: string) {
+  if (!requireManage("You only have view access for jobs.")) return;
   // Navigate to create page with copyFrom query so it can prefill data
   router.push(`/operational/jobs/create?copyFrom=${jobId}`);
 }
 
 async function deactivateJob(jobInput: unknown) {
+  if (!requireManage("You only have view access for jobs.")) return;
   // TODO: replace with proper Job type from composable
   const job = jobInput as {
     id: string;
@@ -290,6 +293,7 @@ watch(
 
       <div class="flex items-center gap-3">
         <NuxtLink
+          v-if="canManage"
           to="/operational/jobs/create"
           class="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-[#012D5A] text-white hover:bg-[#012D5A]/90 rounded-lg transition-colors min-w-fit whitespace-nowrap"
         >
@@ -534,6 +538,7 @@ watch(
                         View Details
                       </button>
                       <NuxtLink
+                        v-if="canManage"
                         :to="`/operational/jobs/${job.id}/edit`"
                         class="w-full px-4 py-2 text-left text-sm hover:bg-muted flex items-center gap-2"
                       >
@@ -541,6 +546,7 @@ watch(
                         Edit
                       </NuxtLink>
                       <button
+                        v-if="canManage"
                         class="w-full px-4 py-2 text-left text-sm hover:bg-muted flex items-center gap-2"
                         @click="copyJob(job.id)"
                       >
@@ -549,6 +555,7 @@ watch(
                       </button>
                       <button
                         v-if="
+                          canManage &&
                           !['CANCELLED', 'VOID', 'COMPLETED', 'CLOSED', 'DONE'].includes(
                             (typeof job.status === 'string'
                               ? job.status
@@ -630,6 +637,7 @@ watch(
                   View Details
                 </button>
                 <NuxtLink
+                  v-if="canManage"
                   :to="`/operational/jobs/${job.id}/edit`"
                   class="w-full px-4 py-2 text-left text-sm hover:bg-muted flex items-center gap-2"
                 >
@@ -637,6 +645,7 @@ watch(
                   Edit
                 </NuxtLink>
                 <button
+                  v-if="canManage"
                   class="w-full px-4 py-2 text-left text-sm hover:bg-muted flex items-center gap-2"
                   @click="copyJob(job.id)"
                 >
@@ -645,6 +654,7 @@ watch(
                 </button>
                 <button
                   v-if="
+                    canManage &&
                     !['CANCELLED', 'VOID', 'COMPLETED', 'CLOSED', 'DONE'].includes(
                       (typeof job.status === 'string'
                         ? job.status

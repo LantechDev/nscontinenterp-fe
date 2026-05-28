@@ -19,9 +19,16 @@ definePageMeta({
 
 const { fetchUsers } = useAuth();
 const { roles, fetchRoles } = useRoles();
+const { canManage, requireManage } = useFeatureAccess("settings.user");
+const { canView: canViewRoles } = useFeatureAccess("settings.role");
 const users = ref<DisplayUser[]>([]);
 const searchQuery = ref("");
 const selectedRole = ref("");
+
+const isUserInactive = (user: AuthUser) => {
+  const banned = user.banned === true || user.banned === "true";
+  return user.isActive === false || banned;
+};
 
 const filteredUsers = computed(() => {
   return users.value.filter((user: DisplayUser) => {
@@ -51,7 +58,7 @@ const [
             name: u.name,
             email: u.email,
             role: u.role,
-            status: u.banned ? "inactive" : "active",
+            status: isUserInactive(u) ? "inactive" : "active",
             lastLogin: u.lastLogin ? new Date(u.lastLogin).toLocaleString() : "-",
           }),
         );
@@ -60,13 +67,20 @@ const [
     },
     { server: false },
   ),
-  useAsyncData("roles-list", () => fetchRoles(), { server: false }),
+  useAsyncData(
+    "roles-list",
+    () => {
+      if (!canViewRoles.value) return Promise.resolve({ success: true, data: [] });
+      return fetchRoles();
+    },
+    { server: false },
+  ),
 ]);
 
 const pending = computed(() => usersPending.value || rolesPending.value);
 const bootstrapError = computed(() => usersError.value || rolesError.value);
 const refreshAll = async () => {
-  await Promise.all([refreshUsers(), refreshRoles()]);
+  await Promise.all([refreshUsers(), canViewRoles.value ? refreshRoles() : Promise.resolve()]);
 };
 
 const currentPage = ref(1);
@@ -82,14 +96,18 @@ const handlePageChange = (page: number) => {
 };
 
 const openCreateModal = () => {
+  if (!requireManage("You only have view access for users.")) return;
   navigateTo("/settings/users/create");
 };
 
 const openEditModal = (userId: string) => {
+  if (!requireManage("You only have view access for users.")) return;
   navigateTo(`/settings/users/${userId}/edit`);
 };
 
 const handleDeleteUser = async (userId: string, userName: string) => {
+  if (!requireManage("You only have view access for users.")) return;
+
   const { confirm } = useConfirm();
   const isConfirmed = await confirm({
     title: "Delete User?",
@@ -136,6 +154,7 @@ const handleDeleteUser = async (userId: string, userName: string) => {
 
       <div class="flex items-center gap-3">
         <button
+          v-if="canManage"
           @click="openCreateModal"
           class="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-[#012D5A] text-white hover:bg-[#012D5A]/90 rounded-lg transition-colors min-w-fit whitespace-nowrap"
         >
@@ -170,7 +189,12 @@ const handleDeleteUser = async (userId: string, userName: string) => {
             <th class="px-4 py-3 text-left text-sm font-medium text-muted-foreground">
               Last Login
             </th>
-            <th class="px-4 py-3 text-right text-sm font-medium text-muted-foreground">Actions</th>
+            <th
+              v-if="canManage"
+              class="px-4 py-3 text-right text-sm font-medium text-muted-foreground"
+            >
+              Actions
+            </th>
           </tr>
         </thead>
         <tbody class="divide-y divide-border">
@@ -209,7 +233,7 @@ const handleDeleteUser = async (userId: string, userName: string) => {
               </span>
             </td>
             <td class="px-4 py-3 text-sm text-muted-foreground">{{ user.lastLogin }}</td>
-            <td class="px-4 py-3 text-right">
+            <td v-if="canManage" class="px-4 py-3 text-right">
               <UiActionMenu>
                 <template #trigger>
                   <button class="p-1 hover:bg-muted rounded">

@@ -16,6 +16,8 @@ definePageMeta({
 
 const { companies: companiesList, pagination, loadCompanies, deleteCompany } = useCompanies();
 const { fetchCompanyCategories } = useMasterData();
+const { hasAccess } = useRoleAccess();
+const canManageCompany = computed(() => hasAccess("master.company", "manage"));
 
 const [companiesData, categoriesData] = await Promise.all([
   useAsyncData(
@@ -235,18 +237,33 @@ const toggleSelect = (payload: { id: string; value: boolean }) => {
 };
 
 const openCreateModal = () => {
+  if (!canManageCompany.value) {
+    toast.error("You only have view access for company data.");
+    return;
+  }
+
   formMode.value = "create";
   selectedCompanyForm.value = null;
   isFormOpen.value = true;
 };
 
 const openEditModal = (company: MappedCompany) => {
+  if (!canManageCompany.value) {
+    toast.error("You only have view access for company data.");
+    return;
+  }
+
   formMode.value = "edit";
   selectedCompanyForm.value = company;
   isFormOpen.value = true;
 };
 
 const handleDeleteCompany = async (company: MappedCompany) => {
+  if (!canManageCompany.value) {
+    toast.error("You only have view access for company data.");
+    return;
+  }
+
   const isConfirmed = await confirm({
     title: "Delete company?",
     message: `Are you sure you want to delete "${company.name}"? This action cannot be undone.`,
@@ -334,6 +351,7 @@ watch([selectedType, selectedStatus, selectedCategory], () => {
           placeholder="Filter by type..."
         />
         <button
+          v-if="canManageCompany"
           @click="openCreateModal"
           class="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-[#012D5A] text-white hover:bg-[#012D5A]/90 rounded-lg transition-colors min-w-fit whitespace-nowrap"
         >
@@ -360,11 +378,13 @@ watch([selectedType, selectedStatus, selectedCategory], () => {
       @toggle-select="toggleSelect"
       @edit="openEditModal"
       @delete="handleDeleteCompany"
+      :can-manage="canManageCompany"
     />
 
     <CompanyGrid
       v-else
       :companies="sortedCompanies"
+      :can-manage="canManageCompany"
       @open-detail="openDetailModal"
       @edit="openEditModal"
       @delete="handleDeleteCompany"

@@ -15,6 +15,8 @@ const emit = defineEmits<{
   (e: "yearChange", value: string): void;
 }>();
 
+const { canManage } = useFeatureAccess("finance.accounting");
+
 // State
 const isLoading = ref(false);
 const trialBalanceData = ref<TrialBalanceGroup[]>([]);
@@ -164,6 +166,7 @@ const totalCredit = computed(() => {
         </div>
       </div>
       <NuxtLink
+        v-if="canManage"
         to="/finance/journal/create"
         class="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-white text-[#012D5A] hover:bg-white/90 rounded-lg transition-colors"
       >

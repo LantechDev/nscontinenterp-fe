@@ -1,6 +1,8 @@
 <script setup lang="ts">
-import { ArrowLeft, Save, Loader2, Plus, X } from "lucide-vue-next";
+import { ArrowLeft, Save, Loader2 } from "lucide-vue-next";
 import { z } from "zod";
+import { PermissionsTable } from "./components";
+import type { AccessLevel } from "~/lib/permission-registry";
 
 definePageMeta({
   layout: "dashboard",
@@ -26,7 +28,7 @@ const form = ref({
   name: "",
   code: "",
   description: "",
-  permissions: {} as Record<string, string[]>,
+  permissions: {} as Record<string, AccessLevel>,
 });
 
 // Auto-format code input
@@ -45,51 +47,13 @@ watch(
   },
 );
 
-const availableActions = ["create", "read", "update", "delete"] as const;
-
-type AvailableResourceKey = (typeof availableResources)[number]["key"];
-
-const availableResources = [
-  { key: "organization", label: "Organization", description: "Manage company settings" },
-  { key: "member", label: "Member", description: "Manage team members" },
-  { key: "invitation", label: "Invitation", description: "Manage invites" },
-  { key: "job", label: "Job", description: "Operational jobs" },
-  { key: "ebl", label: "eBL", description: "Electronic Bill of Lading" },
-  { key: "invoice", label: "Invoice", description: "Financial invoices" },
-  { key: "payment", label: "Payment", description: "Payment records" },
-  { key: "company", label: "Company", description: "Master data companies" },
-  { key: "report", label: "Report", description: "View analytical reports" },
-];
-
 const errors = ref<Record<string, string>>({});
 
-const hasPermission = (resource: string, action: string) => {
-  return form.value.permissions[resource]?.includes(action) || false;
-};
-
-const togglePermission = (resource: string, action: string) => {
-  if (!form.value.permissions[resource]) {
-    form.value.permissions[resource] = [];
-  }
-
-  const actions = form.value.permissions[resource];
-  if (actions.includes(action)) {
-    form.value.permissions[resource] = actions.filter((a) => a !== action);
+const setPermissionLevel = (feature: string, level: AccessLevel) => {
+  if (level === "none") {
+    delete form.value.permissions[feature];
   } else {
-    form.value.permissions[resource].push(action);
-  }
-};
-
-const isAllSelected = (resource: string) => {
-  const current = form.value.permissions[resource];
-  return current && current.length === availableActions.length;
-};
-
-const toggleAll = (resource: string) => {
-  if (isAllSelected(resource)) {
-    form.value.permissions[resource] = [];
-  } else {
-    form.value.permissions[resource] = [...availableActions];
+    form.value.permissions[feature] = level;
   }
 };
 
@@ -109,19 +73,11 @@ const handleSubmit = async () => {
   isLoading.value = true;
 
   try {
-    // Filter out empty permission arrays to keep it clean
-    const cleanPermissions: Record<string, string[]> = {};
-    for (const [key, actions] of Object.entries(form.value.permissions)) {
-      if (actions.length > 0) {
-        cleanPermissions[key] = actions;
-      }
-    }
-
     const result = await createRole({
       name: form.value.name,
       code: form.value.code,
       description: form.value.description,
-      permissions: cleanPermissions,
+      permissions: form.value.permissions,
     });
 
     if (result.success) {
@@ -206,61 +162,7 @@ const handleSubmit = async () => {
             <label class="text-sm font-medium">Permissions</label>
           </div>
 
-          <div class="border border-border rounded-lg overflow-hidden bg-white">
-            <table class="w-full text-sm">
-              <thead class="bg-gray-50 border-b border-border">
-                <tr>
-                  <th class="text-left py-3 px-4 font-medium text-muted-foreground w-1/3">
-                    Resource
-                  </th>
-                  <th
-                    v-for="action in availableActions"
-                    :key="action"
-                    class="text-center py-3 px-4 font-medium text-muted-foreground capitalize"
-                  >
-                    {{ action }}
-                  </th>
-                  <th class="text-center py-3 px-4 font-medium text-muted-foreground">All</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr
-                  v-for="(resource, index) in availableResources"
-                  :key="resource.key"
-                  class="border-b border-border last:border-0 hover:bg-gray-50/50 transition-colors"
-                >
-                  <td class="py-3 px-4">
-                    <div class="font-medium text-foreground">
-                      {{ resource.label }}
-                    </div>
-                    <div class="text-xs text-muted-foreground">
-                      {{ resource.description }}
-                    </div>
-                  </td>
-                  <td
-                    v-for="action in availableActions"
-                    :key="action"
-                    class="text-center py-3 px-4"
-                  >
-                    <div class="flex justify-center">
-                      <UiCheckbox
-                        :model-value="hasPermission(resource.key, action)"
-                        @update:model-value="togglePermission(resource.key, action)"
-                      />
-                    </div>
-                  </td>
-                  <td class="text-center py-3 px-4">
-                    <div class="flex justify-center">
-                      <UiCheckbox
-                        :model-value="isAllSelected(resource.key)"
-                        @update:model-value="toggleAll(resource.key)"
-                      />
-                    </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+          <PermissionsTable :permissions="form.permissions" @update="setPermissionLevel" />
           <p class="text-xs text-muted-foreground mt-2">
             Configure what this role can do for each resource in the system.
           </p>

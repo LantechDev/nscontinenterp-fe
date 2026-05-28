@@ -23,6 +23,7 @@ const { isLoading, fetchBankAccounts, createBankAccount, updateBankAccount, dele
 
 const bankAccountsList = ref<BankAccount[]>([]);
 const viewMode = ref<"list" | "grid">("list");
+const { canManage, requireManage } = useFeatureAccess("master.finance");
 
 const refreshData = async () => {
   const res = await fetchBankAccounts();
@@ -67,6 +68,7 @@ const formData = reactive({
 const uppercase = (value: string) => value.toUpperCase();
 
 const openCreateModal = () => {
+  if (!requireManage("You only have view access for finance master data.")) return;
   editingAccount.value = null;
   formData.bankName = "";
   formData.accountNumber = "";
@@ -78,6 +80,7 @@ const openCreateModal = () => {
 };
 
 const openEditModal = (account: BankAccount) => {
+  if (!requireManage("You only have view access for finance master data.")) return;
   editingAccount.value = account;
   formData.bankName = account.bankName;
   formData.accountNumber = account.accountNumber;
@@ -116,6 +119,7 @@ const isDeleteModalOpen = ref(false);
 const accountToDelete = ref<BankAccount | null>(null);
 
 const openDeleteModal = (account: BankAccount) => {
+  if (!requireManage("You only have view access for finance master data.")) return;
   accountToDelete.value = account;
   isDeleteModalOpen.value = true;
 };
@@ -132,6 +136,7 @@ const handleDelete = async () => {
 };
 
 const handleRowClick = (account: BankAccount) => {
+  if (!canManage.value) return;
   openEditModal(account);
 };
 
@@ -196,6 +201,7 @@ const toggleMenu = (id: string) => {
 
       <div class="flex items-center gap-3">
         <button
+          v-if="canManage"
           @click="openCreateModal"
           class="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-[#012D5A] text-white hover:bg-[#012D5A]/90 rounded-lg transition-colors min-w-fit whitespace-nowrap"
         >
@@ -229,7 +235,7 @@ const toggleMenu = (id: string) => {
                 <th class="py-3 px-4 text-sm font-medium text-foreground">SWIFT Code</th>
                 <th class="py-3 px-4 text-sm font-medium text-foreground">Currency</th>
                 <th class="py-3 px-4 text-sm font-medium text-foreground">Status</th>
-                <th class="py-3 px-4 w-10"></th>
+                <th v-if="canManage" class="py-3 px-4 w-10"></th>
               </tr>
             </thead>
             <tbody>
@@ -275,7 +281,7 @@ const toggleMenu = (id: string) => {
                     {{ account.isActive ? "Active" : "Inactive" }}
                   </span>
                 </td>
-                <td class="py-3 px-4 text-right">
+                <td v-if="canManage" class="py-3 px-4 text-right">
                   <div class="flex gap-1 justify-end">
                     <button
                       class="p-1.5 rounded hover:bg-muted transition-colors"
@@ -293,7 +299,7 @@ const toggleMenu = (id: string) => {
                 </td>
               </tr>
               <tr v-if="filteredBankAccounts.length === 0">
-                <td colspan="6" class="py-12 text-center text-muted-foreground">
+                <td :colspan="canManage ? 7 : 6" class="py-12 text-center text-muted-foreground">
                   No bank accounts found.
                 </td>
               </tr>
@@ -328,7 +334,11 @@ const toggleMenu = (id: string) => {
                 </p>
               </div>
             </div>
-            <button class="text-muted-foreground hover:text-foreground" @click.stop>
+            <button
+              v-if="canManage"
+              class="text-muted-foreground hover:text-foreground"
+              @click.stop
+            >
               <MoreVertical class="w-4 h-4" />
             </button>
           </div>

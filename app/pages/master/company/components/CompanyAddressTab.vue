@@ -5,6 +5,7 @@ import type { Address } from "~/composables/useMasterData";
 defineProps<{
   addresses: Address[];
   activeAddressMenu: string | null;
+  canManage?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -20,6 +21,7 @@ const emit = defineEmits<{
   <div class="self-stretch flex justify-between items-center">
     <div class="text-black text-sm font-semibold font-['Inter'] leading-5">Address</div>
     <div
+      v-if="canManage"
       class="bg-primary flex justify-end items-center gap-3 rounded-[6px] px-4 py-2 cursor-pointer hover:opacity-80"
       @click="emit('add-address')"
     >
@@ -42,7 +44,7 @@ const emit = defineEmits<{
               <div class="text-black text-sm font-semibold font-['Inter'] leading-5">
                 {{ addr.label }}
               </div>
-              <div class="address-menu-container relative">
+              <div v-if="canManage" class="address-menu-container relative">
                 <MoreVertical
                   class="w-4 h-4 text-slate-500 cursor-pointer"
                   @click.stop="emit('toggle-menu', 'tab-' + addr.id)"

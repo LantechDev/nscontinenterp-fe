@@ -59,9 +59,9 @@ const { ebls, fetchEbls, isLoading } = useEbls();
 
 const { pending } = await useAsyncData("ebls-list", () => fetchEbls(), { server: false });
 
-const { canApproveJobs } = useAuth();
 const { finalizeBl, rejectBl } = useJobs();
 const { confirm } = useConfirm();
+const { canApprove, requireAccess } = useFeatureAccess("operational.ebl");
 
 // State for Approve/Reject actions
 const showRejectModal = ref(false);
@@ -75,6 +75,8 @@ const getErrorMessage = (error: unknown) => {
 };
 
 const handleApprove = async (blId: string) => {
+  if (!requireAccess("approve", "You need approve access for eBL.")) return;
+
   const isConfirmed = await confirm({
     title: "Approve Bill of Lading",
     message:
@@ -102,6 +104,8 @@ const handleApprove = async (blId: string) => {
 };
 
 const openRejectModal = (blId: string) => {
+  if (!requireAccess("approve", "You need approve access for eBL.")) return;
+
   rejectingBlId.value = blId;
   rejectReasonForm.value = "";
   showRejectModal.value = true;
@@ -109,6 +113,7 @@ const openRejectModal = (blId: string) => {
 
 const submitReject = async () => {
   if (!rejectingBlId.value || !rejectReasonForm.value.trim()) return;
+  if (!requireAccess("approve", "You need approve access for eBL.")) return;
 
   isRejecting.value = true;
   try {
@@ -434,7 +439,7 @@ const groupedEbls = computed(() => {
                           View Details
                         </button>
                         <button
-                          v-if="canApproveJobs && getStatusCode(ebl) === 'pending_approval'"
+                          v-if="canApprove && getStatusCode(ebl) === 'pending_approval'"
                           class="w-full px-4 py-2 text-left text-sm hover:bg-muted text-emerald-600 flex items-center gap-2"
                           @click="handleApprove(ebl.id)"
                           :disabled="approvingBlId === ebl.id || isRejecting"
@@ -444,7 +449,7 @@ const groupedEbls = computed(() => {
                           {{ approvingBlId === ebl.id ? "Approving..." : "Approve" }}
                         </button>
                         <button
-                          v-if="canApproveJobs && getStatusCode(ebl) === 'pending_approval'"
+                          v-if="canApprove && getStatusCode(ebl) === 'pending_approval'"
                           class="w-full px-4 py-2 text-left text-sm hover:bg-muted text-red-600 flex items-center gap-2"
                           @click="openRejectModal(ebl.id)"
                           :disabled="approvingBlId === ebl.id || isRejecting"
@@ -526,7 +531,7 @@ const groupedEbls = computed(() => {
                 View Details
               </button>
               <button
-                v-if="canApproveJobs && getStatusCode(ebl) === 'pending_approval'"
+                v-if="canApprove && getStatusCode(ebl) === 'pending_approval'"
                 class="w-full px-4 py-2 text-left text-sm hover:bg-muted text-emerald-600 flex items-center gap-2"
                 @click="handleApprove(ebl.id)"
                 :disabled="approvingBlId === ebl.id || isRejecting"
@@ -536,7 +541,7 @@ const groupedEbls = computed(() => {
                 {{ approvingBlId === ebl.id ? "Approving..." : "Approve" }}
               </button>
               <button
-                v-if="canApproveJobs && getStatusCode(ebl) === 'pending_approval'"
+                v-if="canApprove && getStatusCode(ebl) === 'pending_approval'"
                 class="w-full px-4 py-2 text-left text-sm hover:bg-muted text-red-600 flex items-center gap-2"
                 @click="openRejectModal(ebl.id)"
                 :disabled="approvingBlId === ebl.id || isRejecting"

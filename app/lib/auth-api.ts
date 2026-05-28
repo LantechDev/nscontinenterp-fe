@@ -149,12 +149,20 @@ export const authApi = {
     name: string,
     email: string,
     password: string,
-    role: string,
+    roleId: string,
+    status: "active" | "inactive" = "active",
   ): Promise<AuthResponse<SignUpResponse>> {
     try {
-      const data = await getApiFetch()<SignUpResponse>("/api/auth/admin/create-user", {
+      const data = await getApiFetch()<SignUpResponse>("/api/admin/users", {
         method: "POST",
-        body: { name, email, password, role },
+        body: {
+          name,
+          email,
+          password,
+          roleId,
+          banned: status === "inactive",
+          isActive: status === "active",
+        },
       });
       return { success: true, data };
     } catch (error) {
@@ -235,7 +243,10 @@ export const authApi = {
       email?: string;
       password?: string;
       role?: string;
+      roleId?: string;
       status?: "active" | "inactive";
+      banned?: boolean;
+      isActive?: boolean;
     },
   ): Promise<AuthResponse<{ user: User }>> {
     try {

@@ -20,6 +20,7 @@ definePageMeta({
 
 const { roles, fetchRoles, deleteRole, isLoading } = useRoles();
 const { confirm } = useConfirm();
+const { canManage, requireManage } = useFeatureAccess("settings.role");
 const searchQuery = ref("");
 const isDeleting = ref(false);
 const errorRoot = ref("");
@@ -51,6 +52,8 @@ const filteredRoles = computed(() => {
 });
 
 const handleDelete = async (role: Role) => {
+  if (!requireManage("You only have view access for roles.")) return;
+
   const isConfirmed = await confirm({
     title: "Hapus Role?",
     message: `Apakah Anda yakin ingin menghapus role ${role.name}? Tindakan ini tidak dapat dibatalkan.`,
@@ -107,6 +110,7 @@ const handleDelete = async (role: Role) => {
 
       <div class="flex items-center gap-3">
         <NuxtLink
+          v-if="canManage"
           to="/settings/roles/create"
           class="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-[#012D5A] text-white hover:bg-[#012D5A]/90 rounded-lg transition-colors min-w-fit whitespace-nowrap"
         >
@@ -126,18 +130,20 @@ const handleDelete = async (role: Role) => {
               <th class="py-3 px-4 text-sm font-medium text-foreground">Code</th>
               <th class="py-3 px-4 text-sm font-medium text-foreground">Description</th>
               <th class="py-3 px-4 text-sm font-medium text-foreground">Status</th>
-              <th class="py-3 px-4 w-28">Action</th>
+              <th v-if="canManage" class="py-3 px-4 w-28">Action</th>
             </tr>
           </thead>
           <tbody>
             <tr v-if="isLoading">
-              <td colspan="6" class="text-center p-8 text-muted-foreground">
+              <td :colspan="canManage ? 5 : 4" class="text-center p-8 text-muted-foreground">
                 <Loader2 class="w-6 h-6 mx-auto animate-spin mb-2" />
                 Loading roles...
               </td>
             </tr>
             <tr v-else-if="filteredRoles.length === 0">
-              <td colspan="6" class="text-center p-8 text-muted-foreground">No roles found.</td>
+              <td :colspan="canManage ? 5 : 4" class="text-center p-8 text-muted-foreground">
+                No roles found.
+              </td>
             </tr>
             <tr
               v-else
@@ -156,7 +162,7 @@ const handleDelete = async (role: Role) => {
               <td class="py-3 px-4 text-sm text-muted-foreground">
                 {{ role.description || "-" }}
               </td>
-              <td class="py-3 px-4">
+              <td v-if="canManage" class="py-3 px-4">
                 <span
                   :class="
                     cn(

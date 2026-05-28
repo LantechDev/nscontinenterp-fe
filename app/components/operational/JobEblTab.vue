@@ -14,7 +14,6 @@ import {
   Send,
 } from "lucide-vue-next";
 import { toast } from "vue-sonner";
-import { useAuth } from "~/composables/useAuth";
 
 import JobEblList from "./ebl/JobEblList.vue";
 import JobEblEditForm from "./ebl/JobEblEditForm.vue";
@@ -33,12 +32,13 @@ const props = defineProps<{
   job: ActiveJobData;
   initialBlId?: string;
   isCompleted?: boolean;
+  canManageJob?: boolean;
 }>();
 
 const { getBlRender, finalizeBl, unfinalizeBl, updateBlDraft, requestFinalizeBl, rejectBl } =
   useJobs();
 const { confirm } = useConfirm();
-const { canApproveJobs, user } = useAuth();
+const { canManage, canApprove, requireManage, requireAccess } = useFeatureAccess("operational.ebl");
 const activeBl = ref<ActiveBlData | null>(null);
 const isRendering = ref(false);
 const isSavingDraft = ref(false);
@@ -152,6 +152,8 @@ const toggleEditMode = () => {
     editMode.value = false;
     return;
   }
+  if (!requireManage("You only have view access for eBL.")) return;
+
   const d = jobData.value;
   const blDoc = activeBl.value;
 
@@ -334,6 +336,8 @@ watch(
 
 const handleSaveDraft = async () => {
   if (!activeBl.value?.id) return;
+  if (!requireManage("You only have view access for eBL.")) return;
+
   isSavingDraft.value = true;
   try {
     const f = editForm.value;
@@ -472,6 +476,7 @@ const handleGeneratePDF = async () => {
 
 const handleRequestFinalize = async () => {
   if (!activeBl.value?.id) return;
+  if (!requireManage("You only have view access for eBL.")) return;
 
   const isConfirmed = await confirm({
     title: "Request Finalization",
@@ -494,6 +499,7 @@ const handleRequestFinalize = async () => {
 
 const handleFinalize = async () => {
   if (!activeBl.value || !jobData.value) return;
+  if (!requireAccess("approve", "You need approve access for eBL.")) return;
 
   const isConfirmed = await confirm({
     title: "Finalize Bill of Lading",
@@ -518,6 +524,8 @@ const handleFinalize = async () => {
 };
 
 const handleListApprove = async (id: string) => {
+  if (!requireAccess("approve", "You need approve access for eBL.")) return;
+
   listApprovingId.value = id;
   await loadBlRender(id);
   listApprovingId.value = null;
@@ -525,6 +533,8 @@ const handleListApprove = async (id: string) => {
 };
 
 const handleListReject = async (id: string) => {
+  if (!requireAccess("approve", "You need approve access for eBL.")) return;
+
   listRejectingId.value = id;
   await loadBlRender(id);
   listRejectingId.value = null;
@@ -533,6 +543,7 @@ const handleListReject = async (id: string) => {
 
 const handleUnfinalize = async () => {
   if (!activeBl.value?.id) return;
+  if (!requireManage("You only have view access for eBL.")) return;
 
   const isConfirmed = await confirm({
     title: "Unfinalize Bill of Lading",
@@ -555,12 +566,15 @@ const handleUnfinalize = async () => {
 
 const handleReject = () => {
   if (!activeBl.value?.id) return;
+  if (!requireAccess("approve", "You need approve access for eBL.")) return;
+
   rejectReasonForm.value = "";
   showRejectModal.value = true;
 };
 
 const submitReject = async () => {
   if (!activeBl.value?.id || !rejectReasonForm.value.trim()) return;
+  if (!requireAccess("approve", "You need approve access for eBL.")) return;
 
   isRejecting.value = true;
   const resp = await rejectBl(activeBl.value.id, rejectReasonForm.value.trim());
@@ -669,6 +683,8 @@ const submitReject = async () => {
       :job="job"
       :approving-id="listApprovingId"
       :rejecting-id="listRejectingId"
+      :can-manage="canManage"
+      :can-approve="canApprove"
       @select="loadBlRender"
       @approve="handleListApprove"
       @reject="handleListReject"
@@ -738,7 +754,7 @@ const submitReject = async () => {
         <!-- Actions -->
         <div class="flex flex-wrap items-center justify-end gap-3 shrink-0">
           <button
-            v-if="isFinalized && !isCompleted"
+            v-if="canManage && isFinalized && !isCompleted"
             @click="handleUnfinalize"
             :disabled="isRendering"
             class="px-4 py-2 text-xs font-semibold rounded-md border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 flex items-center gap-2 shadow-sm transition-colors"
@@ -748,7 +764,7 @@ const submitReject = async () => {
           </button>
 
           <button
-            v-if="(isDraft || (isPendingApproval && canApproveJobs)) && !isCompleted"
+            v-if="canManage && (isDraft || (isPendingApproval && canApprove)) && !isCompleted"
             @click="toggleEditMode"
             :disabled="isRendering"
             class="px-4 py-2 text-xs font-semibold rounded-md border border-border bg-white hover:bg-gray-50 flex items-center gap-2 shadow-sm transition-colors"
@@ -759,7 +775,7 @@ const submitReject = async () => {
           </button>
 
           <button
-            v-if="isDraft && !editMode && !isCompleted"
+            v-if="canManage && isDraft && !editMode && !isCompleted"
             @click="handleRequestFinalize"
             :disabled="isRendering"
             class="px-4 py-2 text-xs font-semibold rounded-md border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors shadow-sm flex items-center gap-2"
@@ -769,7 +785,7 @@ const submitReject = async () => {
           </button>
 
           <button
-            v-if="isPendingApproval && !editMode && canApproveJobs && !isCompleted"
+            v-if="isPendingApproval && !editMode && canApprove && !isCompleted"
             @click="handleReject"
             :disabled="isRendering || isRejecting"
             class="px-4 py-2 text-xs font-semibold rounded-md border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 flex items-center gap-2 shadow-sm transition-colors"
@@ -780,7 +796,7 @@ const submitReject = async () => {
           </button>
 
           <button
-            v-if="isPendingApproval && !editMode && canApproveJobs && !isCompleted"
+            v-if="isPendingApproval && !editMode && canApprove && !isCompleted"
             @click="handleFinalize"
             :disabled="isRendering || isFinalizing"
             class="px-5 py-2.5 bg-emerald-600 text-white text-xs font-bold rounded-lg hover:bg-emerald-700 transition-all shadow-md flex items-center gap-2 disabled:opacity-50"
@@ -791,14 +807,14 @@ const submitReject = async () => {
           </button>
 
           <div
-            v-if="isPendingApproval && !canApproveJobs"
+            v-if="isPendingApproval && !canApprove"
             class="px-4 py-2 text-xs font-semibold rounded-md border border-blue-100 bg-blue-50/50 text-blue-400 flex items-center gap-2 cursor-not-allowed"
           >
             Awaiting Approval
           </div>
 
           <button
-            v-if="editMode"
+            v-if="canManage && editMode"
             @click="handleSaveDraft"
             :disabled="isSavingDraft"
             class="px-4 py-2 bg-[#012D5A] hover:bg-[#012D5A]/90 text-white rounded-md shadow-sm text-xs font-semibold flex items-center gap-2 transition-colors"

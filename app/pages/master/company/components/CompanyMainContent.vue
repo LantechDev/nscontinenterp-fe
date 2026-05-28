@@ -17,6 +17,7 @@ const props = defineProps<{
   activeTab: string;
   tabList: string[];
   activeAddressMenu: string | null;
+  canManageCompany?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -125,6 +126,7 @@ const totalJobs = computed(() => props.company.totalJobs || 0);
             v-else-if="activeTab === 'Address'"
             :addresses="addresses"
             :active-address-menu="activeAddressMenu"
+            :can-manage="canManageCompany"
             @add-address="emit('add-address')"
             @edit-address="emit('edit-address', $event)"
             @delete-address="emit('delete-address', $event)"

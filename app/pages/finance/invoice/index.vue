@@ -7,6 +7,7 @@ definePageMeta({
   layout: "dashboard",
 });
 
+const { canView: canViewPayments } = useFeatureAccess("finance.payment");
 const activeTab = ref("customer");
 </script>
 
@@ -35,6 +36,7 @@ const activeTab = ref("customer");
           Invoice Customer (A/R)
         </button>
         <button
+          v-if="canViewPayments"
           @click="activeTab = 'vendor'"
           :class="[
             'px-6 py-3.5 text-xs font-black uppercase tracking-widest border-b-2 transition-all duration-200 outline-none',
@@ -51,7 +53,7 @@ const activeTab = ref("customer");
     <!-- Active Component Section with clean top spacing -->
     <div class="mt-4">
       <CustomerInvoiceSection v-if="activeTab === 'customer'" />
-      <VendorInvoiceSection v-else />
+      <VendorInvoiceSection v-else-if="activeTab === 'vendor' && canViewPayments" />
     </div>
   </div>
 </template>

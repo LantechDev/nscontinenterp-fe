@@ -61,6 +61,21 @@ const {
   setData,
 } = useExpensePage();
 
+const { canManage, requireManage } = useFeatureAccess("finance.payment");
+const { canView: canViewCompanies } = useFeatureAccess("master.company");
+const { canView: canViewJobs } = useFeatureAccess("operational.job");
+const { canView: canViewAccounting } = useFeatureAccess("finance.accounting");
+
+const handleUpdateIfAllowed = () => {
+  if (!requireManage("You only have view access for payments and expenses.")) return;
+  handleUpdate();
+};
+
+const handleRowClickIfAllowed = (id: string) => {
+  if (!canManage.value) return;
+  handleRowClick(id);
+};
+
 filters.value.type = "JOB";
 
 const { fetchExpenseById } = useFinanceExpense();
@@ -94,15 +109,33 @@ const {
 } = await useAsyncData<ExpenseBootstrapData>(
   "expense-list",
   async () => {
-    const [expensesResp, companiesResp, jobsResp, taxesResp] = await Promise.all([
-      $fetch<{ items: Expense[]; pagination: Pagination }>("/api/finance/expense", {
+    const expensesResp = await $fetch<{ items: Expense[]; pagination: Pagination }>(
+      "/api/finance/expense",
+      {
         query: { type: "JOB" },
-      }),
-      $fetch<Company[]>("/api/master/companies?type=VENDOR"),
-      $fetch<JobWithBls[]>("/api/operational/jobs"),
-      $fetch<{ items: Tax[] }>("/api/finance/tax?isActive=true"),
+      },
+    );
+
+    if (!canManage.value) {
+      return { expenses: expensesResp, companies: [], jobs: [], taxes: { items: [] } };
+    }
+
+    const [companiesResp, jobsResp, taxesResp] = await Promise.allSettled([
+      canViewCompanies.value
+        ? $fetch<Company[]>("/api/master/companies?type=VENDOR")
+        : Promise.resolve([]),
+      canViewJobs.value ? $fetch<JobWithBls[]>("/api/operational/jobs") : Promise.resolve([]),
+      canViewAccounting.value
+        ? $fetch<{ items: Tax[] }>("/api/finance/tax?isActive=true")
+        : Promise.resolve({ items: [] }),
     ]);
-    return { expenses: expensesResp, companies: companiesResp, jobs: jobsResp, taxes: taxesResp };
+
+    return {
+      expenses: expensesResp,
+      companies: companiesResp.status === "fulfilled" ? companiesResp.value : [],
+      jobs: jobsResp.status === "fulfilled" ? jobsResp.value : [],
+      taxes: taxesResp.status === "fulfilled" ? taxesResp.value : { items: [] },
+    };
   },
   { server: false },
 );
@@ -174,7 +207,7 @@ const handleInvoiceClick = (expense: Expense) => {
     initialInvoiceId.value = expense.id;
     isJobDetailOpen.value = true;
   } else {
-    handleRowClick(expense.id); // Fallback to original behavior if no job id
+    handleRowClickIfAllowed(expense.id); // Fallback to original behavior if no job id
   }
 };
 </script>
@@ -499,7 +532,7 @@ const handleInvoiceClick = (expense: Expense) => {
     @close="closeEditModal"
     @create-vendor="handleCreateVendor"
     @create-category="handleCreateCategory"
-    @submit="handleUpdate"
+    @submit="handleUpdateIfAllowed"
   />
 
   <CompanyCreateModal

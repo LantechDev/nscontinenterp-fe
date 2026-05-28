@@ -92,6 +92,11 @@ export function useExpensePage() {
   const { jobs, fetchJobs } = useJobs();
   const { fetchTaxes } = useFinanceTax();
   const { fetchCategories } = useServices();
+  const { canView: canViewCompanies } = useFeatureAccess("master.company");
+  const { canView: canViewJobs } = useFeatureAccess("operational.job");
+  const { canView: canViewAccounting } = useFeatureAccess("finance.accounting");
+  const { canView: canViewFinanceMaster } = useFeatureAccess("master.finance");
+  const { canView: canViewServices } = useFeatureAccess("master.service");
 
   // Filters & Pagination
   const filters = ref<ExpenseFilters>({
@@ -208,17 +213,22 @@ export function useExpensePage() {
   // Load dropdown data
   const loadDropdownData = async () => {
     const isJob = filters.value.type === "JOB";
-    const categoriesPromise = isJob
-      ? fetchCategories()
-      : $fetch<Array<{ id: string; name: string; code?: string }>>(
-          "/api/master/expense-categories",
-        );
+    const fetchCategoryOptions = () =>
+      isJob
+        ? fetchCategories()
+        : $fetch<Array<{ id: string; name: string; code?: string }>>(
+            "/api/master/expense-categories",
+          );
 
     const [_, __, taxes, catResult] = await Promise.all([
-      fetchCompanies({ type: "VENDOR" }),
-      fetchJobs(),
-      fetchTaxes({ isActive: true, limit: 100 }),
-      categoriesPromise,
+      canViewCompanies.value ? fetchCompanies({ type: "VENDOR" }) : Promise.resolve(undefined),
+      canViewJobs.value ? fetchJobs() : Promise.resolve(undefined),
+      canViewAccounting.value
+        ? fetchTaxes({ isActive: true, limit: 100 })
+        : Promise.resolve({ items: [] }),
+      (isJob ? canViewServices.value : canViewFinanceMaster.value)
+        ? fetchCategoryOptions()
+        : Promise.resolve([]),
     ]);
     taxOptions.value = taxes?.items || [];
     if (isJob) {

@@ -7,8 +7,17 @@ export interface User {
   createdAt?: string;
   updatedAt?: string;
   role?: string;
+  roleId?: string | null;
+  memberId?: string | null;
   organizationRole?: string | null;
-  banned?: boolean;
+  customRole?: {
+    id: string;
+    code: string;
+    name: string;
+    permissions: Record<string, string | string[]>;
+  } | null;
+  isActive?: boolean | null;
+  banned?: boolean | string | null;
   banReason?: string;
   banExpires?: string;
   lastLogin?: string;

@@ -72,6 +72,7 @@ const handleSubmit = async () => {
       form.value.email,
       form.value.password,
       form.value.role,
+      form.value.status,
     );
 
     if (result.success) {
@@ -177,7 +178,7 @@ const handleSubmit = async () => {
             :class="{ 'border-red-500': errors.role }"
           >
             <option value="">Pilih role</option>
-            <option v-for="role in roles" :key="role.id" :value="role.code">
+            <option v-for="role in roles" :key="role.id" :value="role.id">
               {{ role.name }}
             </option>
           </select>

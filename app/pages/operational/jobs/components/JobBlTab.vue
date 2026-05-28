@@ -10,7 +10,11 @@ const emit = defineEmits<{
   (e: "edit-bl", blId: string): void;
 }>();
 
+const { canManage, requireManage } = useFeatureAccess("operational.ebl");
+
 function openBlEditor(blId: string) {
+  if (!requireManage("You only have view access for eBL.")) return;
+
   emit("edit-bl", blId);
 }
 </script>
@@ -78,7 +82,11 @@ function openBlEditor(blId: string) {
             </div>
           </div>
           <div class="flex flex-col gap-2">
-            <button @click="openBlEditor(bl.id)" class="btn-outline text-xs w-full">
+            <button
+              v-if="canManage"
+              @click="openBlEditor(bl.id)"
+              class="btn-outline text-xs w-full"
+            >
               <Edit class="w-3.5 h-3.5 mr-2" />
               Edit Details
             </button>

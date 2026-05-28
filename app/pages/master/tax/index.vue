@@ -46,6 +46,22 @@ const {
   handleDelete,
   setData,
 } = useTaxPage();
+const { canManage, requireManage } = useFeatureAccess("master.finance");
+
+const openEditModalIfAllowed = (id: string) => {
+  if (!requireManage("You only have view access for finance master data.")) return;
+  openEditModal(id);
+};
+
+const handleDeleteIfAllowed = (id: string) => {
+  if (!requireManage("You only have view access for finance master data.")) return;
+  handleDelete(id);
+};
+
+const handleUpdateIfAllowed = () => {
+  if (!requireManage("You only have view access for finance master data.")) return;
+  handleUpdate();
+};
 
 // Client-side: fetch initial data (avoid slow cross-region SSR)
 const {
@@ -137,6 +153,7 @@ const isPageLoading = computed(() => isLoading.value || isBootstrapping.value);
           <option value="pph">PPh</option>
         </select>
         <NuxtLink
+          v-if="canManage"
           to="/master/tax/create"
           class="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-[#012D5A] text-white hover:bg-[#012D5A]/90 rounded-lg transition-colors min-w-fit whitespace-nowrap"
         >
@@ -175,7 +192,7 @@ const isPageLoading = computed(() => isLoading.value || isBootstrapping.value);
                 <th class="py-3 px-4 text-sm font-medium text-foreground">Rate (%)</th>
                 <th class="py-3 px-4 text-sm font-medium text-foreground">Deskripsi</th>
                 <th class="py-3 px-4 text-sm font-medium text-foreground">Status</th>
-                <th class="py-3 px-4 w-10"></th>
+                <th v-if="canManage" class="py-3 px-4 w-10"></th>
               </tr>
             </thead>
             <tbody>
@@ -217,17 +234,17 @@ const isPageLoading = computed(() => isLoading.value || isBootstrapping.value);
                     {{ tax.isActive ? "Aktif" : "Nonaktif" }}
                   </span>
                 </td>
-                <td class="py-3 px-4 text-right">
+                <td v-if="canManage" class="py-3 px-4 text-right">
                   <div class="flex gap-1 justify-end">
                     <button
                       class="p-1.5 rounded hover:bg-muted transition-colors"
-                      @click.stop="openEditModal(tax.id)"
+                      @click.stop="openEditModalIfAllowed(tax.id)"
                     >
                       <Pencil class="w-4 h-4 text-muted-foreground" />
                     </button>
                     <button
                       class="p-1.5 rounded hover:bg-muted transition-colors"
-                      @click.stop="handleDelete(tax.id)"
+                      @click.stop="handleDeleteIfAllowed(tax.id)"
                     >
                       <Trash2 class="w-4 h-4 text-muted-foreground" />
                     </button>
@@ -235,7 +252,7 @@ const isPageLoading = computed(() => isLoading.value || isBootstrapping.value);
                 </td>
               </tr>
               <tr v-if="taxes.length === 0">
-                <td colspan="6" class="py-12 text-center text-muted-foreground">
+                <td :colspan="canManage ? 6 : 5" class="py-12 text-center text-muted-foreground">
                   Tidak ada pajak ditemukan.
                 </td>
               </tr>
@@ -264,7 +281,11 @@ const isPageLoading = computed(() => isLoading.value || isBootstrapping.value);
                 <p class="text-xs text-muted-foreground uppercase">{{ tax.type }}</p>
               </div>
             </div>
-            <button class="text-muted-foreground hover:text-foreground" @click.stop>
+            <button
+              v-if="canManage"
+              class="text-muted-foreground hover:text-foreground"
+              @click.stop
+            >
               <MoreVertical class="w-4 h-4" />
             </button>
           </div>
@@ -328,6 +349,6 @@ const isPageLoading = computed(() => isLoading.value || isBootstrapping.value);
     :form-data="formData"
     :tax-type-options="taxTypeOptions"
     @close="closeEditModal"
-    @submit="handleUpdate"
+    @submit="handleUpdateIfAllowed"
   />
 </template>

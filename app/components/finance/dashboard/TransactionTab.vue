@@ -21,6 +21,7 @@ const props = defineProps<{
   availableYears: string[];
   sortOptions: { value: string; label: string }[];
   typeOptions: { value: string; label: string }[];
+  canManage?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -213,6 +214,7 @@ const mappedTypeOptions = computed(() => {
 
           <!-- Create Manual Transaction Button -->
           <button
+            v-if="canManage"
             class="flex items-center gap-2 px-3 py-2 text-sm bg-[#012D5A] text-white hover:bg-[#012D5A]/90 rounded-lg"
             @click="emit('create')"
           >

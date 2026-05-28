@@ -14,6 +14,7 @@ interface Props {
   vessels: VesselItem[];
   sortField: string;
   sortDirection: "asc" | "desc";
+  canManage?: boolean;
 }
 
 defineProps<Props>();
@@ -83,7 +84,7 @@ const emit = defineEmits<{
               />
             </div>
           </th>
-          <th class="py-3 px-4 w-10"></th>
+          <th v-if="canManage" class="py-3 px-4 w-10"></th>
         </tr>
       </thead>
       <tbody>
@@ -109,7 +110,7 @@ const emit = defineEmits<{
               {{ vessel.status }}
             </span>
           </td>
-          <td class="py-3 px-4 text-right">
+          <td v-if="canManage" class="py-3 px-4 text-right">
             <UiActionMenu>
               <template #trigger>
                 <button class="text-muted-foreground hover:text-foreground">
@@ -136,7 +137,9 @@ const emit = defineEmits<{
           </td>
         </tr>
         <tr v-if="vessels.length === 0">
-          <td colspan="5" class="py-8 text-center text-muted-foreground">No vessels found</td>
+          <td :colspan="canManage ? 5 : 4" class="py-8 text-center text-muted-foreground">
+            No vessels found
+          </td>
         </tr>
       </tbody>
     </table>

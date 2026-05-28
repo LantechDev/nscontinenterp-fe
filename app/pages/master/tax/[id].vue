@@ -12,6 +12,7 @@ definePageMeta({
 const route = useRoute();
 const taxId = route.params.id as string;
 const { fetchTaxById, deleteTax } = useFinanceTax();
+const { canManage, requireManage } = useFeatureAccess("master.finance");
 
 // SSR-first: fetch tax detail
 const {
@@ -26,6 +27,8 @@ const tax = computed(() => taxData.value);
 const isLoading = computed(() => loading.value);
 
 async function handleDelete() {
+  if (!requireManage("You only have view access for finance master data.")) return;
+
   if (confirm("Apakah Anda yakin ingin menghapus pajak ini?")) {
     try {
       await deleteTax(taxId);
@@ -180,12 +183,14 @@ function handleDownloadPdf() {
               <span>Export PDF</span>
             </button>
             <button
+              v-if="canManage"
               @click="handleDelete"
               class="p-2 text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
             >
               <Trash2 class="w-5 h-5" />
             </button>
             <NuxtLink
+              v-if="canManage"
               :to="`/master/tax/edit/${tax.id}`"
               class="flex items-center gap-2 px-4 py-2 bg-white border border-border rounded-lg hover:bg-muted transition-colors font-medium"
             >
