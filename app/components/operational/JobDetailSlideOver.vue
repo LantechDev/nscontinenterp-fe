@@ -53,7 +53,7 @@ const emit = defineEmits<{
 
 const { currentJob, getJob, isLoading, updateJob, deleteJob, completeJob, cancelCompleteJob } =
   useJobs();
-const { canManage, requireManage } = useFeatureAccess("operational.job");
+const { canManage, requireManage, canApprove } = useFeatureAccess("operational.job");
 
 const activeTab = ref("overview");
 const tabs = [
@@ -474,18 +474,7 @@ const handleCancelCompleteJob = async () => {
   isCancelingComplete.value = false;
 };
 
-const isSuperAdminOrOwner = computed(() => {
-  const systemRole = user.value?.role?.toLowerCase() || "";
-  const orgRole = user.value?.organizationRole?.toLowerCase() || "";
-  return (
-    systemRole === "superadmin" ||
-    systemRole === "super_admin" ||
-    systemRole === "owner" ||
-    systemRole === "director" ||
-    orgRole === "owner" ||
-    orgRole === "director"
-  );
-});
+// Access level check replaced in favor of canApprove computed property
 
 const hasInvoices = computed(() => {
   return !!job.value?.invoices?.length;
@@ -1580,7 +1569,7 @@ watch(
             <div class="p-4 border-t border-border flex justify-between bg-white shrink-0">
               <div>
                 <button
-                  v-if="isSuperAdminOrOwner && job?.id"
+                  v-if="canApprove && job?.id"
                   @click="handleDeleteJob"
                   :disabled="isDeleting || hasInvoices || hasFinalizedBl"
                   :title="
