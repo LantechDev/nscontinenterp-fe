@@ -668,6 +668,24 @@ export function useJobs() {
     }
   }
 
+  async function deleteJob(id: string): Promise<AuthResponse> {
+    isLoading.value = true;
+    try {
+      await $fetch(`/api/operational/jobs/${id}`, {
+        method: "DELETE",
+      });
+      jobs.value = jobs.value.filter((j) => j.id !== id);
+      if (currentJob.value && currentJob.value.id === id) {
+        currentJob.value = null;
+      }
+      return { success: true };
+    } catch (error) {
+      return handleApiError(error);
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
   async function completeJob(id: string): Promise<AuthResponse<JobWithBls>> {
     isLoading.value = true;
     try {
@@ -790,6 +808,7 @@ export function useJobs() {
     fetchJobs,
     createJob,
     updateJob,
+    deleteJob,
     completeJob,
     cancelCompleteJob,
     getJob,

@@ -26,7 +26,7 @@ import JobFinanceTab from "./JobFinanceTab.vue";
 import JobEblTab from "./JobEblTab.vue";
 import JobDocumentTab from "./JobDocumentTab.vue";
 import { useAuth } from "~/composables/useAuth";
-const { canApproveJobs } = useAuth();
+const { canApproveJobs, user } = useAuth();
 import Combobox from "~/components/ui/Combobox.vue";
 import DatePicker from "~/components/ui/DatePicker.vue";
 import { toast } from "vue-sonner";
@@ -51,7 +51,8 @@ const emit = defineEmits<{
   (e: "update:modelValue", value: boolean): void;
 }>();
 
-const { currentJob, getJob, isLoading, updateJob, completeJob, cancelCompleteJob } = useJobs();
+const { currentJob, getJob, isLoading, updateJob, deleteJob, completeJob, cancelCompleteJob } =
+  useJobs();
 const { canManage, requireManage } = useFeatureAccess("operational.job");
 
 const activeTab = ref("overview");
@@ -471,6 +472,66 @@ const handleCancelCompleteJob = async () => {
     toast.error(result.error || "Gagal membatalkan complete job.");
   }
   isCancelingComplete.value = false;
+};
+
+const isSuperAdminOrOwner = computed(() => {
+  const systemRole = user.value?.role?.toLowerCase() || "";
+  const orgRole = user.value?.organizationRole?.toLowerCase() || "";
+  return (
+    systemRole === "superadmin" ||
+    systemRole === "super_admin" ||
+    systemRole === "owner" ||
+    systemRole === "director" ||
+    orgRole === "owner" ||
+    orgRole === "director"
+  );
+});
+
+const hasInvoices = computed(() => {
+  return !!job.value?.invoices?.length;
+});
+
+const hasFinalizedBl = computed(() => {
+  if (!job.value?.billsOfLading?.length) return false;
+  return job.value.billsOfLading.some((bl) => {
+    const s = bl.status;
+    if (!s) return false;
+
+    let code = "";
+    if (typeof s === "string") {
+      code = s.toUpperCase();
+    } else {
+      code = s.code?.toUpperCase() || "";
+    }
+
+    return ["CONFIRMED", "FINALIZED"].includes(code);
+  });
+});
+
+const isDeleting = ref(false);
+
+const handleDeleteJob = async () => {
+  if (!job.value?.id) return;
+
+  const confirmed = await confirm({
+    title: "Hapus Job",
+    message: `Apakah Anda yakin ingin menghapus job ${job.value.jobNumber}? Tindakan ini tidak dapat dibatalkan.`,
+    confirmText: "Hapus",
+    type: "danger",
+  });
+
+  if (!confirmed) return;
+
+  isDeleting.value = true;
+  const result = await deleteJob(job.value.id);
+  isDeleting.value = false;
+
+  if (result.success) {
+    toast.success("Job berhasil dihapus.");
+    emit("update:modelValue", false);
+  } else {
+    toast.error(result.error || "Gagal menghapus job.");
+  }
 };
 
 function getVesselLabels(index: number, list: (EblVessel | JobVessel)[]) {
@@ -1516,7 +1577,26 @@ watch(
             </div>
 
             <!-- Footer Actions -->
-            <div class="p-4 border-t border-border flex justify-end bg-white shrink-0">
+            <div class="p-4 border-t border-border flex justify-between bg-white shrink-0">
+              <div>
+                <button
+                  v-if="isSuperAdminOrOwner && job?.id"
+                  @click="handleDeleteJob"
+                  :disabled="isDeleting || hasInvoices || hasFinalizedBl"
+                  :title="
+                    hasInvoices
+                      ? 'Job tidak bisa dihapus karena sudah memiliki invoice.'
+                      : hasFinalizedBl
+                        ? 'Job tidak bisa dihapus karena memiliki Bill of Lading yang sudah final.'
+                        : 'Hapus Job'
+                  "
+                  class="px-4 py-2 font-medium border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent rounded-md transition-colors flex items-center gap-2 text-sm shadow-sm"
+                >
+                  <Loader2 v-if="isDeleting" class="w-4 h-4 animate-spin" />
+                  <Trash2 v-else class="w-4 h-4" />
+                  <span>Delete Job</span>
+                </button>
+              </div>
               <div class="flex gap-3">
                 <NuxtLink
                   v-if="canManage && job?.id"
