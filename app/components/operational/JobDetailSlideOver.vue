@@ -205,6 +205,9 @@ const syncTransportNames = () => {
 
 const job = computed(() => currentJob.value);
 const isAir = computed(() => job.value?.shipmentType === "AIR" || job.value?.serviceType === "AIR");
+const isTrucking = computed(() => job.value?.serviceType === "TRUCKING");
+const isCustomClearance = computed(() => job.value?.serviceType === "CUSTOM_CLEARANCE");
+const isTransportJob = computed(() => !isTrucking.value && !isCustomClearance.value);
 const isCompleting = ref(false);
 const isCancelingComplete = ref(false);
 const isCompleted = computed(() => {
@@ -354,6 +357,12 @@ const getServiceTypeBadge = computed(() => {
     return {
       name: "Trucking",
       class: "bg-amber-50 text-amber-700 border-amber-200",
+    };
+  }
+  if (sType === "CUSTOM_CLEARANCE") {
+    return {
+      name: "Custom Clearance",
+      class: "bg-emerald-50 text-emerald-700 border-emerald-200",
     };
   }
   if (sType === "AIR" || shType === "AIR") {
@@ -704,12 +713,13 @@ watch(
 
                   <div class="flex items-center gap-2 text-muted-foreground">
                     <CalendarClock class="w-4 h-4" />
-                    {{ job.serviceType === "TRUCKING" ? "Target Dates" : "ETD - ETA" }}
+                    {{ isTrucking ? "Target Dates" : isCustomClearance ? "Schedule" : "ETD - ETA" }}
                   </div>
                   <div class="font-medium">
-                    <template v-if="job.serviceType === 'TRUCKING'">
+                    <template v-if="isTrucking">
                       {{ formatDate(job.pickupDate) }} - {{ formatDate(job.deliveryDate) }}
                     </template>
+                    <template v-else-if="isCustomClearance">-</template>
                     <template v-else>
                       {{ formatDate(job.etd) }} - {{ formatDate(finalEta) }}
                     </template>
@@ -760,7 +770,11 @@ watch(
                         <div>
                           <p class="text-xs text-muted-foreground mb-0.5">
                             {{
-                              job.serviceType === "TRUCKING" ? "Pickup Address" : "Port of Landing"
+                              isTrucking
+                                ? "Pickup Address"
+                                : isCustomClearance
+                                  ? "Clearance Origin"
+                                  : "Port of Landing"
                             }}
                           </p>
                           <p class="font-bold text-sm text-foreground">{{ getPol }}</p>
@@ -780,9 +794,11 @@ watch(
                         <div>
                           <p class="text-xs text-muted-foreground mb-0.5">
                             {{
-                              job.serviceType === "TRUCKING"
+                              isTrucking
                                 ? "Delivery Address"
-                                : "Port of Discharge"
+                                : isCustomClearance
+                                  ? "Clearance Destination"
+                                  : "Port of Discharge"
                             }}
                           </p>
                           <p class="font-bold text-sm text-foreground">{{ getPod }}</p>
@@ -790,10 +806,7 @@ watch(
                       </div>
 
                       <!-- Vessel Schedule (Ocean Only) -->
-                      <div
-                        v-if="job.serviceType !== 'TRUCKING'"
-                        class="flex gap-4 items-start col-span-2"
-                      >
+                      <div v-if="isTransportJob" class="flex gap-4 items-start col-span-2">
                         <div
                           class="w-10 h-10 rounded-full bg-blue-50/80 flex items-center justify-center text-[#012D5A] shrink-0 border border-blue-100"
                         >
@@ -1115,7 +1128,7 @@ watch(
                       </div>
 
                       <!-- Truck Details (Trucking Only) -->
-                      <div v-if="job.serviceType === 'TRUCKING'" class="flex gap-4 items-center">
+                      <div v-if="isTrucking" class="flex gap-4 items-center">
                         <div
                           class="w-10 h-10 rounded-full bg-blue-50/80 flex items-center justify-center text-[#012D5A] shrink-0 border border-blue-100"
                         >
@@ -1130,7 +1143,7 @@ watch(
                       </div>
 
                       <!-- Pickup Target (Trucking Only) -->
-                      <div v-if="job.serviceType === 'TRUCKING'" class="flex gap-4 items-center">
+                      <div v-if="isTrucking" class="flex gap-4 items-center">
                         <div
                           class="w-10 h-10 rounded-full bg-blue-50/80 flex items-center justify-center text-[#012D5A] shrink-0 border border-blue-100"
                         >
@@ -1150,7 +1163,7 @@ watch(
                       </div>
 
                       <!-- Delivery Target (Trucking Only) -->
-                      <div v-if="job.serviceType === 'TRUCKING'" class="flex gap-4 items-center">
+                      <div v-if="isTrucking" class="flex gap-4 items-center">
                         <div
                           class="w-10 h-10 rounded-full bg-blue-50/80 flex items-center justify-center text-[#012D5A] shrink-0 border border-blue-100"
                         >
@@ -1178,11 +1191,13 @@ watch(
                         <div>
                           <p class="text-xs text-muted-foreground mb-0.5">
                             {{
-                              job.serviceType === "TRUCKING"
+                              isTrucking
                                 ? "Vendor"
-                                : isAir
-                                  ? "Airline"
-                                  : "Shipping Line"
+                                : isCustomClearance
+                                  ? "Clearance Vendor"
+                                  : isAir
+                                    ? "Airline"
+                                    : "Shipping Line"
                             }}
                           </p>
                           <p class="font-bold text-sm text-foreground">{{ getVendorName }}</p>
@@ -1489,7 +1504,7 @@ watch(
                     </div>
                   </section>
 
-                  <section>
+                  <section v-if="job.serviceType === 'OCEAN'">
                     <h3 class="text-base font-bold mb-4 border-b pb-2">BL Setup</h3>
                     <div class="grid grid-cols-2 gap-6 text-sm">
                       <div>
