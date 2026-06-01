@@ -37,8 +37,10 @@ export function useFinanceCharts() {
   ];
 
   async function fetchChartData(
-    period: "day" | "week" | "month" | "year" = "month",
+    period: "day" | "week" | "month" | "year" | "custom" = "month",
     year?: number,
+    startDate?: string,
+    endDate?: string,
   ) {
     const requestId = getNextRequestId("charts");
 
@@ -47,7 +49,7 @@ export function useFinanceCharts() {
     clearError("charts", requestId);
 
     try {
-      const queryParams = buildQueryParams(period, year);
+      const queryParams = buildQueryParams(period, year, undefined, startDate, endDate);
       const signal = getSignal("charts");
 
       const data = await $fetch<{

@@ -95,8 +95,16 @@ export function useFinanceDashboardPageOverview() {
   });
 
   // Fetch overview data
-  async function fetchOverview(period: "day" | "week" | "month" | "year", year?: number) {
-    await Promise.all([fetchOverviewStats(period, year), charts.fetchChartData(period, year)]);
+  async function fetchOverview(
+    period: "day" | "week" | "month" | "year" | "custom",
+    year?: number,
+    startDate?: string,
+    endDate?: string,
+  ) {
+    await Promise.all([
+      fetchOverviewStats(period, year, startDate, endDate),
+      charts.fetchChartData(period, year, startDate, endDate),
+    ]);
   }
 
   return {

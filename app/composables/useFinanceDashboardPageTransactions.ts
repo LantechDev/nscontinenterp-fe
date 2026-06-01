@@ -211,7 +211,7 @@ export function useFinanceDashboardPageTransactions() {
   }
 
   // Fetch transactions data
-  async function fetchTxData(period: "day" | "week" | "month" | "year") {
+  async function fetchTxData(period: "day" | "week" | "month" | "year" | "custom") {
     await fetchTransactions(
       period,
       currentPage.value,

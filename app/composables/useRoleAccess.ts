@@ -226,6 +226,7 @@ export function useRoleAccess() {
       path.startsWith("/master/tax") ||
       path.startsWith("/master/bl-conditions") ||
       path.startsWith("/master/service-categories") ||
+      path.startsWith("/master/expense-categories") ||
       path.startsWith("/master/service-units") ||
       path.startsWith("/master/package-types") ||
       path.startsWith("/master/cargo-movements") ||
@@ -235,7 +236,11 @@ export function useRoleAccess() {
       if (path.startsWith("/master/services") || path.startsWith("/master/service-")) {
         return hasAccess("master.service");
       }
-      if (path.startsWith("/master/bank-account") || path.startsWith("/master/tax")) {
+      if (
+        path.startsWith("/master/bank-account") ||
+        path.startsWith("/master/tax") ||
+        path.startsWith("/master/expense-categories")
+      ) {
         return hasAccess("master.finance");
       }
       return hasAccess("master.logistics");

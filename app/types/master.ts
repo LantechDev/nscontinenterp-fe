@@ -26,3 +26,13 @@ export interface ServiceUnit {
   createdAt: string;
   updatedAt: string;
 }
+
+export interface ExpenseCategory {
+  id: string;
+  code: string;
+  name: string;
+  defaultDebitAccountId?: string | null;
+  defaultDebitAccount?: ServiceCategoryDefaultAccount | null;
+  createdAt: string;
+  updatedAt: string;
+}

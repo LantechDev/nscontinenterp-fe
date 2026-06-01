@@ -1,6 +1,6 @@
 // Finance Dashboard Types
 
-export type PeriodType = "day" | "week" | "month" | "year";
+export type PeriodType = "day" | "week" | "month" | "year" | "custom";
 
 export interface StatCardData {
   title: string;
@@ -109,6 +109,7 @@ export const TIME_PERIODS: { label: string; value: PeriodType }[] = [
   { label: "Week", value: "week" },
   { label: "Month", value: "month" },
   { label: "Year", value: "year" },
+  { label: "Custom Date", value: "custom" },
 ];
 
 export interface OverviewStats {

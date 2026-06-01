@@ -7,6 +7,24 @@ const selectedPeriod = ref<PeriodType>("month");
 const currentPage = ref(1);
 const isInitialized = ref(false);
 
+const getFirstDayOfCurrentMonth = () => {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  return `${year}-${month}-01`;
+};
+
+const getTodayDate = () => {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const customStartDate = ref(getFirstDayOfCurrentMonth());
+const customEndDate = ref(getTodayDate());
+
 /**
  * Finance Dashboard Page State Composable
  * Provides common state management for the dashboard page
@@ -45,6 +63,8 @@ export function useFinanceDashboardPageState() {
     activeTab,
     selectedPeriod,
     currentPage,
+    customStartDate,
+    customEndDate,
     resetPage,
   };
 }

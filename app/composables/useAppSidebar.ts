@@ -54,6 +54,7 @@ export const NAV_ITEMS: NavItem[] = [
       { title: "Company", href: "/master/company", icon: Building2 },
       { title: "Service", href: "/master/services", icon: Wrench },
       { title: "Service Category", href: "/master/service-categories", icon: Tag },
+      { title: "Expense Category", href: "/master/expense-categories", icon: Tag },
       { title: "Service Unit", href: "/master/service-units", icon: Scale },
       { title: "Package Unit", href: "/master/package-types", icon: Package },
       { title: "Cargo Movement", href: "/master/cargo-movements", icon: ArrowLeftRight },
