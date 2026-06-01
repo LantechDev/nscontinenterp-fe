@@ -149,6 +149,8 @@ export function useFinanceDashboardFilters() {
     activeTab,
     selectedPeriod,
     currentPage,
+    customStartDate,
+    customEndDate,
     resetPage: resetPageInStore,
   } = useFinanceDashboardPageState();
 
@@ -169,6 +171,10 @@ export function useFinanceDashboardFilters() {
     }
     if (transactionYear.value) {
       filters.year = parseInt(transactionYear.value);
+    }
+    if (selectedPeriod.value === "custom") {
+      filters.startDate = customStartDate.value;
+      filters.endDate = customEndDate.value;
     }
     return filters;
   };
@@ -191,6 +197,10 @@ export function useFinanceDashboardFilters() {
     if (financeCloseYear.value) {
       filters.year = parseInt(financeCloseYear.value);
     }
+    if (selectedPeriod.value === "custom") {
+      filters.startDate = customStartDate.value;
+      filters.endDate = customEndDate.value;
+    }
     return filters;
   };
 
@@ -205,6 +215,10 @@ export function useFinanceDashboardFilters() {
       limit: 10,
     };
     if (arApSearch.value) filters.search = arApSearch.value;
+    if (selectedPeriod.value === "custom") {
+      filters.startDate = customStartDate.value;
+      filters.endDate = customEndDate.value;
+    }
     return filters;
   };
 
@@ -238,6 +252,8 @@ export function useFinanceDashboardFilters() {
     activeTab,
     selectedPeriod,
     currentPage,
+    customStartDate,
+    customEndDate,
 
     selectedYear,
 

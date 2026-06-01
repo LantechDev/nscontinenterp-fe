@@ -53,7 +53,7 @@ export function useFinanceDashboardArAp() {
   } = useFinanceDashboardApi();
 
   async function fetchArApItems(
-    period: "day" | "week" | "month" | "year" = "month",
+    period: "day" | "week" | "month" | "year" | "custom" = "month",
     page: number = 1,
     limit: number = 10,
     filters?: Record<string, string | number>,
@@ -98,7 +98,8 @@ export function useFinanceDashboardArAp() {
   }
 
   async function fetchArApStats(
-    period: "day" | "week" | "month" | "year" = "month",
+    period: "day" | "week" | "month" | "year" | "custom" = "month",
+    filters?: Record<string, string | number>,
   ): Promise<ArApStats | null> {
     const requestId = getNextRequestId("arApStats");
 
@@ -107,7 +108,7 @@ export function useFinanceDashboardArAp() {
 
     try {
       const data = await $fetch<ArApStats>(`${baseUrl}/finance/dashboard/ar-ap/stats`, {
-        query: { period },
+        query: { period, ...filters },
       });
 
       if (isLatestRequest("arApStats", requestId)) arApStats.value = data;

@@ -26,8 +26,10 @@ export function useFinanceDashboardFinanceClose() {
    * Fetch finance close stats
    */
   async function fetchFinanceCloseStats(
-    period: "day" | "week" | "month" | "year" = "month",
+    period: "day" | "week" | "month" | "year" | "custom" = "month",
     year?: number,
+    startDate?: string,
+    endDate?: string,
   ): Promise<FinanceCloseStats | null> {
     const requestId = getNextRequestId("financeClose");
 
@@ -35,7 +37,7 @@ export function useFinanceDashboardFinanceClose() {
     clearError("financeClose", requestId);
 
     try {
-      const queryParams = buildQueryParams(period, year);
+      const queryParams = buildQueryParams(period, year, undefined, startDate, endDate);
 
       const data = await $fetch<FinanceCloseStats>(`${baseUrl}/finance/dashboard/finance-close`, {
         method: "GET",

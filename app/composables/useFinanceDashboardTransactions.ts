@@ -1,3 +1,4 @@
+import type { PeriodType } from "~/types/finance";
 import type {
   TransactionItem,
   TransactionStats,
@@ -146,7 +147,7 @@ export function useFinanceDashboardTransactions() {
    * Fetch transactions
    */
   async function fetchTransactions(
-    period: "day" | "week" | "month" | "year" = "month",
+    period: PeriodType = "month",
     page: number = 1,
     limit: number = 10,
     filters?: Record<string, string | number>,
@@ -202,7 +203,7 @@ export function useFinanceDashboardTransactions() {
    * Fetch transaction stats
    */
   async function fetchTransactionStats(
-    period: "day" | "week" | "month" | "year" = "month",
+    period: PeriodType = "month",
     filters?: Record<string, string | number>,
   ): Promise<TransactionStats | null> {
     const requestId = getNextRequestId("transactionStats");

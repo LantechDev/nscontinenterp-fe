@@ -60,7 +60,7 @@ export function useFinanceDashboardPageArAp() {
         pagination.value.limit,
         getArApFilters(),
       ),
-      fetchArApStats(selectedPeriod.value),
+      fetchArApStats(selectedPeriod.value, getArApFilters()),
     ]);
   }
 
@@ -74,7 +74,7 @@ export function useFinanceDashboardPageArAp() {
         pagination.value.limit,
         getArApFilters(),
       ),
-      fetchArApStats(selectedPeriod.value),
+      fetchArApStats(selectedPeriod.value, getArApFilters()),
     ]);
   }
 
@@ -94,7 +94,7 @@ export function useFinanceDashboardPageArAp() {
         pagination.value.limit,
         getArApFilters(),
       ),
-      fetchArApStats(selectedPeriod.value),
+      fetchArApStats(selectedPeriod.value, getArApFilters()),
     ]);
   }
 
@@ -113,15 +113,15 @@ export function useFinanceDashboardPageArAp() {
         pagination.value.limit,
         getArApFilters(),
       ),
-      fetchArApStats(selectedPeriod.value),
+      fetchArApStats(selectedPeriod.value, getArApFilters()),
     ]);
   }
 
   // Fetch AR/AP data
-  async function fetchArAp(period: "day" | "week" | "month" | "year") {
+  async function fetchArAp(period: "day" | "week" | "month" | "year" | "custom") {
     await Promise.all([
       fetchArApItems(period, currentPage.value, pagination.value.limit, getArApFilters()),
-      fetchArApStats(period),
+      fetchArApStats(period, getArApFilters()),
     ]);
   }
 
@@ -134,7 +134,7 @@ export function useFinanceDashboardPageArAp() {
         pagination.value.limit,
         getArApFilters(),
       ),
-      fetchArApStats(selectedPeriod.value),
+      fetchArApStats(selectedPeriod.value, getArApFilters()),
     ]);
   }
 

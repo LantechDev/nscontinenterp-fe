@@ -173,9 +173,13 @@ export function useFinanceDashboardPageFinanceClose() {
   }
 
   // Fetch finance close data
-  async function fetchFinanceClose(period: "day" | "week" | "month" | "year") {
+  async function fetchFinanceClose(
+    period: "day" | "week" | "month" | "year" | "custom",
+    startDate?: string,
+    endDate?: string,
+  ) {
     const yearValue = financeCloseYear.value ? parseInt(financeCloseYear.value) : undefined;
-    await fetchFinanceCloseStats(period, yearValue);
+    await fetchFinanceCloseStats(period, yearValue, startDate, endDate);
     await fetchClosedPeriods();
     await fetchTransactions(
       period,

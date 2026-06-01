@@ -14,7 +14,8 @@ export function useFinanceDashboardPage() {
 
   // State
   const pageState = useFinanceDashboardPageState();
-  const { activeTab, selectedPeriod, currentPage, resetPage } = pageState;
+  const { activeTab, selectedPeriod, currentPage, customStartDate, customEndDate, resetPage } =
+    pageState;
 
   // Filters
   const filters = useFinanceDashboardFilters();
@@ -80,14 +81,14 @@ export function useFinanceDashboardPage() {
     switch (tab) {
       case "Overview": {
         const year = selectedYear.value ? parseInt(selectedYear.value) : undefined;
-        await overview.fetchOverview(period, year);
+        await overview.fetchOverview(period, year, customStartDate.value, customEndDate.value);
         break;
       }
       case "Transaction":
         await transactions.fetchTxData(period);
         break;
       case "Finance Close":
-        await financeClose.fetchFinanceClose(period);
+        await financeClose.fetchFinanceClose(period, customStartDate.value, customEndDate.value);
         break;
       case "Accounts Receivable":
         await arAp.fetchArAp(period);
@@ -147,7 +148,11 @@ export function useFinanceDashboardPage() {
         filters.getTransactionFilters(),
       );
     } else if (active === "Finance Close") {
-      await financeClose.fetchFinanceClose(selectedPeriod.value);
+      await financeClose.fetchFinanceClose(
+        selectedPeriod.value,
+        customStartDate.value,
+        customEndDate.value,
+      );
     } else if (active === "Accounts Receivable") {
       await dashboard.fetchArApItems(
         selectedPeriod.value,
@@ -187,6 +192,8 @@ export function useFinanceDashboardPage() {
     selectedPeriod,
     activeTab,
     currentPage,
+    customStartDate,
+    customEndDate,
     selectedYear,
     transactionYear,
     transactionType,

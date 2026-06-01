@@ -23,8 +23,10 @@ export const useFinanceDashboardOverview = () => {
    * Fetch main stats (cards)
    */
   async function fetchStats(
-    period: "day" | "week" | "month" | "year" = "month",
+    period: "day" | "week" | "month" | "year" | "custom" = "month",
     year?: number,
+    startDate?: string,
+    endDate?: string,
   ): Promise<StatsResult | null> {
     const requestId = getNextRequestId("stats");
 
@@ -32,7 +34,7 @@ export const useFinanceDashboardOverview = () => {
     clearError("stats", requestId);
 
     try {
-      const queryParams = buildQueryParams(period, year);
+      const queryParams = buildQueryParams(period, year, undefined, startDate, endDate);
       const signal = getSignal("stats");
 
       const data = await $fetch<StatsResult>(`${baseUrl}/finance/dashboard/stats`, {
@@ -59,8 +61,10 @@ export const useFinanceDashboardOverview = () => {
    * Fetch overview statistics
    */
   async function fetchOverviewStats(
-    period: "day" | "week" | "month" | "year" = "month",
+    period: "day" | "week" | "month" | "year" | "custom" = "month",
     year?: number,
+    startDate?: string,
+    endDate?: string,
   ): Promise<OverviewStats | null> {
     const requestId = getNextRequestId("overview");
 
@@ -68,7 +72,7 @@ export const useFinanceDashboardOverview = () => {
     clearError("overview", requestId);
 
     try {
-      const queryParams = buildQueryParams(period, year);
+      const queryParams = buildQueryParams(period, year, undefined, startDate, endDate);
       const signal = getSignal("overview");
 
       const data = await $fetch<OverviewStats>(`${baseUrl}/finance/dashboard/overview`, {
@@ -94,8 +98,10 @@ export const useFinanceDashboardOverview = () => {
    * Fetch chart data
    */
   async function fetchChartData(
-    period: "day" | "week" | "month" | "year" = "month",
+    period: "day" | "week" | "month" | "year" | "custom" = "month",
     year?: number,
+    startDate?: string,
+    endDate?: string,
   ): Promise<ChartData | null> {
     const requestId = getNextRequestId("charts");
 
@@ -103,7 +109,7 @@ export const useFinanceDashboardOverview = () => {
     clearError("charts", requestId);
 
     try {
-      const queryParams = buildQueryParams(period, year);
+      const queryParams = buildQueryParams(period, year, undefined, startDate, endDate);
       const signal = getSignal("charts");
 
       const data = await $fetch<ChartData>(`${baseUrl}/finance/dashboard/charts`, {

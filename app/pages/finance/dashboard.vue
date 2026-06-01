@@ -30,6 +30,7 @@ import TaxReportTab from "~/components/finance/dashboard/TaxReportTab.vue";
 import type { BalanceSheetReport, CashFlowReport } from "~/types/finance-dashboard";
 import { toast } from "vue-sonner";
 import SearchSelect from "~/components/ui/SearchSelect.vue";
+import DatePicker from "~/components/ui/DatePicker.vue";
 
 definePageMeta({
   layout: "dashboard",
@@ -49,6 +50,8 @@ const {
   error,
   selectedPeriod,
   activeTab,
+  customStartDate,
+  customEndDate,
   selectedYear,
   transactionYear,
   transactionType,
@@ -272,7 +275,10 @@ async function loadTaxReport() {
   let startDate = `${year}-01-01`;
   let endDate = `${year}-12-31`;
 
-  if (selectedPeriod.value === "month") {
+  if (selectedPeriod.value === "custom" && customStartDate.value && customEndDate.value) {
+    startDate = customStartDate.value;
+    endDate = customEndDate.value;
+  } else if (selectedPeriod.value === "month") {
     const now = new Date();
     const month = (now.getMonth() + 1).toString().padStart(2, "0");
     startDate = `${year}-${month}-01`;
@@ -285,11 +291,11 @@ async function loadTaxReport() {
 
 async function loadOverview() {
   const year = selectedYear.value ? parseInt(selectedYear.value) : undefined;
-  await fetchOverview(selectedPeriod.value, year);
+  await fetchOverview(selectedPeriod.value, year, customStartDate.value, customEndDate.value);
 }
 
 // Watch for primary filters that affect all tabs
-watch([selectedPeriod, selectedYear], async () => {
+watch([selectedPeriod, selectedYear, customStartDate, customEndDate], async () => {
   await fetchData();
 });
 
@@ -1218,22 +1224,40 @@ function handleTaxReportExportExcel() {
             Manage cash flow, receivables/payables, and financial reports
           </p>
         </div>
-        <div class="flex items-center gap-1 bg-gray-100 border border-transparent rounded-lg p-1">
-          <button
-            v-for="period in TIME_PERIODS"
-            :key="period.value"
-            :class="
-              cn(
-                'px-3 py-1.5 text-sm font-medium rounded-md transition-colors',
-                selectedPeriod === period.value
-                  ? 'bg-[#012D5A] text-white'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-muted',
-              )
-            "
-            @click="handlePeriodChange(period.value)"
-          >
-            {{ period.label }}
-          </button>
+        <div class="flex flex-wrap items-center gap-3">
+          <!-- Date inputs for Custom Date range -->
+          <div v-if="selectedPeriod === 'custom'" class="flex items-center gap-3">
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-semibold text-muted-foreground">Start:</span>
+              <div class="w-48">
+                <DatePicker v-model="customStartDate" placeholder="Start Date" />
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-semibold text-muted-foreground">End:</span>
+              <div class="w-48">
+                <DatePicker v-model="customEndDate" placeholder="End Date" />
+              </div>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-1 bg-gray-100 border border-transparent rounded-lg p-1">
+            <button
+              v-for="period in TIME_PERIODS"
+              :key="period.value"
+              :class="
+                cn(
+                  'px-3 py-1.5 text-sm font-medium rounded-md transition-colors',
+                  selectedPeriod === period.value
+                    ? 'bg-[#012D5A] text-white'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted',
+                )
+              "
+              @click="handlePeriodChange(period.value)"
+            >
+              {{ period.label }}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -1368,6 +1392,8 @@ function handleTaxReportExportExcel() {
           v-model:selected-year="selectedYear"
           :selected-period="selectedPeriod"
           :available-years="availableYears"
+          :custom-start-date="customStartDate"
+          :custom-end-date="customEndDate"
         />
 
         <BalanceSheetTab

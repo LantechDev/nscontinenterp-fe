@@ -8,6 +8,8 @@ const props = defineProps<{
   selectedPeriod: string;
   selectedYear: string;
   availableYears: string[];
+  customStartDate?: string;
+  customEndDate?: string;
 }>();
 
 const emit = defineEmits<{
@@ -49,7 +51,10 @@ async function fetchTrialBalance() {
       period: props.selectedPeriod,
     });
 
-    if (props.selectedYear) {
+    if (props.selectedPeriod === "custom" && props.customStartDate && props.customEndDate) {
+      queryParams.append("startDate", props.customStartDate);
+      queryParams.append("endDate", props.customEndDate);
+    } else if (props.selectedYear) {
       queryParams.append("year", props.selectedYear);
     }
 
@@ -77,7 +82,10 @@ function handleRowClick(accountId: string) {
   const queryParams = new URLSearchParams({
     period: props.selectedPeriod,
   });
-  if (props.selectedYear) {
+  if (props.selectedPeriod === "custom" && props.customStartDate && props.customEndDate) {
+    queryParams.append("startDate", props.customStartDate);
+    queryParams.append("endDate", props.customEndDate);
+  } else if (props.selectedYear) {
     queryParams.append("year", props.selectedYear);
   }
   router.push(`/finance/trial-balance/${accountId}?${queryParams.toString()}`);
@@ -115,7 +123,7 @@ function getTypeLabel(type: string): string {
 
 // Watch for filter changes - only fetch after mount to avoid SSR hydration issues
 watch(
-  () => [props.selectedPeriod, props.selectedYear],
+  () => [props.selectedPeriod, props.selectedYear, props.customStartDate, props.customEndDate],
   () => {
     // Only fetch on client-side after initial mount
     if (import.meta.client) {

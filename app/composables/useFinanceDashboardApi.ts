@@ -7,12 +7,18 @@ export { getErrorMessage };
  * Moved to outer scope as it doesn't capture any variables from the composable
  */
 function buildQueryParams(
-  period: "day" | "week" | "month" | "year",
+  period: "day" | "week" | "month" | "year" | "custom",
   year?: number,
   additionalParams?: Record<string, string | number>,
+  startDate?: string,
+  endDate?: string,
 ): Record<string, string | number> {
   const params: Record<string, string | number> = { period };
   if (year) params.year = year;
+  if (period === "custom") {
+    if (startDate) params.startDate = startDate;
+    if (endDate) params.endDate = endDate;
+  }
   if (additionalParams) {
     Object.assign(params, additionalParams);
   }
