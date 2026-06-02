@@ -258,7 +258,7 @@ const mappedTypeOptions = computed(() => {
         <table class="w-full">
           <thead>
             <tr class="border-b border-border bg-gray-50/50">
-              <th class="py-3 px-4 text-left text-sm font-medium text-gray-500">JOB</th>
+              <th class="py-3 px-4 text-left text-sm font-medium text-gray-500">JOB / DESKRIPSI</th>
               <th class="py-3 px-4 text-left text-sm font-medium text-gray-500">Tanggal</th>
               <th class="py-3 px-4 text-left text-sm font-medium text-gray-500">Customer</th>
               <th class="py-3 px-4 text-left text-sm font-medium text-gray-500">Type</th>
