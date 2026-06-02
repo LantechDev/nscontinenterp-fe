@@ -70,8 +70,10 @@ export default defineNuxtPlugin(() => {
           }
         }
 
-        headers.set("Cache-Control", "no-store");
-        headers.set("Pragma", "no-cache");
+        if (method === "GET" || method === "HEAD") {
+          headers.set("Cache-Control", "no-store");
+          headers.set("Pragma", "no-cache");
+        }
 
         if ((method === "GET" || method === "HEAD") && options.cache == null) {
           options.cache = "no-store";
