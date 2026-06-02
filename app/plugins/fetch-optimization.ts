@@ -1,5 +1,3 @@
-import { refreshNuxtData } from "#app";
-
 async function handleUnauthorized() {
   if (import.meta.client) {
     localStorage.removeItem("auth_token");
@@ -25,29 +23,12 @@ function shouldDebugRefresh() {
 type ApiFetchOptions = {
   method?: string;
   headers?: HeadersInit;
-  skipNuxtDataRefresh?: boolean;
 };
 
 export default defineNuxtPlugin(() => {
   const config = useRuntimeConfig();
   const normalizedApiBase = String(config.public.apiBase || "/api").replace(/\/$/, "");
   let redirectInProgress = false;
-  let refreshQueued = false;
-
-  const queueApiDataRefresh = () => {
-    if (!import.meta.client || refreshQueued) return;
-    refreshQueued = true;
-
-    queueMicrotask(() => {
-      refreshNuxtData()
-        .catch((error) => {
-          console.warn("[API] Failed to refresh Nuxt data after mutation:", error);
-        })
-        .finally(() => {
-          refreshQueued = false;
-        });
-    });
-  };
 
   const debugMutationFreshness = async (context: {
     request: RequestInfo | URL;
@@ -89,8 +70,7 @@ export default defineNuxtPlugin(() => {
   };
 
   const optimizedFetch = $fetch.create({
-    retry: 2,
-    retryDelay: 1000,
+    retry: 0,
     onRequest(context) {
       const { options } = context;
       const method = String(options.method || "GET").toUpperCase();
@@ -164,7 +144,6 @@ export default defineNuxtPlugin(() => {
     onResponse(context) {
       const method = String(context.options.method || "GET").toUpperCase();
       if (!["POST", "PUT", "PATCH", "DELETE"].includes(method)) return;
-      if ((context.options as ApiFetchOptions).skipNuxtDataRefresh) return;
 
       const requestUrl =
         typeof context.request === "string" ? context.request : context.request.toString();
@@ -179,7 +158,6 @@ export default defineNuxtPlugin(() => {
 
       if ((isApiPath || isAbsoluteApiRequest) && !isAuthRequest && context.response.ok) {
         void debugMutationFreshness(context);
-        queueApiDataRefresh();
       }
     },
     async onResponseError(context) {

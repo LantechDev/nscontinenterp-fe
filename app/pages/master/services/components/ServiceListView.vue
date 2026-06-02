@@ -145,7 +145,6 @@ const handleRowClick = (id: string) => {
                   <button
                     type="button"
                     class="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
-                    @click.stop
                   >
                     <MoreVertical class="w-4 h-4" />
                   </button>
@@ -154,7 +153,7 @@ const handleRowClick = (id: string) => {
                   <button
                     type="button"
                     class="w-full flex items-center gap-2 px-4 py-2 text-sm hover:bg-muted transition-colors"
-                    @click.stop="emit('edit', service.id)"
+                    @click="emit('edit', service.id)"
                   >
                     <Pencil class="w-4 h-4" />
                     Edit
@@ -162,7 +161,7 @@ const handleRowClick = (id: string) => {
                   <button
                     type="button"
                     class="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
-                    @click.stop="emit('delete', service.id)"
+                    @click="emit('delete', service.id)"
                   >
                     <Trash2 class="w-4 h-4" />
                     Delete
