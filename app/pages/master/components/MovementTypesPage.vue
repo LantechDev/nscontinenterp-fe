@@ -127,7 +127,6 @@ const handleSubmit = async () => {
       });
 
   if (result.success) {
-    await fetchMovements();
     closeModal();
   } else {
     formError.value = result.error || `Failed to save ${props.singularLabel.toLowerCase()}`;
@@ -151,7 +150,6 @@ const handleDelete = async () => {
   const result = await deleteMovement(movementToDelete.value.id);
 
   if (result.success) {
-    await fetchMovements();
     isDeleteModalOpen.value = false;
     movementToDelete.value = null;
   } else {

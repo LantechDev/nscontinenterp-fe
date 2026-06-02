@@ -135,7 +135,6 @@ const handleSubmit = async (formData: {
   if (result.success) {
     isModalOpen.value = false;
     editingPlane.value = null;
-    await fetchPlanes();
   } else {
     formError.value = result.error || "Failed to save plane";
   }
@@ -162,7 +161,6 @@ const handleDelete = async () => {
   if (result.success) {
     isDeleteModalOpen.value = false;
     planeToDelete.value = null;
-    await fetchPlanes();
   } else {
     formError.value = result.error || "Failed to delete plane";
   }

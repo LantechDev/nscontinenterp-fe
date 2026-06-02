@@ -46,6 +46,13 @@ function getErrorMessage(error: unknown): string {
   return "An error occurred";
 }
 
+type LocalMutationMethod = "POST" | "PUT" | "PATCH" | "DELETE";
+
+const localMutationOptions = <TBody>(method: LocalMutationMethod, body?: TBody) =>
+  body === undefined
+    ? { method, skipNuxtDataRefresh: true }
+    : { method, body, skipNuxtDataRefresh: true };
+
 export function usePlanes() {
   const planes = useState<Plane[]>("planes", () => []);
   const isLoading = ref(false);
@@ -85,8 +92,7 @@ export function usePlanes() {
     isLoading.value = true;
     try {
       const data = await $fetch<Plane>("/api/master/planes", {
-        method: "POST",
-        body: planeData,
+        ...localMutationOptions("POST", planeData),
       });
       planes.value = [data, ...planes.value];
       return { success: true, data };
@@ -105,8 +111,7 @@ export function usePlanes() {
     isLoading.value = true;
     try {
       const data = await $fetch<Plane>(`/api/master/planes/${id}`, {
-        method: "PUT",
-        body: planeData,
+        ...localMutationOptions("PUT", planeData),
       });
       planes.value = planes.value.map((p) => (p.id === id ? { ...p, ...data } : p));
       return { success: true, data };
@@ -122,7 +127,7 @@ export function usePlanes() {
     isLoading.value = true;
     try {
       await $fetch(`/api/master/planes/${id}`, {
-        method: "DELETE",
+        ...localMutationOptions("DELETE"),
       });
       planes.value = planes.value.filter((p) => p.id !== id);
       return { success: true };

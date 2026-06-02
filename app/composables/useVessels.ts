@@ -46,6 +46,13 @@ function getErrorMessage(error: unknown): string {
   return "An error occurred";
 }
 
+type LocalMutationMethod = "POST" | "PUT" | "PATCH" | "DELETE";
+
+const localMutationOptions = <TBody>(method: LocalMutationMethod, body?: TBody) =>
+  body === undefined
+    ? { method, skipNuxtDataRefresh: true }
+    : { method, body, skipNuxtDataRefresh: true };
+
 export function useVessels() {
   const vessels = useState<Vessel[]>("vessels", () => []);
   const isLoading = ref(false);
@@ -85,8 +92,7 @@ export function useVessels() {
     isLoading.value = true;
     try {
       const data = await $fetch<Vessel>("/api/master/vessels", {
-        method: "POST",
-        body: vesselData,
+        ...localMutationOptions("POST", vesselData),
       });
       vessels.value = [data, ...vessels.value];
       return { success: true, data };
@@ -105,8 +111,7 @@ export function useVessels() {
     isLoading.value = true;
     try {
       const data = await $fetch<Vessel>(`/api/master/vessels/${id}`, {
-        method: "PUT",
-        body: vesselData,
+        ...localMutationOptions("PUT", vesselData),
       });
       vessels.value = vessels.value.map((v) => (v.id === id ? { ...v, ...data } : v));
       return { success: true, data };
@@ -122,7 +127,7 @@ export function useVessels() {
     isLoading.value = true;
     try {
       await $fetch(`/api/master/vessels/${id}`, {
-        method: "DELETE",
+        ...localMutationOptions("DELETE"),
       });
       vessels.value = vessels.value.filter((v) => v.id !== id);
       return { success: true };

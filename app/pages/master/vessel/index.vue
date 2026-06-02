@@ -135,7 +135,6 @@ const handleSubmit = async (formData: {
   if (result.success) {
     isModalOpen.value = false;
     editingVessel.value = null;
-    await fetchVessels();
   } else {
     formError.value = result.error || "Failed to save vessel";
   }
@@ -162,7 +161,6 @@ const handleDelete = async () => {
   if (result.success) {
     isDeleteModalOpen.value = false;
     vesselToDelete.value = null;
-    await fetchVessels();
   } else {
     formError.value = result.error || "Failed to delete vessel";
   }

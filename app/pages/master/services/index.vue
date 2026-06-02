@@ -8,10 +8,18 @@ definePageMeta({
   layout: "dashboard",
 });
 
-const { services: servicesList, isLoading, fetchServices, createService } = useServices();
+const {
+  services: servicesList,
+  isLoading,
+  fetchServices,
+  createService,
+  updateService,
+  deleteService,
+} = useServices();
 
 const { pending } = await useAsyncData("services-list", () => fetchServices(), { server: false });
 const { canManage, requireManage } = useFeatureAccess("master.service");
+const { confirm } = useConfirm();
 
 // Search and filter state
 const searchQuery = ref("");
@@ -87,19 +95,28 @@ const viewMode = ref<ViewMode>("list");
 const isCreateOpen = ref(false);
 const isSubmitting = ref(false);
 const formError = ref<string | null>(null);
+const editingService = ref<Service | null>(null);
 
 // Modal ref for resetting form
 const createModalRef = ref<{ resetForm: () => void } | null>(null);
 
 const openCreateModal = () => {
   if (!requireManage("You only have view access for services.")) return;
+  editingService.value = null;
   if (createModalRef.value) {
     createModalRef.value.resetForm();
   }
   isCreateOpen.value = true;
 };
 
-const handleCreateService = async (formData: {
+const openEditModal = (id: string) => {
+  if (!requireManage("You only have view access for services.")) return;
+  editingService.value = servicesList.value.find((service) => service.id === id) || null;
+  formError.value = null;
+  isCreateOpen.value = Boolean(editingService.value);
+};
+
+const handleSaveService = async (formData: {
   name: string;
   code: string;
   status: string;
@@ -123,12 +140,39 @@ const handleCreateService = async (formData: {
     isActive: formData.status === "Active",
   };
 
-  const result = await createService(serviceData);
+  const result = editingService.value
+    ? await updateService(editingService.value.id, serviceData)
+    : await createService(serviceData);
 
   if (result.success) {
     isCreateOpen.value = false;
+    editingService.value = null;
   } else {
-    formError.value = result.error || "Failed to create service";
+    formError.value = result.error || "Failed to save service";
+  }
+
+  isSubmitting.value = false;
+};
+
+const handleDeleteService = async (id: string) => {
+  if (!requireManage("You only have view access for services.")) return;
+
+  const service = servicesList.value.find((item) => item.id === id);
+  const confirmed = await confirm({
+    title: "Delete Service",
+    message: `Are you sure you want to delete ${service?.name || "this service"}? This action cannot be undone.`,
+    confirmText: "Delete",
+    cancelText: "Cancel",
+    type: "danger",
+  });
+  if (!confirmed) return;
+
+  isSubmitting.value = true;
+  formError.value = null;
+  const result = await deleteService(id);
+
+  if (!result.success) {
+    formError.value = result.error || "Failed to delete service";
   }
 
   isSubmitting.value = false;
@@ -234,12 +278,22 @@ const handlePageChange = (page: number) => {
       :services="sortedServices"
       :sort-field="sortField"
       :sort-direction="sortDirection"
+      :can-manage="canManage"
       @toggle-sort="toggleSort"
       @row-click="handleRowClick"
+      @edit="openEditModal"
+      @delete="handleDeleteService"
     />
 
     <!-- Grid View -->
-    <ServiceGridView v-else :services="sortedServices" @row-click="handleRowClick" />
+    <ServiceGridView
+      v-else
+      :services="sortedServices"
+      :can-manage="canManage"
+      @row-click="handleRowClick"
+      @edit="openEditModal"
+      @delete="handleDeleteService"
+    />
 
     <!-- Pagination -->
     <div class="flex items-center justify-between text-sm text-muted-foreground">
@@ -258,8 +312,14 @@ const handlePageChange = (page: number) => {
       :is-open="isCreateOpen"
       :is-submitting="isSubmitting"
       :error="formError"
-      @update:is-open="(val) => (isCreateOpen = val)"
-      @submit="handleCreateService"
+      :initial-data="editingService"
+      @update:is-open="
+        (val) => {
+          isCreateOpen = val;
+          if (!val) editingService = null;
+        }
+      "
+      @submit="handleSaveService"
     />
   </div>
 </template>

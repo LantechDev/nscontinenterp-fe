@@ -25,6 +25,13 @@ function getErrorMessage(error: unknown): string {
   return "An error occurred";
 }
 
+type LocalMutationMethod = "POST" | "PUT" | "PATCH" | "DELETE";
+
+const localMutationOptions = <TBody>(method: LocalMutationMethod, body?: TBody) =>
+  body === undefined
+    ? { method, skipNuxtDataRefresh: true }
+    : { method, body, skipNuxtDataRefresh: true };
+
 export function useExpenseCategories() {
   const categories = useState<ExpenseCategory[]>("expense-categories", () => []);
   const isLoading = ref(false);
@@ -59,8 +66,7 @@ export function useExpenseCategories() {
     isLoading.value = true;
     try {
       const data = await $fetch<ExpenseCategory>("/api/master/expense-categories", {
-        method: "POST",
-        body: payload,
+        ...localMutationOptions("POST", payload),
       });
       categories.value = [...categories.value, data];
       return { success: true, data };
@@ -79,8 +85,7 @@ export function useExpenseCategories() {
     try {
       // Backend uses PATCH for updating expense categories
       const data = await $fetch<ExpenseCategory>(`/api/master/expense-categories/${id}`, {
-        method: "PATCH",
-        body: payload,
+        ...localMutationOptions("PATCH", payload),
       });
       categories.value = categories.value.map((c) => (c.id === id ? { ...c, ...data } : c));
       return { success: true, data };
@@ -95,7 +100,7 @@ export function useExpenseCategories() {
     isLoading.value = true;
     try {
       await $fetch(`/api/master/expense-categories/${id}`, {
-        method: "DELETE",
+        ...localMutationOptions("DELETE"),
       });
       categories.value = categories.value.filter((c) => c.id !== id);
       return { success: true };

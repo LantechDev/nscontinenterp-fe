@@ -115,7 +115,6 @@ const handleSubmit = async (formData: { name: string }) => {
   if (result.success) {
     isModalOpen.value = false;
     editingCategory.value = null;
-    await fetchCategories();
   } else {
     formError.value = result.error || "Failed to save category";
   }
@@ -144,7 +143,6 @@ const handleDelete = async () => {
   if (result.success) {
     isDeleteModalOpen.value = false;
     categoryToDelete.value = null;
-    await fetchCategories();
   } else {
     formError.value = result.error || "Failed to delete category";
     isDeleteModalOpen.value = false;

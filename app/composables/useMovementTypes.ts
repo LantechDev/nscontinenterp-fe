@@ -26,6 +26,13 @@ function getErrorMessage(error: unknown): string {
   return "An error occurred";
 }
 
+type LocalMutationMethod = "POST" | "PUT" | "PATCH" | "DELETE";
+
+const localMutationOptions = <TBody>(method: LocalMutationMethod, body?: TBody) =>
+  body === undefined
+    ? { method, skipNuxtDataRefresh: true }
+    : { method, body, skipNuxtDataRefresh: true };
+
 const movementPath = (kind: MovementKind) =>
   kind === "cargo" ? "/api/master/cargo-movements" : "/api/master/delivery-movements";
 
@@ -60,8 +67,7 @@ export function useMovementTypes(kind: MovementKind) {
     isLoading.value = true;
     try {
       const data = await $fetch<MovementType>(movementPath(kind), {
-        method: "POST",
-        body: payload,
+        ...localMutationOptions("POST", payload),
       });
       movements.value = [...movements.value, data];
       return { success: true, data };
@@ -79,8 +85,7 @@ export function useMovementTypes(kind: MovementKind) {
     isLoading.value = true;
     try {
       const data = await $fetch<MovementType>(`${movementPath(kind)}/${id}`, {
-        method: "PUT",
-        body: payload,
+        ...localMutationOptions("PUT", payload),
       });
       movements.value = movements.value.map((item) =>
         item.id === id ? { ...item, ...data } : item,
@@ -97,7 +102,7 @@ export function useMovementTypes(kind: MovementKind) {
     isLoading.value = true;
     try {
       await $fetch(`${movementPath(kind)}/${id}`, {
-        method: "DELETE",
+        ...localMutationOptions("DELETE"),
       });
       movements.value = movements.value.filter((item) => item.id !== id);
       return { success: true };

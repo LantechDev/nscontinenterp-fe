@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { MoreVertical, ChevronDown } from "lucide-vue-next";
+import { MoreVertical, ChevronDown, Pencil, Trash2 } from "lucide-vue-next";
 import { cn } from "~/lib/utils";
 import Checkbox from "~/components/ui/Checkbox.vue";
 
@@ -17,11 +17,14 @@ const props = defineProps<{
   services: ServiceItem[];
   sortField: string;
   sortDirection: "asc" | "desc";
+  canManage?: boolean;
 }>();
 
 const emit = defineEmits<{
   (e: "toggle-sort", field: string): void;
   (e: "row-click", id: string): void;
+  (e: "edit", id: string): void;
+  (e: "delete", id: string): void;
 }>();
 
 const selectedIds = ref(new Set<string>());
@@ -103,7 +106,7 @@ const handleRowClick = (id: string) => {
                 />
               </div>
             </th>
-            <th class="py-3 px-4 w-10"></th>
+            <th v-if="canManage" class="py-3 px-4 w-10"></th>
           </tr>
         </thead>
         <tbody>
@@ -136,14 +139,42 @@ const handleRowClick = (id: string) => {
                 {{ service.status }}
               </span>
             </td>
-            <td class="py-3 px-4 text-right">
-              <button class="text-muted-foreground hover:text-foreground">
-                <MoreVertical class="w-4 h-4" />
-              </button>
+            <td v-if="canManage" class="py-3 px-4 text-right" @click.stop>
+              <UiActionMenu>
+                <template #trigger>
+                  <button
+                    type="button"
+                    class="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+                    @click.stop
+                  >
+                    <MoreVertical class="w-4 h-4" />
+                  </button>
+                </template>
+                <template #content>
+                  <button
+                    type="button"
+                    class="w-full flex items-center gap-2 px-4 py-2 text-sm hover:bg-muted transition-colors"
+                    @click.stop="emit('edit', service.id)"
+                  >
+                    <Pencil class="w-4 h-4" />
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    class="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                    @click.stop="emit('delete', service.id)"
+                  >
+                    <Trash2 class="w-4 h-4" />
+                    Delete
+                  </button>
+                </template>
+              </UiActionMenu>
             </td>
           </tr>
           <tr v-if="services.length === 0">
-            <td colspan="6" class="py-8 text-center text-muted-foreground">No services found</td>
+            <td :colspan="canManage ? 6 : 5" class="py-8 text-center text-muted-foreground">
+              No services found
+            </td>
           </tr>
         </tbody>
       </table>
