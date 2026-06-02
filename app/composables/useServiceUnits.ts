@@ -32,14 +32,15 @@ const localMutationOptions = <TBody>(method: LocalMutationMethod, body?: TBody) 
     : { method, body, skipNuxtDataRefresh: true };
 
 export function useServiceUnits() {
-  const units = useState<ServiceUnit[]>("service-units", () => []);
   const isLoading = ref(false);
+  const units = useState<ServiceUnit[]>("units-list", () => []);
+  const currentUnit = useState<ServiceUnit | null>("units-current", () => null);
 
   const debugUnitsState = (action: string, id?: string) => {
     if (!import.meta.client || localStorage.getItem("debug_api_refresh") !== "true") return;
 
     console.debug("[Service Unit UI state]", {
-      source: 'useState("service-units")',
+      source: 'useState("units-list")',
       action,
       item: id ? units.value.find((unit) => unit.id === id) : null,
       total: units.value.length,
@@ -53,11 +54,11 @@ export function useServiceUnits() {
     };
   });
 
-  const fetchUnits = async (): Promise<{
+  async function fetchUnits(): Promise<{
     success: boolean;
     data?: ServiceUnit[];
     error?: string;
-  }> => {
+  }> {
     isLoading.value = true;
     try {
       const data = await $fetch<ServiceUnit[]>("/api/master/service-units");
@@ -68,11 +69,26 @@ export function useServiceUnits() {
     } finally {
       isLoading.value = false;
     }
-  };
+  }
 
-  const createUnit = async (
+  async function getUnit(
+    id: string,
+  ): Promise<{ success: boolean; data?: ServiceUnit; error?: string }> {
+    isLoading.value = true;
+    try {
+      const data = await $fetch<ServiceUnit>(`/api/master/service-units/${id}`);
+      currentUnit.value = data;
+      return { success: true, data };
+    } catch (error) {
+      return { success: false, error: getErrorMessage(error) };
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  async function createUnit(
     payload: CreateServiceUnitInput,
-  ): Promise<{ success: boolean; data?: ServiceUnit; error?: string }> => {
+  ): Promise<{ success: boolean; data?: ServiceUnit; error?: string }> {
     isLoading.value = true;
     try {
       const data = await $fetch<ServiceUnit>("/api/master/service-units", {
@@ -86,17 +102,20 @@ export function useServiceUnits() {
     } finally {
       isLoading.value = false;
     }
-  };
+  }
 
-  const updateUnit = async (
+  async function updateUnit(
     id: string,
     payload: CreateServiceUnitInput,
-  ): Promise<{ success: boolean; data?: ServiceUnit; error?: string }> => {
+  ): Promise<{ success: boolean; data?: ServiceUnit; error?: string }> {
     isLoading.value = true;
     try {
       const data = await $fetch<ServiceUnit>(`/api/master/service-units/${id}`, {
         ...localMutationOptions("PUT", payload),
       });
+      if (currentUnit.value?.id === id) {
+        currentUnit.value = data;
+      }
       units.value = units.value.map((u) => (u.id === id ? { ...u, ...data } : u));
       debugUnitsState("update", id);
       return { success: true, data };
@@ -105,15 +124,18 @@ export function useServiceUnits() {
     } finally {
       isLoading.value = false;
     }
-  };
+  }
 
-  const deleteUnit = async (id: string): Promise<{ success: boolean; error?: string }> => {
+  async function deleteUnit(id: string): Promise<{ success: boolean; error?: string }> {
     isLoading.value = true;
     try {
       await $fetch(`/api/master/service-units/${id}`, {
         ...localMutationOptions("DELETE"),
       });
       units.value = units.value.filter((u) => u.id !== id);
+      if (currentUnit.value?.id === id) {
+        currentUnit.value = null;
+      }
       debugUnitsState("delete", id);
       return { success: true };
     } catch (error) {
@@ -121,13 +143,15 @@ export function useServiceUnits() {
     } finally {
       isLoading.value = false;
     }
-  };
+  }
 
   return {
-    units: readonly(units),
-    stats: readonly(stats),
-    isLoading: readonly(isLoading),
+    units,
+    currentUnit,
+    stats,
+    isLoading,
     fetchUnits,
+    getUnit,
     createUnit,
     updateUnit,
     deleteUnit,

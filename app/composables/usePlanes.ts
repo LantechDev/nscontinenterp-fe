@@ -54,7 +54,7 @@ const localMutationOptions = <TBody>(method: LocalMutationMethod, body?: TBody) 
     : { method, body, skipNuxtDataRefresh: true };
 
 export function usePlanes() {
-  const planes = useState<Plane[]>("planes", () => []);
+  const planes = useState<Plane[]>("planes-list", () => []);
   const isLoading = ref(false);
 
   // Computed stats from planes data
@@ -68,9 +68,9 @@ export function usePlanes() {
   });
 
   // Fetch planes using $fetch
-  const fetchPlanes = async (
+  async function fetchPlanes(
     search?: string,
-  ): Promise<{ success: boolean; data?: Plane[]; error?: string }> => {
+  ): Promise<{ success: boolean; data?: Plane[]; error?: string }> {
     isLoading.value = true;
     try {
       const data = await $fetch<Plane[]>("/api/master/planes", {
@@ -83,12 +83,12 @@ export function usePlanes() {
     } finally {
       isLoading.value = false;
     }
-  };
+  }
 
   // Create plane using $fetch
-  const createPlane = async (
+  async function createPlane(
     planeData: CreatePlaneInput,
-  ): Promise<{ success: boolean; data?: Plane; error?: string }> => {
+  ): Promise<{ success: boolean; data?: Plane; error?: string }> {
     isLoading.value = true;
     try {
       const data = await $fetch<Plane>("/api/master/planes", {
@@ -101,13 +101,13 @@ export function usePlanes() {
     } finally {
       isLoading.value = false;
     }
-  };
+  }
 
   // Update plane using $fetch
-  const updatePlane = async (
+  async function updatePlane(
     id: string,
     planeData: UpdatePlaneInput,
-  ): Promise<{ success: boolean; data?: Plane; error?: string }> => {
+  ): Promise<{ success: boolean; data?: Plane; error?: string }> {
     isLoading.value = true;
     try {
       const data = await $fetch<Plane>(`/api/master/planes/${id}`, {
@@ -120,10 +120,10 @@ export function usePlanes() {
     } finally {
       isLoading.value = false;
     }
-  };
+  }
 
   // Delete plane using $fetch
-  const deletePlane = async (id: string): Promise<{ success: boolean; error?: string }> => {
+  async function deletePlane(id: string): Promise<{ success: boolean; error?: string }> {
     isLoading.value = true;
     try {
       await $fetch(`/api/master/planes/${id}`, {
@@ -136,12 +136,12 @@ export function usePlanes() {
     } finally {
       isLoading.value = false;
     }
-  };
+  }
 
   // Get plane by ID using $fetch
-  const getPlaneById = async (
+  async function getPlaneById(
     id: string,
-  ): Promise<{ success: boolean; data?: Plane; error?: string }> => {
+  ): Promise<{ success: boolean; data?: Plane; error?: string }> {
     isLoading.value = true;
     try {
       const data = await $fetch<Plane>(`/api/master/planes/${id}`);
@@ -151,12 +151,12 @@ export function usePlanes() {
     } finally {
       isLoading.value = false;
     }
-  };
+  }
 
   return {
-    planes: readonly(planes),
-    stats: readonly(stats),
-    isLoading: readonly(isLoading),
+    planes: planes,
+    stats: stats,
+    isLoading: isLoading,
     fetchPlanes,
     createPlane,
     updatePlane,

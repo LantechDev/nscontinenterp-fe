@@ -33,7 +33,7 @@ const localMutationOptions = <TBody>(method: LocalMutationMethod, body?: TBody) 
     : { method, body, skipNuxtDataRefresh: true };
 
 export function useExpenseCategories() {
-  const categories = useState<ExpenseCategory[]>("expense-categories", () => []);
+  const categories = useState<ExpenseCategory[]>("expense-categories-list", () => []);
   const isLoading = ref(false);
 
   const stats: ComputedRef<ExpenseCategoryStats> = computed(() => {
@@ -43,11 +43,11 @@ export function useExpenseCategories() {
     };
   });
 
-  const fetchCategories = async (): Promise<{
+  async function fetchCategories(): Promise<{
     success: boolean;
     data?: ExpenseCategory[];
     error?: string;
-  }> => {
+  }> {
     isLoading.value = true;
     try {
       const data = await $fetch<ExpenseCategory[]>("/api/master/expense-categories");
@@ -58,11 +58,11 @@ export function useExpenseCategories() {
     } finally {
       isLoading.value = false;
     }
-  };
+  }
 
-  const createCategory = async (
+  async function createCategory(
     payload: CreateExpenseCategoryInput,
-  ): Promise<{ success: boolean; data?: ExpenseCategory; error?: string }> => {
+  ): Promise<{ success: boolean; data?: ExpenseCategory; error?: string }> {
     isLoading.value = true;
     try {
       const data = await $fetch<ExpenseCategory>("/api/master/expense-categories", {
@@ -75,12 +75,12 @@ export function useExpenseCategories() {
     } finally {
       isLoading.value = false;
     }
-  };
+  }
 
-  const updateCategory = async (
+  async function updateCategory(
     id: string,
     payload: CreateExpenseCategoryInput,
-  ): Promise<{ success: boolean; data?: ExpenseCategory; error?: string }> => {
+  ): Promise<{ success: boolean; data?: ExpenseCategory; error?: string }> {
     isLoading.value = true;
     try {
       // Backend uses PATCH for updating expense categories
@@ -94,9 +94,9 @@ export function useExpenseCategories() {
     } finally {
       isLoading.value = false;
     }
-  };
+  }
 
-  const deleteCategory = async (id: string): Promise<{ success: boolean; error?: string }> => {
+  async function deleteCategory(id: string): Promise<{ success: boolean; error?: string }> {
     isLoading.value = true;
     try {
       await $fetch(`/api/master/expense-categories/${id}`, {
@@ -109,12 +109,12 @@ export function useExpenseCategories() {
     } finally {
       isLoading.value = false;
     }
-  };
+  }
 
   return {
-    categories: readonly(categories),
-    stats: readonly(stats),
-    isLoading: readonly(isLoading),
+    categories: categories,
+    stats: stats,
+    isLoading: isLoading,
     fetchCategories,
     createCategory,
     updateCategory,

@@ -114,9 +114,9 @@ export function useMovementTypes(kind: MovementKind) {
   }
 
   return {
-    movements: readonly(movements),
-    stats: readonly(stats),
-    isLoading: readonly(isLoading),
+    movements: movements,
+    stats: stats,
+    isLoading: isLoading,
     fetchMovements,
     createMovement,
     updateMovement,

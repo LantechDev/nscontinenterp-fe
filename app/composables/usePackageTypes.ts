@@ -32,7 +32,7 @@ const localMutationOptions = <TBody>(method: LocalMutationMethod, body?: TBody) 
     : { method, body, skipNuxtDataRefresh: true };
 
 export function usePackageTypes() {
-  const packageTypes = useState<PackageType[]>("package-types", () => []);
+  const packageTypes = useState<PackageType[]>("package-types-list", () => []);
   const isLoading = ref(false);
 
   const debugPackageTypesState = (action: string, id?: string) => {
@@ -123,9 +123,9 @@ export function usePackageTypes() {
   }
 
   return {
-    packageTypes: readonly(packageTypes),
-    stats: readonly(stats),
-    isLoading: readonly(isLoading),
+    packageTypes: packageTypes,
+    stats: stats,
+    isLoading: isLoading,
     fetchPackageTypes,
     createPackageType,
     updatePackageType,

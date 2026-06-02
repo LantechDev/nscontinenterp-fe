@@ -54,7 +54,7 @@ const localMutationOptions = <TBody>(method: LocalMutationMethod, body?: TBody) 
     : { method, body, skipNuxtDataRefresh: true };
 
 export function useVessels() {
-  const vessels = useState<Vessel[]>("vessels", () => []);
+  const vessels = useState<Vessel[]>("vessels-list", () => []);
   const isLoading = ref(false);
 
   // Computed stats from vessels data
@@ -68,9 +68,9 @@ export function useVessels() {
   });
 
   // Fetch vessels using $fetch
-  const fetchVessels = async (
+  async function fetchVessels(
     search?: string,
-  ): Promise<{ success: boolean; data?: Vessel[]; error?: string }> => {
+  ): Promise<{ success: boolean; data?: Vessel[]; error?: string }> {
     isLoading.value = true;
     try {
       const data = await $fetch<Vessel[]>("/api/master/vessels", {
@@ -83,12 +83,12 @@ export function useVessels() {
     } finally {
       isLoading.value = false;
     }
-  };
+  }
 
   // Create vessel using $fetch
-  const createVessel = async (
+  async function createVessel(
     vesselData: CreateVesselInput,
-  ): Promise<{ success: boolean; data?: Vessel; error?: string }> => {
+  ): Promise<{ success: boolean; data?: Vessel; error?: string }> {
     isLoading.value = true;
     try {
       const data = await $fetch<Vessel>("/api/master/vessels", {
@@ -101,13 +101,13 @@ export function useVessels() {
     } finally {
       isLoading.value = false;
     }
-  };
+  }
 
   // Update vessel using $fetch
-  const updateVessel = async (
+  async function updateVessel(
     id: string,
     vesselData: UpdateVesselInput,
-  ): Promise<{ success: boolean; data?: Vessel; error?: string }> => {
+  ): Promise<{ success: boolean; data?: Vessel; error?: string }> {
     isLoading.value = true;
     try {
       const data = await $fetch<Vessel>(`/api/master/vessels/${id}`, {
@@ -120,10 +120,10 @@ export function useVessels() {
     } finally {
       isLoading.value = false;
     }
-  };
+  }
 
   // Delete vessel using $fetch
-  const deleteVessel = async (id: string): Promise<{ success: boolean; error?: string }> => {
+  async function deleteVessel(id: string): Promise<{ success: boolean; error?: string }> {
     isLoading.value = true;
     try {
       await $fetch(`/api/master/vessels/${id}`, {
@@ -136,12 +136,12 @@ export function useVessels() {
     } finally {
       isLoading.value = false;
     }
-  };
+  }
 
   // Get vessel by ID using $fetch
-  const getVesselById = async (
+  async function getVesselById(
     id: string,
-  ): Promise<{ success: boolean; data?: Vessel; error?: string }> => {
+  ): Promise<{ success: boolean; data?: Vessel; error?: string }> {
     isLoading.value = true;
     try {
       const data = await $fetch<Vessel>(`/api/master/vessels/${id}`);
@@ -151,12 +151,12 @@ export function useVessels() {
     } finally {
       isLoading.value = false;
     }
-  };
+  }
 
   return {
-    vessels: readonly(vessels),
-    stats: readonly(stats),
-    isLoading: readonly(isLoading),
+    vessels: vessels,
+    stats: stats,
+    isLoading: isLoading,
     fetchVessels,
     createVessel,
     updateVessel,

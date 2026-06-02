@@ -34,7 +34,7 @@ const localMutationOptions = <TBody>(method: LocalMutationMethod, body?: TBody) 
     : { method, body, skipNuxtDataRefresh: true };
 
 export function useServiceCategories() {
-  const categories = useState<ServiceCategory[]>("service-categories", () => []);
+  const categories = useState<ServiceCategory[]>("service-categories-list", () => []);
   const isLoading = ref(false);
 
   const debugCategoriesState = (action: string, id?: string) => {
@@ -55,11 +55,11 @@ export function useServiceCategories() {
     };
   });
 
-  const fetchCategories = async (): Promise<{
+  async function fetchCategories(): Promise<{
     success: boolean;
     data?: ServiceCategory[];
     error?: string;
-  }> => {
+  }> {
     isLoading.value = true;
     try {
       const data = await $fetch<ServiceCategory[]>("/api/master/service-categories");
@@ -70,11 +70,11 @@ export function useServiceCategories() {
     } finally {
       isLoading.value = false;
     }
-  };
+  }
 
-  const createCategory = async (
+  async function createCategory(
     payload: CreateServiceCategoryInput,
-  ): Promise<{ success: boolean; data?: ServiceCategory; error?: string }> => {
+  ): Promise<{ success: boolean; data?: ServiceCategory; error?: string }> {
     isLoading.value = true;
     try {
       const data = await $fetch<ServiceCategory>("/api/master/service-categories", {
@@ -88,12 +88,12 @@ export function useServiceCategories() {
     } finally {
       isLoading.value = false;
     }
-  };
+  }
 
-  const updateCategory = async (
+  async function updateCategory(
     id: string,
     payload: CreateServiceCategoryInput,
-  ): Promise<{ success: boolean; data?: ServiceCategory; error?: string }> => {
+  ): Promise<{ success: boolean; data?: ServiceCategory; error?: string }> {
     isLoading.value = true;
     try {
       const data = await $fetch<ServiceCategory>(`/api/master/service-categories/${id}`, {
@@ -107,9 +107,9 @@ export function useServiceCategories() {
     } finally {
       isLoading.value = false;
     }
-  };
+  }
 
-  const deleteCategory = async (id: string): Promise<{ success: boolean; error?: string }> => {
+  async function deleteCategory(id: string): Promise<{ success: boolean; error?: string }> {
     isLoading.value = true;
     try {
       await $fetch(`/api/master/service-categories/${id}`, {
@@ -123,12 +123,12 @@ export function useServiceCategories() {
     } finally {
       isLoading.value = false;
     }
-  };
+  }
 
   return {
-    categories: readonly(categories),
-    stats: readonly(stats),
-    isLoading: readonly(isLoading),
+    categories: categories,
+    stats: stats,
+    isLoading: isLoading,
     fetchCategories,
     createCategory,
     updateCategory,
