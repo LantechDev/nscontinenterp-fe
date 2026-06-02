@@ -1,3 +1,5 @@
+import { refreshNuxtData } from "#app";
+
 async function handleUnauthorized() {
   if (import.meta.client) {
     localStorage.removeItem("auth_token");
@@ -20,6 +22,22 @@ export default defineNuxtPlugin(() => {
   const config = useRuntimeConfig();
   const normalizedApiBase = String(config.public.apiBase || "/api").replace(/\/$/, "");
   let redirectInProgress = false;
+  let refreshQueued = false;
+
+  const queueApiDataRefresh = () => {
+    if (!import.meta.client || refreshQueued) return;
+    refreshQueued = true;
+
+    queueMicrotask(() => {
+      refreshNuxtData()
+        .catch((error) => {
+          console.warn("[API] Failed to refresh Nuxt data after mutation:", error);
+        })
+        .finally(() => {
+          refreshQueued = false;
+        });
+    });
+  };
 
   const optimizedFetch = $fetch.create({
     retry: 2,
@@ -51,6 +69,13 @@ export default defineNuxtPlugin(() => {
             headers.set("Authorization", `Bearer ${token}`);
           }
         }
+
+        headers.set("Cache-Control", "no-store");
+        headers.set("Pragma", "no-cache");
+
+        if ((method === "GET" || method === "HEAD") && options.cache == null) {
+          options.cache = "no-store";
+        }
       }
 
       if (import.meta.server && isApiRequest) {
@@ -74,6 +99,25 @@ export default defineNuxtPlugin(() => {
       }
 
       options.headers = headers;
+    },
+    onResponse(context) {
+      const method = String(context.options.method || "GET").toUpperCase();
+      if (!["POST", "PUT", "PATCH", "DELETE"].includes(method)) return;
+
+      const requestUrl =
+        typeof context.request === "string" ? context.request : context.request.toString();
+      const isApiPath = requestUrl.startsWith("/api/");
+      const isAbsoluteApiRequest =
+        normalizedApiBase.startsWith("http") &&
+        (requestUrl === normalizedApiBase || requestUrl.startsWith(`${normalizedApiBase}/`));
+      const isAuthRequest =
+        requestUrl.includes("/api/auth/login") ||
+        requestUrl.includes("/api/auth/logout") ||
+        requestUrl.includes("/api/auth/get-session");
+
+      if ((isApiPath || isAbsoluteApiRequest) && !isAuthRequest && context.response.ok) {
+        queueApiDataRefresh();
+      }
     },
     async onResponseError(context) {
       if (import.meta.client && context.response.status === 401 && !redirectInProgress) {

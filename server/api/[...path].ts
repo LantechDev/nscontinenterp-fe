@@ -65,14 +65,24 @@ export default defineEventHandler(async (event): Promise<unknown> => {
       headers,
       body,
       redirect: "manual",
+      cache: "no-store",
     });
 
     event.node.res.statusCode = response.status;
     event.node.res.statusMessage = response.statusText;
+    event.node.res.setHeader("Cache-Control", "no-store");
+    event.node.res.setHeader("Pragma", "no-cache");
+    event.node.res.setHeader("Expires", "0");
 
     for (const [key, value] of response.headers.entries()) {
       const normalizedKey = key.toLowerCase();
-      if (normalizedKey === "set-cookie" || HOP_BY_HOP_HEADERS.has(normalizedKey)) {
+      if (
+        normalizedKey === "set-cookie" ||
+        normalizedKey === "cache-control" ||
+        normalizedKey === "pragma" ||
+        normalizedKey === "expires" ||
+        HOP_BY_HOP_HEADERS.has(normalizedKey)
+      ) {
         continue;
       }
 

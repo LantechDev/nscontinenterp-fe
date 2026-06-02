@@ -537,6 +537,12 @@ export function useJobs() {
         method: "PATCH",
         body: payload,
       });
+      if (currentJob.value?.billsOfLading) {
+        const blIndex = currentJob.value.billsOfLading.findIndex((bl) => bl.id === id);
+        if (blIndex !== -1) {
+          currentJob.value.billsOfLading[blIndex] = data;
+        }
+      }
       return { success: true, data };
     } catch (error) {
       return handleApiError<BillOfLading>(error);
