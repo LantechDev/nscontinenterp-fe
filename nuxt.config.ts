@@ -4,10 +4,12 @@ const rawUseApiProxy = process.env.NUXT_PUBLIC_USE_API_PROXY;
 const useApiProxy = rawUseApiProxy ? rawUseApiProxy !== "false" : true;
 const configuredApiBase = process.env.NUXT_PUBLIC_API_BASE;
 
-// If explicitly configured, prefer it as-is (supports "/api" or "https://host/api")
-const apiBase = (
-  configuredApiBase || (useApiProxy ? "/api" : `${normalizedApiTarget}/api`)
-).replace(/\/$/, "");
+// Keep browser requests same-origin when the Nuxt API proxy is enabled.
+// The upstream host for the proxy is configured separately by apiTarget.
+const apiBase = (useApiProxy ? "/api" : configuredApiBase || `${normalizedApiTarget}/api`).replace(
+  /\/$/,
+  "",
+);
 
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
