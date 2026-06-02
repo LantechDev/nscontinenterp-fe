@@ -4,6 +4,7 @@ import { toast } from "vue-sonner";
 import SearchSelect from "~/components/ui/SearchSelect.vue";
 import { useCompanies, type MappedCompany } from "~/composables/useCompanies";
 import { useMasterData } from "~/composables/useMasterData";
+import type { Company } from "~/composables/useMasterData";
 import { cn } from "~/lib/utils";
 import CompanyCreateModal from "./components/CompanyCreateModal.vue";
 import CompanyDetailModal from "./components/CompanyDetailModal.vue";
@@ -203,6 +204,29 @@ const fetchWithFilters = async (page = 1) => {
     page,
     limit: pageSize.value,
   });
+};
+
+const patchRenderedCompany = async (company: Company) => {
+  const exists = companiesList.value.some((item) => item.id === company.id);
+  companiesList.value = exists
+    ? companiesList.value.map((item) => (item.id === company.id ? { ...item, ...company } : item))
+    : [company, ...companiesList.value];
+
+  if (selectedCompanyDetail.value?.id === company.id) {
+    selectedCompanyDetail.value = { ...selectedCompanyDetail.value, ...company };
+  }
+  if (selectedCompanyForm.value?.id === company.id) {
+    selectedCompanyForm.value = { ...selectedCompanyForm.value, ...company };
+  }
+
+  if (import.meta.client && localStorage.getItem("debug_api_refresh") === "true") {
+    console.debug("[Company UI state]", {
+      source: "companies useState",
+      item: companiesList.value.find((item) => item.id === company.id),
+    });
+  }
+
+  await fetchWithFilters(currentPage.value);
 };
 
 const handlePageChange = async (page: number) => {
@@ -405,7 +429,7 @@ watch([selectedType, selectedStatus, selectedCategory], () => {
       v-model="isFormOpen"
       :mode="formMode"
       :company="selectedCompanyForm"
-      @refresh="fetchWithFilters(currentPage)"
+      @success="patchRenderedCompany"
     />
     <CompanyDetailModal v-model="isDetailOpen" :company="selectedCompanyDetail" />
   </div>

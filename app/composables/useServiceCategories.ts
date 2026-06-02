@@ -26,9 +26,27 @@ function getErrorMessage(error: unknown): string {
   return "An error occurred";
 }
 
+type LocalMutationMethod = "POST" | "PUT" | "PATCH" | "DELETE";
+
+const localMutationOptions = <TBody>(method: LocalMutationMethod, body?: TBody) =>
+  body === undefined
+    ? { method, skipNuxtDataRefresh: true }
+    : { method, body, skipNuxtDataRefresh: true };
+
 export function useServiceCategories() {
   const categories = useState<ServiceCategory[]>("service-categories", () => []);
   const isLoading = ref(false);
+
+  const debugCategoriesState = (action: string, id?: string) => {
+    if (!import.meta.client || localStorage.getItem("debug_api_refresh") !== "true") return;
+
+    console.debug("[Service Category UI state]", {
+      source: 'useState("service-categories")',
+      action,
+      item: id ? categories.value.find((category) => category.id === id) : null,
+      total: categories.value.length,
+    });
+  };
 
   const stats: ComputedRef<ServiceCategoryStats> = computed(() => {
     const list = categories.value || [];
@@ -60,10 +78,10 @@ export function useServiceCategories() {
     isLoading.value = true;
     try {
       const data = await $fetch<ServiceCategory>("/api/master/service-categories", {
-        method: "POST",
-        body: payload,
+        ...localMutationOptions("POST", payload),
       });
       categories.value = [...categories.value, data];
+      debugCategoriesState("create", data.id);
       return { success: true, data };
     } catch (error) {
       return { success: false, error: getErrorMessage(error) };
@@ -79,10 +97,10 @@ export function useServiceCategories() {
     isLoading.value = true;
     try {
       const data = await $fetch<ServiceCategory>(`/api/master/service-categories/${id}`, {
-        method: "PUT",
-        body: payload,
+        ...localMutationOptions("PUT", payload),
       });
       categories.value = categories.value.map((c) => (c.id === id ? { ...c, ...data } : c));
+      debugCategoriesState("update", id);
       return { success: true, data };
     } catch (error) {
       return { success: false, error: getErrorMessage(error) };
@@ -95,9 +113,10 @@ export function useServiceCategories() {
     isLoading.value = true;
     try {
       await $fetch(`/api/master/service-categories/${id}`, {
-        method: "DELETE",
+        ...localMutationOptions("DELETE"),
       });
       categories.value = categories.value.filter((c) => c.id !== id);
+      debugCategoriesState("delete", id);
       return { success: true };
     } catch (error) {
       return { success: false, error: getErrorMessage(error) };

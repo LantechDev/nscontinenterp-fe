@@ -127,7 +127,6 @@ const handleCreateService = async (formData: {
 
   if (result.success) {
     isCreateOpen.value = false;
-    await fetchServices();
   } else {
     formError.value = result.error || "Failed to create service";
   }

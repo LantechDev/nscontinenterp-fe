@@ -1,4 +1,4 @@
-import { clearNuxtData, refreshNuxtData } from "#app";
+import { refreshNuxtData } from "#app";
 
 async function handleUnauthorized() {
   if (import.meta.client) {
@@ -18,6 +18,16 @@ function getClientToken(): string | null {
   return null;
 }
 
+function shouldDebugRefresh() {
+  return import.meta.client && localStorage.getItem("debug_api_refresh") === "true";
+}
+
+type ApiFetchOptions = {
+  method?: string;
+  headers?: HeadersInit;
+  skipNuxtDataRefresh?: boolean;
+};
+
 export default defineNuxtPlugin(() => {
   const config = useRuntimeConfig();
   const normalizedApiBase = String(config.public.apiBase || "/api").replace(/\/$/, "");
@@ -29,7 +39,6 @@ export default defineNuxtPlugin(() => {
     refreshQueued = true;
 
     queueMicrotask(() => {
-      clearNuxtData();
       refreshNuxtData()
         .catch((error) => {
           console.warn("[API] Failed to refresh Nuxt data after mutation:", error);
@@ -38,6 +47,45 @@ export default defineNuxtPlugin(() => {
           refreshQueued = false;
         });
     });
+  };
+
+  const debugMutationFreshness = async (context: {
+    request: RequestInfo | URL;
+    options: ApiFetchOptions;
+    response: Response & { _data?: unknown };
+  }) => {
+    if (!shouldDebugRefresh()) return;
+
+    const method = String(context.options.method || "GET").toUpperCase();
+    if (!["POST", "PUT", "PATCH", "DELETE"].includes(method)) return;
+
+    const requestUrl =
+      typeof context.request === "string" ? context.request : context.request.toString();
+    const url = new URL(requestUrl, window.location.origin);
+    url.searchParams.set("_", Date.now().toString());
+
+    const headers = new Headers(context.options.headers);
+    headers.delete("content-type");
+
+    try {
+      const freshResponse = await fetch(url.toString(), {
+        method: "GET",
+        headers,
+        credentials: "include",
+        cache: "no-store",
+      });
+      const contentType = freshResponse.headers.get("content-type") || "";
+      const freshData = contentType.includes("application/json")
+        ? await freshResponse.json()
+        : await freshResponse.text();
+
+      console.debug("[API freshness]", {
+        mutation: { method, url: requestUrl, response: context.response._data },
+        forcedGet: { status: freshResponse.status, url: url.toString(), response: freshData },
+      });
+    } catch (error) {
+      console.debug("[API freshness] forced GET failed", { method, url: requestUrl, error });
+    }
   };
 
   const optimizedFetch = $fetch.create({
@@ -116,6 +164,7 @@ export default defineNuxtPlugin(() => {
     onResponse(context) {
       const method = String(context.options.method || "GET").toUpperCase();
       if (!["POST", "PUT", "PATCH", "DELETE"].includes(method)) return;
+      if ((context.options as ApiFetchOptions).skipNuxtDataRefresh) return;
 
       const requestUrl =
         typeof context.request === "string" ? context.request : context.request.toString();
@@ -129,6 +178,7 @@ export default defineNuxtPlugin(() => {
         requestUrl.includes("/api/auth/get-session");
 
       if ((isApiPath || isAbsoluteApiRequest) && !isAuthRequest && context.response.ok) {
+        void debugMutationFreshness(context);
         queueApiDataRefresh();
       }
     },

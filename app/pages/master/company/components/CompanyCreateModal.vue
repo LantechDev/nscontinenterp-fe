@@ -292,8 +292,8 @@ const handleSubmitCompany = async () => {
     : await createCompany(payload);
   if (result.success) {
     isOpen.value = false;
-    emit("refresh");
     if (result.data) emit("success", result.data);
+    emit("refresh");
   } else {
     formError.value = result.error || "Failed to save company";
   }

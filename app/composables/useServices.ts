@@ -48,12 +48,30 @@ function getErrorMessage(error: unknown): string {
   return "An error occurred";
 }
 
+type LocalMutationMethod = "POST" | "PUT" | "PATCH" | "DELETE";
+
+const localMutationOptions = <TBody>(method: LocalMutationMethod, body?: TBody) =>
+  body === undefined
+    ? { method, skipNuxtDataRefresh: true }
+    : { method, body, skipNuxtDataRefresh: true };
+
 export function useServices() {
   const isLoading = ref(false);
   const services = useState<Service[]>("services-list", () => []);
   const currentService = useState<Service | null>("services-current", () => null);
   const categories = useState<ServiceCategory[]>("service-categories-list", () => []);
   const units = useState<ServiceUnit[]>("service-units-list", () => []);
+
+  const debugServicesState = (action: string, id?: string) => {
+    if (!import.meta.client || localStorage.getItem("debug_api_refresh") !== "true") return;
+
+    console.debug("[Service UI state]", {
+      source: 'useState("services-list")',
+      action,
+      item: id ? services.value.find((service) => service.id === id) : null,
+      total: services.value.length,
+    });
+  };
 
   async function fetchServices(
     search?: string,
@@ -110,10 +128,10 @@ export function useServices() {
     isLoading.value = true;
     try {
       const data = await $fetch<Service>("/api/master/services", {
-        method: "POST",
-        body: payload,
+        ...localMutationOptions("POST", payload),
       });
       services.value = [...services.value, data];
+      debugServicesState("create", data.id);
       return { success: true, data };
     } catch (error) {
       return { success: false, error: getErrorMessage(error) };
@@ -126,13 +144,13 @@ export function useServices() {
     isLoading.value = true;
     try {
       const data = await $fetch<Service>(`/api/master/services/${id}`, {
-        method: "PUT",
-        body: payload,
+        ...localMutationOptions("PUT", payload),
       });
       if (currentService.value?.id === id) {
         currentService.value = data;
       }
       services.value = services.value.map((s) => (s.id === id ? { ...s, ...data } : s));
+      debugServicesState("update", id);
       return { success: true, data };
     } catch (error) {
       return { success: false, error: getErrorMessage(error) };
@@ -145,12 +163,13 @@ export function useServices() {
     isLoading.value = true;
     try {
       await $fetch(`/api/master/services/${id}`, {
-        method: "DELETE",
+        ...localMutationOptions("DELETE"),
       });
       services.value = services.value.filter((s) => s.id !== id);
       if (currentService.value?.id === id) {
         currentService.value = null;
       }
+      debugServicesState("delete", id);
       return { success: true };
     } catch (error) {
       return { success: false, error: getErrorMessage(error) };

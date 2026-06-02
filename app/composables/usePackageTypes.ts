@@ -24,9 +24,27 @@ function getErrorMessage(error: unknown): string {
   return "An error occurred";
 }
 
+type LocalMutationMethod = "POST" | "PUT" | "PATCH" | "DELETE";
+
+const localMutationOptions = <TBody>(method: LocalMutationMethod, body?: TBody) =>
+  body === undefined
+    ? { method, skipNuxtDataRefresh: true }
+    : { method, body, skipNuxtDataRefresh: true };
+
 export function usePackageTypes() {
   const packageTypes = useState<PackageType[]>("package-types", () => []);
   const isLoading = ref(false);
+
+  const debugPackageTypesState = (action: string, id?: string) => {
+    if (!import.meta.client || localStorage.getItem("debug_api_refresh") !== "true") return;
+
+    console.debug("[Package Type UI state]", {
+      source: 'useState("package-types")',
+      action,
+      item: id ? packageTypes.value.find((item) => item.id === id) : null,
+      total: packageTypes.value.length,
+    });
+  };
 
   const stats = computed(() => ({
     total: packageTypes.value.length,
@@ -55,10 +73,10 @@ export function usePackageTypes() {
     isLoading.value = true;
     try {
       const data = await $fetch<PackageType>("/api/master/package-types", {
-        method: "POST",
-        body: payload,
+        ...localMutationOptions("POST", payload),
       });
       packageTypes.value = [...packageTypes.value, data];
+      debugPackageTypesState("create", data.id);
       return { success: true, data };
     } catch (error) {
       return { success: false, error: getErrorMessage(error) };
@@ -74,12 +92,12 @@ export function usePackageTypes() {
     isLoading.value = true;
     try {
       const data = await $fetch<PackageType>(`/api/master/package-types/${id}`, {
-        method: "PUT",
-        body: payload,
+        ...localMutationOptions("PUT", payload),
       });
       packageTypes.value = packageTypes.value.map((item) =>
         item.id === id ? { ...item, ...data } : item,
       );
+      debugPackageTypesState("update", id);
       return { success: true, data };
     } catch (error) {
       return { success: false, error: getErrorMessage(error) };
@@ -92,9 +110,10 @@ export function usePackageTypes() {
     isLoading.value = true;
     try {
       await $fetch(`/api/master/package-types/${id}`, {
-        method: "DELETE",
+        ...localMutationOptions("DELETE"),
       });
       packageTypes.value = packageTypes.value.filter((item) => item.id !== id);
+      debugPackageTypesState("delete", id);
       return { success: true };
     } catch (error) {
       return { success: false, error: getErrorMessage(error) };

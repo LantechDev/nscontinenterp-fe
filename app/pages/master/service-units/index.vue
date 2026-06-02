@@ -111,7 +111,6 @@ const handleSubmit = async (formData: { name: string }) => {
   if (result.success) {
     isModalOpen.value = false;
     editingUnit.value = null;
-    await fetchUnits();
   } else {
     formError.value = result.error || "Failed to save unit";
   }
@@ -138,7 +137,6 @@ const handleDelete = async () => {
   if (result.success) {
     isDeleteModalOpen.value = false;
     unitToDelete.value = null;
-    await fetchUnits();
   } else {
     formError.value = result.error || "Failed to delete unit";
   }

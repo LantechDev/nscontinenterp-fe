@@ -123,7 +123,6 @@ const handleSubmit = async () => {
       });
 
   if (result.success) {
-    await fetchPackageTypes();
     closeModal();
   } else {
     formError.value = result.error || "Failed to save package unit";
@@ -147,7 +146,6 @@ const handleDelete = async () => {
   const result = await deletePackageType(packageTypeToDelete.value.id);
 
   if (result.success) {
-    await fetchPackageTypes();
     isDeleteModalOpen.value = false;
     packageTypeToDelete.value = null;
   } else {
