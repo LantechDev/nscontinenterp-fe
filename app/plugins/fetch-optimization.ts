@@ -1,4 +1,4 @@
-import { refreshNuxtData } from "#app";
+import { clearNuxtData, refreshNuxtData } from "#app";
 
 async function handleUnauthorized() {
   if (import.meta.client) {
@@ -29,6 +29,7 @@ export default defineNuxtPlugin(() => {
     refreshQueued = true;
 
     queueMicrotask(() => {
+      clearNuxtData();
       refreshNuxtData()
         .catch((error) => {
           console.warn("[API] Failed to refresh Nuxt data after mutation:", error);
@@ -58,6 +59,21 @@ export default defineNuxtPlugin(() => {
         if (!config.public.useApiProxy && isApiPath) {
           context.request = `${normalizedApiBase}${requestUrl.slice(4)}`;
         }
+
+        if (method === "GET" || method === "HEAD") {
+          const currentRequest =
+            typeof context.request === "string" ? context.request : context.request.toString();
+          const isAbsoluteRequest = currentRequest.startsWith("http");
+          const url = new URL(
+            currentRequest,
+            import.meta.client ? window.location.origin : "http://localhost",
+          );
+          url.searchParams.set("_", Date.now().toString());
+          context.request = isAbsoluteRequest
+            ? url.toString()
+            : `${url.pathname}${url.search}${url.hash}`;
+        }
+
         if (options.credentials == null) {
           options.credentials = "include";
         }
@@ -68,11 +84,6 @@ export default defineNuxtPlugin(() => {
           if (token && !headers.has("authorization") && !headers.has("Authorization")) {
             headers.set("Authorization", `Bearer ${token}`);
           }
-        }
-
-        if (method === "GET" || method === "HEAD") {
-          headers.set("Cache-Control", "no-store");
-          headers.set("Pragma", "no-cache");
         }
 
         if ((method === "GET" || method === "HEAD") && options.cache == null) {
