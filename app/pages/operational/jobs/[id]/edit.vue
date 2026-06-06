@@ -84,6 +84,32 @@ const { user } = useAuth();
 
 const companies = ref<Company[]>([]);
 const containerTypes = ref<ContainerType[]>([]);
+const truckTypes = computed(() => {
+  const list = containerTypes.value;
+  const targetCodes = ["CDE", "CDD", "CDD_LONG", "WING_BOX", "20FT", "40FT", "40HC"];
+  const customNames: Record<string, string> = {
+    CDE: "CDE",
+    CDD: "CDD",
+    CDD_LONG: "CDD Long",
+    WING_BOX: "Wing Box",
+    "20FT": "20 FT",
+    "40FT": "40 FT",
+    "40HC": "40 HC",
+  };
+  return targetCodes.map((code) => {
+    const found = list.find((c) => c.code === code);
+    if (found) {
+      return {
+        id: found.id,
+        name: customNames[code] || found.name,
+      };
+    }
+    return {
+      id: code,
+      name: customNames[code] || code,
+    };
+  });
+});
 const packageTypes = ref<PackageType[]>([]);
 const cargoMovementOptions = ref<MovementType[]>([]);
 const deliveryMovementOptions = ref<MovementType[]>([]);
@@ -165,6 +191,9 @@ const formData = reactive({
       containerNumber: "",
       sealNumber: "",
       containerTypeId: "",
+      vehicleNumber: "",
+      driverName: "",
+      driverContactNumber: "",
       items: [
         {
           id: Date.now() + 1,
@@ -185,6 +214,9 @@ const formData = reactive({
     containerNumber: string;
     sealNumber: string;
     containerTypeId: string;
+    vehicleNumber: string;
+    driverName: string;
+    driverContactNumber: string;
     isHazardous: boolean;
     items: Array<{
       id: number;
@@ -479,6 +511,9 @@ function populateFormData(job: JobWithBls) {
       containerNumber: c.containerNumber || "",
       sealNumber: c.sealNumber || "",
       containerTypeId: c.containerTypeId || "",
+      vehicleNumber: c.vehicleNumber || "",
+      driverName: c.driverName || "",
+      driverContactNumber: c.driverContactNumber || "",
       isHazardous: c.isHazardous || false,
       items:
         c.items && c.items.length > 0
@@ -513,6 +548,9 @@ function populateFormData(job: JobWithBls) {
       containerNumber: bl.containerNumber || "",
       sealNumber: bl.sealNumber || "",
       containerTypeId: "",
+      vehicleNumber: "",
+      driverName: "",
+      driverContactNumber: "",
       isHazardous: false,
       items:
         bl.items && bl.items.length > 0
@@ -954,13 +992,12 @@ const SECTIONS = computed(() => {
   const baseSections = [
     { id: "job-info", label: "Job Information", step: 1 },
     { id: "parties", label: "Involved Parties", step: 2 },
-    { id: "route", label: "Route Details", step: 3 },
-    { id: "cargo", label: "Cargo Information", step: 4 },
-    { id: "movement", label: "Movement & Schedule", step: 5 },
+    { id: "cargo", label: "Cargo Information", step: 3 },
+    { id: "movement", label: "Route & Schedule", step: 4 },
   ];
 
   if (formData.serviceType === "OCEAN") {
-    baseSections.push({ id: "bl", label: "BL Setup", step: 6 });
+    baseSections.push({ id: "bl", label: "BL Setup", step: 5 });
   }
 
   return baseSections;
@@ -1089,7 +1126,31 @@ async function handleSubmit() {
       vesselId: formData.vessels[0]?.vesselId || formData.vesselId || null,
       voyageNumber: formData.vessels[0]?.voyageNumber || formData.voyageNumber || null,
       etd: formData.vessels[0]?.etd || formData.etd || null,
-      containers: formData.containers.filter((c) => c.containerNumber),
+      containers: formData.containers
+        .filter((c) =>
+          formData.serviceType === "TRUCKING"
+            ? c.vehicleNumber || c.containerTypeId
+            : c.containerNumber,
+        )
+        .map((c) => ({
+          containerNumber: formData.serviceType === "TRUCKING" ? null : c.containerNumber || null,
+          sealNumber: formData.serviceType === "TRUCKING" ? null : c.sealNumber || null,
+          containerTypeId: c.containerTypeId || null,
+          vehicleNumber: c.vehicleNumber || null,
+          driverName: c.driverName || null,
+          driverContactNumber: c.driverContactNumber || null,
+          isHazardous: c.isHazardous,
+          items: c.items.map((item) => ({
+            sequenceNo: item.sequenceNo,
+            qty: item.qty,
+            packageTypeCode: item.packageTypeCode || null,
+            grossWeight: item.grossWeight,
+            netWeight: item.netWeight,
+            measurementCbm: item.measurementCbm,
+            description: item.description || null,
+            hsCode: item.hsCode || null,
+          })),
+        })),
       vessels: formData.vessels.map((v) => ({
         vesselId: v.vesselId || null,
         vesselName: v.vesselName || null,
@@ -1605,7 +1666,13 @@ function addVessel() {
                 <div
                   class="bg-muted/10 px-4 py-3 border-b flex justify-between items-center rounded-t-xl"
                 >
-                  <h3 class="font-medium text-[14px]">Containers & Seals</h3>
+                  <h3 class="font-medium text-[14px]">
+                    {{
+                      formData.serviceType === "TRUCKING"
+                        ? "Truck Information"
+                        : "Containers & Seals"
+                    }}
+                  </h3>
                   <button
                     type="button"
                     @click="
@@ -1614,6 +1681,9 @@ function addVessel() {
                         containerNumber: '',
                         sealNumber: '',
                         containerTypeId: '',
+                        vehicleNumber: '',
+                        driverName: '',
+                        driverContactNumber: '',
                         isHazardous: false,
                         items: [
                           {
@@ -1632,7 +1702,8 @@ function addVessel() {
                     "
                     class="btn-outline h-8 px-3 text-xs gap-1.5 flex items-center"
                   >
-                    <Plus class="w-3.5 h-3.5" /> Add Container
+                    <Plus class="w-3.5 h-3.5" />
+                    {{ formData.serviceType === "TRUCKING" ? "Add Truck" : "Add Container" }}
                   </button>
                 </div>
                 <div class="p-4 space-y-4 bg-muted/5 rounded-b-xl">
@@ -1641,7 +1712,75 @@ function addVessel() {
                     :key="container.id"
                     class="space-y-4 pb-4 border-b border-border/50 last:border-0 last:pb-0"
                   >
-                    <div class="grid grid-cols-1 md:grid-cols-12 gap-4 items-end relative">
+                    <!-- Trucking Specific UI -->
+                    <div
+                      v-if="formData.serviceType === 'TRUCKING'"
+                      class="grid grid-cols-1 md:grid-cols-12 gap-4 items-end relative"
+                    >
+                      <div class="col-span-3 space-y-1.5 pt-px">
+                        <label
+                          class="text-[10px] font-bold text-muted-foreground uppercase opacity-70"
+                          >Truck Type</label
+                        >
+                        <Combobox
+                          v-model="container.containerTypeId"
+                          :options="truckTypes"
+                          placeholder="Select..."
+                        />
+                      </div>
+                      <div class="md:col-span-3 space-y-2">
+                        <label
+                          class="text-[10px] font-bold text-muted-foreground uppercase opacity-70"
+                          >Vehicle Number (Nomor Polisi)</label
+                        >
+                        <input
+                          v-model="container.vehicleNumber"
+                          type="text"
+                          placeholder="B 9123 XYZ"
+                          class="input-field uppercase"
+                          v-uppercase
+                        />
+                      </div>
+                      <div class="md:col-span-3 space-y-2">
+                        <label
+                          class="text-[10px] font-bold text-muted-foreground uppercase opacity-70"
+                          >Driver Name</label
+                        >
+                        <input
+                          v-model="container.driverName"
+                          type="text"
+                          placeholder="Budi Santoso"
+                          class="input-field uppercase"
+                          v-uppercase
+                        />
+                      </div>
+                      <div class="md:col-span-2 space-y-2">
+                        <label
+                          class="text-[10px] font-bold text-muted-foreground uppercase opacity-70"
+                          >Driver Contact Number</label
+                        >
+                        <input
+                          v-model="container.driverContactNumber"
+                          type="text"
+                          placeholder="0812xxxxxxx"
+                          class="input-field uppercase"
+                          v-uppercase
+                        />
+                      </div>
+                      <div class="md:col-span-1 flex justify-end pb-1.5">
+                        <button
+                          type="button"
+                          @click="formData.containers.splice(index, 1)"
+                          :disabled="formData.containers.length === 1"
+                          class="p-2 text-muted-foreground hover:text-destructive transition-colors disabled:opacity-50"
+                        >
+                          <Trash2 class="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+
+                    <!-- Sea/Standard Freight Specific UI -->
+                    <div v-else class="grid grid-cols-1 md:grid-cols-12 gap-4 items-end relative">
                       <div class="col-span-3 space-y-1.5 pt-px">
                         <label
                           class="text-[10px] font-bold text-muted-foreground uppercase opacity-70"
@@ -1655,7 +1794,7 @@ function addVessel() {
                       </div>
                       <div class="md:col-span-4 space-y-2">
                         <label
-                          class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
+                          class="text-[10px] font-bold text-muted-foreground uppercase opacity-70"
                           >CONTAINER NO.</label
                         >
                         <input
@@ -1678,7 +1817,7 @@ function addVessel() {
                       </div>
                       <div class="md:col-span-4 space-y-2">
                         <label
-                          class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
+                          class="text-[10px] font-bold text-muted-foreground uppercase opacity-70"
                           >SEAL NO.</label
                         >
                         <input
@@ -1711,7 +1850,7 @@ function addVessel() {
                     <div class="ml-4 pl-4 border-l-2 border-border/50 space-y-3">
                       <div class="flex items-center justify-between">
                         <h4
-                          class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
+                          class="text-[10px] font-bold text-muted-foreground uppercase opacity-70"
                         >
                           Container Breakdown Items
                         </h4>

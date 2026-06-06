@@ -130,6 +130,9 @@ export interface Job {
     sealNumber?: string | null;
     containerTypeId?: string | null;
     containerType?: { name: string; code: string } | null;
+    vehicleNumber?: string | null;
+    driverName?: string | null;
+    driverContactNumber?: string | null;
     items?: {
       id: string;
       sequenceNo: number;
@@ -296,13 +299,18 @@ export interface CreateJob {
   dateOfIssue?: string;
 
   containers?: {
-    containerNumber?: string;
-    sealNumber?: string;
-    containerTypeId?: string;
+    containerNumber?: string | null;
+    sealNumber?: string | null;
+    containerTypeId?: string | null;
+    vehicleNumber?: string | null;
+    driverName?: string | null;
+    driverContactNumber?: string | null;
+    isHazardous?: boolean;
     items?: {
+      id?: string | number;
       sequenceNo: number;
       qty: number;
-      packageTypeCode: string;
+      packageTypeCode?: string | null;
       grossWeight?: number | null;
       netWeight?: number | null;
       measurementCbm?: number | null;
@@ -370,18 +378,22 @@ export interface UpdateBlDraft {
   deliveryMovementId?: string;
 
   containers?: {
-    containerNumber?: string;
-    sealNumber?: string;
-    containerTypeId?: string;
+    containerNumber?: string | null;
+    sealNumber?: string | null;
+    containerTypeId?: string | null;
+    vehicleNumber?: string | null;
+    driverName?: string | null;
+    driverContactNumber?: string | null;
+    isHazardous?: boolean;
     items?: {
       sequenceNo: number;
       qty: number;
-      packageTypeCode: string;
-      grossWeight?: number;
-      netWeight?: number;
-      measurementCbm?: number;
-      description?: string;
-      hsCode?: string;
+      packageTypeCode?: string | null;
+      grossWeight?: number | null;
+      netWeight?: number | null;
+      measurementCbm?: number | null;
+      description?: string | null;
+      hsCode?: string | null;
     }[];
   }[];
 }

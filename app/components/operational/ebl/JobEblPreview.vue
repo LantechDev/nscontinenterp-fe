@@ -43,6 +43,11 @@ const isAir = computed(
     props.activeBl?.job?.serviceType === "AIR",
 );
 
+const isTrucking = computed(
+  () =>
+    props.jobData?.serviceType === "TRUCKING" || props.activeBl?.job?.serviceType === "TRUCKING",
+);
+
 const containers = computed(() => {
   if (
     props.activeBl?.renderContainers &&
@@ -549,7 +554,9 @@ const generatePDF = async () => {
       pdf.addImage(imgData, "JPEG", 0, 0, 210, 297, undefined, "FAST");
     }
 
-    pdf.save(`${isAir.value ? "AWB" : "BL"}_${props.jobData.jobNumber || "DRAFT"}.pdf`);
+    pdf.save(
+      `${isAir.value ? "AWB" : isTrucking.value ? "WYB" : "BL"}_${props.jobData.jobNumber || "DRAFT"}.pdf`,
+    );
     return true;
   } catch (error) {
     console.error(error);
@@ -591,6 +598,7 @@ defineExpose({
             :activeBl="activeBl"
             :logoUrl="logoUrl"
             :isAir="isAir"
+            :isTrucking="isTrucking"
             :watermarkColor="watermarkColor"
             :paginatedPagesLength="paginatedPages.length"
           />
@@ -599,6 +607,7 @@ defineExpose({
           <JobEblBackPage
             v-else-if="page.type === 'back'"
             :isAir="isAir"
+            :isTrucking="isTrucking"
             :activeConditions="activeConditions"
           />
         </template>

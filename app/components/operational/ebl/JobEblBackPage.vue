@@ -1,6 +1,7 @@
 <script setup lang="ts">
 defineProps<{
   isAir: boolean;
+  isTrucking?: boolean;
   activeConditions: Array<{
     id: string | number;
     clauseNumber: string;
@@ -23,7 +24,13 @@ defineProps<{
   >
     <div class="mb-2 text-center border-b border-[#062c58] pb-1">
       <h2 class="text-[15px] font-bold uppercase tracking-widest">
-        {{ isAir ? "Air Waybill" : "Combined Transport Bill of Lading" }}
+        {{
+          isAir
+            ? "Air Waybill"
+            : isTrucking
+              ? "Trucking Waybill"
+              : "Combined Transport Bill of Lading"
+        }}
       </h2>
       <h3 class="text-xs font-semibold uppercase">Conditions of Contract</h3>
     </div>
@@ -46,7 +53,7 @@ defineProps<{
 
     <div class="mt-1 pt-1 border-t border-gray-200 text-[6px] text-center italic opacity-50">
       * These terms and conditions are continued from the face of the
-      {{ isAir ? "Air Waybill" : "Bill of Lading" }} *
+      {{ isAir ? "Air Waybill" : isTrucking ? "Trucking Waybill" : "Bill of Lading" }} *
     </div>
   </div>
 </template>

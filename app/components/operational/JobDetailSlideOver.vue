@@ -20,6 +20,7 @@ import {
   Plus,
   Trash2,
   Check,
+  Truck,
   Plane as PlaneIcon,
 } from "lucide-vue-next";
 import JobFinanceTab from "./JobFinanceTab.vue";
@@ -1243,9 +1244,11 @@ watch(
                     </div>
                   </section>
 
-                  <!-- Container -->
+                  <!-- Container / Truck -->
                   <section>
-                    <h3 class="text-base font-bold">Container</h3>
+                    <h3 class="text-base font-bold">
+                      {{ isTrucking ? "Truck Information" : "Container" }}
+                    </h3>
                     <div class="space-y-4 mt-4">
                       <div
                         v-for="container in job.jobContainers"
@@ -1257,22 +1260,68 @@ watch(
                             <div
                               class="w-12 h-12 rounded-lg bg-gray-50 flex items-center justify-center shrink-0 border border-gray-100"
                             >
-                              <Box class="w-6 h-6 text-gray-700" />
+                              <Truck v-if="isTrucking" class="w-6 h-6 text-gray-700" />
+                              <Box v-else class="w-6 h-6 text-gray-700" />
                             </div>
                             <div>
                               <h3 class="font-bold text-base text-foreground">
-                                {{ container.containerNumber || "MSKU9081234" }}
+                                {{
+                                  isTrucking
+                                    ? container.vehicleNumber || "No vehicle assigned"
+                                    : container.containerNumber || "-"
+                                }}
                               </h3>
                               <p class="text-xs text-muted-foreground mt-0.5">
-                                Seal: {{ container.sealNumber || "ML-882211" }}
+                                <template v-if="isTrucking">
+                                  Driver: {{ container.driverName || "-" }}
+                                  <span v-if="container.driverContactNumber">
+                                    / {{ container.driverContactNumber }}</span
+                                  >
+                                </template>
+                                <template v-else>
+                                  Seal: {{ container.sealNumber || "-" }}
+                                </template>
                               </p>
                             </div>
                           </div>
                           <span
                             class="px-2.5 py-1 bg-gray-100/80 text-gray-700 rounded text-xs font-semibold tracking-wide border border-gray-200"
                           >
-                            {{ container.containerType?.name || container.containerTypeId || "" }}
+                            {{
+                              container.containerType?.name ||
+                              container.containerTypeId ||
+                              (isTrucking ? job.truckType : "")
+                            }}
                           </span>
+                        </div>
+
+                        <div
+                          v-if="isTrucking"
+                          class="grid grid-cols-3 gap-3 mb-6 text-xs border border-border rounded-lg bg-gray-50/50 p-3"
+                        >
+                          <div>
+                            <p class="text-muted-foreground font-medium mb-1">Truck Type</p>
+                            <p class="font-bold text-foreground uppercase">
+                              {{
+                                container.containerType?.name ||
+                                container.containerTypeId ||
+                                job.truckType ||
+                                "-"
+                              }}
+                            </p>
+                          </div>
+                          <div>
+                            <p class="text-muted-foreground font-medium mb-1">Driver Contact</p>
+                            <p class="font-bold text-foreground">
+                              {{ container.driverContactNumber || "-" }}
+                            </p>
+                          </div>
+                          <div>
+                            <p class="text-muted-foreground font-medium mb-1">Dangerous Goods</p>
+                            <p class="font-bold text-foreground">
+                              {{ container.isHazardous ? "Yes" : "No" }}
+                            </p>
+                          </div>
                         </div>
 
                         <div
@@ -1442,17 +1491,27 @@ watch(
                         <div
                           class="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-3"
                         >
-                          <Box class="w-6 h-6 text-muted-foreground opacity-60" />
+                          <Truck
+                            v-if="isTrucking"
+                            class="w-6 h-6 text-muted-foreground opacity-60"
+                          />
+                          <Box v-else class="w-6 h-6 text-muted-foreground opacity-60" />
                         </div>
-                        <p class="text-sm font-medium text-foreground mb-1">No Containers Found</p>
+                        <p class="text-sm font-medium text-foreground mb-1">
+                          {{ isTrucking ? "No Trucks Found" : "No Containers Found" }}
+                        </p>
                         <p class="text-xs text-muted-foreground">
-                          This job does not have any attached containers or bills of lading.
+                          {{
+                            isTrucking
+                              ? "This job does not have any assigned trucks yet."
+                              : "This job does not have any attached containers or bills of lading."
+                          }}
                         </p>
                       </div>
                     </div>
                   </section>
 
-                  <section>
+                  <section v-if="!isTrucking">
                     <h3 class="text-base font-bold mb-4 border-b pb-2">Movement Details</h3>
                     <div class="grid grid-cols-2 gap-6 text-sm">
                       <div>
