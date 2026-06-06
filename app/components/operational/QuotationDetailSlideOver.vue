@@ -22,6 +22,10 @@ import {
   Timer,
   Download,
   Package,
+  MapPin,
+  Ship,
+  Truck,
+  Plane as PlaneIcon,
 } from "lucide-vue-next";
 import { useQuotations, type Quotation, type QuotationCharge } from "~/composables/useQuotations";
 import { useFinanceTax } from "~/composables/useFinanceTax";
@@ -69,6 +73,66 @@ const relatedInvoices = computed(() => quotation.value?.invoices || []);
 
 const getPol = computed(() => quotation.value?.polName || quotation.value?.pol || "-");
 const getPod = computed(() => quotation.value?.podName || quotation.value?.pod || "-");
+
+const tradeTypeLabel = computed(() => {
+  const tradeType = quotation.value?.tradeTypeId;
+  if (tradeType === "IMPORT") return "Import";
+  if (tradeType === "DOMESTIC") return "Domestic";
+  return "Export";
+});
+
+const serviceTypeLabel = computed(() => {
+  const serviceType = quotation.value?.serviceType;
+  if (serviceType === "TRUCKING") return "TRUCKING";
+  if (serviceType === "CUSTOM_CLEARANCE") return "CUSTOM CLEARANCE";
+  return "OCEAN (FREIGHT)";
+});
+
+const shipmentTypeLabel = computed(() => {
+  const shipmentType = quotation.value?.shipmentType;
+  if (shipmentType === "AIR") return "Air Freight";
+  if (shipmentType === "OCEAN") return "Ocean Freight";
+  return "-";
+});
+
+const isOceanService = computed(() => quotation.value?.serviceType === "OCEAN");
+const isAirFreight = computed(
+  () => quotation.value?.serviceType === "OCEAN" && quotation.value?.shipmentType === "AIR",
+);
+const isTrucking = computed(() => quotation.value?.serviceType === "TRUCKING");
+const isCustomClearance = computed(() => quotation.value?.serviceType === "CUSTOM_CLEARANCE");
+
+const originLabel = computed(() => {
+  if (isTrucking.value) return "Pickup Address";
+  if (isCustomClearance.value) return "Clearance Origin / Port";
+  return isAirFreight.value ? "Origin Airport" : "Port of Loading (POL)";
+});
+
+const destinationLabel = computed(() => {
+  if (isTrucking.value) return "Delivery Address";
+  if (isCustomClearance.value) return "Clearance Destination / Port";
+  return isAirFreight.value ? "Destination Airport" : "Port of Discharge (POD)";
+});
+
+const originValue = computed(() => {
+  if (isTrucking.value) return quotation.value?.pickupAddress || "-";
+  return getPol.value;
+});
+
+const destinationValue = computed(() => {
+  if (isTrucking.value) return quotation.value?.deliveryAddress || "-";
+  return getPod.value;
+});
+
+const containerTypeValue = computed(() => {
+  if (isCustomClearance.value) return "-";
+  return quotation.value?.containerTypeName || quotation.value?.containerTypeId || "-";
+});
+
+const truckTypeValue = computed(() => {
+  if (!isTrucking.value) return "-";
+  return quotation.value?.truckType || "-";
+});
 
 watch(
   () => props.modelValue,
@@ -335,145 +399,205 @@ const handleGeneratePDF = async () => {
                     </div>
                   </div>
 
-                  <!-- Quotation Header Info Cards Grid -->
-                  <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <!-- PIC info -->
-                    <div
-                      class="bg-white border border-border rounded-xl p-4 shadow-sm flex items-start gap-3"
-                    >
-                      <div class="p-2.5 bg-blue-50 text-[#012D5A] rounded-lg shrink-0">
-                        <Users class="w-5 h-5" />
-                      </div>
-                      <div class="space-y-0.5 min-w-0">
-                        <p
-                          class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest"
+                  <section>
+                    <h3 class="text-base font-bold">Shipments Details</h3>
+                    <div class="grid grid-cols-2 gap-x-8 gap-y-6 mt-6">
+                      <div class="flex gap-4 items-center">
+                        <div
+                          class="w-10 h-10 rounded-full bg-blue-50/80 flex items-center justify-center text-[#012D5A] shrink-0 border border-blue-100"
                         >
-                          PIC Customer
-                        </p>
-                        <p class="text-sm font-bold text-foreground truncate">
-                          {{ quotation.picName || "-" }}
-                        </p>
+                          <MapPin v-if="isTrucking" class="w-5 h-5 text-[#012D5A]/80" />
+                          <Building2 v-else class="w-5 h-5 text-[#012D5A]/80" />
+                        </div>
+                        <div class="min-w-0">
+                          <p class="text-xs text-muted-foreground mb-0.5">{{ originLabel }}</p>
+                          <p class="font-bold text-sm text-foreground truncate">
+                            {{ originValue }}
+                          </p>
+                        </div>
                       </div>
-                    </div>
 
-                    <!-- Sales representative -->
-                    <div
-                      class="bg-white border border-border rounded-xl p-4 shadow-sm flex items-start gap-3"
-                    >
-                      <div class="p-2.5 bg-blue-50 text-[#012D5A] rounded-lg shrink-0">
-                        <User class="w-5 h-5" />
-                      </div>
-                      <div class="space-y-0.5 min-w-0">
-                        <p
-                          class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest"
+                      <div class="flex gap-4 items-center">
+                        <div
+                          class="w-10 h-10 rounded-full bg-blue-50/80 flex items-center justify-center text-[#012D5A] shrink-0 border border-blue-100"
                         >
-                          Sales Representative
-                        </p>
-                        <p class="text-sm font-bold text-foreground truncate">
-                          {{ quotation.salesName || "-" }}
-                        </p>
+                          <MapPin v-if="isTrucking" class="w-5 h-5 text-[#012D5A]/80" />
+                          <Building2 v-else class="w-5 h-5 text-[#012D5A]/80" />
+                        </div>
+                        <div class="min-w-0">
+                          <p class="text-xs text-muted-foreground mb-0.5">
+                            {{ destinationLabel }}
+                          </p>
+                          <p class="font-bold text-sm text-foreground truncate">
+                            {{ destinationValue }}
+                          </p>
+                        </div>
                       </div>
-                    </div>
 
-                    <!-- Free Time -->
-                    <div
-                      class="bg-white border border-border rounded-xl p-4 shadow-sm flex items-start gap-3"
-                    >
-                      <div class="p-2.5 bg-blue-50 text-[#012D5A] rounded-lg shrink-0">
-                        <Timer class="w-5 h-5" />
-                      </div>
-                      <div class="space-y-0.5 min-w-0">
-                        <p
-                          class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest"
+                      <div class="flex gap-4 items-center">
+                        <div
+                          class="w-10 h-10 rounded-full bg-blue-50/80 flex items-center justify-center text-[#012D5A] shrink-0 border border-blue-100"
                         >
-                          Free Time
-                        </p>
-                        <p class="text-sm font-bold text-foreground truncate">
-                          {{ quotation.freeTime || "-" }}
-                        </p>
+                          <Truck v-if="isTrucking" class="w-5 h-5 text-[#012D5A]/80" />
+                          <PlaneIcon v-else-if="isAirFreight" class="w-5 h-5 text-[#012D5A]/80" />
+                          <Ship v-else class="w-5 h-5 text-[#012D5A]/80" />
+                        </div>
+                        <div class="min-w-0">
+                          <p class="text-xs text-muted-foreground mb-0.5">Service Type</p>
+                          <p class="font-bold text-sm text-foreground truncate">
+                            {{ serviceTypeLabel }}
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                  </div>
 
-                  <!-- Routing & Cargo Details -->
-                  <div
-                    v-if="
-                      quotation.pol || quotation.pod || quotation.containerTypeId || quotation.term
-                    "
-                    class="grid grid-cols-1 md:grid-cols-4 gap-4"
-                  >
-                    <!-- POL -->
-                    <div
-                      class="bg-white border border-border rounded-xl p-4 shadow-sm flex items-start gap-3"
-                    >
-                      <div class="p-2.5 bg-blue-50 text-[#012D5A] rounded-lg shrink-0">
-                        <Building2 class="w-5 h-5" />
-                      </div>
-                      <div class="space-y-0.5 min-w-0">
-                        <p
-                          class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest"
+                      <div class="flex gap-4 items-center">
+                        <div
+                          class="w-10 h-10 rounded-full bg-blue-50/80 flex items-center justify-center text-[#012D5A] shrink-0 border border-blue-100"
                         >
-                          Port of Loading (POL)
-                        </p>
-                        <p class="text-sm font-bold text-foreground truncate">{{ getPol }}</p>
+                          <Briefcase class="w-5 h-5 text-[#012D5A]/80" />
+                        </div>
+                        <div class="min-w-0">
+                          <p class="text-xs text-muted-foreground mb-0.5">Trade Type</p>
+                          <p class="font-bold text-sm text-foreground truncate">
+                            {{ tradeTypeLabel }}
+                          </p>
+                        </div>
                       </div>
-                    </div>
 
-                    <!-- POD -->
-                    <div
-                      class="bg-white border border-border rounded-xl p-4 shadow-sm flex items-start gap-3"
-                    >
-                      <div class="p-2.5 bg-blue-50 text-[#012D5A] rounded-lg shrink-0">
-                        <Building2 class="w-5 h-5" />
-                      </div>
-                      <div class="space-y-0.5 min-w-0">
-                        <p
-                          class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest"
+                      <div v-if="isOceanService" class="flex gap-4 items-center">
+                        <div
+                          class="w-10 h-10 rounded-full bg-blue-50/80 flex items-center justify-center text-[#012D5A] shrink-0 border border-blue-100"
                         >
-                          Port of Discharge (POD)
-                        </p>
-                        <p class="text-sm font-bold text-foreground truncate">{{ getPod }}</p>
+                          <Package class="w-5 h-5 text-[#012D5A]/80" />
+                        </div>
+                        <div class="min-w-0">
+                          <p class="text-xs text-muted-foreground mb-0.5">Type of Shipment</p>
+                          <p class="font-bold text-sm text-foreground truncate">
+                            {{ shipmentTypeLabel }}
+                          </p>
+                        </div>
                       </div>
-                    </div>
 
-                    <!-- Container Type -->
-                    <div
-                      class="bg-white border border-border rounded-xl p-4 shadow-sm flex items-start gap-3"
-                    >
-                      <div class="p-2.5 bg-blue-50 text-[#012D5A] rounded-lg shrink-0">
-                        <Package class="w-5 h-5" />
-                      </div>
-                      <div class="space-y-0.5 min-w-0">
-                        <p
-                          class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest"
+                      <div v-if="!isCustomClearance" class="flex gap-4 items-center">
+                        <div
+                          class="w-10 h-10 rounded-full bg-blue-50/80 flex items-center justify-center text-[#012D5A] shrink-0 border border-blue-100"
                         >
-                          Container Type
-                        </p>
-                        <p class="text-sm font-bold text-foreground truncate">
-                          {{ quotation.containerTypeName || "-" }}
-                        </p>
+                          <Package class="w-5 h-5 text-[#012D5A]/80" />
+                        </div>
+                        <div class="min-w-0">
+                          <p class="text-xs text-muted-foreground mb-0.5">Container Type</p>
+                          <p class="font-bold text-sm text-foreground truncate">
+                            {{ containerTypeValue }}
+                          </p>
+                        </div>
                       </div>
-                    </div>
 
-                    <!-- Term -->
-                    <div
-                      class="bg-white border border-border rounded-xl p-4 shadow-sm flex items-start gap-3"
-                    >
-                      <div class="p-2.5 bg-blue-50 text-[#012D5A] rounded-lg shrink-0">
-                        <FileText class="w-5 h-5" />
-                      </div>
-                      <div class="space-y-0.5 min-w-0">
-                        <p
-                          class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest"
+                      <template v-if="isTrucking">
+                        <div class="flex gap-4 items-center">
+                          <div
+                            class="w-10 h-10 rounded-full bg-blue-50/80 flex items-center justify-center text-[#012D5A] shrink-0 border border-blue-100"
+                          >
+                            <Truck class="w-5 h-5 text-[#012D5A]/80" />
+                          </div>
+                          <div class="min-w-0">
+                            <p class="text-xs text-muted-foreground mb-0.5">Truck Type</p>
+                            <p class="font-bold text-sm text-foreground truncate">
+                              {{ truckTypeValue }}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div class="flex gap-4 items-center">
+                          <div
+                            class="w-10 h-10 rounded-full bg-blue-50/80 flex items-center justify-center text-[#012D5A] shrink-0 border border-blue-100"
+                          >
+                            <Calendar class="w-5 h-5 text-[#012D5A]/80" />
+                          </div>
+                          <div class="min-w-0">
+                            <p class="text-xs text-muted-foreground mb-0.5">Pickup Date</p>
+                            <p class="font-bold text-sm text-foreground truncate">
+                              {{ formatDate(quotation.pickupDate) }}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div class="flex gap-4 items-center">
+                          <div
+                            class="w-10 h-10 rounded-full bg-blue-50/80 flex items-center justify-center text-[#012D5A] shrink-0 border border-blue-100"
+                          >
+                            <Calendar class="w-5 h-5 text-[#012D5A]/80" />
+                          </div>
+                          <div class="min-w-0">
+                            <p class="text-xs text-muted-foreground mb-0.5">Delivery Date</p>
+                            <p class="font-bold text-sm text-foreground truncate">
+                              {{ formatDate(quotation.deliveryDate) }}
+                            </p>
+                          </div>
+                        </div>
+                      </template>
+                    </div>
+                  </section>
+
+                  <section>
+                    <h3 class="text-base font-bold">Quotation Details</h3>
+                    <div class="grid grid-cols-2 gap-x-8 gap-y-6 mt-6">
+                      <div class="flex gap-4 items-center">
+                        <div
+                          class="w-10 h-10 rounded-full bg-blue-50/80 flex items-center justify-center text-[#012D5A] shrink-0 border border-blue-100"
                         >
-                          Term
-                        </p>
-                        <p class="text-sm font-bold text-foreground truncate font-mono uppercase">
-                          {{ quotation.term || "-" }}
-                        </p>
+                          <Users class="w-5 h-5 text-[#012D5A]/80" />
+                        </div>
+                        <div class="min-w-0">
+                          <p class="text-xs text-muted-foreground mb-0.5">PIC Customer</p>
+                          <p class="font-bold text-sm text-foreground truncate">
+                            {{ quotation.picName || "-" }}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div class="flex gap-4 items-center">
+                        <div
+                          class="w-10 h-10 rounded-full bg-blue-50/80 flex items-center justify-center text-[#012D5A] shrink-0 border border-blue-100"
+                        >
+                          <User class="w-5 h-5 text-[#012D5A]/80" />
+                        </div>
+                        <div class="min-w-0">
+                          <p class="text-xs text-muted-foreground mb-0.5">Sales Representative</p>
+                          <p class="font-bold text-sm text-foreground truncate">
+                            {{ quotation.salesName || "-" }}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div class="flex gap-4 items-center">
+                        <div
+                          class="w-10 h-10 rounded-full bg-blue-50/80 flex items-center justify-center text-[#012D5A] shrink-0 border border-blue-100"
+                        >
+                          <Timer class="w-5 h-5 text-[#012D5A]/80" />
+                        </div>
+                        <div class="min-w-0">
+                          <p class="text-xs text-muted-foreground mb-0.5">Free Time</p>
+                          <p class="font-bold text-sm text-foreground truncate">
+                            {{ quotation.freeTime || "-" }}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div class="flex gap-4 items-center">
+                        <div
+                          class="w-10 h-10 rounded-full bg-blue-50/80 flex items-center justify-center text-[#012D5A] shrink-0 border border-blue-100"
+                        >
+                          <FileText class="w-5 h-5 text-[#012D5A]/80" />
+                        </div>
+                        <div class="min-w-0">
+                          <p class="text-xs text-muted-foreground mb-0.5">Term</p>
+                          <p class="font-bold text-sm text-foreground truncate uppercase">
+                            {{ quotation.term || "-" }}
+                          </p>
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  </section>
 
                   <!-- Quotation Workflow Actions Panel -->
                   <section

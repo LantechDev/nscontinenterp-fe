@@ -115,6 +115,43 @@ function formatDate(dateStr: string): string {
   return date.toLocaleDateString("id-ID", { year: "numeric", month: "short", day: "numeric" });
 }
 
+const isAirFreight = (q: Quotation) => q.serviceType === "OCEAN" && q.shipmentType === "AIR";
+const isTrucking = (q: Quotation) => q.serviceType === "TRUCKING";
+const isCustomClearance = (q: Quotation) => q.serviceType === "CUSTOM_CLEARANCE";
+
+const getRouteOriginLabel = (q: Quotation) => {
+  if (isTrucking(q)) return "Pickup";
+  if (isCustomClearance(q)) return "Clearance Origin";
+  return isAirFreight(q) ? "Origin Airport" : "POL";
+};
+
+const getRouteDestinationLabel = (q: Quotation) => {
+  if (isTrucking(q)) return "Delivery";
+  if (isCustomClearance(q)) return "Clearance Destination";
+  return isAirFreight(q) ? "Destination Airport" : "POD";
+};
+
+const getRouteOrigin = (q: Quotation) => {
+  if (isTrucking(q)) return q.pickupAddress || "-";
+  return q.polName || q.pol || "-";
+};
+
+const getRouteDestination = (q: Quotation) => {
+  if (isTrucking(q)) return q.deliveryAddress || "-";
+  return q.podName || q.pod || "-";
+};
+
+const hasRouteInfo = (q: Quotation) => {
+  return Boolean(q.pol || q.pod || q.pickupAddress || q.deliveryAddress);
+};
+
+const getServiceScopeLabel = (q: Quotation) => {
+  if (isTrucking(q)) return "TRUCKING";
+  if (isCustomClearance(q)) return "CUSTOM CLEARANCE";
+  if (isAirFreight(q)) return "AIR FREIGHT";
+  return "OCEAN FREIGHT";
+};
+
 // Status Badges Styling
 const getStatusClass = (status: string) => {
   const s = status.toUpperCase();
@@ -397,20 +434,33 @@ function openDetail(id: string) {
 
                     <!-- Route -->
                     <td class="py-3 px-4">
-                      <div class="flex flex-col max-w-[200px]" v-if="q.pol || q.pod">
+                      <div class="flex flex-col max-w-[240px]" v-if="hasRouteInfo(q)">
+                        <div class="mb-1">
+                          <span
+                            class="inline-flex items-center rounded border border-blue-100 bg-blue-50 px-1.5 py-0.5 text-[9px] font-bold text-[#062c58] uppercase tracking-wider"
+                          >
+                            {{ getServiceScopeLabel(q) }}
+                          </span>
+                        </div>
                         <div class="flex items-center gap-2 text-sm">
                           <span
                             class="text-foreground truncate font-medium"
-                            :title="q.polName || q.pol || undefined"
+                            :title="getRouteOrigin(q)"
                           >
-                            {{ q.polName || q.pol || "-" }}
+                            <span class="text-[10px] text-muted-foreground font-bold mr-1">
+                              {{ getRouteOriginLabel(q) }}:
+                            </span>
+                            {{ getRouteOrigin(q) }}
                           </span>
                         </div>
                         <div class="flex items-center gap-2 text-xs text-muted-foreground">
                           <ArrowRight class="w-3 h-3" />
-                          <span class="truncate" :title="q.podName || q.pod || undefined">{{
-                            q.podName || q.pod || "-"
-                          }}</span>
+                          <span class="truncate" :title="getRouteDestination(q)">
+                            <span class="text-[10px] font-bold mr-1">
+                              {{ getRouteDestinationLabel(q) }}:
+                            </span>
+                            {{ getRouteDestination(q) }}
+                          </span>
                         </div>
                       </div>
                       <span v-else class="text-xs text-muted-foreground italic">-</span>

@@ -103,8 +103,9 @@ const services = computed(() => {
   }));
 });
 
+const truckContainerTypeCodes = new Set(["CDE", "CDD", "CDD_LONG", "WING_BOX"]);
+
 const containerTypes = computed(() => {
-  const truckContainerTypeCodes = new Set(["CDE", "CDD", "CDD_LONG", "WING_BOX"]);
   return (masterData.value?.containerTypes || [])
     .filter((ct) => !truckContainerTypeCodes.has(ct.code))
     .map((ct) => ({
@@ -113,17 +114,75 @@ const containerTypes = computed(() => {
     }));
 });
 
+const truckContainerTypes = computed(() => {
+  const list = masterData.value?.containerTypes || [];
+  const targetCodes = ["CDE", "CDD", "CDD_LONG", "WING_BOX", "20FT", "40FT", "40HC"];
+  const customNames: Record<string, string> = {
+    CDE: "CDE",
+    CDD: "CDD",
+    CDD_LONG: "CDD Long",
+    WING_BOX: "Wing Box",
+    "20FT": "20 FT",
+    "40FT": "40 FT",
+    "40HC": "40 HC",
+  };
+
+  return targetCodes.map((code) => {
+    const found = list.find((ct) => ct.code === code);
+    return {
+      id: found?.id || code,
+      name: customNames[code] || found?.name || code,
+    };
+  });
+});
+
+const TRUCK_TYPES = [
+  "BLIND VAN",
+  "CDE",
+  "CDD",
+  "CDD LONG",
+  "FUSO",
+  "WING BOX",
+  "20FT",
+  "40FT/HC",
+  "45HC",
+];
+
+const TRADE_TYPES = [
+  { id: "EXPORT", name: "Export" },
+  { id: "IMPORT", name: "Import" },
+  { id: "DOMESTIC", name: "Domestic" },
+];
+
+const SERVICE_TYPES = [
+  { id: "OCEAN", name: "OCEAN (FREIGHT)" },
+  { id: "TRUCKING", name: "TRUCKING" },
+  { id: "CUSTOM_CLEARANCE", name: "CUSTOM CLEARANCE" },
+];
+
+const SHIPMENT_TYPES = [
+  { id: "OCEAN", name: "Ocean Freight" },
+  { id: "AIR", name: "Air Freight" },
+];
+
 const FREIGHT_TERMS = [
   { id: "PREPAID", name: "PREPAID" },
   { id: "COLLECT", name: "COLLECT" },
 ];
 
 const searchedPorts = ref<Port[]>([]);
+const uppercase = (value: string) => value.toUpperCase();
+const uppercasePort = (port: Port): Port => ({
+  ...port,
+  code: uppercase(port.code || ""),
+  name: uppercase(port.name || ""),
+});
+
 watch(
   () => masterData.value?.ports,
   (val) => {
     if (val && searchedPorts.value.length === 0) {
-      searchedPorts.value = val;
+      searchedPorts.value = val.map(uppercasePort);
     }
   },
   { immediate: true },
@@ -131,16 +190,25 @@ watch(
 
 const portsPol = computed(() => searchedPorts.value);
 const portsPod = computed(() => searchedPorts.value);
+const isOceanService = computed(() => formData.serviceType === "OCEAN");
+const isOcean = computed(
+  () => formData.serviceType === "OCEAN" && formData.shipmentType === "OCEAN",
+);
+const isAir = computed(() => formData.serviceType === "OCEAN" && formData.shipmentType === "AIR");
+const isTrucking = computed(() => formData.serviceType === "TRUCKING");
+const isCustomClearance = computed(() => formData.serviceType === "CUSTOM_CLEARANCE");
+const usesPortRoute = computed(() => isOceanService.value || isCustomClearance.value);
+const portSearchType = computed(() => (isAir.value ? "air" : "ocean"));
 
 async function handleSearchPol(query: string) {
   if (!query) {
-    searchedPorts.value = masterData.value?.ports || [];
+    searchedPorts.value = (masterData.value?.ports || []).map(uppercasePort);
     return;
   }
   const results = await $fetch<Port[]>(
-    `/api/master/ports?q=${encodeURIComponent(query)}&type=ocean`,
+    `/api/master/ports?q=${encodeURIComponent(uppercase(query))}&type=${portSearchType.value}`,
   );
-  searchedPorts.value = results;
+  searchedPorts.value = results.map(uppercasePort);
 }
 const handleSearchPod = handleSearchPol;
 
@@ -148,9 +216,17 @@ const handleSearchPod = handleSearchPol;
 const formData = reactive({
   customerId: "",
   picName: "",
+  tradeTypeId: "EXPORT",
+  serviceType: "OCEAN",
+  shipmentType: "OCEAN",
   pol: "",
   pod: "",
   containerTypeId: "",
+  truckType: "",
+  pickupAddress: "",
+  deliveryAddress: "",
+  pickupDate: "",
+  deliveryDate: "",
   term: "PREPAID",
   date: "",
   validUntil: "",
@@ -180,11 +256,26 @@ async function loadQuotation() {
   const res = await getQuotation(quotationId);
   if (res.success && res.data) {
     const q = res.data;
+    const normalizedServiceType = q.serviceType === "AIR" ? "OCEAN" : q.serviceType || "OCEAN";
+    const normalizedShipmentType =
+      q.serviceType === "AIR"
+        ? "AIR"
+        : ["OCEAN", "AIR"].includes(q.shipmentType || "")
+          ? q.shipmentType || "OCEAN"
+          : "OCEAN";
     formData.customerId = q.customerId;
     formData.picName = q.picName || "";
+    formData.tradeTypeId = q.tradeTypeId || "EXPORT";
+    formData.serviceType = normalizedServiceType;
+    formData.shipmentType = normalizedServiceType === "OCEAN" ? normalizedShipmentType : "";
     formData.pol = q.pol || "";
     formData.pod = q.pod || "";
     formData.containerTypeId = q.containerTypeId || "";
+    formData.truckType = q.truckType || "";
+    formData.pickupAddress = q.pickupAddress || "";
+    formData.deliveryAddress = q.deliveryAddress || "";
+    formData.pickupDate = q.pickupDate ? q.pickupDate.split("T")[0] || "" : "";
+    formData.deliveryDate = q.deliveryDate ? q.deliveryDate.split("T")[0] || "" : "";
     formData.term = q.term || "PREPAID";
     formData.date = q.date ? q.date.split("T")[0] || "" : "";
     formData.validUntil = q.validUntil ? q.validUntil.split("T")[0] || "" : "";
@@ -335,6 +426,54 @@ watch(
   },
 );
 
+watch(
+  () => formData.serviceType,
+  (serviceType) => {
+    if (isDataLoaded.value && isLocked.value) return;
+
+    if (serviceType === "OCEAN") {
+      formData.shipmentType =
+        formData.shipmentType && ["OCEAN", "AIR"].includes(formData.shipmentType)
+          ? formData.shipmentType
+          : "OCEAN";
+      formData.truckType = "";
+      formData.pickupAddress = "";
+      formData.deliveryAddress = "";
+      formData.pickupDate = "";
+      formData.deliveryDate = "";
+      return;
+    }
+    if (serviceType === "TRUCKING") {
+      formData.shipmentType = "";
+      formData.pol = "";
+      formData.pod = "";
+      return;
+    }
+
+    if (serviceType === "CUSTOM_CLEARANCE") {
+      formData.shipmentType = "";
+      formData.containerTypeId = "";
+      formData.truckType = "";
+      formData.pickupAddress = "";
+      formData.deliveryAddress = "";
+      formData.pickupDate = "";
+      formData.deliveryDate = "";
+    }
+  },
+);
+
+watch(
+  () => formData.shipmentType,
+  async (shipmentType) => {
+    if (isDataLoaded.value && isLocked.value) return;
+
+    if (formData.serviceType === "OCEAN") {
+      const results = await $fetch<Port[]>(`/api/master/ports?type=${portSearchType.value}`);
+      searchedPorts.value = results.map(uppercasePort);
+    }
+  },
+);
+
 // Mathematical Calculations
 const subTotal = computed(() => {
   const sum = formData.charges.reduce(
@@ -408,6 +547,21 @@ async function handleSubmit() {
     return;
   }
 
+  if (usesPortRoute.value && !formData.pol) {
+    toast.error("Silakan isi origin/POL terlebih dahulu.");
+    return;
+  }
+
+  if (usesPortRoute.value && !formData.pod) {
+    toast.error("Silakan isi destination/POD terlebih dahulu.");
+    return;
+  }
+
+  if (isTrucking.value && (!formData.pickupAddress || !formData.deliveryAddress)) {
+    toast.error("Silakan isi pickup dan delivery address untuk trucking.");
+    return;
+  }
+
   const invalidCharges = formData.charges.some((ch) => !ch.serviceId);
   if (invalidCharges) {
     toast.error("Semua baris service harus memiliki jenis Service.");
@@ -418,17 +572,30 @@ async function handleSubmit() {
 
   const payload = {
     customerId: formData.customerId,
-    picName: formData.picName || null,
-    pol: formData.pol || null,
-    pod: formData.pod || null,
-    containerTypeId: formData.containerTypeId || null,
+    picName: formData.picName ? uppercase(formData.picName) : null,
+    tradeTypeId: formData.tradeTypeId,
+    serviceType: formData.serviceType,
+    shipmentType: isOceanService.value && formData.shipmentType ? formData.shipmentType : null,
+    pol: usesPortRoute.value && formData.pol ? uppercase(formData.pol) : null,
+    pod: usesPortRoute.value && formData.pod ? uppercase(formData.pod) : null,
+    containerTypeId:
+      (isOceanService.value || isTrucking.value) && formData.containerTypeId
+        ? formData.containerTypeId
+        : null,
+    truckType: isTrucking.value && formData.truckType ? formData.truckType : null,
+    pickupAddress:
+      isTrucking.value && formData.pickupAddress ? uppercase(formData.pickupAddress) : null,
+    deliveryAddress:
+      isTrucking.value && formData.deliveryAddress ? uppercase(formData.deliveryAddress) : null,
+    pickupDate: isTrucking.value && formData.pickupDate ? formData.pickupDate : null,
+    deliveryDate: isTrucking.value && formData.deliveryDate ? formData.deliveryDate : null,
     term: formData.term || null,
     date: formData.date,
     validUntil: formData.validUntil,
-    freeTime: formData.freeTime || null,
-    salesName: formData.salesName || null,
+    freeTime: formData.freeTime ? uppercase(formData.freeTime) : null,
+    salesName: formData.salesName ? uppercase(formData.salesName) : null,
     status: formData.status,
-    notes: formData.notes || null,
+    notes: formData.notes ? uppercase(formData.notes) : null,
     currency: formData.currency,
     exchangeRate: Number(formData.exchangeRate || 1),
     allowMultipleInvoices: formData.allowMultipleInvoices,
@@ -771,13 +938,62 @@ function scrollTo(id: string) {
                 </div>
               </div>
 
-              <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mt-6">
-                <!-- Port of Loading (POL) -->
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
                 <div class="space-y-2">
                   <label
                     class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
                   >
-                    Port of Loading (POL)
+                    Trade Type
+                  </label>
+                  <Combobox
+                    v-model="formData.tradeTypeId"
+                    :options="TRADE_TYPES"
+                    :disabled="isLocked"
+                    placeholder="Select trade type..."
+                  />
+                </div>
+
+                <div class="space-y-2">
+                  <label
+                    class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
+                  >
+                    Service Type
+                  </label>
+                  <Combobox
+                    v-model="formData.serviceType"
+                    :options="SERVICE_TYPES"
+                    :disabled="isLocked"
+                    placeholder="Select service type..."
+                  />
+                </div>
+
+                <div v-if="isOceanService" class="space-y-2">
+                  <label
+                    class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
+                  >
+                    Shipment Type
+                  </label>
+                  <Combobox
+                    v-model="formData.shipmentType"
+                    :options="SHIPMENT_TYPES"
+                    :disabled="isLocked"
+                    placeholder="Select shipment type..."
+                  />
+                </div>
+              </div>
+
+              <div v-if="usesPortRoute" class="grid grid-cols-1 md:grid-cols-4 gap-6 mt-6">
+                <div class="space-y-2">
+                  <label
+                    class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
+                  >
+                    {{
+                      isCustomClearance
+                        ? "Clearance Origin / Port"
+                        : isAir
+                          ? "Origin Airport"
+                          : "Port of Loading (POL)"
+                    }}
                   </label>
                   <Combobox
                     v-model="formData.pol"
@@ -785,17 +1001,24 @@ function scrollTo(id: string) {
                     label-key="name"
                     value-key="code"
                     :disabled="isLocked"
-                    placeholder="Search or select POL..."
+                    :placeholder="
+                      isAir ? 'Search or select origin airport...' : 'Search or select POL...'
+                    "
                     @search="handleSearchPol"
                   />
                 </div>
 
-                <!-- Port of Discharge (POD) -->
                 <div class="space-y-2">
                   <label
                     class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
                   >
-                    Port of Discharge (POD)
+                    {{
+                      isCustomClearance
+                        ? "Clearance Destination / Port"
+                        : isAir
+                          ? "Destination Airport"
+                          : "Port of Discharge (POD)"
+                    }}
                   </label>
                   <Combobox
                     v-model="formData.pod"
@@ -803,13 +1026,14 @@ function scrollTo(id: string) {
                     label-key="name"
                     value-key="code"
                     :disabled="isLocked"
-                    placeholder="Search or select POD..."
+                    :placeholder="
+                      isAir ? 'Search or select destination airport...' : 'Search or select POD...'
+                    "
                     @search="handleSearchPod"
                   />
                 </div>
 
-                <!-- Container Type -->
-                <div class="space-y-2">
+                <div v-if="isOceanService" class="space-y-2">
                   <label
                     class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
                   >
@@ -823,7 +1047,6 @@ function scrollTo(id: string) {
                   />
                 </div>
 
-                <!-- Term -->
                 <div class="space-y-2">
                   <label
                     class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
@@ -836,6 +1059,96 @@ function scrollTo(id: string) {
                     :disabled="isLocked"
                     placeholder="Select Term..."
                   />
+                </div>
+              </div>
+
+              <div v-if="isTrucking" class="grid grid-cols-1 md:grid-cols-5 gap-6 mt-6">
+                <div class="space-y-2">
+                  <label
+                    class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
+                    >Truck Type</label
+                  >
+                  <Combobox
+                    v-model="formData.truckType"
+                    :options="TRUCK_TYPES.map((t) => ({ id: t, name: t }))"
+                    :disabled="isLocked"
+                    placeholder="Search or select truck type..."
+                  />
+                </div>
+
+                <div class="space-y-2">
+                  <label
+                    class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
+                    >Container Type</label
+                  >
+                  <Combobox
+                    v-model="formData.containerTypeId"
+                    :options="truckContainerTypes"
+                    :disabled="isLocked"
+                    placeholder="Select..."
+                  />
+                </div>
+
+                <div class="space-y-2">
+                  <label
+                    class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
+                    >Pickup Date</label
+                  >
+                  <DatePicker v-model="formData.pickupDate" :disabled="isLocked" />
+                </div>
+
+                <div class="space-y-2">
+                  <label
+                    class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
+                    >Delivery Date</label
+                  >
+                  <DatePicker v-model="formData.deliveryDate" :disabled="isLocked" />
+                </div>
+
+                <div class="space-y-2">
+                  <label
+                    class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
+                  >
+                    Term
+                  </label>
+                  <Combobox
+                    v-model="formData.term"
+                    :options="FREIGHT_TERMS"
+                    :disabled="isLocked"
+                    placeholder="Select Term..."
+                  />
+                </div>
+              </div>
+
+              <div v-if="isTrucking" class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+                <div class="space-y-2">
+                  <label
+                    class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
+                    >Pickup Address</label
+                  >
+                  <textarea
+                    v-model="formData.pickupAddress"
+                    v-uppercase
+                    :disabled="isLocked"
+                    rows="1"
+                    placeholder="Full pickup address..."
+                    class="input-field py-3 min-h-[44px] h-11 resize-none disabled:bg-gray-50 disabled:opacity-75"
+                  ></textarea>
+                </div>
+
+                <div class="space-y-2">
+                  <label
+                    class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
+                    >Delivery Address</label
+                  >
+                  <textarea
+                    v-model="formData.deliveryAddress"
+                    v-uppercase
+                    :disabled="isLocked"
+                    rows="1"
+                    placeholder="Full delivery destination..."
+                    class="input-field py-3 min-h-[44px] h-11 resize-none disabled:bg-gray-50 disabled:opacity-75"
+                  ></textarea>
                 </div>
               </div>
 

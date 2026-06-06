@@ -20,6 +20,7 @@ import {
   Briefcase,
   CheckCircle2,
   Truck,
+  FileCheck2,
 } from "lucide-vue-next";
 import { cn, formatDate } from "~/lib/utils";
 import { toast } from "vue-sonner";
@@ -59,6 +60,9 @@ const filteredJobs = computed(() => {
       if (shipmentTypeFilter.value === "TRUCKING") {
         return job.serviceType === "TRUCKING";
       }
+      if (shipmentTypeFilter.value === "CUSTOM_CLEARANCE") {
+        return job.serviceType === "CUSTOM_CLEARANCE";
+      }
       if (shipmentTypeFilter.value === "AIR") {
         return job.serviceType === "AIR" || job.shipmentType === "AIR";
       }
@@ -67,6 +71,7 @@ const filteredJobs = computed(() => {
           job.serviceType === "OCEAN" ||
           (job.serviceType !== "TRUCKING" &&
             job.serviceType !== "AIR" &&
+            job.serviceType !== "CUSTOM_CLEARANCE" &&
             job.shipmentType === "OCEAN")
         );
       }
@@ -112,6 +117,7 @@ const shipmentTypeOptions = [
   { value: "OCEAN", label: "OCEAN (Vessel)" },
   { value: "AIR", label: "AIR (Plane)" },
   { value: "TRUCKING", label: "TRUCKING (Truck)" },
+  { value: "CUSTOM_CLEARANCE", label: "CUSTOM CLEARANCE" },
 ];
 
 // Stats for header (consistent with other master pages)
@@ -126,13 +132,17 @@ const stats = computed(() => {
 
   const air = list.filter((j) => j.serviceType === "AIR" || j.shipmentType === "AIR").length;
   const trucking = list.filter((j) => j.serviceType === "TRUCKING").length;
+  const customClearance = list.filter((j) => j.serviceType === "CUSTOM_CLEARANCE").length;
   const ocean = list.filter(
     (j) =>
       j.serviceType === "OCEAN" ||
-      (j.serviceType !== "TRUCKING" && j.serviceType !== "AIR" && j.shipmentType === "OCEAN"),
+      (j.serviceType !== "TRUCKING" &&
+        j.serviceType !== "AIR" &&
+        j.serviceType !== "CUSTOM_CLEARANCE" &&
+        j.shipmentType === "OCEAN"),
   ).length;
 
-  return { total, active, air, ocean, trucking };
+  return { total, active, air, ocean, trucking, customClearance };
 });
 
 function openJobDetail(id: string, tab?: string, blId?: string) {
@@ -243,12 +253,17 @@ watch(
     </div>
 
     <!-- Stats Cards (same style as Dashboard) -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
       <DashboardStatCard title="Total Jobs" :value="String(stats.total)" :icon="Briefcase" />
       <DashboardStatCard title="Ongoing Jobs" :value="String(stats.active)" :icon="CheckCircle2" />
       <DashboardStatCard title="OCEAN (Vessel)" :value="String(stats.ocean)" :icon="Ship" />
       <DashboardStatCard title="AIR (Plane)" :value="String(stats.air)" :icon="Plane" />
       <DashboardStatCard title="TRUCKING (Truck)" :value="String(stats.trucking)" :icon="Truck" />
+      <DashboardStatCard
+        title="CUSTOM CLEARANCE"
+        :value="String(stats.customClearance)"
+        :icon="FileCheck2"
+      />
     </div>
 
     <!-- Filters -->
@@ -358,7 +373,8 @@ watch(
               <td class="py-3 px-4">
                 <div class="flex items-center gap-2">
                   <div class="p-1.5 rounded bg-blue-50 text-[#012D5A]">
-                    <Truck v-if="job.serviceType === 'TRUCKING'" class="w-4 h-4" />
+                    <FileCheck2 v-if="job.serviceType === 'CUSTOM_CLEARANCE'" class="w-4 h-4" />
+                    <Truck v-else-if="job.serviceType === 'TRUCKING'" class="w-4 h-4" />
                     <Plane
                       v-else-if="job.shipmentType === 'AIR' || job.serviceType === 'AIR'"
                       class="w-4 h-4"
@@ -595,7 +611,8 @@ watch(
             <div
               class="w-12 h-12 rounded-lg bg-blue-50 text-[#012D5A] flex items-center justify-center shrink-0"
             >
-              <Truck v-if="job.serviceType === 'TRUCKING'" class="w-6 h-6" />
+              <FileCheck2 v-if="job.serviceType === 'CUSTOM_CLEARANCE'" class="w-6 h-6" />
+              <Truck v-else-if="job.serviceType === 'TRUCKING'" class="w-6 h-6" />
               <Plane
                 v-else-if="job.shipmentType === 'AIR' || job.serviceType === 'AIR'"
                 class="w-6 h-6"
