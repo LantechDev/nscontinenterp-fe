@@ -34,6 +34,9 @@ export interface EblContainer {
   sealNumber?: string;
   containerTypeId?: string;
   containerType?: { id?: string; name?: string; code?: string };
+  vehicleNumber?: string | null;
+  driverName?: string | null;
+  driverContactNumber?: string | null;
   isHazardous?: boolean;
   items?: EblContainerItem[];
   totalQty?: number;

@@ -23,28 +23,80 @@ const props = defineProps<{
   activeBl: ActiveBlData | null;
   logoUrl: string;
   isAir: boolean;
+  isTrucking: boolean;
   watermarkColor: string;
   paginatedPagesLength: number;
 }>();
 
-const documentTitle = computed(() => (props.isAir ? "AIR WAYBILL" : "BILL OF LADING"));
+const containers = computed(() => {
+  if (
+    props.activeBl?.renderContainers &&
+    Array.isArray(props.activeBl.renderContainers) &&
+    props.activeBl.renderContainers.length > 0
+  ) {
+    return props.activeBl.renderContainers;
+  }
+  if (
+    props.activeBl?.jobContainers &&
+    Array.isArray(props.activeBl.jobContainers) &&
+    props.activeBl.jobContainers.length > 0
+  ) {
+    return props.activeBl.jobContainers;
+  }
+  if (
+    props.activeBl?.blContainers &&
+    Array.isArray(props.activeBl.blContainers) &&
+    props.activeBl.blContainers.length > 0
+  ) {
+    return props.activeBl.blContainers.map(
+      (bc: { container?: EblContainer } & EblContainer) => bc.container,
+    );
+  }
+  if (
+    props.activeBl?.containers &&
+    Array.isArray(props.activeBl.containers) &&
+    props.activeBl.containers.length > 0
+  ) {
+    return props.activeBl.containers;
+  }
+  if (
+    props.jobData?.jobContainers &&
+    Array.isArray(props.jobData.jobContainers) &&
+    props.jobData.jobContainers.length > 0
+  ) {
+    return props.jobData.jobContainers;
+  }
+  return [];
+});
+
+const documentTitle = computed(() =>
+  props.isAir ? "AIR WAYBILL" : props.isTrucking ? "TRUCKING WAYBILL" : "BILL OF LADING",
+);
 const documentNumberLabel = computed(() =>
-  props.isAir ? "AIR WAYBILL NO." : "BILL OF LADING NO.",
+  props.isAir ? "AIR WAYBILL NO." : props.isTrucking ? "WAYBILL NO." : "BILL OF LADING NO.",
 );
 const transportScheduleLabel = computed(() =>
-  props.isAir ? "AIRLINE / FLIGHT NO." : "VESSEL/VOYAGE",
+  props.isAir ? "AIRLINE / FLIGHT NO." : props.isTrucking ? "TRUCK / DRIVER" : "VESSEL/VOYAGE",
 );
-const primaryTransportLabel = computed(() => (props.isAir ? "AIRCRAFT" : "OCEAN VESSEL"));
+const primaryTransportLabel = computed(() =>
+  props.isAir ? "AIRCRAFT" : props.isTrucking ? "VEHICLE NO." : "OCEAN VESSEL",
+);
 const loadingPlaceLabel = computed(() => (props.isAir ? "AIRPORT OF LOADING" : "PORT OF LOADING"));
 const dischargePlaceLabel = computed(() =>
   props.isAir ? "AIRPORT OF DISCHARGE" : "PORT OF DISCHARGE",
 );
-const continuedTransportLabel = computed(() => (props.isAir ? "FLIGHT" : "VESSEL VOYAGE"));
+const continuedTransportLabel = computed(() =>
+  props.isAir ? "FLIGHT" : props.isTrucking ? "TRUCK / VEHICLE" : "VESSEL VOYAGE",
+);
 const loadedDateLabel = computed(() =>
-  props.isAir ? "FLIGHT DEPARTURE DATE" : "DATE LADEN ON BOARD",
+  props.isAir ? "FLIGHT DEPARTURE DATE" : props.isTrucking ? "PICKUP DATE" : "DATE LADEN ON BOARD",
 );
 const issuePlaceLabel = computed(() =>
-  props.isAir ? "PLACE OF AWB ISSUE" : "PLACE OF BILL(S) ISSUE",
+  props.isAir
+    ? "PLACE OF AWB ISSUE"
+    : props.isTrucking
+      ? "PLACE OF WAYBILL ISSUE"
+      : "PLACE OF BILL(S) ISSUE",
 );
 const transportList = computed(() => props.activeBl?.vessels || props.jobData?.vessels || []);
 
@@ -61,19 +113,50 @@ const getTransportName = (transport?: (typeof transportList.value)[number]) => {
   return transport.vessel?.name || transport.vesselName || "";
 };
 
-const transportLegs = computed(() =>
-  transportList.value
+const transportLegs = computed(() => {
+  if (props.isTrucking) {
+    const truckTypeStr = props.jobData?.truckType || "";
+    const vehicleLegs = containers.value
+      .map((c) => c?.driverName || "")
+      .filter((s) => s.trim())
+      .join(", ");
+    if (truckTypeStr && vehicleLegs) {
+      return `${truckTypeStr} / ${vehicleLegs}`;
+    }
+    return truckTypeStr || vehicleLegs || "-";
+  }
+  return transportList.value
     .map((v) => `${getTransportName(v)} / ${v.voyageNumber || ""}`)
     .filter((s) => s.trim() !== "/")
-    .join(", "),
-);
+    .join(", ");
+});
 
 const primaryTransportName = computed(
   () =>
     getTransportName(transportList.value[0]) ||
     (props.isAir
       ? getVal(props.jobData?.plane?.name, "-")
-      : getVal(props.jobData?.vessel?.name, "-")),
+      : props.isTrucking
+        ? getVal(containers.value[0]?.vehicleNumber, "-")
+        : getVal(props.jobData?.vessel?.name, "-")),
+);
+
+const placeOfReceiptVal = computed(() =>
+  props.isTrucking
+    ? getVal(props.jobData?.pickupAddress)
+    : getVal(props.jobData?.placeOfReceipt, getVal(props.jobData?.polName, props.jobData?.pol)),
+);
+
+const placeOfDeliveryVal = computed(() =>
+  props.isTrucking
+    ? getVal(props.jobData?.deliveryAddress)
+    : getVal(props.jobData?.placeOfDelivery, getVal(props.jobData?.podName, props.jobData?.pod)),
+);
+
+const finalDestinationVal = computed(() =>
+  props.isTrucking
+    ? getVal(props.jobData?.deliveryAddress)
+    : getVal(props.jobData?.finalDestination, getVal(props.jobData?.podName, props.jobData?.pod)),
 );
 
 const getVal = (val: unknown, fallback: unknown = "") => {
@@ -149,47 +232,6 @@ const notifyParty = computed(() => findPartyByRole(["NOTIFY_PARTY", "NOTIFY PART
 const forwardingAgent = computed(() =>
   findPartyByRole(["FORWARDER", "FORWARDING_AGENT", "FORWARDING AGENT", "AGENT"]),
 );
-
-const containers = computed(() => {
-  if (
-    props.activeBl?.renderContainers &&
-    Array.isArray(props.activeBl.renderContainers) &&
-    props.activeBl.renderContainers.length > 0
-  ) {
-    return props.activeBl.renderContainers;
-  }
-  if (
-    props.activeBl?.jobContainers &&
-    Array.isArray(props.activeBl.jobContainers) &&
-    props.activeBl.jobContainers.length > 0
-  ) {
-    return props.activeBl.jobContainers;
-  }
-  if (
-    props.activeBl?.blContainers &&
-    Array.isArray(props.activeBl.blContainers) &&
-    props.activeBl.blContainers.length > 0
-  ) {
-    return props.activeBl.blContainers.map(
-      (bc: { container?: EblContainer } & EblContainer) => bc.container,
-    );
-  }
-  if (
-    props.activeBl?.containers &&
-    Array.isArray(props.activeBl.containers) &&
-    props.activeBl.containers.length > 0
-  ) {
-    return props.activeBl.containers;
-  }
-  if (
-    props.jobData?.jobContainers &&
-    Array.isArray(props.jobData.jobContainers) &&
-    props.jobData.jobContainers.length > 0
-  ) {
-    return props.jobData.jobContainers;
-  }
-  return [];
-});
 
 const totals = computed(() => {
   let qty = 0;
@@ -325,111 +367,254 @@ const formatDate = (dateStr?: string | null) => {
       class="main-border-container border border-[#062c58] flex-1 flex flex-col text-[0.7rem] relative overflow-hidden h-full"
     >
       <div v-if="page.pageIndex === 0" class="routing-section relative z-[1] bg-white">
-        <div class="flex border-b border-[#062c58]" style="min-height: 75px">
-          <div class="w-1/2 border-r border-[#062c58] pt-1 px-2 pb-2">
-            <span class="font-bold mb-0.5 text-[0.6rem] leading-none block">SHIPPER/EXPORTER</span>
-            <div
-              class="whitespace-pre-wrap font-mono uppercase text-[10px] leading-tight text-black"
-            >
-              {{ formatPartyDisplay(shipper) || "-" }}
-            </div>
-          </div>
-          <div class="w-1/2">
-            <div class="flex border-b border-[#062c58]" style="min-height: 35px">
-              <div class="w-1/2 border-r border-[#062c58] pt-1 px-2 pb-2">
-                <span class="font-bold text-[0.6rem] leading-none mb-0.5 block">BOOKING NO.</span>
-                <span class="font-mono text-[10px] text-black leading-none">{{
-                  getVal(jobData?.jobNumber)
-                }}</span>
-              </div>
-              <div class="w-1/2 pt-1 px-2 pb-2">
-                <span class="font-bold text-[0.6rem] leading-none mb-0.5 block">{{
-                  documentNumberLabel
-                }}</span>
-                <span class="font-mono text-[10px] text-black leading-none">{{
-                  getVal(activeBl?.blNumber)
-                }}</span>
-              </div>
-            </div>
-            <div class="pt-1 px-2 pb-3">
-              <span class="font-bold text-[0.6rem] block leading-none">EXPORT REFERENCES</span>
-              <div class="font-mono text-[10px] text-black pb-1.5">
-                {{ getVal(jobData?.customerReference, "-") }}
-              </div>
-              <div
-                v-if="
-                  activeBl?.showShipperReferencesOnBl !== false &&
-                  activeBl?.shipperReferences?.length
-                "
-                class="pt-1.5 border-t border-[#062c58] -mx-2 px-2"
+        <!-- Trucking Optimized Layout: No Notify Party and No Forwarding Agent -->
+        <template v-if="isTrucking">
+          <div class="flex border-b border-[#062c58]" style="min-height: 90px">
+            <div class="w-1/2 border-r border-[#062c58] pt-1 px-2 pb-2">
+              <span class="font-bold mb-0.5 text-[0.6rem] leading-none block"
+                >SHIPPER/EXPORTER</span
               >
-                <span class="font-bold text-[0.6rem] block leading-none mb-0.5"
-                  >SHIPPER REFERENCE</span
+              <div
+                class="whitespace-pre-wrap font-mono uppercase text-[10px] leading-tight text-black"
+              >
+                {{ formatPartyDisplay(shipper) || "-" }}
+              </div>
+            </div>
+            <div class="w-1/2">
+              <div class="flex border-b border-[#062c58]" style="min-height: 40px">
+                <div class="w-1/2 border-r border-[#062c58] pt-1 px-2 pb-2">
+                  <span class="font-bold text-[0.6rem] leading-none mb-0.5 block">BOOKING NO.</span>
+                  <span class="font-mono text-[10px] text-black leading-none">{{
+                    getVal(jobData?.jobNumber)
+                  }}</span>
+                </div>
+                <div class="w-1/2 pt-1 px-2 pb-2">
+                  <span class="font-bold text-[0.6rem] leading-none mb-0.5 block">{{
+                    documentNumberLabel
+                  }}</span>
+                  <span class="font-mono text-[10px] text-black leading-none">{{
+                    getVal(activeBl?.blNumber)
+                  }}</span>
+                </div>
+              </div>
+              <div class="pt-1 px-2 pb-3">
+                <span class="font-bold text-[0.6rem] block leading-none">EXPORT REFERENCES</span>
+                <div class="font-mono text-[10px] text-black pb-1.5">
+                  {{ getVal(jobData?.customerReference, "-") }}
+                </div>
+                <div
+                  v-if="
+                    activeBl?.showShipperReferencesOnBl !== false &&
+                    activeBl?.shipperReferences?.length
+                  "
+                  class="pt-1.5 border-t border-[#062c58] -mx-2 px-2"
                 >
-                <div class="font-mono text-[10px] text-black">
-                  {{ activeBl.shipperReferences.join(", ") }}
+                  <span class="font-bold text-[0.6rem] block leading-none mb-0.5"
+                    >SHIPPER REFERENCE</span
+                  >
+                  <div class="font-mono text-[10px] text-black">
+                    {{ activeBl.shipperReferences.join(", ") }}
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
-        <div class="flex border-b border-[#062c58]" style="min-height: 75px">
-          <div class="w-1/2 border-r border-[#062c58] pt-1 px-2 pb-2">
-            <span class="font-bold mb-0.5 text-[0.6rem] leading-none block">CONSIGNEE</span>
-            <div
-              class="whitespace-pre-wrap font-mono uppercase text-[10px] leading-tight text-black"
-            >
-              {{ formatPartyDisplay(consignee) || "-" }}
-            </div>
-          </div>
-          <div class="w-1/2 pt-1 px-2 pb-2">
-            <span class="font-bold mb-0.5 text-[0.6rem] leading-none block"
-              >FORWARDING AGENT - REFERENCES</span
-            >
-            <div
-              class="whitespace-pre-wrap font-mono uppercase text-[10px] leading-tight text-black"
-            >
-              {{ formatPartyDisplay(forwardingAgent) || "-" }}
-            </div>
-          </div>
-        </div>
-        <div class="flex border-b border-[#062c58]" style="min-height: 100px">
-          <div class="w-1/2 border-r border-[#062c58]">
-            <div class="pt-1 px-2 pb-2">
-              <span class="font-bold text-[0.6rem] mb-0.5 leading-none block">NOTIFY PARTY</span>
+          <div class="flex border-b border-[#062c58]" style="min-height: 80px">
+            <div class="w-1/2 border-r border-[#062c58] pt-1 px-2 pb-2">
+              <span class="font-bold mb-0.5 text-[0.6rem] leading-none block">CONSIGNEE</span>
               <div
                 class="whitespace-pre-wrap font-mono uppercase text-[10px] leading-tight text-black"
               >
-                {{ formatPartyDisplay(notifyParty) || "-" }}
+                {{ formatPartyDisplay(consignee) || "-" }}
+              </div>
+            </div>
+            <div class="w-1/2 pt-1 px-2 pb-2">
+              <span class="font-bold mb-0.5 text-[0.6rem] leading-none block"
+                >CUSTOMER (BILL TO)</span
+              >
+              <div
+                class="whitespace-pre-wrap font-mono uppercase text-[10px] leading-tight text-black"
+              >
+                {{ getVal(jobData?.customer?.name, "-") }}
               </div>
             </div>
           </div>
-          <div
-            class="w-1/2 pt-1 px-2 pb-2 text-[0.45rem] text-justify leading-[1.1] font-medium text-[#062c58]"
-          >
-            RECEIVED by the Carrier in apparent good order and condition (unless otherwise stated
-            herein) the total number or quantity of
-            {{ isAir ? "packages or units" : "Containers or other packages or units" }}
-            indicated in the box entitled "Carrier's Receipt", to be carried subject to all the
-            terms and conditions hereof from the Place of Receipt or
-            {{ isAir ? "Airport of Loading" : "Port of Loading" }} to the
-            {{ isAir ? "Airport of Discharge" : "Port of Discharge" }} or Place of Delivery, as
-            applicable. Delivery of the Goods to the Carrier for Carriage hereunder constitutes
-            acceptance by the Merchant of all the terms and conditions of this
-            {{ isAir ? "Air Waybill" : "Bill of Lading" }}.
+          <div class="flex border-b border-[#062c58]" style="min-height: 80px">
+            <div class="w-1/2 border-r border-[#062c58] pt-1 px-2 pb-2">
+              <span class="font-bold mb-1 text-[0.6rem] leading-none block">CARRIER'S RECEIPT</span>
+              <div class="grid grid-cols-2 gap-x-3 gap-y-1.5">
+                <div>
+                  <span class="font-bold text-[0.45rem] leading-none block opacity-80"
+                    >DATE CARGO RECEIVED</span
+                  >
+                  <span class="font-mono text-[10px] uppercase leading-none text-black">{{
+                    formatDate(activeBl?.dateCargoReceived) || "-"
+                  }}</span>
+                </div>
+                <div>
+                  <span class="font-bold text-[0.45rem] leading-none block opacity-80"
+                    >PACKAGES / UNITS</span
+                  >
+                  <span class="font-mono text-[10px] uppercase leading-none text-black">{{
+                    formatNumber(totals.qty)
+                  }}</span>
+                </div>
+                <div>
+                  <span class="font-bold text-[0.45rem] leading-none block opacity-80"
+                    >GROSS WEIGHT</span
+                  >
+                  <span class="font-mono text-[10px] uppercase leading-none text-black"
+                    >{{ formatNumber(totals.grossWeight) }} KGS</span
+                  >
+                </div>
+                <div>
+                  <span class="font-bold text-[0.45rem] leading-none block opacity-80"
+                    >MEASUREMENT</span
+                  >
+                  <span class="font-mono text-[10px] uppercase leading-none text-black"
+                    >{{ formatNumber(totals.measurement) }} CBM</span
+                  >
+                </div>
+              </div>
+            </div>
+            <div
+              class="w-1/2 pt-1 px-2 pb-2 text-[0.45rem] text-justify leading-[1.1] font-medium text-[#062c58]"
+            >
+              Received by the Carrier in apparent good order and condition, unless otherwise stated
+              herein, the packages or units described in this Waybill, to be carried from the Place
+              of Pickup to the Place of Delivery. Delivery of the Goods to the Carrier constitutes
+              acceptance by the Merchant of the terms and conditions of this Waybill.
+            </div>
           </div>
-        </div>
+        </template>
+
+        <!-- Standard Ocean/Air Layout with Shipper, Consignee, Forwarder, Notify Party, and Terms -->
+        <template v-else>
+          <div class="flex border-b border-[#062c58]" style="min-height: 75px">
+            <div class="w-1/2 border-r border-[#062c58] pt-1 px-2 pb-2">
+              <span class="font-bold mb-0.5 text-[0.6rem] leading-none block"
+                >SHIPPER/EXPORTER</span
+              >
+              <div
+                class="whitespace-pre-wrap font-mono uppercase text-[10px] leading-tight text-black"
+              >
+                {{ formatPartyDisplay(shipper) || "-" }}
+              </div>
+            </div>
+            <div class="w-1/2">
+              <div class="flex border-b border-[#062c58]" style="min-height: 35px">
+                <div class="w-1/2 border-r border-[#062c58] pt-1 px-2 pb-2">
+                  <span class="font-bold text-[0.6rem] leading-none mb-0.5 block">BOOKING NO.</span>
+                  <span class="font-mono text-[10px] text-black leading-none">{{
+                    getVal(jobData?.jobNumber)
+                  }}</span>
+                </div>
+                <div class="w-1/2 pt-1 px-2 pb-2">
+                  <span class="font-bold text-[0.6rem] leading-none mb-0.5 block">{{
+                    documentNumberLabel
+                  }}</span>
+                  <span class="font-mono text-[10px] text-black leading-none">{{
+                    getVal(activeBl?.blNumber)
+                  }}</span>
+                </div>
+              </div>
+              <div class="pt-1 px-2 pb-3">
+                <span class="font-bold text-[0.6rem] block leading-none">EXPORT REFERENCES</span>
+                <div class="font-mono text-[10px] text-black pb-1.5">
+                  {{ getVal(jobData?.customerReference, "-") }}
+                </div>
+                <div
+                  v-if="
+                    activeBl?.showShipperReferencesOnBl !== false &&
+                    activeBl?.shipperReferences?.length
+                  "
+                  class="pt-1.5 border-t border-[#062c58] -mx-2 px-2"
+                >
+                  <span class="font-bold text-[0.6rem] block leading-none mb-0.5"
+                    >SHIPPER REFERENCE</span
+                  >
+                  <div class="font-mono text-[10px] text-black">
+                    {{ activeBl.shipperReferences.join(", ") }}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="flex border-b border-[#062c58]" style="min-height: 75px">
+            <div class="w-1/2 border-r border-[#062c58] pt-1 px-2 pb-2">
+              <span class="font-bold mb-0.5 text-[0.6rem] leading-none block">CONSIGNEE</span>
+              <div
+                class="whitespace-pre-wrap font-mono uppercase text-[10px] leading-tight text-black"
+              >
+                {{ formatPartyDisplay(consignee) || "-" }}
+              </div>
+            </div>
+            <div class="w-1/2 pt-1 px-2 pb-2">
+              <span class="font-bold mb-0.5 text-[0.6rem] leading-none block"
+                >FORWARDING AGENT - REFERENCES</span
+              >
+              <div
+                class="whitespace-pre-wrap font-mono uppercase text-[10px] leading-tight text-black"
+              >
+                {{ formatPartyDisplay(forwardingAgent) || "-" }}
+              </div>
+            </div>
+          </div>
+          <div class="flex border-b border-[#062c58]" style="min-height: 100px">
+            <div class="w-1/2 border-r border-[#062c58]">
+              <div class="pt-1 px-2 pb-2">
+                <span class="font-bold text-[0.6rem] mb-0.5 leading-none block">NOTIFY PARTY</span>
+                <div
+                  class="whitespace-pre-wrap font-mono uppercase text-[10px] leading-tight text-black"
+                >
+                  {{ formatPartyDisplay(notifyParty) || "-" }}
+                </div>
+              </div>
+            </div>
+            <div
+              class="w-1/2 pt-1 px-2 pb-2 text-[0.45rem] text-justify leading-[1.1] font-medium text-[#062c58]"
+            >
+              RECEIVED by the Carrier in apparent good order and condition (unless otherwise stated
+              herein) the total number or quantity of
+              {{
+                isAir || isTrucking ? "packages or units" : "Containers or other packages or units"
+              }}
+              indicated in the box entitled "Carrier's Receipt", to be carried subject to all the
+              terms and conditions hereof from the Place of Receipt or
+              {{
+                isAir ? "Airport of Loading" : isTrucking ? "Place of Pickup" : "Port of Loading"
+              }}
+              to the
+              {{
+                isAir
+                  ? "Airport of Discharge"
+                  : isTrucking
+                    ? "Place of Delivery"
+                    : "Port of Discharge"
+              }}
+              or Place of Delivery, as applicable. Delivery of the Goods to the Carrier for Carriage
+              hereunder constitutes acceptance by the Merchant of all the terms and conditions of
+              this {{ isAir ? "Air Waybill" : isTrucking ? "Waybill" : "Bill of Lading" }}.
+            </div>
+          </div>
+        </template>
         <div class="flex border-b border-[#062c58]" style="min-height: 40px">
           <div class="w-[25%] border-r border-[#062c58] pt-0.5 px-2 pb-1.5">
-            <span class="font-bold text-[0.6rem] block leading-none mb-0.5">PRE-CARRIAGE BY</span>
+            <span class="font-bold text-[0.6rem] block leading-none mb-0.5">{{
+              isTrucking ? "DRIVER CONTACT" : "PRE-CARRIAGE BY"
+            }}</span>
             <span class="font-mono text-[10px] uppercase leading-none text-black">{{
-              getVal(jobData?.preCarriageBy, "-")
+              isTrucking
+                ? getVal(containers[0]?.driverContactNumber, "-")
+                : getVal(jobData?.preCarriageBy, "-")
             }}</span>
           </div>
           <div class="w-[25%] border-r border-[#062c58] pt-0.5 px-2 pb-1.5">
-            <span class="font-bold text-[0.6rem] block leading-none mb-0.5">PLACE OF RECEIPT</span>
+            <span class="font-bold text-[0.6rem] block leading-none mb-0.5">{{
+              isTrucking ? "PICKUP ADDRESS" : "PLACE OF RECEIPT"
+            }}</span>
             <span class="font-mono text-[10px] uppercase leading-none text-black">{{
-              getVal(jobData?.placeOfReceipt, getVal(jobData?.polName, jobData?.pol))
+              placeOfReceiptVal
             }}</span>
           </div>
           <div class="w-[50%] pt-0.5 px-2 pb-1.5">
@@ -452,52 +637,85 @@ const formatDate = (dateStr?: string | null) => {
           </div>
           <div class="w-[25%] border-r border-[#062c58] pt-0.5 px-2 pb-1.5">
             <span class="font-bold text-[0.6rem] block leading-none mb-0.5">{{
-              loadingPlaceLabel
+              isTrucking ? "PICKUP DATE & TIME" : loadingPlaceLabel
             }}</span>
             <span class="font-mono text-[10px] uppercase leading-none text-black">{{
-              getVal(jobData?.polName, jobData?.pol)
+              isTrucking
+                ? jobData?.pickupDate
+                  ? `${formatDate(jobData.pickupDate)} ${jobData.pickupTime || ""}`.trim()
+                  : "-"
+                : getVal(jobData?.polName, jobData?.pol)
             }}</span>
           </div>
           <div class="w-[50%] pt-0.5 px-2 pb-1.5">
             <span class="font-bold text-[0.6rem] block leading-none mb-0.5">{{
-              dischargePlaceLabel
+              isTrucking ? "DELIVERY DATE & TIME" : dischargePlaceLabel
             }}</span>
             <span class="font-mono text-[10px] uppercase leading-none text-black">{{
-              getVal(jobData?.podName, jobData?.pod)
+              isTrucking
+                ? jobData?.deliveryDate
+                  ? `${formatDate(jobData.deliveryDate)} ${jobData.deliveryTime || ""}`.trim()
+                  : "-"
+                : getVal(jobData?.podName, jobData?.pod)
             }}</span>
           </div>
         </div>
         <div class="flex border-b border-[#062c58]" style="min-height: 40px">
-          <div class="w-[25%] border-r border-[#062c58] pt-0.5 px-2 pb-1.5">
-            <span class="font-bold text-[10px] block leading-none mb-0.5">PLACE OF DELIVERY</span>
-            <span class="font-mono text-[10px] uppercase leading-none text-black">{{
-              getVal(jobData?.placeOfDelivery, getVal(jobData?.podName, jobData?.pod))
-            }}</span>
-          </div>
-          <div class="w-[25%] border-r border-[#062c58] pt-0.5 px-2 pb-1.5">
-            <span class="font-bold text-[10px] block leading-none mb-0.5">TYPE OF MOVEMENT</span>
-            <span class="font-mono text-[10px] uppercase text-black leading-none"
-              >{{
-                (jobData?.cargoMovement?.code || jobData?.cargoMovementId || "FCL_FCL").replace(
-                  "_",
-                  "/",
-                )
-              }}
-              -
-              {{
-                (jobData?.deliveryMovement?.code || jobData?.deliveryMovementId || "CY_CY").replace(
-                  "_",
-                  "/",
-                )
-              }}</span
-            >
-          </div>
-          <div class="w-[50%] pt-0.5 px-2 pb-1.5">
-            <span class="font-bold text-[10px] block leading-none mb-0.5">FINAL DESTINATION</span>
-            <span class="font-mono text-[10px] uppercase leading-none text-black">{{
-              getVal(jobData?.finalDestination, getVal(jobData?.podName, jobData?.pod))
-            }}</span>
-          </div>
+          <template v-if="isTrucking">
+            <div class="w-[75%] border-r border-[#062c58] pt-0.5 px-2 pb-1.5">
+              <span class="font-bold text-[0.6rem] block leading-none mb-0.5"
+                >DELIVERY ADDRESS</span
+              >
+              <span class="font-mono text-[10px] uppercase leading-none text-black">{{
+                placeOfDeliveryVal
+              }}</span>
+            </div>
+            <div class="w-[25%] pt-0.5 px-2 pb-1.5">
+              <span class="font-bold text-[0.6rem] block leading-none mb-0.5">CARRIER</span>
+              <span class="font-mono text-[10px] uppercase text-black leading-none">{{
+                getVal(jobData?.vendor?.name, "-")
+              }}</span>
+            </div>
+          </template>
+          <template v-else>
+            <div class="w-[25%] border-r border-[#062c58] pt-0.5 px-2 pb-1.5">
+              <span class="font-bold text-[0.6rem] block leading-none mb-0.5"
+                >PLACE OF DELIVERY</span
+              >
+              <span class="font-mono text-[10px] uppercase leading-none text-black">{{
+                placeOfDeliveryVal
+              }}</span>
+            </div>
+            <div class="w-[25%] border-r border-[#062c58] pt-0.5 px-2 pb-1.5">
+              <span class="font-bold text-[0.6rem] block leading-none mb-0.5"
+                >TYPE OF MOVEMENT</span
+              >
+              <span class="font-mono text-[10px] uppercase text-black leading-none">
+                {{
+                  (jobData?.cargoMovement?.code || jobData?.cargoMovementId || "FCL_FCL").replace(
+                    "_",
+                    "/",
+                  )
+                }}
+                -
+                {{
+                  (
+                    jobData?.deliveryMovement?.code ||
+                    jobData?.deliveryMovementId ||
+                    "CY_CY"
+                  ).replace("_", "/")
+                }}
+              </span>
+            </div>
+            <div class="w-[50%] pt-0.5 px-2 pb-1.5">
+              <span class="font-bold text-[0.6rem] block leading-none mb-0.5"
+                >FINAL DESTINATION</span
+              >
+              <span class="font-mono text-[10px] uppercase leading-none text-black">{{
+                finalDestinationVal
+              }}</span>
+            </div>
+          </template>
         </div>
       </div>
 
@@ -539,6 +757,7 @@ const formatDate = (dateStr?: string | null) => {
             class="w-[22%] border-r border-[#062c58] p-1 flex flex-col items-center justify-center leading-tight"
           >
             <template v-if="isAir"> <span>MARKS & NUMBERS</span><span>PACKAGE ID</span> </template>
+            <template v-else-if="isTrucking"> <span>VEHICLE NO. / DRIVER</span> </template>
             <template v-else>
               <span>CNTR. NOS. W/SEAL NOS.</span><span>MARKS & NUMBERS</span>
             </template>
@@ -584,6 +803,13 @@ const formatDate = (dateStr?: string | null) => {
                 <template v-if="isAir">
                   {{ page.pageIndex === 0 && cIdx === 0 ? getVal(jobData?.shippingMark) : "" }}
                 </template>
+                <template v-else-if="isTrucking">
+                  {{ cnt.vehicleNumber || "" }}
+                  <span v-if="cnt.driverName" class="ml-1">/ {{ cnt.driverName }}</span>
+                  <span v-if="cnt.driverContactNumber" class="ml-1"
+                    >({{ cnt.driverContactNumber }})</span
+                  >
+                </template>
                 <template v-else>
                   {{ cnt.containerNumber || ""
                   }}<span v-if="cnt.sealNumber" class="ml-1">/{{ cnt.sealNumber }}</span>
@@ -596,7 +822,13 @@ const formatDate = (dateStr?: string | null) => {
                 {{ cnt.isHazardous ? "X" : "" }}
               </div>
               <div class="w-[40%] px-3 font-mono text-[11px]">
-                {{ isAir ? "SAID TO CONTAIN:" : `1X${cnt.containerType?.code || ""} S.T.C.:` }}
+                {{
+                  isAir
+                    ? "SAID TO CONTAIN:"
+                    : isTrucking
+                      ? `1X${cnt.containerType?.name || cnt.containerType?.code || ""} S.T.C.:`
+                      : `1X${cnt.containerType?.code || ""} S.T.C.:`
+                }}
               </div>
               <div class="w-[12.5%] px-3 text-right text-[11px]">
                 {{ formatNumber(getContainerTotals(cnt).gw) }}KGS
@@ -721,8 +953,9 @@ const formatDate = (dateStr?: string | null) => {
           <div
             class="w-[29%] p-0.5 text-[0.42rem] font-normal leading-tight text-justify flex items-start text-black"
           >
-            [1] ORIGINAL {{ isAir ? "AIR WAYBILL(S)" : "BILL(S) OF LADING" }} HAVE BEEN SIGNED,
-            WHERE DELIVERED AGAINST ONE, THE OTHERS(S) TO BE VOID.
+            [1] ORIGINAL
+            {{ isAir ? "AIR WAYBILL(S)" : isTrucking ? "WAYBILL(S)" : "BILL(S) OF LADING" }} HAVE
+            BEEN SIGNED, WHERE DELIVERED AGAINST ONE, THE OTHERS(S) TO BE VOID.
           </div>
         </div>
         <div class="flex flex-1" style="min-height: 110px">
@@ -803,7 +1036,11 @@ const formatDate = (dateStr?: string | null) => {
                 >{{ loadedDateLabel }}</span
               >
               <span class="font-mono text-[0.65rem] text-black uppercase leading-none mt-1 block">{{
-                formatDate(jobData?.etd)
+                isTrucking
+                  ? jobData?.pickupDate
+                    ? `${formatDate(jobData.pickupDate)} ${jobData.pickupTime || ""}`.trim()
+                    : formatDate(jobData?.etd)
+                  : formatDate(jobData?.etd)
               }}</span>
             </div>
             <div class="border-b border-[#062c58] px-2 pt-0.5 pb-2" style="min-height: 35px">
@@ -831,8 +1068,9 @@ const formatDate = (dateStr?: string | null) => {
 
     <div class="mt-1 flex justify-between pr-2 text-[#062c58]" style="height: 45px">
       <div class="text-[0.45rem] w-1/2 mt-0.5 italic leading-tight">
-        The printed terms and conditions on this {{ isAir ? "Air Waybill" : "Bill" }} are available
-        at its website at www.nscontinent.com
+        The printed terms and conditions on this
+        {{ isAir ? "Air Waybill" : isTrucking ? "Waybill" : "Bill" }} are available at its website
+        at www.nscontinent.com
       </div>
       <div
         v-if="page.pageIndex === paginatedPagesLength - 1"

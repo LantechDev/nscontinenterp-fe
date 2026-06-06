@@ -200,6 +200,8 @@ const toggleEditMode = () => {
       findRole("NOTIFY_PARTY")?.addressBookId || findRole("NOTIFY PARTY")?.addressBookId || "",
     forwarderId: findRole("FORWARDER")?.companyId || "",
     forwarderAddressId: findRole("FORWARDER")?.addressBookId || "",
+    customerId: d?.customerId || d?.job?.customerId || props.job?.customerId || "",
+    customerAddressId: "",
     isNotifySameAsConsignee: false,
 
     mainDescription: d?.mainDescription || d?.job?.mainDescription || "",
@@ -264,6 +266,9 @@ const toggleEditMode = () => {
         containerNumber: container?.containerNumber || "",
         sealNumber: container?.sealNumber || "",
         containerTypeId: container?.containerTypeId || container?.containerType?.id || "",
+        vehicleNumber: container?.vehicleNumber || "",
+        driverName: container?.driverName || "",
+        driverContactNumber: container?.driverContactNumber || "",
         isHazardous: container?.isHazardous || false,
         items:
           container?.items?.map((it: EblContainerItem) => ({
@@ -351,6 +356,7 @@ const handleSaveDraft = async () => {
       notifyPartyAddressId: f.notifyPartyAddressId || undefined,
       forwarderId: f.forwarderId || undefined,
       forwarderAddressId: f.forwarderAddressId || undefined,
+      customerId: f.customerId || undefined,
 
       cargoDescription: f.mainDescription || undefined,
       mainDescription: f.mainDescription || undefined,
@@ -390,6 +396,9 @@ const handleSaveDraft = async () => {
         containerNumber: c.containerNumber,
         sealNumber: c.sealNumber,
         containerTypeId: c.containerTypeId,
+        vehicleNumber: c.vehicleNumber,
+        driverName: c.driverName,
+        driverContactNumber: c.driverContactNumber,
         isHazardous: c.isHazardous,
         items: c.items?.map((it: EblContainerItem) => ({
           sequenceNo: Number(it.sequenceNo),

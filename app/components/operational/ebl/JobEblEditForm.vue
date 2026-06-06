@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from "vue";
-import { Trash2, Box, Plus, FileText, Users, Clock, MapPin } from "lucide-vue-next";
+import { Trash2, Box, Plus, FileText, Users, Clock, MapPin, Truck } from "lucide-vue-next";
 import { toast } from "vue-sonner";
 
 import Combobox from "~/components/ui/Combobox.vue";
@@ -196,6 +196,34 @@ const activePlaneObj = ref<EblVessel | null>(null);
 const isAir = computed(
   () => props.jobData?.shipmentType === "AIR" || editForm.value.shipmentType === "AIR",
 );
+
+const isTrucking = computed(
+  () => props.jobData?.serviceType === "TRUCKING" || props.jobData?.job?.serviceType === "TRUCKING",
+);
+
+const documentName = computed(() =>
+  isTrucking.value ? "Waybill" : isAir.value ? "Air Waybill" : "Bill of Lading",
+);
+
+const formatTargetDateTime = (dateValue?: string | null, timeValue?: string | null) => {
+  if (!dateValue && !timeValue) return "-";
+
+  let dateLabel = "";
+  if (dateValue) {
+    const date = new Date(dateValue);
+    dateLabel = Number.isNaN(date.getTime())
+      ? dateValue
+      : new Intl.DateTimeFormat("en-GB", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        })
+          .format(date)
+          .toUpperCase();
+  }
+
+  return [dateLabel, timeValue || ""].filter(Boolean).join(" ") || "-";
+};
 
 watch(
   () => editForm.value.isNotifySameAsConsignee,
@@ -423,6 +451,9 @@ const addContainer = () => {
     containerNumber: "",
     sealNumber: "",
     containerTypeId: "",
+    vehicleNumber: "",
+    driverName: "",
+    driverContactNumber: "",
     isHazardous: false,
     items: [{ sequenceNo: 1, qty: 1, packageTypeCode: "", description: "" }],
   });
@@ -545,6 +576,7 @@ const removeShipperRef = (index: number) => {
         />
 
         <JobPartyRow
+          v-if="!isTrucking"
           label="Notify Party"
           :companies="companies"
           v-model:companyId="editForm.notifyPartyId"
@@ -564,6 +596,8 @@ const removeShipperRef = (index: number) => {
         </JobPartyRow>
 
         <JobPartyRow
+          v-slot:default
+          v-if="!isTrucking"
           label="Forwarder"
           description="(Optional)"
           :companies="companies"
@@ -582,13 +616,13 @@ const removeShipperRef = (index: number) => {
                 Shipper References (PO Numbers)
               </label>
               <p class="text-[10px] text-muted-foreground mt-0.5">
-                References to be printed on the Bill of Lading
+                References to be printed on the {{ documentName }}
               </p>
             </div>
             <div class="flex items-center gap-2">
               <Checkbox v-model="editForm.showShipperReferencesOnBl" />
               <span class="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider"
-                >Show on BL</span
+                >Show on {{ isTrucking ? "Waybill" : "BL" }}</span
               >
             </div>
           </div>
@@ -653,7 +687,7 @@ const removeShipperRef = (index: number) => {
             v-model.trim="editForm.mainDescription"
             v-uppercase
             rows="10"
-            placeholder="Description of goods to appear on BL..."
+            :placeholder="`Description of goods to appear on ${documentName}...`"
             class="input-field min-h-[250px] py-3 resize-y transition-all duration-200"
           ></textarea>
         </div>
@@ -673,7 +707,7 @@ const removeShipperRef = (index: number) => {
       </div>
     </SectionCard>
 
-    <SectionCard id="movement" title="Route & Movement Schedule" :icon="Clock">
+    <SectionCard v-if="!isTrucking" id="movement" title="Route & Movement Schedule" :icon="Clock">
       <div class="space-y-8">
         <!-- Integrated Route Details -->
 
@@ -899,6 +933,64 @@ const removeShipperRef = (index: number) => {
       </div>
     </SectionCard>
 
+    <SectionCard v-else id="movement" title="Trucking Route & Dates" :icon="MapPin">
+      <div class="space-y-6">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div class="space-y-2">
+            <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
+              >Pickup Address</label
+            >
+            <div class="input-field min-h-[76px] py-3 whitespace-pre-wrap bg-muted/20">
+              {{ jobData?.pickupAddress || jobData?.job?.pickupAddress || "-" }}
+            </div>
+          </div>
+          <div class="space-y-2">
+            <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
+              >Delivery Address</label
+            >
+            <div class="input-field min-h-[76px] py-3 whitespace-pre-wrap bg-muted/20">
+              {{ jobData?.deliveryAddress || jobData?.job?.deliveryAddress || "-" }}
+            </div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4 border-t border-border/50">
+          <div class="space-y-2">
+            <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
+              >Pickup Target</label
+            >
+            <div class="input-field h-10 bg-muted/20">
+              {{
+                formatTargetDateTime(
+                  jobData?.pickupDate || jobData?.job?.pickupDate,
+                  jobData?.pickupTime || jobData?.job?.pickupTime,
+                )
+              }}
+            </div>
+          </div>
+          <div class="space-y-2">
+            <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
+              >Delivery Target</label
+            >
+            <div class="input-field h-10 bg-muted/20">
+              {{
+                formatTargetDateTime(
+                  jobData?.deliveryDate || jobData?.job?.deliveryDate,
+                  jobData?.deliveryTime || jobData?.job?.deliveryTime,
+                )
+              }}
+            </div>
+          </div>
+          <div class="space-y-2">
+            <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
+              >Date Cargo Received</label
+            >
+            <DatePicker v-model="editForm.dateCargoReceived" placeholder="Select Date..." />
+          </div>
+        </div>
+      </div>
+    </SectionCard>
+
     <SectionCard id="freight" title="Freight & Charges" :icon="FileText">
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div class="space-y-2">
@@ -928,20 +1020,26 @@ const removeShipperRef = (index: number) => {
       </div>
     </SectionCard>
 
-    <SectionCard id="containers" title="Containers Breakdown" :icon="Box">
+    <SectionCard
+      id="containers"
+      :title="isTrucking ? 'Truck Breakdown' : 'Containers Breakdown'"
+      :icon="isTrucking ? Truck : Box"
+    >
       <div class="space-y-6">
         <div class="border rounded-xl mt-6 overflow-visible">
           <div
             class="bg-muted/10 px-4 py-3 border-b flex justify-between items-center rounded-t-xl"
           >
-            <h3 class="font-medium text-[14px]">Containers & Seals</h3>
+            <h3 class="font-medium text-[14px]">
+              {{ isTrucking ? "Truck Information" : "Containers & Seals" }}
+            </h3>
             <button
               type="button"
               @click="addContainer"
               class="btn-outline h-8 px-3 text-xs gap-1.5 flex items-center"
             >
               <Plus class="w-3.5 h-3.5" />
-              Add Container
+              {{ isTrucking ? "Add Truck" : "Add Container" }}
             </button>
           </div>
           <div class="p-4 space-y-4 bg-muted/5 rounded-b-xl">
@@ -950,7 +1048,74 @@ const removeShipperRef = (index: number) => {
               :key="index"
               class="space-y-4 pb-4 border-b border-border/50 last:border-0 last:pb-0"
             >
-              <div class="grid grid-cols-1 md:grid-cols-12 gap-4 items-end relative">
+              <!-- Trucking UI -->
+              <div
+                v-if="isTrucking"
+                class="grid grid-cols-1 md:grid-cols-12 gap-4 items-end relative"
+              >
+                <div class="col-span-3 space-y-1.5 pt-px">
+                  <label class="text-[10px] font-bold text-muted-foreground uppercase opacity-70"
+                    >Truck Type</label
+                  >
+                  <Combobox
+                    v-model="container.containerTypeId"
+                    :options="containerTypes"
+                    placeholder="Select Type..."
+                  />
+                </div>
+                <div class="md:col-span-3 space-y-2">
+                  <label class="text-[10px] font-bold text-muted-foreground uppercase opacity-70"
+                    >Vehicle Number (Nomor Polisi)</label
+                  >
+                  <input
+                    v-model="container.vehicleNumber"
+                    v-uppercase
+                    type="text"
+                    placeholder="B 9123 XYZ"
+                    class="input-field uppercase"
+                  />
+                </div>
+                <div class="md:col-span-3 space-y-2">
+                  <label class="text-[10px] font-bold text-muted-foreground uppercase opacity-70"
+                    >Driver Name</label
+                  >
+                  <input
+                    v-model="container.driverName"
+                    v-uppercase
+                    type="text"
+                    placeholder="Budi Santoso"
+                    class="input-field uppercase"
+                  />
+                </div>
+                <div class="md:col-span-2 space-y-2">
+                  <label class="text-[10px] font-bold text-muted-foreground uppercase opacity-70"
+                    >Driver Contact Number</label
+                  >
+                  <input
+                    v-model="container.driverContactNumber"
+                    v-uppercase
+                    type="text"
+                    placeholder="0812xxxxxxx"
+                    class="input-field uppercase"
+                  />
+                </div>
+                <div class="md:col-span-1 flex items-end justify-end gap-2 pb-1.5">
+                  <label class="flex flex-col items-center gap-1">
+                    <span class="text-[10px] font-bold text-muted-foreground uppercase">DG</span>
+                    <Checkbox v-model="container.isHazardous" />
+                  </label>
+                  <button
+                    type="button"
+                    @click="removeContainer(Number(index))"
+                    class="p-2 text-muted-foreground hover:text-destructive transition-colors disabled:opacity-50"
+                  >
+                    <Trash2 class="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              <!-- Container / Ocean UI -->
+              <div v-else class="grid grid-cols-1 md:grid-cols-12 gap-4 items-end relative">
                 <div class="col-span-3 space-y-1.5 pt-px">
                   <label class="text-[10px] font-bold text-muted-foreground uppercase opacity-70"
                     >Type</label
@@ -1007,7 +1172,7 @@ const removeShipperRef = (index: number) => {
               <div class="ml-4 pl-4 border-l-2 border-border/50 space-y-3">
                 <div class="flex items-center justify-between">
                   <h4 class="text-xs font-semibold text-muted-foreground tracking-wider uppercase">
-                    Container Breakdown Items
+                    {{ isTrucking ? "Truck Cargo Items" : "Container Breakdown Items" }}
                   </h4>
                   <button
                     type="button"
@@ -1138,7 +1303,11 @@ const removeShipperRef = (index: number) => {
                         v-uppercase
                         rows="6"
                         class="input-field text-sm placeholder:opacity-50 resize-y min-h-[100px] py-2 transition-all duration-200"
-                        placeholder="Description of goods in this container..."
+                        :placeholder="
+                          isTrucking
+                            ? 'Description of goods loaded on this truck...'
+                            : 'Description of goods in this container...'
+                        "
                       ></textarea>
                     </div>
                   </div>

@@ -91,6 +91,32 @@ const {
 
 const companies = computed(() => masterData.value?.companies || []);
 const containerTypes = computed(() => masterData.value?.containerTypes || []);
+const truckTypes = computed(() => {
+  const list = containerTypes.value;
+  const targetCodes = ["CDE", "CDD", "CDD_LONG", "WING_BOX", "20FT", "40FT", "40HC"];
+  const customNames: Record<string, string> = {
+    CDE: "CDE",
+    CDD: "CDD",
+    CDD_LONG: "CDD Long",
+    WING_BOX: "Wing Box",
+    "20FT": "20 FT",
+    "40FT": "40 FT",
+    "40HC": "40 HC",
+  };
+  return targetCodes.map((code) => {
+    const found = list.find((c) => c.code === code);
+    if (found) {
+      return {
+        id: found.id,
+        name: customNames[code] || found.name,
+      };
+    }
+    return {
+      id: code, // Fallback if not seeded yet
+      name: customNames[code] || code,
+    };
+  });
+});
 const vessels = computed(() => masterData.value?.vessels || []);
 const planes = computed(() => masterData.value?.planes || []);
 const packageTypes = computed(() => masterData.value?.packageTypes || []);
@@ -188,6 +214,9 @@ const formData = reactive({
       containerNumber: "",
       sealNumber: "",
       containerTypeId: "",
+      vehicleNumber: "",
+      driverName: "",
+      driverContactNumber: "",
       isHazardous: false,
       items: [
         {
@@ -208,6 +237,9 @@ const formData = reactive({
     containerNumber: string;
     sealNumber: string;
     containerTypeId: string;
+    vehicleNumber: string;
+    driverName: string;
+    driverContactNumber: string;
     isHazardous: boolean;
     items: Array<{
       id: number;
@@ -652,13 +684,12 @@ const SECTIONS = computed(() => {
   const baseSections = [
     { id: "job-info", label: "Job Information", step: 1 },
     { id: "parties", label: "Involved Parties", step: 2 },
-    { id: "route", label: "Route Details", step: 3 },
-    { id: "cargo", label: "Cargo Information", step: 4 },
-    { id: "movement", label: "Movement & Schedule", step: 5 },
+    { id: "cargo", label: "Cargo Information", step: 3 },
+    { id: "movement", label: "Route & Schedule", step: 4 },
   ];
 
   if (formData.serviceType === "OCEAN") {
-    baseSections.push({ id: "bl", label: "BL Setup", step: 6 });
+    baseSections.push({ id: "bl", label: "BL Setup", step: 5 });
   }
 
   return baseSections;
@@ -823,7 +854,31 @@ async function handleSubmit(isDraft: boolean = false) {
     mainDescription: formData.mainDescription || undefined,
     hsCode: formData.hsCode || undefined,
     freightTerm: (formData.freightTerm as "PREPAID" | "COLLECT") || undefined,
-    containers: formData.containers.filter((c) => c.containerNumber),
+    containers: formData.containers
+      .filter((c) =>
+        formData.serviceType === "TRUCKING"
+          ? c.vehicleNumber || c.containerTypeId
+          : c.containerNumber,
+      )
+      .map((c) => ({
+        containerNumber: formData.serviceType === "TRUCKING" ? null : c.containerNumber || null,
+        sealNumber: formData.serviceType === "TRUCKING" ? null : c.sealNumber || null,
+        containerTypeId: c.containerTypeId || null,
+        vehicleNumber: c.vehicleNumber || null,
+        driverName: c.driverName || null,
+        driverContactNumber: c.driverContactNumber || null,
+        isHazardous: c.isHazardous,
+        items: c.items.map((item) => ({
+          sequenceNo: item.sequenceNo,
+          qty: item.qty,
+          packageTypeCode: item.packageTypeCode || null,
+          grossWeight: item.grossWeight,
+          netWeight: item.netWeight,
+          measurementCbm: item.measurementCbm,
+          description: item.description || null,
+          hsCode: item.hsCode || null,
+        })),
+      })),
     pol: formData.pol,
     pod: formData.pod,
     vessels: formData.vessels.map((v) => ({
@@ -1122,6 +1177,9 @@ interface JobItem {
     containerNumber?: string;
     sealNumber?: string;
     containerTypeId?: string;
+    vehicleNumber?: string | null;
+    driverName?: string | null;
+    driverContactNumber?: string | null;
     isHazardous?: boolean;
     items?: {
       sequenceNo?: number;
@@ -1273,6 +1331,9 @@ async function populateFormFromExistingJob(jobInput: unknown) {
       containerNumber: c.containerNumber || "",
       sealNumber: c.sealNumber || "",
       containerTypeId: c.containerTypeId || "",
+      vehicleNumber: c.vehicleNumber || "",
+      driverName: c.driverName || "",
+      driverContactNumber: c.driverContactNumber || "",
       isHazardous: c.isHazardous || false,
       items: Array.isArray(c.items)
         ? c.items.map((item, i) => ({
@@ -1296,6 +1357,9 @@ async function populateFormFromExistingJob(jobInput: unknown) {
         containerNumber: "",
         sealNumber: "",
         containerTypeId: "",
+        vehicleNumber: "",
+        driverName: "",
+        driverContactNumber: "",
         isHazardous: false,
         items: [
           {
@@ -1692,7 +1756,11 @@ async function populateFormFromExistingJob(jobInput: unknown) {
                     <h3
                       class="font-semibold text-[14px] uppercase tracking-wider text-foreground/80"
                     >
-                      Containers & Seals
+                      {{
+                        formData.serviceType === "TRUCKING"
+                          ? "Truck Information"
+                          : "Containers & Seals"
+                      }}
                     </h3>
                   </div>
                   <button
@@ -1703,6 +1771,9 @@ async function populateFormFromExistingJob(jobInput: unknown) {
                         containerNumber: '',
                         sealNumber: '',
                         containerTypeId: '',
+                        vehicleNumber: '',
+                        driverName: '',
+                        driverContactNumber: '',
                         isHazardous: false,
                         items: [
                           {
@@ -1722,7 +1793,7 @@ async function populateFormFromExistingJob(jobInput: unknown) {
                     class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-primary/20 bg-primary/5 text-primary text-xs font-semibold hover:bg-primary/10 transition-colors"
                   >
                     <Plus class="w-3.5 h-3.5" />
-                    Add Container
+                    {{ formData.serviceType === "TRUCKING" ? "Add Truck" : "Add Container" }}
                   </button>
                 </div>
                 <div class="p-5 space-y-8">
@@ -1739,7 +1810,72 @@ async function populateFormFromExistingJob(jobInput: unknown) {
                       {{ index + 1 }}
                     </div>
 
-                    <div class="grid grid-cols-1 md:grid-cols-12 gap-5 items-end pl-6">
+                    <!-- Trucking Specific UI -->
+                    <div
+                      v-if="formData.serviceType === 'TRUCKING'"
+                      class="grid grid-cols-1 md:grid-cols-12 gap-5 items-end pl-6"
+                    >
+                      <div class="col-span-3 space-y-2">
+                        <label
+                          class="text-[11px] font-bold text-muted-foreground/70 uppercase tracking-widest pl-1"
+                          >Truck Type</label
+                        >
+                        <Combobox
+                          v-model="container.containerTypeId"
+                          :options="truckTypes"
+                          placeholder="Select..."
+                        />
+                      </div>
+                      <div class="col-span-3 space-y-2">
+                        <label
+                          class="text-[11px] font-bold text-muted-foreground/70 uppercase tracking-widest pl-1"
+                          >Vehicle Number (Nomor Polisi)</label
+                        >
+                        <input
+                          v-model="container.vehicleNumber"
+                          type="text"
+                          placeholder="B 9123 XYZ"
+                          class="input-field uppercase tracking-wider font-mono text-xs"
+                          v-uppercase
+                        />
+                      </div>
+                      <div class="col-span-3 space-y-2">
+                        <label
+                          class="text-[11px] font-bold text-muted-foreground/70 uppercase tracking-widest pl-1"
+                          >Driver Name</label
+                        >
+                        <input
+                          v-model="container.driverName"
+                          type="text"
+                          placeholder="Budi Santoso"
+                          class="input-field uppercase tracking-wider font-mono text-xs"
+                          v-uppercase
+                        />
+                      </div>
+                      <div class="col-span-2 space-y-2">
+                        <label
+                          class="text-[11px] font-bold text-muted-foreground/70 uppercase tracking-widest pl-1"
+                          >Driver Contact Number</label
+                        >
+                        <input
+                          v-model="container.driverContactNumber"
+                          type="text"
+                          placeholder="0812xxxxxxx"
+                          class="input-field uppercase tracking-wider font-mono text-xs"
+                          v-uppercase
+                        />
+                      </div>
+                      <div class="col-span-1 flex flex-col items-center justify-center pb-2">
+                        <label
+                          class="text-[11px] font-bold text-muted-foreground/70 uppercase mb-2 tracking-widest"
+                          >DG</label
+                        >
+                        <Checkbox v-model="container.isHazardous" />
+                      </div>
+                    </div>
+
+                    <!-- Sea/Standard Freight Specific UI -->
+                    <div v-else class="grid grid-cols-1 md:grid-cols-12 gap-5 items-end pl-6">
                       <div class="col-span-3 space-y-2">
                         <label
                           class="text-[11px] font-bold text-muted-foreground/70 uppercase tracking-widest pl-1"
