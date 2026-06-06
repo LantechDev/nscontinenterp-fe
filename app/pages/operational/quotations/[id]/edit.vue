@@ -104,10 +104,13 @@ const services = computed(() => {
 });
 
 const containerTypes = computed(() => {
-  return (masterData.value?.containerTypes || []).map((ct) => ({
-    id: ct.id,
-    name: ct.name,
-  }));
+  const truckContainerTypeCodes = new Set(["CDE", "CDD", "CDD_LONG", "WING_BOX"]);
+  return (masterData.value?.containerTypes || [])
+    .filter((ct) => !truckContainerTypeCodes.has(ct.code))
+    .map((ct) => ({
+      id: ct.id,
+      name: ct.name,
+    }));
 });
 
 const FREIGHT_TERMS = [
