@@ -16,6 +16,7 @@ const router = useRouter();
 const route = useRoute();
 const { notifications, fetchNotifications } = useDashboard();
 const { canAccessPath, ensureRolesLoaded } = useRoleAccess();
+const isSidebarCollapsed = useState("dashboard-sidebar-collapsed", () => false);
 
 // Check route meta to show/hide header
 const showHeader = computed(() => route.meta.hideHeader !== true);
@@ -285,7 +286,13 @@ onUnmounted(() => {
     <LayoutAppSidebar />
 
     <!-- Main content area -->
-    <div class="ml-64">
+    <div
+      :class="
+        isSidebarCollapsed
+          ? 'ml-20 transition-[margin] duration-300'
+          : 'ml-64 transition-[margin] duration-300'
+      "
+    >
       <!-- Top header -->
       <header
         v-if="showHeader"

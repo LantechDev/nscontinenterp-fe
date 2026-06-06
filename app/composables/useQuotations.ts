@@ -36,12 +36,20 @@ export interface Quotation {
   validUntil: string;
   freeTime?: string | null;
   salesName?: string | null;
+  tradeTypeId?: string | null;
+  serviceType?: string | null;
+  shipmentType?: string | null;
   pol?: string | null;
   polName?: string | null;
   pod?: string | null;
   podName?: string | null;
   containerTypeId?: string | null;
   containerTypeName?: string | null;
+  truckType?: string | null;
+  pickupAddress?: string | null;
+  deliveryAddress?: string | null;
+  pickupDate?: string | null;
+  deliveryDate?: string | null;
   term?: string | null;
   status: "DRAFT" | "SENT" | "CONFIRMED" | "CONVERTED" | "CANCELLED" | "EXPIRED";
   notes?: string | null; // Remarks
@@ -89,6 +97,18 @@ export interface CreateQuotation {
   validUntil: string;
   freeTime?: string | null;
   salesName?: string | null;
+  tradeTypeId?: string | null;
+  serviceType?: string | null;
+  shipmentType?: string | null;
+  pol?: string | null;
+  pod?: string | null;
+  containerTypeId?: string | null;
+  truckType?: string | null;
+  pickupAddress?: string | null;
+  deliveryAddress?: string | null;
+  pickupDate?: string | null;
+  deliveryDate?: string | null;
+  term?: string | null;
   notes?: string | null;
   allowMultipleInvoices?: boolean;
 
@@ -110,6 +130,18 @@ export interface UpdateQuotation {
   validUntil?: string;
   freeTime?: string | null;
   salesName?: string | null;
+  tradeTypeId?: string | null;
+  serviceType?: string | null;
+  shipmentType?: string | null;
+  pol?: string | null;
+  pod?: string | null;
+  containerTypeId?: string | null;
+  truckType?: string | null;
+  pickupAddress?: string | null;
+  deliveryAddress?: string | null;
+  pickupDate?: string | null;
+  deliveryDate?: string | null;
+  term?: string | null;
   allowMultipleInvoices?: boolean;
   status?: string;
   notes?: string | null;

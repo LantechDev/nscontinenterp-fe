@@ -239,6 +239,65 @@ const formatDate = (dateStr?: string | null) => {
   }
 };
 
+const tradeTypeLabel = computed(() => {
+  const tradeType = props.quotation?.tradeTypeId;
+  if (tradeType === "IMPORT") return "Import";
+  if (tradeType === "DOMESTIC") return "Domestic";
+  return "Export";
+});
+
+const serviceTypeLabel = computed(() => {
+  const serviceType = props.quotation?.serviceType;
+  if (serviceType === "TRUCKING") return "TRUCKING";
+  if (serviceType === "CUSTOM_CLEARANCE") return "CUSTOM CLEARANCE";
+  return "OCEAN (FREIGHT)";
+});
+
+const shipmentTypeLabel = computed(() => {
+  const shipmentType = props.quotation?.shipmentType;
+  if (shipmentType === "AIR") return "Air Freight";
+  if (shipmentType === "OCEAN") return "Ocean Freight";
+  return "-";
+});
+
+const isAirFreight = computed(
+  () => props.quotation?.serviceType === "OCEAN" && props.quotation?.shipmentType === "AIR",
+);
+const isTrucking = computed(() => props.quotation?.serviceType === "TRUCKING");
+const isCustomClearance = computed(() => props.quotation?.serviceType === "CUSTOM_CLEARANCE");
+
+const originLabel = computed(() => {
+  if (isTrucking.value) return "PICKUP ADDRESS";
+  if (isCustomClearance.value) return "CLEARANCE ORIGIN / PORT";
+  return isAirFreight.value ? "ORIGIN AIRPORT" : "PORT OF LOADING (POL)";
+});
+
+const destinationLabel = computed(() => {
+  if (isTrucking.value) return "DELIVERY ADDRESS";
+  if (isCustomClearance.value) return "CLEARANCE DESTINATION / PORT";
+  return isAirFreight.value ? "DESTINATION AIRPORT" : "PORT OF DISCHARGE (POD)";
+});
+
+const originValue = computed(() => {
+  if (isTrucking.value) return props.quotation?.pickupAddress || "-";
+  return props.quotation?.polName || props.quotation?.pol || "-";
+});
+
+const destinationValue = computed(() => {
+  if (isTrucking.value) return props.quotation?.deliveryAddress || "-";
+  return props.quotation?.podName || props.quotation?.pod || "-";
+});
+
+const containerTypeValue = computed(() => {
+  if (isCustomClearance.value) return "-";
+  return props.quotation?.containerTypeName || props.quotation?.containerTypeId || "-";
+});
+
+const truckTypeValue = computed(() => {
+  if (!isTrucking.value) return "-";
+  return props.quotation?.truckType || "-";
+});
+
 const generatePDF = async () => {
   if (!printContainerRef.value || !props.quotation) return false;
 
@@ -416,25 +475,50 @@ defineExpose({
           <!-- Routing & Cargo Info -->
           <div class="flex border-b border-[#062c58]" style="min-height: 45px">
             <div class="w-1/4 border-r border-[#062c58] pt-2 px-3 pb-1">
-              <span class="font-bold text-[0.6rem] block leading-none mb-1"
-                >PORT OF LOADING (POL)</span
-              >
+              <span class="font-bold text-[0.6rem] block leading-none mb-1">TRADE TYPE</span>
               <span class="font-mono text-[0.7rem] uppercase text-black">
-                {{ quotation?.polName || quotation?.pol || "-" }}
+                {{ tradeTypeLabel }}
               </span>
             </div>
             <div class="w-1/4 border-r border-[#062c58] pt-2 px-3 pb-1">
-              <span class="font-bold text-[0.6rem] block leading-none mb-1"
-                >PORT OF DISCHARGE (POD)</span
-              >
+              <span class="font-bold text-[0.6rem] block leading-none mb-1">SERVICE TYPE</span>
               <span class="font-mono text-[0.7rem] uppercase text-black">
-                {{ quotation?.podName || quotation?.pod || "-" }}
+                {{ serviceTypeLabel }}
+              </span>
+            </div>
+            <div class="w-1/4 border-r border-[#062c58] pt-2 px-3 pb-1">
+              <span class="font-bold text-[0.6rem] block leading-none mb-1">TYPE OF SHIPMENT</span>
+              <span class="font-mono text-[0.7rem] uppercase text-black">
+                {{ shipmentTypeLabel }}
+              </span>
+            </div>
+            <div class="w-1/4 pt-2 px-3 pb-1">
+              <span class="font-bold text-[0.6rem] block leading-none mb-1">TRUCK TYPE</span>
+              <span class="font-mono text-[0.7rem] uppercase text-black">
+                {{ truckTypeValue }}
+              </span>
+            </div>
+          </div>
+
+          <div class="flex border-b border-[#062c58]" style="min-height: 45px">
+            <div class="w-1/4 border-r border-[#062c58] pt-2 px-3 pb-1">
+              <span class="font-bold text-[0.6rem] block leading-none mb-1">{{ originLabel }}</span>
+              <span class="font-mono text-[0.7rem] uppercase text-black">
+                {{ originValue }}
+              </span>
+            </div>
+            <div class="w-1/4 border-r border-[#062c58] pt-2 px-3 pb-1">
+              <span class="font-bold text-[0.6rem] block leading-none mb-1">{{
+                destinationLabel
+              }}</span>
+              <span class="font-mono text-[0.7rem] uppercase text-black">
+                {{ destinationValue }}
               </span>
             </div>
             <div class="w-1/4 border-r border-[#062c58] pt-2 px-3 pb-1">
               <span class="font-bold text-[0.6rem] block leading-none mb-1">CONTAINER TYPE</span>
               <span class="font-mono text-[0.7rem] uppercase text-black">
-                {{ quotation?.containerTypeName || "-" }}
+                {{ containerTypeValue }}
               </span>
             </div>
             <div class="w-1/4 pt-2 px-3 pb-1">

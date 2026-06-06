@@ -115,6 +115,7 @@ export function useAppSidebar() {
   const organizations = ref<Organization[]>([]);
   const isOrgDropdownOpen = ref(false);
   const isUserDropdownOpen = ref(false);
+  const isSidebarCollapsed = useState("dashboard-sidebar-collapsed", () => false);
   const expandedItems = ref<string[]>(["Master Data", "Operational", "Finance"]);
   const route = useRoute();
 
@@ -176,6 +177,14 @@ export function useAppSidebar() {
     }
   };
 
+  const toggleSidebar = () => {
+    isSidebarCollapsed.value = !isSidebarCollapsed.value;
+    if (isSidebarCollapsed.value) {
+      isOrgDropdownOpen.value = false;
+      isUserDropdownOpen.value = false;
+    }
+  };
+
   const isActive = (href: string): boolean => {
     if (route.path === href) return true;
     return route.path.startsWith(href + "/");
@@ -202,6 +211,7 @@ export function useAppSidebar() {
     organizations,
     isOrgDropdownOpen,
     isUserDropdownOpen,
+    isSidebarCollapsed,
     expandedItems,
 
     // Computed
@@ -213,6 +223,7 @@ export function useAppSidebar() {
     toggleOrgDropdown,
     handleOrgSwitch,
     toggleExpand,
+    toggleSidebar,
     isActive,
     isChildActive,
   };
