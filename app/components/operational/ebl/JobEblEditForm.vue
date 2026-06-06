@@ -56,6 +56,13 @@ const { confirm } = useConfirm();
 
 const companies = ref<Company[]>([]);
 const containerTypes = ref<ContainerType[]>([]);
+const TRUCK_CONTAINER_TYPE_CODES = new Set(["CDE", "CDD", "CDD_LONG", "WING_BOX"]);
+const oceanContainerTypes = computed(() =>
+  containerTypes.value.filter((type) => !TRUCK_CONTAINER_TYPE_CODES.has(type.code)),
+);
+const truckTypes = computed(() =>
+  containerTypes.value.filter((type) => TRUCK_CONTAINER_TYPE_CODES.has(type.code)),
+);
 const packageTypes = ref<PackageType[]>([]);
 const cargoMovementOptions = ref<MovementType[]>([]);
 const deliveryMovementOptions = ref<MovementType[]>([]);
@@ -1059,7 +1066,7 @@ const removeShipperRef = (index: number) => {
                   >
                   <Combobox
                     v-model="container.containerTypeId"
-                    :options="containerTypes"
+                    :options="truckTypes"
                     placeholder="Select Type..."
                   />
                 </div>
@@ -1122,7 +1129,7 @@ const removeShipperRef = (index: number) => {
                   >
                   <Combobox
                     v-model="container.containerTypeId"
-                    :options="containerTypes"
+                    :options="oceanContainerTypes"
                     placeholder="Select Type..."
                   />
                 </div>

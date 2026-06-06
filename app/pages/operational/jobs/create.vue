@@ -91,6 +91,10 @@ const {
 
 const companies = computed(() => masterData.value?.companies || []);
 const containerTypes = computed(() => masterData.value?.containerTypes || []);
+const TRUCK_CONTAINER_TYPE_CODES = new Set(["CDE", "CDD", "CDD_LONG", "WING_BOX"]);
+const oceanContainerTypes = computed(() =>
+  containerTypes.value.filter((type) => !TRUCK_CONTAINER_TYPE_CODES.has(type.code)),
+);
 const truckTypes = computed(() => {
   const list = containerTypes.value;
   const targetCodes = ["CDE", "CDD", "CDD_LONG", "WING_BOX", "20FT", "40FT", "40HC"];
@@ -1883,7 +1887,7 @@ async function populateFormFromExistingJob(jobInput: unknown) {
                         >
                         <Combobox
                           v-model="container.containerTypeId"
-                          :options="containerTypes"
+                          :options="oceanContainerTypes"
                           placeholder="Select..."
                         />
                       </div>
