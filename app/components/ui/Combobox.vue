@@ -15,6 +15,7 @@ const props = withDefaults(
     placeholder?: string;
     allowCreate?: boolean;
     filterLocal?: boolean;
+    disabled?: boolean;
   }>(),
   {
     filterLocal: true,
@@ -166,13 +167,14 @@ const { floatingStyles } = useFloating(containerRef, floatingRef, {
   <div ref="containerRef" class="relative">
     <button
       type="button"
+      :disabled="disabled"
       class="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
       @click="open = !open"
     >
       <span class="truncate">{{ selectedLabel }}</span>
       <span class="ml-2 flex shrink-0 items-center gap-1">
         <span
-          v-if="hasSelection"
+          v-if="hasSelection && !disabled"
           role="button"
           tabindex="0"
           aria-label="Clear selection"

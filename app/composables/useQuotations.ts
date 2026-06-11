@@ -7,10 +7,12 @@ export interface QuotationCharge {
   serviceId: string | null;
   serviceName?: string | null;
   taxId?: string | null;
+  taxRate?: number;
   description: string;
   quantity: number;
   unitPrice: number;
   amount: number;
+  currency?: "IDR" | "USD";
 
   // Backward compatibility
   vendorId?: string | null;

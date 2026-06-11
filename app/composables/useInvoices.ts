@@ -178,6 +178,24 @@ async function getNextInvoiceNumber(jobId: string): Promise<string> {
   }
 }
 
+async function fetchSuggestedExchangeRate(): Promise<{
+  success: boolean;
+  rate?: number;
+  error?: string;
+}> {
+  try {
+    const res = await $fetch<{ success: boolean; rate?: number; error?: string }>(
+      "/api/finance/invoice/exchange-rate",
+    );
+    if (res?.success && res.rate) {
+      return { success: true, rate: res.rate };
+    }
+    return { success: false, error: res?.error || "Invalid response from server" };
+  } catch (error) {
+    return { success: false, error: getErrorMessage(error) };
+  }
+}
+
 export function useInvoices() {
   const isLoading = ref(false);
 
@@ -340,5 +358,6 @@ export function useInvoices() {
     deleteInvoice,
     voidInvoice,
     getNextInvoiceNumber,
+    fetchSuggestedExchangeRate,
   };
 }

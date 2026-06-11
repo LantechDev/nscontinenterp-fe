@@ -28,7 +28,7 @@ definePageMeta({
   title: "Create Quotation",
 });
 
-const { createQuotation, isLoading } = useQuotations();
+const { createQuotation, getQuotation, isLoading } = useQuotations();
 const { fetchTaxes } = useFinanceTax();
 const { createService } = useServices();
 const router = useRouter();
@@ -244,9 +244,105 @@ const formData = reactive({
       quantity: 1,
       unitPrice: 0,
       taxId: "",
+      currency: "IDR" as "IDR" | "USD",
     },
   ],
 });
+
+const route = useRoute();
+
+// ============================================
+// COPY QUOTATION FEATURE - Prefill form from existing quotation
+// ============================================
+watch(
+  () => route.query.copyFrom,
+  async (copyFrom) => {
+    if (copyFrom && typeof copyFrom === "string") {
+      const res = await getQuotation(copyFrom);
+      if (res.success && res.data) {
+        const q = res.data;
+        const normalizedServiceType = q.serviceType === "AIR" ? "OCEAN" : q.serviceType || "OCEAN";
+        const normalizedShipmentType =
+          q.serviceType === "AIR"
+            ? "AIR"
+            : ["OCEAN", "AIR"].includes(q.shipmentType || "")
+              ? q.shipmentType || "OCEAN"
+              : "OCEAN";
+
+        formData.customerId = q.customerId;
+        formData.picName = q.picName || "";
+        formData.tradeTypeId = q.tradeTypeId || "EXPORT";
+        formData.serviceType = normalizedServiceType;
+        formData.shipmentType = normalizedServiceType === "OCEAN" ? normalizedShipmentType : "";
+        formData.pol = q.pol || "";
+        formData.pod = q.pod || "";
+        formData.containerTypeId = q.containerTypeId || "";
+        formData.truckType = q.truckType || "";
+        formData.pickupAddress = q.pickupAddress || "";
+        formData.deliveryAddress = q.deliveryAddress || "";
+        formData.pickupDate = q.pickupDate ? q.pickupDate.split("T")[0] || "" : "";
+        formData.deliveryDate = q.deliveryDate ? q.deliveryDate.split("T")[0] || "" : "";
+        formData.term = q.term || "PREPAID";
+
+        // Reset dates for a new proposal
+        const today = new Date();
+        const nextMonth = new Date();
+        nextMonth.setDate(today.getDate() + 30);
+        formData.date = formatDateString(today);
+        formData.validUntil = formatDateString(nextMonth);
+
+        formData.freeTime = q.freeTime || "";
+        formData.salesName = q.salesName || "";
+        formData.currency = q.currency || "IDR";
+        formData.exchangeRate = Number(q.exchangeRate || 1);
+        formData.allowMultipleInvoices = Boolean(q.allowMultipleInvoices);
+        formData.notes = q.notes || "";
+
+        formData.charges = (q.charges || []).map((ch) => ({
+          id: Date.now() + Math.random(),
+          serviceId: ch.serviceId || "",
+          description: ch.description || "",
+          quantity: Number(ch.quantity || 1),
+          unitPrice: Number(ch.unitPrice || 0),
+          taxId: ch.taxId || "",
+          currency: ch.currency || "IDR",
+        }));
+
+        // Fetch and merge selected POL/POD to ensure they are available in dropdown options
+        const portQueries = [];
+        const portSearchTypeVal = normalizedShipmentType === "AIR" ? "air" : "ocean";
+        if (q.pol) {
+          portQueries.push(
+            $fetch<Port[]>(`/api/master/ports`, {
+              params: { q: q.pol, type: portSearchTypeVal },
+            }).catch(() => []),
+          );
+        }
+        if (q.pod) {
+          portQueries.push(
+            $fetch<Port[]>(`/api/master/ports`, {
+              params: { q: q.pod, type: portSearchTypeVal },
+            }).catch(() => []),
+          );
+        }
+
+        if (portQueries.length > 0) {
+          const fetched = await Promise.all(portQueries);
+          const flatPorts = fetched.flat().map(uppercasePort);
+          const existingCodes = new Set(searchedPorts.value.map((p) => p.code));
+          flatPorts.forEach((port) => {
+            if (!existingCodes.has(port.code)) {
+              searchedPorts.value.push(port);
+            }
+          });
+        }
+
+        toast.success("Quotation copied as template. Review all fields before creating.");
+      }
+    }
+  },
+  { immediate: true },
+);
 
 // Helper to add charge line
 function addChargeLine() {
@@ -257,6 +353,7 @@ function addChargeLine() {
     quantity: 1,
     unitPrice: 0,
     taxId: "",
+    currency: "IDR",
   });
 }
 
@@ -331,7 +428,10 @@ async function submitServiceForm(modalData: {
     if (res.success && res.data) {
       // Add the new service to the local services list in masterData
       if (masterData.value) {
-        masterData.value.services = [...masterData.value.services, res.data];
+        masterData.value = {
+          ...masterData.value,
+          services: [...masterData.value.services, res.data],
+        };
       }
       if (activeItemIndex.value !== null) {
         const row = formData.charges[activeItemIndex.value];
@@ -351,16 +451,6 @@ async function submitServiceForm(modalData: {
     isSubmittingService.value = false;
   }
 }
-
-// Watchers for currency resetting exchange rate to 1 if IDR
-watch(
-  () => formData.currency,
-  (newCurrency) => {
-    if (newCurrency === "IDR") {
-      formData.exchangeRate = 1;
-    }
-  },
-);
 
 watch(
   () => formData.serviceType,
@@ -406,37 +496,52 @@ watch(
 );
 
 // Mathematical Calculations matching Nuxt ERP Invoice standard
-const subTotal = computed(() => {
-  const sum = formData.charges.reduce(
-    (acc, ch) => acc + Number(ch.quantity || 0) * Number(ch.unitPrice || 0),
-    0,
-  );
-  return formData.currency === "IDR" ? Math.round(sum) : sum;
-});
+const groupedTotals = computed(() => {
+  const totals: {
+    IDR: { subTotal: number; taxAmount: number; total: number };
+    USD: { subTotal: number; taxAmount: number; total: number };
+    [key: string]: { subTotal: number; taxAmount: number; total: number };
+  } = {
+    IDR: { subTotal: 0, taxAmount: 0, total: 0 },
+    USD: { subTotal: 0, taxAmount: 0, total: 0 },
+  };
 
-const taxAmount = computed(() => {
-  const sum = formData.charges.reduce((acc, ch) => {
+  formData.charges.forEach((ch) => {
+    const currency = ch.currency || "IDR";
+    if (!totals[currency]) {
+      totals[currency] = { subTotal: 0, taxAmount: 0, total: 0 };
+    }
+    const qty = Number(ch.quantity || 0);
+    const price = Number(ch.unitPrice || 0);
+    const amount = qty * price;
+
     const tax = masterData.value?.taxes.find((t) => t.id === ch.taxId);
     const rate = tax ? tax.rate : 0;
-    return acc + Number(ch.quantity || 0) * Number(ch.unitPrice || 0) * (rate / 100);
-  }, 0);
-  return formData.currency === "IDR" ? Math.round(sum) : sum;
-});
+    const taxValue = amount * (rate / 100);
 
-const total = computed(() => {
-  const sum = subTotal.value + taxAmount.value;
-  return formData.currency === "IDR" ? Math.round(sum) : sum;
+    totals[currency].subTotal += amount;
+    totals[currency].taxAmount += taxValue;
+  });
+
+  // Round IDR
+  totals.IDR.subTotal = Math.round(totals.IDR.subTotal);
+  totals.IDR.taxAmount = Math.round(totals.IDR.taxAmount);
+  totals.IDR.total = totals.IDR.subTotal + totals.IDR.taxAmount;
+
+  totals.USD.total = totals.USD.subTotal + totals.USD.taxAmount;
+
+  return totals;
 });
 
 // Currencies selector options
 const CURRENCIES = ["IDR", "USD"];
 
-const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat(formData.currency === "IDR" ? "id-ID" : "en-US", {
+const formatCurrency = (amount: number, currency: string = "IDR") => {
+  return new Intl.NumberFormat(currency === "IDR" ? "id-ID" : "en-US", {
     style: "currency",
-    currency: formData.currency,
-    minimumFractionDigits: formData.currency === "IDR" ? 0 : 2,
-    maximumFractionDigits: formData.currency === "IDR" ? 0 : 2,
+    currency: currency,
+    minimumFractionDigits: currency === "IDR" ? 0 : 2,
+    maximumFractionDigits: currency === "IDR" ? 0 : 2,
   }).format(amount);
 };
 
@@ -570,8 +675,11 @@ async function handleSubmit() {
     return;
   }
 
-  // Calculate weighted tax rate percentage for header compatibility
-  const calculatedTaxRate = subTotal.value > 0 ? (taxAmount.value / subTotal.value) * 100 : 0;
+  const legacySubTotal =
+    (groupedTotals.value.IDR?.subTotal || 0) + (groupedTotals.value.USD?.subTotal || 0);
+  const legacyTaxTotal =
+    (groupedTotals.value.IDR?.taxAmount || 0) + (groupedTotals.value.USD?.taxAmount || 0);
+  const legacyTotal = (groupedTotals.value.IDR?.total || 0) + (groupedTotals.value.USD?.total || 0);
 
   const payload = {
     customerId: formData.customerId,
@@ -598,13 +706,13 @@ async function handleSubmit() {
     freeTime: formData.freeTime ? uppercase(formData.freeTime) : null,
     salesName: formData.salesName ? uppercase(formData.salesName) : null,
     notes: formData.notes ? uppercase(formData.notes) : null,
-    currency: formData.currency,
-    exchangeRate: Number(formData.exchangeRate || 1),
+    currency: "IDR",
+    exchangeRate: 1,
     allowMultipleInvoices: formData.allowMultipleInvoices,
-    subTotal: subTotal.value,
-    taxAmount: calculatedTaxRate,
-    taxTotal: taxAmount.value,
-    total: total.value,
+    subTotal: legacySubTotal,
+    taxAmount: legacySubTotal > 0 ? (legacyTaxTotal / legacySubTotal) * 100 : 0,
+    taxTotal: legacyTaxTotal,
+    total: legacyTotal,
     charges: formData.charges.map((ch) => ({
       serviceId: ch.serviceId,
       taxId: ch.taxId || null,
@@ -612,6 +720,7 @@ async function handleSubmit() {
       quantity: Number(ch.quantity || 1),
       unitPrice: Number(ch.unitPrice || 0),
       amount: Number(ch.quantity || 1) * Number(ch.unitPrice || 0),
+      currency: ch.currency || "IDR",
     })),
   };
 
@@ -645,41 +754,9 @@ async function handleSubmit() {
               Create Quotation
             </h1>
             <div class="h-4 w-[1px] bg-border mx-1"></div>
-            <!-- Currency selector inside top bar -->
-            <div class="flex items-center gap-2">
-              <span class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest"
-                >Currency</span
-              >
-              <div class="flex border border-border rounded-lg overflow-hidden bg-white">
-                <button
-                  type="button"
-                  @click="formData.currency = 'IDR'"
-                  class="px-3 py-1 text-[10px] font-bold transition-colors"
-                  :class="
-                    formData.currency === 'IDR'
-                      ? 'bg-[#062c58] text-white'
-                      : 'hover:bg-gray-50 text-muted-foreground'
-                  "
-                >
-                  IDR
-                </button>
-                <button
-                  type="button"
-                  @click="formData.currency = 'USD'"
-                  class="px-3 py-1 text-[10px] font-bold border-l border-border transition-colors"
-                  :class="
-                    formData.currency === 'USD'
-                      ? 'bg-[#062c58] text-white'
-                      : 'hover:bg-gray-50 text-muted-foreground'
-                  "
-                >
-                  USD
-                </button>
-              </div>
-            </div>
 
             <!-- Multi Invoice Switch (activate to allow this quotation to be converted to invoice multiple times) -->
-            <div class="flex items-center gap-2 ml-4">
+            <div class="flex items-center gap-2 ml-2">
               <span class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest"
                 >Multi-use</span
               >
@@ -709,30 +786,6 @@ async function handleSubmit() {
               >
                 {{ formData.allowMultipleInvoices ? "ON" : "OFF" }}
               </span>
-            </div>
-
-            <!-- Exchange Rate inside top bar -->
-            <div
-              v-if="formData.currency === 'USD'"
-              class="flex items-center gap-2 animate-in slide-in-from-left-2 duration-300 ml-2"
-            >
-              <span class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest"
-                >Ex. Rate</span
-              >
-              <input
-                type="text"
-                :value="formatInputCurrency(formData.exchangeRate, 'IDR')"
-                v-uppercase
-                @input="
-                  (e) =>
-                    (formData.exchangeRate = parseInputCurrency(
-                      (e.target as HTMLInputElement).value,
-                      'IDR',
-                    ))
-                "
-                class="w-28 h-7 px-3 py-1 text-xs font-bold text-[#062c58] border border-border rounded-lg focus:ring-2 focus:ring-[#062c58]/10 focus:border-[#062c58] outline-none transition-all bg-white"
-                placeholder="16,000"
-              />
             </div>
           </div>
         </div>
@@ -1109,8 +1162,8 @@ async function handleSubmit() {
                   class="grid grid-cols-12 gap-3 px-6 py-2 bg-gray-50/50 text-[10px] font-bold text-muted-foreground uppercase tracking-wider"
                 >
                   <div class="col-span-5">Service / Description</div>
-                  <div class="col-span-1 text-center">Quantity</div>
-                  <div class="col-span-3 text-right">Unit Price</div>
+                  <div class="col-span-2 text-center">Qty / Currency</div>
+                  <div class="col-span-2 text-right">Unit Price</div>
                   <div class="col-span-2 text-right pr-4">Tax</div>
                   <div class="col-span-1"></div>
                 </div>
@@ -1142,41 +1195,56 @@ async function handleSubmit() {
                       ></textarea>
                     </div>
 
-                    <!-- Quantity -->
-                    <div class="col-span-1">
+                    <!-- Qty / Currency -->
+                    <div class="col-span-2 space-y-1.5">
                       <input
                         type="number"
                         v-model.number="ch.quantity"
                         min="1"
-                        class="w-full px-3 py-2 bg-white border border-border rounded-lg text-sm focus:ring-1 focus:ring-[#062c58] outline-none transition-all shadow-sm h-10 text-center"
+                        class="w-full px-3 py-2 bg-white border border-border rounded-lg text-sm focus:ring-1 focus:ring-[#062c58] outline-none transition-all shadow-sm h-10 text-right"
                         v-uppercase
+                      />
+                      <Combobox
+                        v-model="ch.currency"
+                        :options="[
+                          { id: 'IDR', name: 'IDR' },
+                          { id: 'USD', name: 'USD' },
+                        ]"
+                        @update:model-value="
+                          (val) => {
+                            if (!val) ch.currency = 'IDR';
+                          }
+                        "
+                        class="w-full"
+                        placeholder="Select..."
                       />
                     </div>
 
                     <!-- Unit Price -->
-                    <div class="col-span-3">
-                      <div class="relative">
-                        <span
-                          class="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground text-[10px] font-bold pr-1 border-r border-border mr-1 select-none"
-                        >
-                          {{ formData.currency }}
-                        </span>
-                        <input
-                          type="text"
-                          :value="formatInputCurrency(ch.unitPrice)"
-                          v-uppercase
-                          @input="
-                            (e) =>
-                              (ch.unitPrice = parseInputCurrency(
-                                (e.target as HTMLInputElement).value,
-                              ))
-                          "
-                          class="w-full pl-12 pr-3 py-2 bg-white border border-border rounded-lg text-sm text-right font-semibold focus:ring-1 focus:ring-[#062c58] outline-none transition-all shadow-sm h-10"
-                        />
-                      </div>
-                      <p class="text-[9px] text-right mt-1.5 font-bold text-muted-foreground">
+                    <div class="col-span-2 space-y-1.5">
+                      <input
+                        type="text"
+                        :value="formatInputCurrency(ch.unitPrice, ch.currency)"
+                        v-uppercase
+                        @input="
+                          (e) =>
+                            (ch.unitPrice = parseInputCurrency(
+                              (e.target as HTMLInputElement).value,
+                              ch.currency,
+                            ))
+                        "
+                        class="w-full px-3 py-2 bg-white border border-border rounded-lg text-sm text-right font-semibold focus:ring-1 focus:ring-[#062c58] outline-none transition-all shadow-sm h-10"
+                      />
+                      <p
+                        class="text-[9px] text-right font-bold text-muted-foreground whitespace-nowrap pt-2"
+                      >
                         Sub:
-                        {{ formatCurrency(Number(ch.quantity || 1) * Number(ch.unitPrice || 0)) }}
+                        {{
+                          formatCurrency(
+                            Number(ch.quantity || 1) * Number(ch.unitPrice || 0),
+                            ch.currency,
+                          )
+                        }}
                       </p>
                     </div>
 
@@ -1195,6 +1263,7 @@ async function handleSubmit() {
                             Number(ch.quantity || 1) *
                               Number(ch.unitPrice || 0) *
                               ((masterData?.taxes.find((t) => t.id === ch.taxId)?.rate || 0) / 100),
+                            ch.currency,
                           )
                         }}
                       </p>
@@ -1217,37 +1286,52 @@ async function handleSubmit() {
 
               <!-- Total summary block -->
               <div class="flex justify-end p-6">
-                <div class="w-80 space-y-3 bg-gray-50/50 p-5 rounded-xl border border-border">
-                  <div class="flex justify-between text-sm">
-                    <span class="text-muted-foreground font-medium">Subtotal</span>
-                    <span class="font-bold text-foreground">{{ formatCurrency(subTotal) }}</span>
-                  </div>
-                  <div class="flex items-center justify-between text-sm">
-                    <span class="text-muted-foreground font-medium">Total Tax</span>
-                    <span class="font-bold text-foreground">{{ formatCurrency(taxAmount) }}</span>
-                  </div>
-                  <div class="flex justify-between border-t border-border pt-3 mt-3">
-                    <span class="font-bold text-[#062c58] text-base">Grand Total</span>
-                    <span class="font-extrabold text-[#062c58] text-xl">{{
-                      formatCurrency(total)
-                    }}</span>
-                  </div>
-                  <div
-                    v-if="formData.currency === 'USD'"
-                    class="flex justify-between border-t border-border/50 pt-2.5 mt-1.5 italic"
-                  >
-                    <span class="text-[10px] font-bold text-muted-foreground uppercase"
-                      >IDR Equivalent</span
+                <div
+                  class="w-[380px] space-y-4 bg-gray-50/50 p-5 rounded-xl border border-border shadow-sm"
+                >
+                  <h4 class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                    Quotation Summary
+                  </h4>
+                  <div class="divide-y divide-border/50">
+                    <div
+                      v-for="(t, curr) in groupedTotals"
+                      :key="curr"
+                      class="py-2.5 first:pt-0 last:pb-0"
                     >
-                    <span class="text-[10px] font-black text-[#062c58]">
-                      {{
-                        new Intl.NumberFormat("id-ID", {
-                          style: "currency",
-                          currency: "IDR",
-                          minimumFractionDigits: 0,
-                        }).format(total * formData.exchangeRate)
-                      }}
-                    </span>
+                      <div
+                        v-if="
+                          t.total > 0 ||
+                          (curr === 'IDR' &&
+                            Object.values(groupedTotals).every((x) => x.total === 0))
+                        "
+                        class="space-y-1.5"
+                      >
+                        <span
+                          class="text-[10px] font-extrabold text-[#062c58] uppercase tracking-wider"
+                          >{{ curr }} Charges</span
+                        >
+                        <div class="flex justify-between text-xs text-muted-foreground">
+                          <span>Subtotal</span>
+                          <span class="font-semibold text-foreground">{{
+                            formatCurrency(t.subTotal, curr)
+                          }}</span>
+                        </div>
+                        <div class="flex justify-between text-xs text-muted-foreground">
+                          <span>VAT / Tax</span>
+                          <span class="font-semibold text-foreground">{{
+                            formatCurrency(t.taxAmount, curr)
+                          }}</span>
+                        </div>
+                        <div
+                          class="flex justify-between text-sm font-bold text-[#062c58] pt-1 border-t border-dashed border-border/60"
+                        >
+                          <span>Total Amount</span>
+                          <span class="text-base font-black">{{
+                            formatCurrency(t.total, curr)
+                          }}</span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
