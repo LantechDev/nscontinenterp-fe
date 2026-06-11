@@ -134,6 +134,44 @@ const truckTypeValue = computed(() => {
   return quotation.value?.truckType || "-";
 });
 
+const groupedTotals = computed(() => {
+  const totals: {
+    IDR: { subTotal: number; taxAmount: number; total: number };
+    USD: { subTotal: number; taxAmount: number; total: number };
+    [key: string]: { subTotal: number; taxAmount: number; total: number };
+  } = {
+    IDR: { subTotal: 0, taxAmount: 0, total: 0 },
+    USD: { subTotal: 0, taxAmount: 0, total: 0 },
+  };
+
+  if (!quotation.value?.charges) return totals;
+
+  quotation.value.charges.forEach((ch) => {
+    const currency = ch.currency || "IDR";
+    if (!totals[currency]) {
+      totals[currency] = { subTotal: 0, taxAmount: 0, total: 0 };
+    }
+    const qty = Number(ch.quantity || 0);
+    const price = Number(ch.unitPrice || 0);
+    const amount = qty * price;
+
+    const rate = getTaxRate(ch.taxId);
+    const taxValue = amount * (rate / 100);
+
+    totals[currency].subTotal += amount;
+    totals[currency].taxAmount += taxValue;
+  });
+
+  // Round IDR
+  totals.IDR.subTotal = Math.round(totals.IDR.subTotal);
+  totals.IDR.taxAmount = Math.round(totals.IDR.taxAmount);
+  totals.IDR.total = totals.IDR.subTotal + totals.IDR.taxAmount;
+
+  totals.USD.total = totals.USD.subTotal + totals.USD.taxAmount;
+
+  return totals;
+});
+
 watch(
   () => props.modelValue,
   async (isOpen) => {
@@ -715,7 +753,7 @@ const handleGeneratePDF = async () => {
                             {{ ch.quantity }}
                           </td>
                           <td class="py-4 px-4 text-right font-medium text-foreground">
-                            {{ formatCurrency(ch.unitPrice, quotation.currency) }}
+                            {{ formatCurrency(ch.unitPrice, ch.currency) }}
                           </td>
                           <td class="py-4 px-4 text-right text-xs font-semibold text-slate-400">
                             {{ getTaxRate(ch.taxId) }}%
@@ -726,7 +764,7 @@ const handleGeneratePDF = async () => {
                                 Number(ch.quantity || 1) *
                                   Number(ch.unitPrice || 0) *
                                   (1 + getTaxRate(ch.taxId) / 100),
-                                quotation.currency,
+                                ch.currency,
                               )
                             }}
                           </td>
@@ -738,42 +776,53 @@ const handleGeneratePDF = async () => {
                   <!-- Totals computation block -->
                   <div class="flex justify-end pt-2">
                     <div
-                      class="w-80 space-y-3 bg-white p-5 rounded-xl border border-border shadow-sm"
+                      class="w-[380px] space-y-4 bg-gray-50/50 p-5 rounded-xl border border-border shadow-sm text-left"
                     >
-                      <div class="flex justify-between text-sm">
-                        <span class="text-muted-foreground font-medium">Subtotal</span>
-                        <span class="font-bold text-foreground">{{
-                          formatCurrency(quotation.subTotal || 0, quotation.currency)
-                        }}</span>
-                      </div>
-                      <div class="flex items-center justify-between text-sm">
-                        <span class="text-muted-foreground font-medium">Total Tax</span>
-                        <span class="font-bold text-foreground">{{
-                          formatCurrency(quotation.taxTotal || 0, quotation.currency)
-                        }}</span>
-                      </div>
-                      <div class="flex justify-between border-t border-border pt-3 mt-3">
-                        <span class="font-bold text-[#012D5A] text-base">Grand Total</span>
-                        <span class="font-extrabold text-[#012D5A] text-xl">{{
-                          formatCurrency(quotation.total || 0, quotation.currency)
-                        }}</span>
-                      </div>
-                      <div
-                        v-if="quotation.currency === 'USD'"
-                        class="flex justify-between border-t border-border/50 pt-2.5 mt-1.5 italic"
+                      <h4
+                        class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest"
                       >
-                        <span class="text-[10px] font-bold text-muted-foreground uppercase"
-                          >IDR Equivalent</span
+                        Quotation Summary
+                      </h4>
+                      <div class="divide-y divide-border/50">
+                        <div
+                          v-for="(t, curr) in groupedTotals"
+                          :key="curr"
+                          class="py-2.5 first:pt-0 last:pb-0"
                         >
-                        <span class="text-[10px] font-black text-[#012D5A]">
-                          {{
-                            new Intl.NumberFormat("id-ID", {
-                              style: "currency",
-                              currency: "IDR",
-                              minimumFractionDigits: 0,
-                            }).format((quotation.total || 0) * (quotation.exchangeRate || 1))
-                          }}
-                        </span>
+                          <div
+                            v-if="
+                              t.total > 0 ||
+                              (curr === 'IDR' &&
+                                Object.values(groupedTotals).every((x) => x.total === 0))
+                            "
+                            class="space-y-1.5"
+                          >
+                            <span
+                              class="text-[10px] font-extrabold text-[#062c58] uppercase tracking-wider"
+                              >{{ curr }} Charges</span
+                            >
+                            <div class="flex justify-between text-xs text-muted-foreground">
+                              <span>Subtotal</span>
+                              <span class="font-semibold text-foreground">{{
+                                formatCurrency(t.subTotal, curr)
+                              }}</span>
+                            </div>
+                            <div class="flex justify-between text-xs text-muted-foreground">
+                              <span>VAT / Tax</span>
+                              <span class="font-semibold text-foreground">{{
+                                formatCurrency(t.taxAmount, curr)
+                              }}</span>
+                            </div>
+                            <div
+                              class="flex justify-between text-sm font-bold text-[#062c58] pt-1 border-t border-dashed border-border/60"
+                            >
+                              <span>Total Amount</span>
+                              <span class="text-base font-black">{{
+                                formatCurrency(t.total, curr)
+                              }}</span>
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>

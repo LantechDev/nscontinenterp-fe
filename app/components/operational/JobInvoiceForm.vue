@@ -156,6 +156,15 @@ onMounted(async () => {
   }
 });
 
+watch(
+  () => form.value.currency,
+  (newCurrency) => {
+    if (newCurrency === "IDR") {
+      form.value.exchangeRate = 1;
+    }
+  },
+);
+
 const addItem = () => {
   form.value.items.push({ serviceId: "", description: "", quantity: 1, unitPrice: 0 });
 };
@@ -274,7 +283,7 @@ const handleSubmit = async () => {
     invoiceNumber: form.value.invoiceNumber,
     companyId: form.value.customerId,
     currency: form.value.currency,
-    exchangeRate: form.value.exchangeRate,
+    exchangeRate: form.value.currency === "IDR" ? 1 : form.value.exchangeRate,
     issuedDate: (form.value.issuedDate || new Date().toISOString().split("T")[0]) as string,
     dueDate: (form.value.dueDate || new Date().toISOString().split("T")[0]) as string,
     subTotal: subTotal.value,

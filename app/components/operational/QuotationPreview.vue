@@ -140,32 +140,35 @@ const numberToEnglish = (num: number): string => {
 };
 
 const amountInWords = computed(() => {
-  const total = Number(props.quotation?.total || 0);
-  if (!total) return "";
-  const currency = props.quotation?.currency || "IDR";
+  const totals = groupedTotals.value;
+  const parts: string[] = [];
 
-  if (currency === "IDR") {
-    const rupiahSpelling = terbilang(Math.floor(total)) + " Rupiah";
-    const engSpelling = numberToEnglish(Math.floor(total)) + " Rupiahs";
-    return `${rupiahSpelling} / ${engSpelling}`;
-  } else {
-    const integerPart = Math.floor(total);
-    const decimalPart = Math.round((total - integerPart) * 100);
+  Object.entries(totals).forEach(([currency, t]) => {
+    if (t.total <= 0) return;
 
-    let spelling = numberToEnglish(integerPart);
-    if (currency === "USD") {
-      spelling += " US Dollars";
+    if (currency === "IDR") {
+      const rupiahSpelling = terbilang(Math.floor(t.total)) + " Rupiah";
+      parts.push(`IDR: ${rupiahSpelling}`);
+    } else if (currency === "USD") {
+      const integerPart = Math.floor(t.total);
+      const decimalPart = Math.round((t.total - integerPart) * 100);
+      let spelling = numberToEnglish(integerPart) + " US Dollars";
       if (decimalPart > 0) {
         spelling += " and " + numberToEnglish(decimalPart) + " Cents";
       }
+      parts.push(`USD: ${spelling}`);
     } else {
-      spelling += ` ${currency}`;
+      const integerPart = Math.floor(t.total);
+      const decimalPart = Math.round((t.total - integerPart) * 100);
+      let spelling = numberToEnglish(integerPart) + ` ${currency}`;
       if (decimalPart > 0) {
         spelling += ` and ${decimalPart}/100`;
       }
+      parts.push(`${currency}: ${spelling}`);
     }
-    return spelling;
-  }
+  });
+
+  return parts.join(" | ");
 });
 
 const logoUrl = ref("/images/transparentnscontinenttebal.png");
@@ -200,6 +203,45 @@ const getTaxRateLabel = (taxId: string | null | undefined) => {
   return found ? `${found.rate}%` : "-";
 };
 
+const groupedTotals = computed(() => {
+  const totals: {
+    IDR: { subTotal: number; taxAmount: number; total: number };
+    USD: { subTotal: number; taxAmount: number; total: number };
+    [key: string]: { subTotal: number; taxAmount: number; total: number };
+  } = {
+    IDR: { subTotal: 0, taxAmount: 0, total: 0 },
+    USD: { subTotal: 0, taxAmount: 0, total: 0 },
+  };
+
+  if (!props.quotation?.charges) return totals;
+
+  props.quotation.charges.forEach((ch) => {
+    const currency = ch.currency || "IDR";
+    if (!totals[currency]) {
+      totals[currency] = { subTotal: 0, taxAmount: 0, total: 0 };
+    }
+    const qty = Number(ch.quantity || 0);
+    const price = Number(ch.unitPrice || 0);
+    const amount = qty * price;
+
+    const tax = taxList.value.find((t) => t.id === ch.taxId);
+    const rate = tax ? Number(tax.rate) : 0;
+    const taxValue = amount * (rate / 100);
+
+    totals[currency].subTotal += amount;
+    totals[currency].taxAmount += taxValue;
+  });
+
+  // Round IDR
+  totals.IDR.subTotal = Math.round(totals.IDR.subTotal);
+  totals.IDR.taxAmount = Math.round(totals.IDR.taxAmount);
+  totals.IDR.total = totals.IDR.subTotal + totals.IDR.taxAmount;
+
+  totals.USD.total = totals.USD.subTotal + totals.USD.taxAmount;
+
+  return totals;
+});
+
 const matchedBankAccount = computed(() => {
   if (!props.quotation) return null;
 
@@ -214,13 +256,14 @@ const matchedBankAccount = computed(() => {
 const isGeneratingPDF = ref(false);
 const printContainerRef = ref<HTMLElement | null>(null);
 
-const formatCurrency = (amount: unknown): string => {
+const formatCurrency = (amount: unknown, currency?: string): string => {
   if (amount === undefined || amount === null) return "-";
   const num = Number(amount);
-  return new Intl.NumberFormat(props.quotation?.currency === "USD" ? "en-US" : "id-ID", {
+  const curr = currency || props.quotation?.currency || "IDR";
+  return new Intl.NumberFormat(curr === "USD" ? "en-US" : "id-ID", {
     style: "decimal",
-    minimumFractionDigits: props.quotation?.currency === "IDR" ? 0 : 2,
-    maximumFractionDigits: props.quotation?.currency === "IDR" ? 0 : 2,
+    minimumFractionDigits: curr === "IDR" ? 0 : 2,
+    maximumFractionDigits: curr === "IDR" ? 0 : 2,
   }).format(num);
 };
 
@@ -428,20 +471,12 @@ defineExpose({
                 </div>
               </div>
               <div class="flex" style="height: 50px">
-                <div class="w-1/2 border-r border-[#062c58] pt-2 px-3">
+                <div class="w-full pt-2 px-3">
                   <span class="font-bold text-[0.6rem] leading-none mb-1 block uppercase"
                     >VALID UNTIL</span
                   >
                   <span class="font-mono text-[0.75rem] text-black">{{
                     formatDate(quotation?.validUntil)
-                  }}</span>
-                </div>
-                <div class="w-1/2 pt-2 px-3">
-                  <span class="font-bold text-[0.6rem] leading-none mb-1 block uppercase"
-                    >CURRENCY</span
-                  >
-                  <span class="font-mono text-[0.75rem] text-black uppercase">{{
-                    quotation?.currency || "IDR"
                   }}</span>
                 </div>
               </div>
@@ -572,13 +607,13 @@ defineExpose({
                 </div>
                 <div class="w-[8%] text-center text-[0.7rem]">{{ item.quantity }}</div>
                 <div class="w-[18%] text-right px-3 text-[0.7rem] text-black">
-                  {{ formatCurrency(item.unitPrice) }}
+                  {{ item.currency || "IDR" }} {{ formatCurrency(item.unitPrice, item.currency) }}
                 </div>
                 <div class="w-[12%] text-center text-[0.7rem] text-[#062c58]/80">
                   {{ getTaxRateLabel(item.taxId) }}
                 </div>
                 <div class="w-[18%] text-right px-3 text-[0.7rem] font-medium text-black">
-                  {{ formatCurrency(item.amount) }}
+                  {{ item.currency || "IDR" }} {{ formatCurrency(item.amount, item.currency) }}
                 </div>
               </div>
 
@@ -610,44 +645,40 @@ defineExpose({
                 <p
                   class="text-[0.65rem] text-black leading-normal uppercase whitespace-pre-wrap flex-1"
                 >
-                  {{
-                    quotation?.notes ||
-                    "THANK YOU FOR YOUR VALUED BUSINESS. PLS SIGN BELOW TO CONFIRM."
-                  }}
+                  {{ quotation?.notes || "-" }}
                 </p>
               </div>
 
               <!-- Right: Subtotal & Tax & Total -->
-              <div class="w-[42%] flex flex-col">
-                <div class="flex-1 flex flex-col">
-                  <div class="flex border-b border-[#062c58]/20 h-[35px] items-center shrink-0">
-                    <div class="w-1/2 px-3 font-bold text-[0.65rem] text-[#062c58]">
-                      SUBTOTAL ({{ quotation?.currency || "IDR" }})
-                    </div>
+              <div class="w-[42%] flex flex-col border-l border-[#062c58] bg-[#062c58]/5">
+                <div class="flex-1 flex flex-col divide-y divide-[#062c58]/20">
+                  <div v-for="(t, curr) in groupedTotals" :key="curr" class="p-2 space-y-1">
                     <div
-                      class="flex-1 px-3 text-right font-mono text-[0.75rem] font-bold text-black"
+                      v-if="
+                        t.total > 0 ||
+                        (curr === 'IDR' && Object.values(groupedTotals).every((x) => x.total === 0))
+                      "
+                      class="space-y-0.5"
                     >
-                      {{ formatCurrency(quotation?.subTotal) }}
-                    </div>
-                  </div>
-                  <div class="flex border-b border-[#062c58]/20 h-[35px] items-center shrink-0">
-                    <div class="w-1/2 px-3 font-bold text-[0.65rem] text-[#062c58]">VAT / TAX</div>
-                    <div
-                      class="flex-1 px-3 text-right font-mono text-[0.75rem] font-bold text-black"
-                    >
-                      {{ formatCurrency(quotation?.taxTotal) }}
-                    </div>
-                  </div>
-                  <div class="flex bg-[#062c58] text-white flex-1 items-center">
-                    <div class="w-1/2 px-3 flex flex-col">
-                      <span class="text-[0.55rem] font-bold opacity-70">TOTAL AMOUNT</span>
-                      <span
-                        class="text-[0.8rem] font-black tracking-wider uppercase leading-none mt-1"
-                        >{{ quotation?.currency || "IDR" }}</span
+                      <div
+                        class="text-[0.6rem] font-extrabold text-[#062c58] uppercase tracking-wider"
                       >
-                    </div>
-                    <div class="flex-1 px-3 text-right font-mono text-xl font-black">
-                      {{ formatCurrency(quotation?.total) }}
+                        {{ curr }} Charges
+                      </div>
+                      <div class="flex justify-between text-[0.65rem] text-black">
+                        <span class="opacity-70 font-semibold">Subtotal</span>
+                        <span class="font-bold">{{ formatCurrency(t.subTotal, curr) }}</span>
+                      </div>
+                      <div class="flex justify-between text-[0.65rem] text-black">
+                        <span class="opacity-70 font-semibold">VAT / Tax</span>
+                        <span class="font-bold">{{ formatCurrency(t.taxAmount, curr) }}</span>
+                      </div>
+                      <div
+                        class="flex justify-between text-[0.7rem] font-extrabold text-[#062c58] pt-0.5 border-t border-dashed border-[#062c58]/30"
+                      >
+                        <span>Total Amount</span>
+                        <span>{{ curr }} {{ formatCurrency(t.total, curr) }}</span>
+                      </div>
                     </div>
                   </div>
                 </div>

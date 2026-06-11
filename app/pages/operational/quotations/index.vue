@@ -17,6 +17,7 @@ import {
   CheckCircle,
   FileClock,
   Clock,
+  Copy,
 } from "lucide-vue-next";
 import { cn } from "~/lib/utils";
 import { useQuotations, type Quotation } from "~/composables/useQuotations";
@@ -109,6 +110,37 @@ function formatCurrency(amount: number, currency: string = "IDR") {
   }).format(amount);
 }
 
+function getQuotationTotals(q: Quotation) {
+  const totals: Record<string, number> = {};
+  if (!q.charges || q.charges.length === 0) {
+    totals[q.currency || "IDR"] = Number(q.total || 0);
+    return totals;
+  }
+
+  q.charges.forEach((ch) => {
+    const currency = ch.currency || "IDR";
+    const qty = Number(ch.quantity || 0);
+    const price = Number(ch.unitPrice || 0);
+    const amount = qty * price;
+    const taxRate = Number(ch.taxRate || 0);
+    const taxAmount = amount * (taxRate / 100);
+    const lineTotal = amount + taxAmount;
+    totals[currency] = (totals[currency] || 0) + lineTotal;
+  });
+
+  if (totals.IDR !== undefined) {
+    totals.IDR = Math.round(totals.IDR);
+  }
+  return totals;
+}
+
+function getQuotationCurrencies(q: Quotation) {
+  if (!q.charges || q.charges.length === 0) {
+    return [q.currency || "IDR"];
+  }
+  return Array.from(new Set(q.charges.map((ch) => ch.currency || "IDR")));
+}
+
 function formatDate(dateStr: string): string {
   if (!dateStr) return "-";
   const date = new Date(dateStr);
@@ -194,6 +226,11 @@ const selectedQuotationId = ref<string | null>(null);
 function openDetail(id: string) {
   selectedQuotationId.value = id;
   isDetailOpen.value = true;
+}
+
+function copyQuotation(quotationId: string) {
+  if (!requireManage("You only have view access for quotations.")) return;
+  router.push(`/operational/quotations/create?copyFrom=${quotationId}`);
 }
 </script>
 
@@ -413,7 +450,7 @@ function openDetail(id: string) {
                           <span class="text-sm font-semibold text-[#012D5A]">{{ q.number }}</span>
                           <span
                             class="text-[10px] text-muted-foreground font-medium uppercase tracking-tighter"
-                            >{{ q.currency || "IDR" }}</span
+                            >{{ getQuotationCurrencies(q).join(" / ") }}</span
                           >
                         </div>
                       </div>
@@ -488,12 +525,12 @@ function openDetail(id: string) {
 
                     <!-- Grand Total -->
                     <td class="py-3 px-4 text-sm font-bold text-right text-[#062c58]">
-                      <div>{{ formatCurrency(q.total || 0, q.currency) }}</div>
                       <div
-                        v-if="q.currency && q.currency !== 'IDR'"
-                        class="text-[10.5px] text-muted-foreground font-semibold mt-0.5 whitespace-nowrap"
+                        v-for="(amount, curr) in getQuotationTotals(q)"
+                        :key="curr"
+                        class="whitespace-nowrap font-bold"
                       >
-                        {{ formatCurrency((q.total || 0) * (q.exchangeRate || 1), "IDR") }}
+                        {{ formatCurrency(amount, curr) }}
                       </div>
                     </td>
 
@@ -547,6 +584,14 @@ function openDetail(id: string) {
                               <Edit class="w-4 h-4" />
                               Edit
                             </NuxtLink>
+                            <button
+                              v-if="canManage"
+                              class="w-full px-4 py-2 text-left text-sm hover:bg-muted flex items-center gap-2"
+                              @click="copyQuotation(q.id)"
+                            >
+                              <Copy class="w-4 h-4" />
+                              Copy Quotation
+                            </button>
                             <button
                               v-if="canManage"
                               class="w-full px-4 py-2 text-left text-sm hover:bg-muted flex items-center gap-2 text-rose-600"

@@ -41,7 +41,14 @@ const emit = defineEmits<{
   (e: "refresh-job"): void;
 }>();
 
-const { fetchInvoices, isLoading, fetchInvoiceById, voidInvoice, deleteInvoice } = useInvoices();
+const {
+  fetchInvoices,
+  isLoading,
+  fetchInvoiceById,
+  voidInvoice,
+  deleteInvoice,
+  fetchSuggestedExchangeRate: getSuggestedExchangeRate,
+} = useInvoices();
 const { fetchQuotations } = useQuotations();
 const { canManage, requireManage } = useFeatureAccess("finance.invoice");
 const invoices = ref<
@@ -119,6 +126,9 @@ const showQuotationPicker = ref(false);
 const quotationsList = ref<Quotation[]>([]);
 const isLoadingQuotations = ref(false);
 const selectedQuotation = ref<Quotation | null>(null);
+const showCurrencySelectModal = ref(false);
+const mixedCurrencyQuotation = ref<Quotation | null>(null);
+const availableCurrenciesInQuotation = ref<string[]>([]);
 const prefillFromQuotation = ref<{
   quotationId?: string | null;
   currency?: string;
@@ -132,6 +142,35 @@ const prefillFromQuotation = ref<{
     taxId?: string | null;
   }>;
 } | null>(null);
+
+const selectedInvoiceCurrency = ref<"IDR" | "USD">("IDR");
+const conversionExchangeRate = ref<number | null>(null);
+const isFetchingRate = ref(false);
+const rateFetchError = ref<string | null>(null);
+const isRateSuggested = ref(false);
+
+const loadExchangeRate = async () => {
+  isFetchingRate.value = true;
+  rateFetchError.value = null;
+  isRateSuggested.value = false;
+  const result = await getSuggestedExchangeRate();
+  if (result.success && result.rate) {
+    conversionExchangeRate.value = result.rate;
+    isRateSuggested.value = true;
+  } else {
+    conversionExchangeRate.value = null;
+    rateFetchError.value = "Failed to fetch exchange rate. Please input manually.";
+  }
+  isFetchingRate.value = false;
+};
+
+const isConfirmDisabled = computed(() => {
+  return (
+    !conversionExchangeRate.value ||
+    isNaN(Number(conversionExchangeRate.value)) ||
+    Number(conversionExchangeRate.value) <= 0
+  );
+});
 
 const resolvedCustomerId = computed(() => {
   if (props.customerId) return props.customerId;
@@ -282,24 +321,83 @@ const openQuotationPicker = async () => {
   isLoadingQuotations.value = false;
 };
 
+function getQuotationTotals(q: Quotation) {
+  const totals: Record<string, number> = {};
+  if (!q.charges || q.charges.length === 0) {
+    totals[q.currency || "IDR"] = Number(q.total || 0);
+    return totals;
+  }
+
+  q.charges.forEach((ch) => {
+    const currency = ch.currency || "IDR";
+    const qty = Number(ch.quantity || 0);
+    const price = Number(ch.unitPrice || 0);
+    const amount = qty * price;
+    const taxRate = Number(ch.taxRate || 0);
+    const taxAmount = amount * (taxRate / 100);
+    const lineTotal = amount + taxAmount;
+    totals[currency] = (totals[currency] || 0) + lineTotal;
+  });
+
+  if (totals.IDR !== undefined) {
+    totals.IDR = Math.round(totals.IDR);
+  }
+  return totals;
+}
+
 const selectQuotation = (q: Quotation) => {
+  const currencies = Array.from(new Set((q.charges || []).map((ch) => ch.currency || "IDR")));
+
+  if (currencies.length > 1) {
+    mixedCurrencyQuotation.value = q;
+    availableCurrenciesInQuotation.value = currencies;
+    selectedInvoiceCurrency.value = "IDR";
+    showCurrencySelectModal.value = true;
+    showQuotationPicker.value = false;
+    loadExchangeRate();
+  } else {
+    const currency = currencies[0] || "IDR";
+    proceedPrefillQuotation(q, currency, 1);
+  }
+};
+
+const proceedPrefillQuotation = (q: Quotation, targetCurrency: string, exchangeRate: number) => {
   selectedQuotation.value = q;
-  prefillFromQuotation.value = {
-    quotationId: q.id,
-    currency: q.currency,
-    exchangeRate: q.exchangeRate,
-    notes: q.notes,
-    items: (q.charges || []).map((ch) => ({
+
+  const convertedItems = (q.charges || []).map((ch) => {
+    const originCurrency = ch.currency || "IDR";
+    let unitPrice = Number(ch.unitPrice || 0);
+
+    if (originCurrency !== targetCurrency) {
+      if (targetCurrency === "IDR" && originCurrency === "USD") {
+        unitPrice = Math.round(unitPrice * exchangeRate);
+      } else if (targetCurrency === "USD" && originCurrency === "IDR") {
+        unitPrice = Number((unitPrice / exchangeRate).toFixed(2));
+      }
+    }
+
+    return {
       serviceId: ch.serviceId || null,
       description: ch.description,
       quantity: Number(ch.quantity),
-      unitPrice: Number(ch.unitPrice),
+      unitPrice: unitPrice,
       taxId: ch.taxId || null,
-    })),
+    };
+  });
+
+  prefillFromQuotation.value = {
+    quotationId: q.id,
+    currency: targetCurrency,
+    exchangeRate: targetCurrency === "IDR" ? 1 : exchangeRate,
+    notes: q.notes,
+    items: convertedItems,
   };
+
+  showCurrencySelectModal.value = false;
   showQuotationPicker.value = false;
   isEditing.value = false;
   showForm.value = true;
+  toast.success(`Prefilled invoice from quotation for all items converted to ${targetCurrency}.`);
 };
 
 const canUseQuotationForInvoice = (q: Quotation): boolean => {
@@ -482,8 +580,18 @@ const handlePaymentVoided = async () => {
                 </div>
                 <div class="flex items-center gap-3">
                   <div class="text-right">
-                    <p class="text-xs font-bold text-foreground">
-                      {{ q.currency }} {{ new Intl.NumberFormat("id-ID").format(q.total || 0) }}
+                    <p
+                      v-for="(amount, curr) in getQuotationTotals(q)"
+                      :key="curr"
+                      class="text-xs font-bold text-foreground"
+                    >
+                      {{ curr }}
+                      {{
+                        new Intl.NumberFormat(curr === "IDR" ? "id-ID" : "en-US", {
+                          minimumFractionDigits: curr === "IDR" ? 0 : 2,
+                          maximumFractionDigits: curr === "IDR" ? 0 : 2,
+                        }).format(amount)
+                      }}
                     </p>
                     <span
                       class="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded border"
@@ -540,6 +648,130 @@ const handlePaymentVoided = async () => {
               </div>
             </button>
           </div>
+        </div>
+      </div>
+    </Modal>
+
+    <!-- Mixed Currency Selector Modal -->
+    <Modal
+      v-model="showCurrencySelectModal"
+      title="Mixed Currency Invoice Setup"
+      description="Quotation ini memiliki item biaya dengan mata uang berbeda. Silakan tentukan mata uang invoice dan kurs konversi."
+      width="max-w-md"
+    >
+      <div class="space-y-5 pt-3">
+        <div
+          class="p-3 bg-blue-50 rounded-xl border border-blue-100 flex items-start gap-3 text-left"
+        >
+          <AlertCircle class="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
+          <div class="text-xs text-blue-800 leading-normal font-medium">
+            Item dengan mata uang yang berbeda akan dikonversi secara otomatis ke mata uang invoice
+            terpilih.
+          </div>
+        </div>
+
+        <!-- Invoice Currency Selector -->
+        <div class="space-y-1.5 text-left">
+          <label class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+            Mata Uang Invoice
+          </label>
+          <div class="flex border border-border rounded-lg overflow-hidden bg-white w-fit">
+            <button
+              type="button"
+              @click="selectedInvoiceCurrency = 'IDR'"
+              class="px-4 py-1.5 text-xs font-bold transition-colors"
+              :class="
+                selectedInvoiceCurrency === 'IDR'
+                  ? 'bg-[#062c58] text-white'
+                  : 'hover:bg-gray-50 text-muted-foreground'
+              "
+            >
+              IDR
+            </button>
+            <button
+              type="button"
+              @click="selectedInvoiceCurrency = 'USD'"
+              class="px-4 py-1.5 text-xs font-bold border-l border-border transition-colors"
+              :class="
+                selectedInvoiceCurrency === 'USD'
+                  ? 'bg-[#062c58] text-white'
+                  : 'hover:bg-gray-50 text-muted-foreground'
+              "
+            >
+              USD
+            </button>
+          </div>
+        </div>
+
+        <!-- Exchange Rate Input -->
+        <div class="space-y-1.5 text-left">
+          <label class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+            Kurs Konversi (Exchange Rate)
+          </label>
+          <div class="relative flex items-center">
+            <span class="text-xs font-bold text-muted-foreground mr-2">1 USD =</span>
+            <input
+              type="number"
+              v-model.number="conversionExchangeRate"
+              @input="isRateSuggested = false"
+              placeholder="Masukkan kurs..."
+              class="w-full max-w-[180px] px-3 py-2 bg-white border border-border rounded-lg text-sm font-semibold focus:ring-2 focus:ring-[#062c58]/20 focus:border-[#062c58] outline-none transition-all"
+              min="0.0001"
+              step="any"
+            />
+            <span class="text-xs font-bold text-muted-foreground ml-2">IDR</span>
+
+            <div
+              v-if="isFetchingRate"
+              class="ml-3 flex items-center gap-1.5 text-xs text-muted-foreground"
+            >
+              <Loader2 class="w-3.5 h-3.5 animate-spin text-[#062c58]" />
+              <span>Mengambil kurs...</span>
+            </div>
+          </div>
+
+          <!-- Info / Warning messages -->
+          <p
+            v-if="isRateSuggested && !rateFetchError && !isFetchingRate"
+            class="text-[10px] text-green-600 font-bold italic mt-1"
+          >
+            * Kurs rekomendasi saat ini
+          </p>
+          <p
+            v-if="rateFetchError && !isFetchingRate"
+            class="text-[10px] text-red-500 font-bold italic mt-1"
+          >
+            * Gagal mengambil kurs. Silakan masukkan secara manual.
+          </p>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="pt-4 border-t border-border flex justify-end gap-3">
+          <button
+            type="button"
+            @click="
+              showCurrencySelectModal = false;
+              showQuotationPicker = true;
+            "
+            class="px-4 py-2 text-xs font-bold text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors border-none bg-transparent outline-none cursor-pointer"
+          >
+            Back to Picker
+          </button>
+          <button
+            type="button"
+            :disabled="isConfirmDisabled || isFetchingRate"
+            @click="
+              mixedCurrencyQuotation &&
+              proceedPrefillQuotation(
+                mixedCurrencyQuotation,
+                selectedInvoiceCurrency,
+                Number(conversionExchangeRate),
+              )
+            "
+            class="px-5 py-2 text-xs font-black uppercase tracking-wider bg-[#062c58] hover:bg-[#062c58]/90 text-white rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed border-none shadow-md shadow-[#062c58]/10 cursor-pointer"
+          >
+            Confirm
+          </button>
         </div>
       </div>
     </Modal>
@@ -961,7 +1193,7 @@ const handlePaymentVoided = async () => {
       v-model="showPaymentForm"
       title="Record Payment"
       description="Allocate customer payment to invoices."
-      width="lg"
+      width="max-w-lg"
     >
       <PaymentEntryForm
         v-if="activeInvoice"
