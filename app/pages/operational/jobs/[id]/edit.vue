@@ -1103,6 +1103,29 @@ const onPlaneCreateSuccess = async (plane: { id: string; name: string }) => {
   toast.success(`Plane "${plane.name}" created successfully.`);
 };
 
+function hasContainerPayload(container: (typeof formData.containers)[number]) {
+  if (
+    container.containerNumber ||
+    container.sealNumber ||
+    container.containerTypeId ||
+    container.vehicleNumber ||
+    container.driverName ||
+    container.driverContactNumber
+  ) {
+    return true;
+  }
+
+  return container.items.some(
+    (item) =>
+      item.packageTypeCode ||
+      item.description ||
+      item.hsCode ||
+      item.grossWeight ||
+      item.netWeight ||
+      item.measurementCbm,
+  );
+}
+
 async function handleSubmit() {
   if (
     !formData.shipperId ||
@@ -1134,7 +1157,7 @@ async function handleSubmit() {
         .filter((c) =>
           formData.serviceType === "TRUCKING"
             ? c.vehicleNumber || c.containerTypeId
-            : c.containerNumber,
+            : hasContainerPayload(c),
         )
         .map((c) => ({
           containerNumber: formData.serviceType === "TRUCKING" ? null : c.containerNumber || null,

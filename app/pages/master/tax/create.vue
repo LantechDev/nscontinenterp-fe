@@ -2,6 +2,7 @@
 import { ArrowLeft, Save } from "lucide-vue-next";
 import { toast } from "vue-sonner";
 import { useFinanceTax } from "~/composables/useFinanceTax";
+import Combobox from "~/components/ui/Combobox.vue";
 
 definePageMeta({
   layout: "dashboard",
@@ -15,6 +16,20 @@ const form = ref({
   type: "",
   description: "",
   isActive: true,
+});
+const taxTypeOptions = [
+  { id: "ppn", name: "PPN" },
+  { id: "pph", name: "PPh" },
+];
+const statusOptions = [
+  { id: "true", name: "Aktif" },
+  { id: "false", name: "Nonaktif" },
+];
+const isActiveValue = computed({
+  get: () => String(form.value.isActive),
+  set: (value: string | null | undefined) => {
+    form.value.isActive = value !== "false";
+  },
 });
 
 async function handleSubmit() {
@@ -64,15 +79,11 @@ async function handleSubmit() {
           </div>
           <div class="space-y-2">
             <label class="text-sm font-medium">Tipe Pajak</label>
-            <select
+            <Combobox
               v-model="form.type"
-              required
-              class="w-full px-4 py-2 border rounded-lg focus:ring-1 focus:ring-primary outline-none bg-white"
-            >
-              <option value="">Pilih tipe pajak</option>
-              <option value="ppn">PPN</option>
-              <option value="pph">PPh</option>
-            </select>
+              :options="taxTypeOptions"
+              placeholder="Pilih tipe pajak"
+            />
           </div>
           <div class="space-y-2">
             <label class="text-sm font-medium">Rate (%)</label>
@@ -88,13 +99,7 @@ async function handleSubmit() {
           </div>
           <div class="space-y-2">
             <label class="text-sm font-medium">Status</label>
-            <select
-              v-model="form.isActive"
-              class="w-full px-4 py-2 border rounded-lg focus:ring-1 focus:ring-primary outline-none bg-white"
-            >
-              <option :value="true">Aktif</option>
-              <option :value="false">Nonaktif</option>
-            </select>
+            <Combobox v-model="isActiveValue" :options="statusOptions" placeholder="Pilih status" />
           </div>
         </div>
         <div class="space-y-2">

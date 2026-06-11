@@ -79,7 +79,7 @@ const transportScheduleLabel = computed(() =>
   props.isAir ? "AIRLINE / FLIGHT NO." : props.isTrucking ? "TRUCK / DRIVER" : "VESSEL/VOYAGE",
 );
 const primaryTransportLabel = computed(() =>
-  props.isAir ? "AIRCRAFT" : props.isTrucking ? "VEHICLE NO." : "OCEAN VESSEL",
+  props.isAir ? "FEEDER AIRCRAFT" : props.isTrucking ? "VEHICLE NO." : "FEEDER VESSEL",
 );
 const loadingPlaceLabel = computed(() => (props.isAir ? "AIRPORT OF LOADING" : "PORT OF LOADING"));
 const dischargePlaceLabel = computed(() =>
@@ -113,6 +113,30 @@ const getTransportName = (transport?: (typeof transportList.value)[number]) => {
   return transport.vessel?.name || transport.vesselName || "";
 };
 
+const getTransportVoyage = (transport?: (typeof transportList.value)[number]) =>
+  transport?.voyageNumber || "";
+
+const formatTransportLeg = (label: string, transport?: (typeof transportList.value)[number]) => {
+  if (!transport) return "";
+  const name = getTransportName(transport);
+  const voyage = getTransportVoyage(transport);
+  if (!name && !voyage) return "";
+  return `${label}: ${[name, voyage].filter(Boolean).join(" / ")}`;
+};
+
+const feederTransport = computed(() => {
+  const list = transportList.value;
+  return list.find((v) => v.vesselType?.toLowerCase() === "feeder") || list[0];
+});
+
+const motherTransport = computed(() => {
+  const list = transportList.value;
+  return (
+    list.find((v) => v.vesselType?.toLowerCase() === "mother") ||
+    (list.length > 1 ? list[list.length - 1] : undefined)
+  );
+});
+
 const transportLegs = computed(() => {
   if (props.isTrucking) {
     const truckTypeStr = props.jobData?.truckType || "";
@@ -125,20 +149,39 @@ const transportLegs = computed(() => {
     }
     return truckTypeStr || vehicleLegs || "-";
   }
-  return transportList.value
-    .map((v) => `${getTransportName(v)} / ${v.voyageNumber || ""}`)
-    .filter((s) => s.trim() !== "/")
-    .join(", ");
+  const feeder = formatTransportLeg("FEEDER", feederTransport.value);
+  const mother =
+    motherTransport.value && motherTransport.value !== feederTransport.value
+      ? formatTransportLeg(props.isAir ? "MAIN FLIGHT" : "MV", motherTransport.value)
+      : "";
+  return [feeder, mother].filter(Boolean).join(", ");
 });
 
 const primaryTransportName = computed(
   () =>
-    getTransportName(transportList.value[0]) ||
+    getTransportName(feederTransport.value) ||
     (props.isAir
       ? getVal(props.jobData?.plane?.name, "-")
       : props.isTrucking
         ? getVal(containers.value[0]?.vehicleNumber, "-")
         : getVal(props.jobData?.vessel?.name, "-")),
+);
+
+const exportReferences = computed(() => {
+  const references = new Set<string>();
+  if (props.activeBl?.showShipperReferencesOnBl !== false) {
+    (props.activeBl?.shipperReferences || []).forEach((ref) => {
+      const value = getVal(ref);
+      if (value) references.add(value);
+    });
+  }
+  const bookingReference = getVal(props.jobData?.customerReference);
+  if (bookingReference && references.size === 0) references.add(bookingReference);
+  return Array.from(references);
+});
+
+const exportReferenceText = computed(() =>
+  exportReferences.value.length > 0 ? exportReferences.value.join(", ") : "-",
 );
 
 const placeOfReceiptVal = computed(() =>
@@ -398,23 +441,9 @@ const formatDate = (dateStr?: string | null) => {
                 </div>
               </div>
               <div class="pt-1 px-2 pb-3">
-                <span class="font-bold text-[0.6rem] block leading-none">EXPORT REFERENCES</span>
+                <span class="font-bold text-[0.6rem] block leading-none">EXPORT REFERENCE</span>
                 <div class="font-mono text-[10px] text-black pb-1.5">
-                  {{ getVal(jobData?.customerReference, "-") }}
-                </div>
-                <div
-                  v-if="
-                    activeBl?.showShipperReferencesOnBl !== false &&
-                    activeBl?.shipperReferences?.length
-                  "
-                  class="pt-1.5 border-t border-[#062c58] -mx-2 px-2"
-                >
-                  <span class="font-bold text-[0.6rem] block leading-none mb-0.5"
-                    >SHIPPER REFERENCE</span
-                  >
-                  <div class="font-mono text-[10px] text-black">
-                    {{ activeBl.shipperReferences.join(", ") }}
-                  </div>
+                  {{ exportReferenceText }}
                 </div>
               </div>
             </div>
@@ -519,23 +548,9 @@ const formatDate = (dateStr?: string | null) => {
                 </div>
               </div>
               <div class="pt-1 px-2 pb-3">
-                <span class="font-bold text-[0.6rem] block leading-none">EXPORT REFERENCES</span>
+                <span class="font-bold text-[0.6rem] block leading-none">EXPORT REFERENCE</span>
                 <div class="font-mono text-[10px] text-black pb-1.5">
-                  {{ getVal(jobData?.customerReference, "-") }}
-                </div>
-                <div
-                  v-if="
-                    activeBl?.showShipperReferencesOnBl !== false &&
-                    activeBl?.shipperReferences?.length
-                  "
-                  class="pt-1.5 border-t border-[#062c58] -mx-2 px-2"
-                >
-                  <span class="font-bold text-[0.6rem] block leading-none mb-0.5"
-                    >SHIPPER REFERENCE</span
-                  >
-                  <div class="font-mono text-[10px] text-black">
-                    {{ activeBl.shipperReferences.join(", ") }}
-                  </div>
+                  {{ exportReferenceText }}
                 </div>
               </div>
             </div>

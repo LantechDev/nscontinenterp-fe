@@ -1,9 +1,19 @@
 <script setup lang="ts">
 import { ArrowLeft, Save } from "lucide-vue-next";
+import Combobox from "~/components/ui/Combobox.vue";
 
 definePageMeta({
   layout: "dashboard",
 });
+
+const unitValue = ref("");
+const unitOptions = [
+  { id: "CONTAINER", name: "Per Container" },
+  { id: "KG", name: "Per Kilogram" },
+  { id: "CBM", name: "Per CBM" },
+  { id: "DOCUMENT", name: "Per Document" },
+  { id: "SHIPMENT", name: "Per Shipment" },
+];
 </script>
 
 <template>
@@ -28,14 +38,7 @@ definePageMeta({
         </div>
         <div class="space-y-2">
           <label class="text-sm font-medium">Satuan <span class="text-red-500">*</span></label>
-          <select class="input-field">
-            <option value="">Pilih Satuan</option>
-            <option value="CONTAINER">Per Container</option>
-            <option value="KG">Per Kilogram</option>
-            <option value="CBM">Per CBM</option>
-            <option value="DOCUMENT">Per Document</option>
-            <option value="SHIPMENT">Per Shipment</option>
-          </select>
+          <Combobox v-model="unitValue" :options="unitOptions" placeholder="Pilih Satuan" />
         </div>
         <div class="space-y-2">
           <label class="text-sm font-medium">Harga <span class="text-red-500">*</span></label>

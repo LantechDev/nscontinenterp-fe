@@ -14,6 +14,7 @@ import { useTaxPage } from "~/composables/useTaxPage";
 import { type Tax } from "~/composables/useFinanceTax";
 import type { Pagination } from "~/composables/useFinanceExpense";
 import { TaxEditModal } from "./components";
+import Combobox from "~/components/ui/Combobox.vue";
 
 definePageMeta({
   layout: "dashboard",
@@ -47,6 +48,11 @@ const {
   setData,
 } = useTaxPage();
 const { canManage, requireManage } = useFeatureAccess("master.finance");
+const taxTypeFilterOptions = [
+  { id: "", name: "Semua Tipe" },
+  { id: "ppn", name: "PPN" },
+  { id: "pph", name: "PPh" },
+];
 
 const openEditModalIfAllowed = (id: string) => {
   if (!requireManage("You only have view access for finance master data.")) return;
@@ -88,6 +94,16 @@ watch(
 );
 
 const isPageLoading = computed(() => isLoading.value || isBootstrapping.value);
+
+const taxStats = computed(() => {
+  const total = pagination.value.total || taxes.value.length;
+  return {
+    total,
+    active: taxes.value.filter((tax) => tax.isActive).length,
+    ppn: taxes.value.filter((tax) => tax.type?.toLowerCase() === "ppn").length,
+    pph: taxes.value.filter((tax) => tax.type?.toLowerCase() === "pph").length,
+  };
+});
 </script>
 
 <template>
@@ -131,6 +147,25 @@ const isPageLoading = computed(() => isLoading.value || isBootstrapping.value);
       </div>
     </div>
 
+    <div class="grid grid-cols-1 sm:grid-cols-4 gap-4">
+      <div class="bg-white border border-border rounded-xl p-4 shadow-sm">
+        <p class="text-sm text-muted-foreground">Total Pajak</p>
+        <p class="text-2xl font-bold text-foreground mt-1">{{ taxStats.total }}</p>
+      </div>
+      <div class="bg-white border border-border rounded-xl p-4 shadow-sm">
+        <p class="text-sm text-muted-foreground">Pajak Aktif</p>
+        <p class="text-2xl font-bold text-green-600 mt-1">{{ taxStats.active }}</p>
+      </div>
+      <div class="bg-white border border-border rounded-xl p-4 shadow-sm">
+        <p class="text-sm text-muted-foreground">PPN</p>
+        <p class="text-2xl font-bold text-[#012D5A] mt-1">{{ taxStats.ppn }}</p>
+      </div>
+      <div class="bg-white border border-border rounded-xl p-4 shadow-sm">
+        <p class="text-sm text-muted-foreground">PPh</p>
+        <p class="text-2xl font-bold text-[#012D5A] mt-1">{{ taxStats.pph }}</p>
+      </div>
+    </div>
+
     <!-- Filters -->
     <div class="flex items-center justify-between gap-4">
       <div class="relative w-full max-w-sm">
@@ -144,14 +179,12 @@ const isPageLoading = computed(() => isLoading.value || isBootstrapping.value);
       </div>
 
       <div class="flex items-center gap-3">
-        <select
+        <Combobox
           v-model="filters.type"
-          class="px-3 py-2 rounded-lg border border-border bg-white text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-        >
-          <option value="">Semua Tipe</option>
-          <option value="ppn">PPN</option>
-          <option value="pph">PPh</option>
-        </select>
+          :options="taxTypeFilterOptions"
+          placeholder="Semua Tipe"
+          class="min-w-[150px]"
+        />
         <NuxtLink
           v-if="canManage"
           to="/master/tax/create"

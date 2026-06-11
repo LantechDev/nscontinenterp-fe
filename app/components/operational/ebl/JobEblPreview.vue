@@ -221,6 +221,9 @@ watch(
     if (newType === "ORIGINAL") {
       jumlahOriginal.value = 3;
       jumlahCopy.value = 2;
+    } else if (newType === "DRAFT") {
+      jumlahOriginal.value = 0;
+      jumlahCopy.value = 1;
     } else {
       jumlahOriginal.value = 0;
       jumlahCopy.value = 3;
@@ -237,7 +240,7 @@ watch(exportMode, (newMode) => {
   }
 
   jumlahOriginal.value = 0;
-  if (jumlahCopy.value === 0) jumlahCopy.value = 3;
+  if (jumlahCopy.value === 0) jumlahCopy.value = newMode === "DRAFT" ? 1 : 3;
 });
 
 interface RenderedPage {

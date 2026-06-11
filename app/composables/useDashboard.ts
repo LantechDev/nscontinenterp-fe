@@ -52,6 +52,9 @@ export interface DashboardJob {
   jobNumber: string;
   customer: string;
   type: "Export" | "Import";
+  serviceType?: string | null;
+  shipmentType?: string | null;
+  serviceLabel?: string;
   status: {
     code: string;
     name: string;

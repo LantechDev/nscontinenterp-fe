@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { LayoutGrid, LayoutList, Loader2, Plus, Search } from "lucide-vue-next";
 import { toast } from "vue-sonner";
-import SearchSelect from "~/components/ui/SearchSelect.vue";
+import Combobox from "~/components/ui/Combobox.vue";
 import { useCompanies, type MappedCompany } from "~/composables/useCompanies";
 import { useMasterData } from "~/composables/useMasterData";
 import type { Company } from "~/composables/useMasterData";
@@ -185,6 +185,16 @@ const filteredCompanies = computed(() => {
   return result;
 });
 
+const companyStats = computed(() => {
+  const total = pagination.value.total || companiesList.value.length;
+  return {
+    total,
+    active: companiesList.value.filter((company) => company.isActive).length,
+    customers: companiesList.value.filter((company) => company.isCustomer).length,
+    vendors: companiesList.value.filter((company) => company.isVendor).length,
+  };
+});
+
 const toQueryStatus = () => {
   switch (selectedStatus.value) {
     case "active":
@@ -347,6 +357,25 @@ watch([selectedType, selectedStatus, selectedCategory], () => {
       </div>
     </div>
 
+    <div class="grid grid-cols-1 sm:grid-cols-4 gap-4">
+      <div class="bg-white border border-border rounded-xl p-4 shadow-sm">
+        <p class="text-sm text-muted-foreground">Total Companies</p>
+        <p class="text-2xl font-bold text-foreground mt-1">{{ companyStats.total }}</p>
+      </div>
+      <div class="bg-white border border-border rounded-xl p-4 shadow-sm">
+        <p class="text-sm text-muted-foreground">Active Companies</p>
+        <p class="text-2xl font-bold text-green-600 mt-1">{{ companyStats.active }}</p>
+      </div>
+      <div class="bg-white border border-border rounded-xl p-4 shadow-sm">
+        <p class="text-sm text-muted-foreground">Customers</p>
+        <p class="text-2xl font-bold text-[#012D5A] mt-1">{{ companyStats.customers }}</p>
+      </div>
+      <div class="bg-white border border-border rounded-xl p-4 shadow-sm">
+        <p class="text-sm text-muted-foreground">Vendors</p>
+        <p class="text-2xl font-bold text-[#012D5A] mt-1">{{ companyStats.vendors }}</p>
+      </div>
+    </div>
+
     <div class="flex items-center justify-between gap-4">
       <div class="relative w-full max-w-sm">
         <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -359,20 +388,23 @@ watch([selectedType, selectedStatus, selectedCategory], () => {
       </div>
 
       <div class="flex items-center gap-3">
-        <SearchSelect
+        <Combobox
           v-model="selectedType"
-          :initial-options="typeOptions"
+          :options="typeOptions"
           placeholder="Filter by role..."
+          class="min-w-[160px]"
         />
-        <SearchSelect
+        <Combobox
           v-model="selectedStatus"
-          :initial-options="statusOptions"
+          :options="statusOptions"
           placeholder="Filter by status..."
+          class="min-w-[160px]"
         />
-        <SearchSelect
+        <Combobox
           v-model="selectedCategory"
-          :initial-options="categoryOptions"
+          :options="categoryOptions"
           placeholder="Filter by type..."
+          class="min-w-[180px]"
         />
         <button
           v-if="canManageCompany"

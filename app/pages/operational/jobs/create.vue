@@ -799,6 +799,29 @@ async function handleCreatePackageType(
   }
 }
 
+function hasContainerPayload(container: (typeof formData.containers)[number]) {
+  if (
+    container.containerNumber ||
+    container.sealNumber ||
+    container.containerTypeId ||
+    container.vehicleNumber ||
+    container.driverName ||
+    container.driverContactNumber
+  ) {
+    return true;
+  }
+
+  return container.items.some(
+    (item) =>
+      item.packageTypeCode ||
+      item.description ||
+      item.hsCode ||
+      item.grossWeight ||
+      item.netWeight ||
+      item.measurementCbm,
+  );
+}
+
 async function handleSubmit(isDraft: boolean = false) {
   if (
     !formData.shipperId ||
@@ -831,10 +854,10 @@ async function handleSubmit(isDraft: boolean = false) {
       return;
     }
     if (formData.serviceType === "OCEAN") {
-      const validContainers = formData.containers.filter((c) => c.containerNumber && c.sealNumber);
+      const validContainers = formData.containers.filter(hasContainerPayload);
       if (validContainers.length === 0) {
         toast.error(
-          "At least one fully detailed Container (with Container No and Seal No) is required.",
+          "At least one container or cargo detail is required before finalizing the job.",
         );
         return;
       }
@@ -862,7 +885,7 @@ async function handleSubmit(isDraft: boolean = false) {
       .filter((c) =>
         formData.serviceType === "TRUCKING"
           ? c.vehicleNumber || c.containerTypeId
-          : c.containerNumber,
+          : hasContainerPayload(c),
       )
       .map((c) => ({
         containerNumber: formData.serviceType === "TRUCKING" ? null : c.containerNumber || null,

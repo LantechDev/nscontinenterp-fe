@@ -2,6 +2,8 @@
 import {
   ArrowLeftRight,
   ChevronDown,
+  LayoutGrid,
+  LayoutList,
   Loader2,
   MoreVertical,
   Pencil,
@@ -11,6 +13,8 @@ import {
 } from "lucide-vue-next";
 import type { MovementType } from "~/composables/useMasterData";
 import type { MovementKind } from "~/composables/useMovementTypes";
+import { cn } from "~/lib/utils";
+import Combobox from "~/components/ui/Combobox.vue";
 
 const props = defineProps<{
   kind: MovementKind;
@@ -33,16 +37,33 @@ await useAsyncData(`${props.kind}-movements-list`, () => fetchMovements(), { ser
 const { canManage, requireManage } = useFeatureAccess("master.logistics");
 
 const searchQuery = ref("");
+const selectedCodeFilter = ref("all");
+const viewMode = ref<"list" | "grid">("list");
 const sortField = ref<"code" | "name" | "createdAt">("code");
 const sortDirection = ref<"asc" | "desc">("asc");
+const codeFilterOptions = [
+  { id: "all", name: "All Codes" },
+  { id: "manual", name: "Manual Code" },
+  { id: "auto", name: "Auto Code" },
+];
 
 const filteredMovements = computed(() => {
   const query = searchQuery.value.toLowerCase();
-  if (!query) return movements.value;
+  let list = movements.value;
 
-  return movements.value.filter(
-    (item) => item.code.toLowerCase().includes(query) || item.name.toLowerCase().includes(query),
-  );
+  if (query) {
+    list = list.filter(
+      (item) => item.code.toLowerCase().includes(query) || item.name.toLowerCase().includes(query),
+    );
+  }
+
+  if (selectedCodeFilter.value === "manual") {
+    list = list.filter((item) => !item.code.startsWith("GEN_"));
+  } else if (selectedCodeFilter.value === "auto") {
+    list = list.filter((item) => item.code.startsWith("GEN_"));
+  }
+
+  return list;
 });
 
 const sortedMovements = computed(() => {
@@ -173,6 +194,36 @@ const formatDate = (dateStr?: string) => {
   <div class="space-y-6 animate-fade-in p-6">
     <div class="flex items-center justify-between">
       <h1 class="text-2xl font-bold">{{ title }}</h1>
+      <div class="flex items-center bg-white border border-border rounded-lg p-1">
+        <button
+          type="button"
+          @click="viewMode = 'list'"
+          :class="
+            cn(
+              'p-1.5 rounded transition-colors',
+              viewMode === 'list'
+                ? 'bg-[#012D5A] text-white'
+                : 'text-muted-foreground hover:bg-muted',
+            )
+          "
+        >
+          <LayoutList class="w-4 h-4" />
+        </button>
+        <button
+          type="button"
+          @click="viewMode = 'grid'"
+          :class="
+            cn(
+              'p-1.5 rounded transition-colors',
+              viewMode === 'grid'
+                ? 'bg-[#012D5A] text-white'
+                : 'text-muted-foreground hover:bg-muted',
+            )
+          "
+        >
+          <LayoutGrid class="w-4 h-4" />
+        </button>
+      </div>
     </div>
 
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -202,22 +253,33 @@ const formatDate = (dateStr?: string) => {
         />
       </div>
 
-      <button
-        v-if="canManage"
-        type="button"
-        class="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-[#012D5A] text-white hover:bg-[#012D5A]/90 rounded-lg transition-colors min-w-fit whitespace-nowrap"
-        @click="openCreateModal"
-      >
-        <Plus class="w-4 h-4" />
-        <span>New {{ singularLabel }}</span>
-      </button>
+      <div class="flex items-center gap-3">
+        <Combobox
+          v-model="selectedCodeFilter"
+          :options="codeFilterOptions"
+          placeholder="All Codes"
+          class="min-w-[150px]"
+        />
+        <button
+          v-if="canManage"
+          type="button"
+          class="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-[#012D5A] text-white hover:bg-[#012D5A]/90 rounded-lg transition-colors min-w-fit whitespace-nowrap"
+          @click="openCreateModal"
+        >
+          <Plus class="w-4 h-4" />
+          <span>New {{ singularLabel }}</span>
+        </button>
+      </div>
     </div>
 
     <div v-if="isLoading" class="flex items-center justify-center py-12">
       <Loader2 class="w-8 h-8 animate-spin text-[#012D5A]" />
     </div>
 
-    <div v-else class="border border-border rounded-xl bg-white overflow-x-auto">
+    <div
+      v-else-if="viewMode === 'list'"
+      class="border border-border rounded-xl bg-white overflow-x-auto"
+    >
       <table class="w-full min-w-[640px]">
         <thead>
           <tr class="border-b border-border bg-white text-left">
@@ -307,6 +369,55 @@ const formatDate = (dateStr?: string) => {
           </tr>
         </tbody>
       </table>
+    </div>
+
+    <div v-else class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+      <div
+        v-for="movement in sortedMovements"
+        :key="movement.id"
+        class="border border-border rounded-xl bg-white p-4 hover:shadow-sm transition-shadow"
+      >
+        <div class="flex items-start justify-between gap-3">
+          <div class="min-w-0">
+            <p class="text-xs font-bold text-muted-foreground uppercase tracking-widest">
+              {{ movement.code }}
+            </p>
+            <h3 class="font-semibold text-foreground truncate">{{ movement.name }}</h3>
+            <p class="text-xs text-muted-foreground mt-2">
+              Created {{ formatDate(movement.createdAt) }}
+            </p>
+          </div>
+          <UiActionMenu v-if="canManage">
+            <template #trigger>
+              <button class="text-muted-foreground hover:text-foreground">
+                <MoreVertical class="w-4 h-4" />
+              </button>
+            </template>
+            <template #content>
+              <button
+                class="w-full flex items-center gap-2 px-4 py-2 text-sm hover:bg-muted transition-colors"
+                @click="openEditModal(movement)"
+              >
+                <Pencil class="w-4 h-4" />
+                Edit
+              </button>
+              <button
+                class="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                @click="openDeleteModal(movement)"
+              >
+                <Trash2 class="w-4 h-4" />
+                Delete
+              </button>
+            </template>
+          </UiActionMenu>
+        </div>
+      </div>
+      <div
+        v-if="sortedMovements.length === 0"
+        class="md:col-span-2 xl:col-span-3 py-8 text-center text-muted-foreground"
+      >
+        No {{ singularLabel.toLowerCase() }} found
+      </div>
     </div>
 
     <UiModal

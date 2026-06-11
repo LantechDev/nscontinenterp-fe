@@ -532,13 +532,6 @@ async function onCompanyCreated(company: Company) {
           <label class="text-xs font-bold text-muted-foreground uppercase tracking-wider"
             >Service Items Breakdown</label
           >
-          <button
-            type="button"
-            @click="addItem"
-            class="inline-flex items-center gap-1.5 text-xs font-bold text-[#012D5A] hover:bg-[#012D5A]/5 px-2 py-1 rounded transition-colors"
-          >
-            <Plus class="w-3.5 h-3.5" /> Add Breakdown Item
-          </button>
         </div>
 
         <div class="border rounded-xl border-border bg-muted/5 shadow-sm">
@@ -650,6 +643,16 @@ async function onCompanyCreated(company: Company) {
               </div>
             </div>
           </div>
+        </div>
+
+        <div v-if="isBreakdownMode" class="flex justify-end">
+          <button
+            type="button"
+            @click="addItem"
+            class="inline-flex items-center gap-1.5 text-xs font-bold text-[#012D5A] hover:bg-[#012D5A]/5 px-2 py-1 rounded transition-colors"
+          >
+            <Plus class="w-3.5 h-3.5" /> Add Breakdown Item
+          </button>
         </div>
       </div>
 
