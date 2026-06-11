@@ -345,6 +345,75 @@ const formatDate = (dateStr?: string | null) => {
   }
 };
 
+type InvoicePreviewItem = InvoiceDetail["items"][number];
+
+interface InvoicePreviewPage {
+  items: InvoicePreviewItem[];
+  pageNumber: number;
+  startIndex: number;
+  isFirstPage: boolean;
+  isLastPage: boolean;
+}
+
+const FIRST_PAGE_ITEM_SLOTS = 10;
+const CONTINUATION_PAGE_ITEM_SLOTS = 18;
+const DESCRIPTION_CHARS_PER_SLOT = 52;
+
+const getItemSlotCount = (description?: string | null) =>
+  Math.max(1, Math.ceil((description || "").length / DESCRIPTION_CHARS_PER_SLOT));
+
+const paginatedInvoicePages = computed<InvoicePreviewPage[]>(() => {
+  const items = props.invoice?.items || [];
+  const pages: Array<{ items: InvoicePreviewItem[]; startIndex: number }> = [];
+
+  let currentItems: InvoicePreviewItem[] = [];
+  let currentStartIndex = 0;
+  let currentSlots = 0;
+  let currentBudget = FIRST_PAGE_ITEM_SLOTS;
+
+  items.forEach((item, index) => {
+    const itemSlots = getItemSlotCount(item.description);
+    const shouldStartNewPage = currentItems.length > 0 && currentSlots + itemSlots > currentBudget;
+
+    if (shouldStartNewPage) {
+      pages.push({ items: currentItems, startIndex: currentStartIndex });
+      currentItems = [];
+      currentStartIndex = index;
+      currentSlots = 0;
+      currentBudget = CONTINUATION_PAGE_ITEM_SLOTS;
+    }
+
+    currentItems.push(item);
+    currentSlots += itemSlots;
+  });
+
+  if (currentItems.length > 0 || pages.length === 0) {
+    pages.push({ items: currentItems, startIndex: currentStartIndex });
+  }
+
+  return pages.map((page, index) => ({
+    ...page,
+    pageNumber: index + 1,
+    isFirstPage: index === 0,
+    isLastPage: index === pages.length - 1,
+  }));
+});
+
+const previewPages = computed<InvoicePreviewPage[]>(() => {
+  if (mode.value === "receipt") {
+    return [
+      {
+        items: [],
+        pageNumber: 1,
+        startIndex: 0,
+        isFirstPage: true,
+        isLastPage: true,
+      },
+    ];
+  }
+  return paginatedInvoicePages.value;
+});
+
 const generatePDF = async () => {
   if (!printContainerRef.value || !props.invoice) return false;
 
@@ -403,6 +472,8 @@ defineExpose({
   >
     <div class="relative group flex flex-col gap-10" ref="printContainerRef">
       <div
+        v-for="page in previewPages"
+        :key="page.pageNumber"
         class="a4-page-wrapper bg-white shadow-xl shrink-0 flex flex-col text-[#062c58] border"
         style="
           width: 794px;
@@ -431,7 +502,9 @@ defineExpose({
             </span> -->
           </div>
           <div class="w-[35%] text-right pb-1 flex flex-col items-end justify-end h-full">
-            <div class="text-[0.6rem] font-mono mb-1 text-black">PAGE: 1 OF 1</div>
+            <div class="text-[0.6rem] font-mono mb-1 text-black">
+              PAGE: {{ page.pageNumber }} OF {{ previewPages.length }}
+            </div>
             <h1 class="text-xl font-bold tracking-widest uppercase leading-none text-[#062c58]">
               {{ invoiceTitle }}
             </h1>
@@ -584,7 +657,7 @@ defineExpose({
 
           <!-- Parties & Invoice Info (Hide Items Table in Receipt mode for cleaner look) -->
           <div
-            v-if="mode === 'invoice'"
+            v-if="mode === 'invoice' && page.isFirstPage"
             class="flex border-b border-[#062c58]"
             style="min-height: 100px"
           >
@@ -643,7 +716,7 @@ defineExpose({
 
           <!-- Shipment Operational Info Row 1 -->
           <div
-            v-if="mode === 'invoice'"
+            v-if="mode === 'invoice' && page.isFirstPage"
             class="flex border-b border-[#062c58]"
             style="min-height: 45px"
           >
@@ -674,7 +747,7 @@ defineExpose({
 
           <!-- Shipment Operational Info Row 2 -->
           <div
-            v-if="mode === 'invoice'"
+            v-if="mode === 'invoice' && page.isFirstPage"
             class="flex border-b border-[#062c58]"
             style="min-height: 45px"
           >
@@ -706,7 +779,7 @@ defineExpose({
 
           <!-- Terms & Reference Row 3 -->
           <div
-            v-if="mode === 'invoice'"
+            v-if="mode === 'invoice' && page.isFirstPage"
             class="flex border-b border-[#062c58]"
             style="min-height: 45px"
           >
@@ -737,7 +810,7 @@ defineExpose({
 
           <!-- Container Info Section -->
           <div
-            v-if="mode === 'invoice'"
+            v-if="mode === 'invoice' && page.isFirstPage"
             class="flex border-b border-[#062c58] bg-gray-50/10"
             style="min-height: 40px"
           >
@@ -761,6 +834,13 @@ defineExpose({
                 {{ allContainerTypes }}
               </span>
             </div>
+          </div>
+
+          <div
+            v-if="mode === 'invoice' && !page.isFirstPage"
+            class="border-b border-[#062c58] bg-gray-50/10 px-2 py-2 text-[0.65rem] font-bold uppercase tracking-widest"
+          >
+            {{ invoice?.invoiceNumber || "DRAFT" }} - Charges Continued
           </div>
 
           <!-- Items Table Header -->
@@ -795,11 +875,13 @@ defineExpose({
             <!-- Scrollable Items Area -->
             <div v-if="mode === 'invoice'" class="relative z-[1] p-0 font-mono text-black">
               <div
-                v-for="(item, idx) in invoice?.items || []"
-                :key="idx"
+                v-for="(item, idx) in page.items"
+                :key="item.id || `${page.pageNumber}-${idx}`"
                 class="flex border-b border-[#062c58]/10 min-h-[35px] items-start py-2"
               >
-                <div class="w-[5%] text-center text-[0.7rem]">{{ idx + 1 }}</div>
+                <div class="w-[5%] text-center text-[0.7rem]">
+                  {{ page.startIndex + idx + 1 }}
+                </div>
                 <div class="flex-1 px-3 text-[0.7rem] font-medium uppercase leading-tight">
                   {{ item.description }}
                 </div>
@@ -817,9 +899,9 @@ defineExpose({
 
               <!-- Empty spacer rows to maintain layout if few items -->
               <div
-                v-if="(invoice?.items?.length || 0) < 10"
-                v-for="i in 10 - (invoice?.items?.length || 0)"
-                :key="'spacer-' + i"
+                v-if="page.isLastPage && page.items.length < FIRST_PAGE_ITEM_SLOTS"
+                v-for="i in FIRST_PAGE_ITEM_SLOTS - page.items.length"
+                :key="`spacer-${page.pageNumber}-${i}`"
                 class="flex min-h-[35px] border-b border-[#062c58]/5"
               >
                 <div class="w-[5%]"></div>
@@ -833,7 +915,10 @@ defineExpose({
           </div>
 
           <!-- Bank & Totals Footer Area -->
-          <div v-if="mode === 'invoice'" class="border-t border-[#062c58] mt-auto">
+          <div
+            v-if="mode === 'invoice' && page.isLastPage"
+            class="border-t border-[#062c58] mt-auto"
+          >
             <div class="flex items-stretch min-h-[140px]">
               <!-- Left: Bank Information -->
               <div class="w-[58%] border-r border-[#062c58] p-3">
@@ -920,7 +1005,10 @@ defineExpose({
         </div>
 
         <!-- Authorized Signature & Footer Credits -->
-        <div class="mt-4 flex justify-between items-end">
+        <div
+          v-if="mode === 'receipt' || page.isLastPage"
+          class="mt-4 flex justify-between items-end"
+        >
           <div class="w-2/3">
             <p
               v-if="mode === 'invoice'"

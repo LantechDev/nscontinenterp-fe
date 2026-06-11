@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { Plus, Search, Loader2, Trash2 } from "lucide-vue-next";
+import { LayoutGrid, LayoutList, Plus, Search, Loader2, Trash2 } from "lucide-vue-next";
 import type { ServiceUnit } from "~/types/master";
 import { UnitFormModal, UnitTable, UnitStats } from "./components";
+import { cn } from "~/lib/utils";
+import Combobox from "~/components/ui/Combobox.vue";
 
 definePageMeta({
   layout: "dashboard",
@@ -22,6 +24,13 @@ const { canManage, requireManage } = useFeatureAccess("master.service");
 
 // Search state
 const searchQuery = ref("");
+const selectedCodeFilter = ref("all");
+const viewMode = ref<"list" | "grid">("list");
+const codeFilterOptions = [
+  { id: "all", name: "All Codes" },
+  { id: "manual", name: "Manual Code" },
+  { id: "auto", name: "Auto Code" },
+];
 
 // Filtered units (keep full ServiceUnit objects to satisfy table prop types and enable accurate date sorting)
 const filteredUnits = computed(() => {
@@ -32,6 +41,13 @@ const filteredUnits = computed(() => {
       (u) => u.name.toLowerCase().includes(query) || u.code.toLowerCase().includes(query),
     );
   }
+
+  if (selectedCodeFilter.value === "manual") {
+    list = list.filter((unit) => !unit.code.startsWith("GEN_"));
+  } else if (selectedCodeFilter.value === "auto") {
+    list = list.filter((unit) => unit.code.startsWith("GEN_"));
+  }
+
   return list;
 });
 
@@ -150,6 +166,36 @@ const handleDelete = async () => {
     <!-- Page header -->
     <div class="flex items-center justify-between">
       <h1 class="text-2xl font-bold">Service Unit</h1>
+      <div class="flex items-center bg-white border border-border rounded-lg p-1">
+        <button
+          type="button"
+          @click="viewMode = 'list'"
+          :class="
+            cn(
+              'p-1.5 rounded transition-colors',
+              viewMode === 'list'
+                ? 'bg-[#012D5A] text-white'
+                : 'text-muted-foreground hover:bg-muted',
+            )
+          "
+        >
+          <LayoutList class="w-4 h-4" />
+        </button>
+        <button
+          type="button"
+          @click="viewMode = 'grid'"
+          :class="
+            cn(
+              'p-1.5 rounded transition-colors',
+              viewMode === 'grid'
+                ? 'bg-[#012D5A] text-white'
+                : 'text-muted-foreground hover:bg-muted',
+            )
+          "
+        >
+          <LayoutGrid class="w-4 h-4" />
+        </button>
+      </div>
     </div>
 
     <!-- Stats Cards -->
@@ -167,14 +213,22 @@ const handleDelete = async () => {
         />
       </div>
 
-      <button
-        v-if="canManage"
-        @click="openCreateModal"
-        class="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-[#012D5A] text-white hover:bg-[#012D5A]/90 rounded-lg transition-colors min-w-fit whitespace-nowrap"
-      >
-        <Plus class="w-4 h-4" />
-        <span>New Unit</span>
-      </button>
+      <div class="flex items-center gap-3">
+        <Combobox
+          v-model="selectedCodeFilter"
+          :options="codeFilterOptions"
+          placeholder="All Codes"
+          class="min-w-[150px]"
+        />
+        <button
+          v-if="canManage"
+          @click="openCreateModal"
+          class="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-[#012D5A] text-white hover:bg-[#012D5A]/90 rounded-lg transition-colors min-w-fit whitespace-nowrap"
+        >
+          <Plus class="w-4 h-4" />
+          <span>New Unit</span>
+        </button>
+      </div>
     </div>
 
     <!-- Loading State -->
@@ -184,7 +238,7 @@ const handleDelete = async () => {
 
     <!-- Table -->
     <UnitTable
-      v-else
+      v-else-if="viewMode === 'list'"
       :units="sortedUnits"
       :sort-field="sortField"
       :sort-direction="sortDirection"
@@ -193,6 +247,48 @@ const handleDelete = async () => {
       @delete="openDeleteModal"
       :can-manage="canManage"
     />
+
+    <div v-else class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+      <div
+        v-for="unit in sortedUnits"
+        :key="unit.id"
+        class="border border-border rounded-xl bg-white p-4 hover:shadow-sm transition-shadow"
+      >
+        <div class="flex items-start justify-between gap-3">
+          <div class="min-w-0">
+            <p class="text-xs font-bold text-muted-foreground uppercase tracking-widest">
+              {{ unit.code }}
+            </p>
+            <h3 class="font-semibold text-foreground truncate">{{ unit.name }}</h3>
+            <p class="text-xs text-muted-foreground mt-2">
+              Created {{ new Date(unit.createdAt).toLocaleDateString("id-ID") }}
+            </p>
+          </div>
+          <div v-if="canManage" class="flex items-center gap-1">
+            <button
+              type="button"
+              class="px-2 py-1 text-xs font-medium rounded border border-border hover:bg-muted"
+              @click="openEditModal(unit)"
+            >
+              Edit
+            </button>
+            <button
+              type="button"
+              class="px-2 py-1 text-xs font-medium rounded border border-red-200 text-red-600 hover:bg-red-50"
+              @click="openDeleteModal(unit)"
+            >
+              Delete
+            </button>
+          </div>
+        </div>
+      </div>
+      <div
+        v-if="sortedUnits.length === 0"
+        class="md:col-span-2 xl:col-span-3 py-8 text-center text-muted-foreground"
+      >
+        No service units found
+      </div>
+    </div>
 
     <!-- Create/Edit Modal -->
     <UnitFormModal

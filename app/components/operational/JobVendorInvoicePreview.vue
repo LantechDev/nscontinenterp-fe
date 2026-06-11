@@ -75,6 +75,71 @@ const taxAmount = computed(() => {
   return Math.max(0, total - subtotal.value);
 });
 
+type VendorInvoicePreviewItem = NonNullable<Expense["items"]>[number];
+
+interface VendorInvoicePreviewPage {
+  items: VendorInvoicePreviewItem[];
+  pageNumber: number;
+  startIndex: number;
+  isFirstPage: boolean;
+  isLastPage: boolean;
+}
+
+const FIRST_PAGE_ITEM_SLOTS = 14;
+const CONTINUATION_PAGE_ITEM_SLOTS = 20;
+const DESCRIPTION_CHARS_PER_SLOT = 56;
+
+const getItemSlotCount = (description?: string | null) =>
+  Math.max(1, Math.ceil((description || "").length / DESCRIPTION_CHARS_PER_SLOT));
+
+const displayItems = computed<VendorInvoicePreviewItem[]>(() => {
+  if (props.expense?.items && props.expense.items.length > 0) return props.expense.items;
+
+  return [
+    {
+      description: props.expense?.description || "-",
+      quantity: 1,
+      unitPrice: Number(props.expense?.amount || 0),
+      amount: Number(props.expense?.amount || 0),
+    },
+  ];
+});
+
+const paginatedVoucherPages = computed<VendorInvoicePreviewPage[]>(() => {
+  const pages: Array<{ items: VendorInvoicePreviewItem[]; startIndex: number }> = [];
+  let currentItems: VendorInvoicePreviewItem[] = [];
+  let currentStartIndex = 0;
+  let currentSlots = 0;
+  let currentBudget = FIRST_PAGE_ITEM_SLOTS;
+
+  displayItems.value.forEach((item, index) => {
+    const itemSlots = getItemSlotCount(item.description);
+    const shouldStartNewPage = currentItems.length > 0 && currentSlots + itemSlots > currentBudget;
+
+    if (shouldStartNewPage) {
+      pages.push({ items: currentItems, startIndex: currentStartIndex });
+      currentItems = [];
+      currentStartIndex = index;
+      currentSlots = 0;
+      currentBudget = CONTINUATION_PAGE_ITEM_SLOTS;
+    }
+
+    currentItems.push(item);
+    currentSlots += itemSlots;
+  });
+
+  if (currentItems.length > 0 || pages.length === 0) {
+    pages.push({ items: currentItems, startIndex: currentStartIndex });
+  }
+
+  return pages.map((page, index) => ({
+    ...page,
+    pageNumber: index + 1,
+    isFirstPage: index === 0,
+    isLastPage: index === pages.length - 1,
+  }));
+});
+
 const generatePDF = async () => {
   if (!printContainerRef.value || !props.expense) return false;
 
@@ -129,6 +194,8 @@ defineExpose({
   >
     <div class="relative group flex flex-col gap-10" ref="printContainerRef">
       <div
+        v-for="page in paginatedVoucherPages"
+        :key="page.pageNumber"
         class="a4-page-wrapper bg-white shadow-xl shrink-0 flex flex-col text-[#062c58] border"
         style="
           width: 794px;
@@ -173,7 +240,9 @@ defineExpose({
             </div>
           </div>
           <div class="w-[35%] text-right pb-1 flex flex-col items-end justify-end h-full">
-            <div class="text-[0.6rem] font-mono mb-1 text-black">PAGE: 1 OF 1</div>
+            <div class="text-[0.6rem] font-mono mb-1 text-black">
+              PAGE: {{ page.pageNumber }} OF {{ paginatedVoucherPages.length }}
+            </div>
             <h1 class="text-xl font-bold tracking-widest uppercase leading-none">AP VOUCHER</h1>
           </div>
         </div>
@@ -183,7 +252,11 @@ defineExpose({
           class="main-border-container border border-[#062c58] flex-1 flex flex-col text-[0.7rem] relative overflow-hidden h-full"
         >
           <!-- Vendor & Voucher Info -->
-          <div class="flex border-b border-[#062c58]" style="min-height: 100px">
+          <div
+            v-if="page.isFirstPage"
+            class="flex border-b border-[#062c58]"
+            style="min-height: 100px"
+          >
             <div class="w-1/2 border-r border-[#062c58] pt-1 px-2 pb-2">
               <span class="font-bold mb-1 text-[0.6rem] leading-none block uppercase"
                 >VENDOR / PAYEE:</span
@@ -238,7 +311,11 @@ defineExpose({
           </div>
 
           <!-- Description / Reference -->
-          <div class="flex border-b border-[#062c58] bg-gray-50/10" style="min-height: 45px">
+          <div
+            v-if="page.isFirstPage"
+            class="flex border-b border-[#062c58] bg-gray-50/10"
+            style="min-height: 45px"
+          >
             <div class="w-full pt-1 px-2 pb-1">
               <span class="font-bold text-[0.6rem] block leading-none mb-1 uppercase opacity-70"
                 >DESCRIPTION / REMARKS</span
@@ -247,6 +324,13 @@ defineExpose({
                 {{ expense?.description || "-" }}
               </span>
             </div>
+          </div>
+
+          <div
+            v-if="!page.isFirstPage"
+            class="border-b border-[#062c58] bg-gray-50/10 px-2 py-2 text-[0.65rem] font-bold uppercase tracking-widest"
+          >
+            {{ expense?.number || "DRAFT" }} - Charges Continued
           </div>
 
           <!-- Items Table Header -->
@@ -277,46 +361,31 @@ defineExpose({
 
             <!-- Scrollable Items Area -->
             <div class="relative z-[1] p-0 font-mono text-black">
-              <template v-if="expense?.items && expense.items.length > 0">
-                <div
-                  v-for="(item, idx) in expense.items"
-                  :key="idx"
-                  class="flex border-b border-[#062c58]/10 min-h-[35px] items-start py-2"
-                >
-                  <div class="w-[5%] text-center text-[0.7rem]">{{ idx + 1 }}</div>
-                  <div class="flex-1 px-3 text-[0.7rem] font-medium uppercase leading-tight">
-                    {{ item.description }}
-                  </div>
-                  <div class="w-[10%] text-center text-[0.7rem]">{{ item.quantity }}</div>
-                  <div class="w-[20%] text-right px-3 text-[0.7rem] text-black">
-                    {{ formatCurrency(item.unitPrice) }}
-                  </div>
-                  <div class="w-[20%] text-right px-3 text-[0.7rem] font-medium text-black">
-                    {{ formatCurrency(item.amount) }}
-                  </div>
+              <div
+                v-for="(item, idx) in page.items"
+                :key="item.id || `${page.pageNumber}-${idx}`"
+                class="flex border-b border-[#062c58]/10 min-h-[35px] items-start py-2"
+              >
+                <div class="w-[5%] text-center text-[0.7rem]">
+                  {{ page.startIndex + idx + 1 }}
                 </div>
-              </template>
-              <template v-else>
-                <div class="flex border-b border-[#062c58]/10 min-h-[35px] items-start py-2">
-                  <div class="w-[5%] text-center text-[0.7rem]">1</div>
-                  <div class="flex-1 px-3 text-[0.7rem] font-medium uppercase leading-tight">
-                    {{ expense?.description }}
-                  </div>
-                  <div class="w-[10%] text-center text-[0.7rem]">1</div>
-                  <div class="w-[20%] text-right px-3 text-[0.7rem] text-black">
-                    {{ formatCurrency(expense?.amount) }}
-                  </div>
-                  <div class="w-[20%] text-right px-3 text-[0.7rem] font-medium text-black">
-                    {{ formatCurrency(expense?.amount) }}
-                  </div>
+                <div class="flex-1 px-3 text-[0.7rem] font-medium uppercase leading-tight">
+                  {{ item.description }}
                 </div>
-              </template>
+                <div class="w-[10%] text-center text-[0.7rem]">{{ item.quantity }}</div>
+                <div class="w-[20%] text-right px-3 text-[0.7rem] text-black">
+                  {{ formatCurrency(item.unitPrice) }}
+                </div>
+                <div class="w-[20%] text-right px-3 text-[0.7rem] font-medium text-black">
+                  {{ formatCurrency(item.amount) }}
+                </div>
+              </div>
 
               <!-- Empty spacer rows -->
               <div
-                v-if="(expense?.items?.length || 1) < 12"
-                v-for="i in 12 - (expense?.items?.length || 1)"
-                :key="'spacer-' + i"
+                v-if="page.isLastPage && page.items.length < FIRST_PAGE_ITEM_SLOTS"
+                v-for="i in FIRST_PAGE_ITEM_SLOTS - page.items.length"
+                :key="`spacer-${page.pageNumber}-${i}`"
                 class="flex min-h-[35px] border-b border-[#062c58]/5"
               >
                 <div class="w-[5%]"></div>
@@ -329,7 +398,7 @@ defineExpose({
           </div>
 
           <!-- Totals Footer Area -->
-          <div class="border-t border-[#062c58] mt-auto">
+          <div v-if="page.isLastPage" class="border-t border-[#062c58] mt-auto">
             <div class="flex items-stretch min-h-[120px]">
               <!-- Left: Approval Section -->
               <div class="w-[58%] border-r border-[#062c58] p-4">
@@ -398,7 +467,7 @@ defineExpose({
         </div>
 
         <!-- Authorized Signature & Footer Credits -->
-        <div class="mt-4 flex justify-between items-end">
+        <div v-if="page.isLastPage" class="mt-4 flex justify-between items-end">
           <div class="w-2/3">
             <p
               class="text-[0.5rem] italic text-[#062c58]/60 uppercase leading-tight font-medium max-w-[400px]"

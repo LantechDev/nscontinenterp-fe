@@ -13,6 +13,7 @@ import {
 import { cn } from "~/lib/utils";
 import { useBankAccounts, type BankAccount } from "~/composables/useBankAccounts";
 import Checkbox from "~/components/ui/Checkbox.vue";
+import Combobox from "~/components/ui/Combobox.vue";
 
 definePageMeta({
   layout: "dashboard",
@@ -36,6 +37,20 @@ onMounted(refreshData);
 
 // Search state
 const searchQuery = ref("");
+const selectedCurrency = ref("all");
+const selectedStatus = ref("all");
+const currencyOptions = [
+  { id: "IDR", name: "IDR" },
+  { id: "USD", name: "USD" },
+  { id: "EUR", name: "EUR" },
+  { id: "SGD", name: "SGD" },
+];
+const currencyFilterOptions = [{ id: "all", name: "All Currencies" }, ...currencyOptions];
+const statusOptions = [
+  { id: "all", name: "All Status" },
+  { id: "active", name: "Active" },
+  { id: "inactive", name: "Inactive" },
+];
 
 const filteredBankAccounts = computed(() => {
   let filtered = [...bankAccountsList.value];
@@ -48,7 +63,29 @@ const filteredBankAccounts = computed(() => {
         b.accountHolder.toLowerCase().includes(q),
     );
   }
+
+  if (selectedCurrency.value !== "all") {
+    filtered = filtered.filter((account) => account.currency === selectedCurrency.value);
+  }
+
+  if (selectedStatus.value !== "all") {
+    const isActive = selectedStatus.value === "active";
+    filtered = filtered.filter((account) => account.isActive === isActive);
+  }
+
   return filtered;
+});
+
+const bankStats = computed(() => {
+  const total = bankAccountsList.value.length;
+  const active = bankAccountsList.value.filter((account) => account.isActive).length;
+  const currencies = new Set(bankAccountsList.value.map((account) => account.currency)).size;
+
+  return {
+    total,
+    active,
+    currencies,
+  };
 });
 
 // Modal state
@@ -187,6 +224,21 @@ const toggleMenu = (id: string) => {
       </div>
     </div>
 
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div class="bg-white border border-border rounded-xl p-4 shadow-sm">
+        <p class="text-sm text-muted-foreground">Total Accounts</p>
+        <p class="text-2xl font-bold text-foreground mt-1">{{ bankStats.total }}</p>
+      </div>
+      <div class="bg-white border border-border rounded-xl p-4 shadow-sm">
+        <p class="text-sm text-muted-foreground">Active Accounts</p>
+        <p class="text-2xl font-bold text-green-600 mt-1">{{ bankStats.active }}</p>
+      </div>
+      <div class="bg-white border border-border rounded-xl p-4 shadow-sm">
+        <p class="text-sm text-muted-foreground">Currencies</p>
+        <p class="text-2xl font-bold text-[#012D5A] mt-1">{{ bankStats.currencies }}</p>
+      </div>
+    </div>
+
     <!-- Filters -->
     <div class="flex items-center justify-between gap-4">
       <div class="relative w-full max-w-sm">
@@ -200,6 +252,18 @@ const toggleMenu = (id: string) => {
       </div>
 
       <div class="flex items-center gap-3">
+        <Combobox
+          v-model="selectedCurrency"
+          :options="currencyFilterOptions"
+          placeholder="All Currencies"
+          class="min-w-[160px]"
+        />
+        <Combobox
+          v-model="selectedStatus"
+          :options="statusOptions"
+          placeholder="All Status"
+          class="min-w-[150px]"
+        />
         <button
           v-if="canManage"
           @click="openCreateModal"
@@ -447,12 +511,11 @@ const toggleMenu = (id: string) => {
             <label class="text-xs font-bold uppercase tracking-widest text-muted-foreground"
               >Currency</label
             >
-            <select v-model="formData.currency" class="input-field">
-              <option value="IDR">IDR</option>
-              <option value="USD">USD</option>
-              <option value="EUR">EUR</option>
-              <option value="SGD">SGD</option>
-            </select>
+            <Combobox
+              v-model="formData.currency"
+              :options="currencyOptions"
+              placeholder="Select currency"
+            />
           </div>
           <div class="space-y-2">
             <label class="text-xs font-bold uppercase tracking-widest text-muted-foreground"

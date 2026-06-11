@@ -19,6 +19,7 @@ import {
 } from "lucide-vue-next";
 import { cn } from "~/lib/utils";
 import { toast } from "vue-sonner";
+import Combobox from "~/components/ui/Combobox.vue";
 
 definePageMeta({
   layout: "dashboard",
@@ -200,6 +201,15 @@ const formatDate = (dateStr: string) => {
 
 type ViewMode = "list" | "grid";
 const viewMode = ref<ViewMode>("list");
+const searchQuery = ref("");
+const statusFilter = ref("all");
+const statusOptions = [
+  { id: "all", name: "All Status" },
+  { id: "draft", name: "Draft" },
+  { id: "pending_approval", name: "Pending Approval" },
+  { id: "finalized", name: "Finalized" },
+  { id: "revision_required", name: "Revision Required" },
+];
 
 const selectedJobId = ref("");
 const initialBlId = ref("");
@@ -217,7 +227,7 @@ function openBlDetail(id: string) {
 const groupedEbls = computed(() => {
   const groups: Record<string, { jobId: string; jobNumber: string; ebls: EblItem[] }> = {};
 
-  ebls.value.forEach((ebl) => {
+  filteredEbls.value.forEach((ebl) => {
     const jobId = ebl.jobId;
     if (!groups[jobId]) {
       groups[jobId] = {
@@ -230,6 +240,27 @@ const groupedEbls = computed(() => {
   });
 
   return Object.values(groups);
+});
+
+const filteredEbls = computed(() => {
+  const query = searchQuery.value.toLowerCase().trim();
+
+  return ebls.value.filter((ebl) => {
+    const statusCode = getStatusCode(ebl);
+    const normalizedStatus =
+      statusCode === "draft" && ebl.rejectReason ? "revision_required" : statusCode || "draft";
+    const matchesStatus = statusFilter.value === "all" || normalizedStatus === statusFilter.value;
+
+    const matchesSearch =
+      !query ||
+      ebl.blNumber.toLowerCase().includes(query) ||
+      (ebl.job?.jobNumber || "").toLowerCase().includes(query) ||
+      getShipperName(ebl).toLowerCase().includes(query) ||
+      (ebl.polName || "").toLowerCase().includes(query) ||
+      (ebl.podName || "").toLowerCase().includes(query);
+
+    return matchesSearch && matchesStatus;
+  });
 });
 </script>
 
@@ -281,6 +312,7 @@ const groupedEbls = computed(() => {
       <div class="relative w-full max-w-sm">
         <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
         <input
+          v-model="searchQuery"
           type="text"
           placeholder="Cari berdasarkan No. eBL atau Job..."
           class="w-full pl-10 pr-4 py-2 text-sm border border-border rounded-lg bg-gray-50/50 focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground"
@@ -288,8 +320,14 @@ const groupedEbls = computed(() => {
       </div>
 
       <div class="flex items-center gap-3">
+        <Combobox
+          v-model="statusFilter"
+          :options="statusOptions"
+          placeholder="All Status"
+          class="min-w-[180px]"
+        />
         <span class="text-xs text-muted-foreground font-medium uppercase tracking-wider"
-          >Total: {{ ebls.length }} eBL</span
+          >Total: {{ filteredEbls.length }} eBL</span
         >
       </div>
     </div>
@@ -463,7 +501,7 @@ const groupedEbls = computed(() => {
                 </td>
               </tr>
             </template>
-            <tr v-if="ebls.length === 0">
+            <tr v-if="filteredEbls.length === 0">
               <td colspan="6" class="p-20 text-center text-muted-foreground">
                 <div class="flex flex-col items-center gap-2">
                   <FileText class="w-10 h-10 opacity-20 mb-2" />
@@ -482,7 +520,7 @@ const groupedEbls = computed(() => {
     <!-- Grid View -->
     <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       <div
-        v-for="ebl in ebls"
+        v-for="ebl in filteredEbls"
         :key="ebl.id"
         class="group border border-border rounded-2xl bg-white p-6 hover:shadow-xl hover:border-[#012D5A]/20 transition-all cursor-pointer relative overflow-hidden"
         @click="openBlDetail(ebl.id)"

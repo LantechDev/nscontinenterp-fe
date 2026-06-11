@@ -7,6 +7,9 @@ interface Job {
   jobNumber: string;
   customer: string;
   type: "Export" | "Import";
+  serviceType?: string | null;
+  shipmentType?: string | null;
+  serviceLabel?: string;
   status: {
     code: string;
     name: string;
@@ -21,6 +24,21 @@ const props = defineProps<{
 }>();
 
 const jobs = computed(() => props.jobs || []);
+
+const getServiceLabel = (job: Job) => {
+  if (job.serviceLabel) return job.serviceLabel;
+  if (job.serviceType === "TRUCKING") return "Trucking";
+  if (job.serviceType === "CUSTOM_CLEARANCE") return "Custom Clearance";
+  if (job.serviceType === "AIR" || job.shipmentType === "AIR") return "Air Freight";
+  return "Ocean Freight";
+};
+
+const getServiceClass = (job: Job) => {
+  if (job.serviceType === "TRUCKING") return "bg-amber-100 text-amber-700";
+  if (job.serviceType === "CUSTOM_CLEARANCE") return "bg-violet-100 text-violet-700";
+  if (job.serviceType === "AIR" || job.shipmentType === "AIR") return "bg-sky-100 text-sky-700";
+  return "bg-blue-100 text-blue-600";
+};
 
 const getStatusClass = (statusCode: string | null | undefined) => {
   const code = (statusCode || "").toUpperCase();
@@ -60,15 +78,15 @@ const getStatusClass = (statusCode: string | null | undefined) => {
 
     <!-- Table -->
     <div v-else class="overflow-x-auto">
-      <table class="w-full">
+      <table class="w-full table-fixed">
         <thead>
           <tr class="border-b border-border bg-gray-50/50">
-            <th class="py-3 px-4 text-left text-sm font-medium text-gray-500">No. Job</th>
-            <th class="py-3 px-4 text-left text-sm font-medium text-gray-500">Customer</th>
-            <th class="py-3 px-4 text-left text-sm font-medium text-gray-500">Route</th>
-            <th class="py-3 px-4 text-left text-sm font-medium text-gray-500">ETA</th>
-            <th class="py-3 px-4 text-left text-sm font-medium text-gray-500">Type</th>
-            <th class="py-3 px-4 text-left text-sm font-medium text-gray-500">Status</th>
+            <th class="w-[15%] py-3 px-4 text-left text-sm font-medium text-gray-500">No. Job</th>
+            <th class="w-[18%] py-3 px-4 text-left text-sm font-medium text-gray-500">Customer</th>
+            <th class="w-[28%] py-3 px-4 text-left text-sm font-medium text-gray-500">Route</th>
+            <th class="w-[11%] py-3 px-4 text-left text-sm font-medium text-gray-500">Date</th>
+            <th class="w-[14%] py-3 px-4 text-left text-sm font-medium text-gray-500">Type</th>
+            <th class="w-[14%] py-3 px-4 text-left text-sm font-medium text-gray-500">Status</th>
             <th class="py-3 px-4 text-right text-sm font-medium text-gray-500 w-10"></th>
           </tr>
         </thead>
@@ -81,28 +99,23 @@ const getStatusClass = (statusCode: string | null | undefined) => {
             <td class="py-3 px-4">
               <span class="text-sm font-medium text-[#012D5A]">{{ job.jobNumber }}</span>
             </td>
-            <td class="py-3 px-4 text-sm">{{ job.customer }}</td>
-            <td class="py-3 px-4 text-sm">{{ job.origin }} → {{ job.destination }}</td>
+            <td class="py-3 px-4 text-sm truncate" :title="job.customer">{{ job.customer }}</td>
+            <td class="py-3 px-4 text-sm">
+              <span class="block truncate" :title="`${job.origin} → ${job.destination}`">
+                {{ job.origin }} → {{ job.destination }}
+              </span>
+            </td>
             <td class="py-3 px-4 text-sm">{{ job.date }}</td>
             <td class="py-3 px-4">
-              <span
-                :class="
-                  cn(
-                    'text-xs px-2 py-1 rounded font-medium',
-                    job.type === 'Export'
-                      ? 'bg-blue-100 text-blue-600'
-                      : 'bg-green-100 text-green-600',
-                  )
-                "
-              >
-                {{ job.type }}
+              <span :class="cn('text-xs px-2 py-1 rounded font-medium', getServiceClass(job))">
+                {{ getServiceLabel(job) }}
               </span>
             </td>
             <td class="py-3 px-4">
               <span
                 :class="
                   cn(
-                    'text-xs px-3 py-1 rounded-full border font-medium whitespace-nowrap',
+                    'text-xs px-2 py-1 rounded border font-medium whitespace-nowrap',
                     getStatusClass(job.status.code),
                   )
                 "

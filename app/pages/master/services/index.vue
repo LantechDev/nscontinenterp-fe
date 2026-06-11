@@ -3,6 +3,7 @@ import { Plus, Search, LayoutList, LayoutGrid, Loader2 } from "lucide-vue-next";
 import { cn } from "~/lib/utils";
 import type { Service } from "~/composables/useServices";
 import { ServiceListView, ServiceGridView, ServiceCreateModal } from "./components";
+import Combobox from "~/components/ui/Combobox.vue";
 
 definePageMeta({
   layout: "dashboard",
@@ -24,6 +25,11 @@ const { confirm } = useConfirm();
 // Search and filter state
 const searchQuery = ref("");
 const selectedStatus = ref<string>("all");
+const statusOptions = [
+  { id: "all", name: "All Status" },
+  { id: "active", name: "Active" },
+  { id: "inactive", name: "Inactive" },
+];
 
 // Transform API services to view format with filtering
 const services = computed(() => {
@@ -53,6 +59,16 @@ const services = computed(() => {
   }
 
   return filtered;
+});
+
+const serviceStats = computed(() => {
+  const total = servicesList.value.length;
+  const active = servicesList.value.filter((service) => service.isActive).length;
+  return {
+    total,
+    active,
+    inactive: total - active,
+  };
 });
 
 // Sorting state
@@ -235,6 +251,21 @@ const handlePageChange = (page: number) => {
       </div>
     </div>
 
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div class="bg-white border border-border rounded-xl p-4 shadow-sm">
+        <p class="text-sm text-muted-foreground">Total Services</p>
+        <p class="text-2xl font-bold text-foreground mt-1">{{ serviceStats.total }}</p>
+      </div>
+      <div class="bg-white border border-border rounded-xl p-4 shadow-sm">
+        <p class="text-sm text-muted-foreground">Active Services</p>
+        <p class="text-2xl font-bold text-green-600 mt-1">{{ serviceStats.active }}</p>
+      </div>
+      <div class="bg-white border border-border rounded-xl p-4 shadow-sm">
+        <p class="text-sm text-muted-foreground">Inactive Services</p>
+        <p class="text-2xl font-bold text-muted-foreground mt-1">{{ serviceStats.inactive }}</p>
+      </div>
+    </div>
+
     <!-- Filters -->
     <div class="flex items-center justify-between gap-4">
       <div class="relative w-full max-w-sm">
@@ -248,14 +279,12 @@ const handlePageChange = (page: number) => {
       </div>
 
       <div class="flex items-center gap-3">
-        <select
+        <Combobox
           v-model="selectedStatus"
-          class="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors min-w-[140px] text-foreground border border-border"
-        >
-          <option value="all">All Status</option>
-          <option value="active">Active</option>
-          <option value="inactive">Inactive</option>
-        </select>
+          :options="statusOptions"
+          placeholder="All Status"
+          class="min-w-[160px]"
+        />
         <button
           v-if="canManage"
           @click="openCreateModal"

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import Checkbox from "~/components/ui/Checkbox.vue";
+import Combobox from "~/components/ui/Combobox.vue";
 defineProps<{
   isOpen: boolean;
   isSubmitting: boolean;
@@ -77,16 +78,11 @@ const emit = defineEmits<{
             <div class="grid grid-cols-2 gap-4">
               <div>
                 <label class="block text-sm font-medium mb-1">Tipe</label>
-                <select
+                <Combobox
                   v-model="formData.type"
-                  required
-                  class="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
-                >
-                  <option value="" disabled>Pilih Tipe</option>
-                  <option v-for="opt in taxTypeOptions" :key="opt.value" :value="opt.value">
-                    {{ opt.label }}
-                  </option>
-                </select>
+                  :options="taxTypeOptions.map((opt) => ({ id: opt.value, name: opt.label }))"
+                  placeholder="Pilih Tipe"
+                />
               </div>
 
               <div>

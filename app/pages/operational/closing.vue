@@ -17,6 +17,7 @@ import {
 } from "lucide-vue-next";
 import { cn } from "~/lib/utils";
 import Modal from "~/components/ui/Modal.vue";
+import Combobox from "~/components/ui/Combobox.vue";
 import { useJobs } from "~/composables/useJobs";
 import type { JobCostItem } from "~/types/finance-dashboard";
 import { toast } from "vue-sonner";
@@ -80,6 +81,13 @@ const handleDownloadProfit = async (job: JobCostItem) => {
 
 const searchQuery = ref("");
 const period = ref("month");
+const periodOptions = [
+  { id: "week", name: "This Week" },
+  { id: "month", name: "This Month" },
+  { id: "quarter", name: "This Quarter" },
+  { id: "year", name: "This Year" },
+  { id: "all", name: "All Time" },
+];
 
 const loadData = async () => {
   const response = await fetchClosingJobs({
@@ -316,6 +324,12 @@ const stats = computed(() => {
       </div>
 
       <div class="flex items-center gap-3">
+        <Combobox
+          v-model="period"
+          :options="periodOptions"
+          placeholder="This Month"
+          class="min-w-[160px]"
+        />
         <button
           @click="handleExportExcel"
           :disabled="isLoading || closingJobs.length === 0"

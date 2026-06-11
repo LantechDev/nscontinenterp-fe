@@ -11,6 +11,7 @@ import {
   ChevronDown,
 } from "lucide-vue-next";
 import { cn } from "~/lib/utils";
+import Combobox from "~/components/ui/Combobox.vue";
 import { useBlConditionsPage } from "~/composables/useBlConditionsPage";
 import { useBlConditions, type BlCondition } from "~/composables/useBlConditions";
 import { BlConditionEditModal } from "./components";
@@ -72,6 +73,13 @@ const handleSubmitIfAllowed = () => {
   handleSubmit();
 };
 
+const selectedStatus = ref("all");
+const statusOptions = [
+  { id: "all", name: "All Status" },
+  { id: "active", name: "Active" },
+  { id: "inactive", name: "Inactive" },
+];
+
 // SSR Data Injection pattern
 const {
   data: initialData,
@@ -106,6 +114,22 @@ onMounted(() => {
 });
 
 const isPageLoading = computed(() => isLoading.value || isBootstrapping.value);
+
+const conditionStats = computed(() => {
+  const total = conditions.value.length;
+  const active = conditions.value.filter((condition) => condition.isActive).length;
+  return {
+    total,
+    active,
+    inactive: total - active,
+  };
+});
+
+const visibleConditions = computed(() => {
+  if (selectedStatus.value === "all") return filteredConditions.value;
+  const isActive = selectedStatus.value === "active";
+  return filteredConditions.value.filter((condition) => condition.isActive === isActive);
+});
 </script>
 
 <template>
@@ -160,6 +184,28 @@ const isPageLoading = computed(() => isLoading.value || isBootstrapping.value);
       </div>
     </div>
 
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div class="bg-white border border-border rounded-xl p-4 shadow-sm">
+        <div class="flex items-center gap-3">
+          <div class="p-2 bg-blue-50 text-[#012D5A] rounded-lg">
+            <FileText class="w-5 h-5" />
+          </div>
+          <div>
+            <p class="text-sm text-muted-foreground">Total Clauses</p>
+            <p class="text-2xl font-bold text-foreground">{{ conditionStats.total }}</p>
+          </div>
+        </div>
+      </div>
+      <div class="bg-white border border-border rounded-xl p-4 shadow-sm">
+        <p class="text-sm text-muted-foreground">Active Clauses</p>
+        <p class="text-2xl font-bold text-green-600 mt-1">{{ conditionStats.active }}</p>
+      </div>
+      <div class="bg-white border border-border rounded-xl p-4 shadow-sm">
+        <p class="text-sm text-muted-foreground">Inactive Clauses</p>
+        <p class="text-2xl font-bold text-muted-foreground mt-1">{{ conditionStats.inactive }}</p>
+      </div>
+    </div>
+
     <!-- Filters -->
     <div class="flex items-center justify-between gap-4">
       <div class="relative w-full max-sm:max-w-none max-w-sm">
@@ -171,6 +217,12 @@ const isPageLoading = computed(() => isLoading.value || isBootstrapping.value);
           class="w-full pl-10 pr-4 py-2 text-sm border border-border rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground"
         />
       </div>
+      <Combobox
+        v-model="selectedStatus"
+        :options="statusOptions"
+        placeholder="All Status"
+        class="min-w-[150px]"
+      />
     </div>
 
     <div
@@ -224,7 +276,7 @@ const isPageLoading = computed(() => isLoading.value || isBootstrapping.value);
             </thead>
             <tbody class="divide-y divide-border">
               <tr
-                v-for="(item, index) in filteredConditions"
+                v-for="(item, index) in visibleConditions"
                 :key="item.id"
                 class="hover:bg-muted/30 transition-colors group"
               >
@@ -292,7 +344,7 @@ const isPageLoading = computed(() => isLoading.value || isBootstrapping.value);
                   </div>
                 </td>
               </tr>
-              <tr v-if="filteredConditions.length === 0">
+              <tr v-if="visibleConditions.length === 0">
                 <td
                   :colspan="canManage ? 6 : 5"
                   class="py-12 text-center text-muted-foreground italic"
@@ -308,7 +360,7 @@ const isPageLoading = computed(() => isLoading.value || isBootstrapping.value);
       <!-- Grid View -->
       <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <div
-          v-for="item in filteredConditions"
+          v-for="item in visibleConditions"
           :key="item.id"
           class="border border-border rounded-xl bg-white p-5 hover:shadow-sm transition-shadow group relative"
         >
@@ -373,7 +425,7 @@ const isPageLoading = computed(() => isLoading.value || isBootstrapping.value);
           </div>
         </div>
         <div
-          v-if="filteredConditions.length === 0"
+          v-if="visibleConditions.length === 0"
           class="col-span-full py-12 text-center text-muted-foreground"
         >
           No clauses found.

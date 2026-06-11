@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, computed } from "vue";
 import type { Address } from "~/composables/useMasterData";
+import Combobox from "~/components/ui/Combobox.vue";
 
 const props = defineProps<{
   mode: "add" | "edit";
@@ -36,6 +37,16 @@ const defaultFormData: AddressFormData = {
   country: "id",
   eori: "",
 };
+const addressTypeOptions = [
+  { id: "main", name: "Main" },
+  { id: "branch", name: "Branch" },
+  { id: "warehouse", name: "Warehouse" },
+];
+const countryOptions = [
+  { id: "id", name: "Indonesia" },
+  { id: "sg", name: "Singapore" },
+  { id: "my", name: "Malaysia" },
+];
 
 const formData = ref<AddressFormData>({ ...defaultFormData });
 
@@ -126,14 +137,11 @@ const handleSave = async () => {
           <!-- Address Type -->
           <div class="flex flex-col gap-1.5">
             <label class="text-sm font-medium text-slate-700">Type</label>
-            <select
+            <Combobox
               v-model="formData.type"
-              class="w-full px-3 py-2 border border-slate-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
-            >
-              <option value="main">Main</option>
-              <option value="branch">Branch</option>
-              <option value="warehouse">Warehouse</option>
-            </select>
+              :options="addressTypeOptions"
+              placeholder="Select type"
+            />
           </div>
 
           <!-- Full Address -->
@@ -200,14 +208,11 @@ const handleSave = async () => {
             </div>
             <div class="flex flex-col gap-1.5">
               <label class="text-sm font-medium text-slate-700">Country</label>
-              <select
+              <Combobox
                 v-model="formData.country"
-                class="w-full px-3 py-2 border border-slate-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
-              >
-                <option value="id">Indonesia</option>
-                <option value="sg">Singapore</option>
-                <option value="my">Malaysia</option>
-              </select>
+                :options="countryOptions"
+                placeholder="Select country"
+              />
             </div>
           </div>
 
