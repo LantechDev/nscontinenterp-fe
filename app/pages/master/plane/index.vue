@@ -20,6 +20,11 @@ const {
 } = usePlanes();
 
 const { pending } = await useAsyncData("planes-list", () => fetchPlanes(), { server: false });
+const route = useRoute();
+watch(
+  () => route.fullPath,
+  () => refreshNuxtData("planes-list"),
+);
 const { canManage, requireManage } = useFeatureAccess("master.logistics");
 
 // Search state

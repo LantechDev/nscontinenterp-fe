@@ -20,6 +20,11 @@ const {
 } = useVessels();
 
 const { pending } = await useAsyncData("vessels-list", () => fetchVessels(), { server: false });
+const route = useRoute();
+watch(
+  () => route.fullPath,
+  () => refreshNuxtData("vessels-list"),
+);
 const { canManage, requireManage } = useFeatureAccess("master.logistics");
 
 // Search state

@@ -30,6 +30,11 @@ const {
 } = usePackageTypes();
 
 await useAsyncData("package-types-list", () => fetchPackageTypes(), { server: false });
+const route = useRoute();
+watch(
+  () => route.fullPath,
+  () => refreshNuxtData("package-types-list"),
+);
 const { canManage, requireManage } = useFeatureAccess("master.logistics");
 
 const searchQuery = ref("");

@@ -22,6 +22,11 @@ const {
 const { pending } = await useAsyncData("expense-categories-list", () => fetchCategories(), {
   server: false,
 });
+const route = useRoute();
+watch(
+  () => route.fullPath,
+  () => refreshNuxtData("expense-categories-list"),
+);
 const { canManage, requireManage } = useFeatureAccess("master.finance");
 
 // Search state

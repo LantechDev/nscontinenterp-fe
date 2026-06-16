@@ -35,6 +35,12 @@ const refreshData = async () => {
 
 onMounted(refreshData);
 
+const route = useRoute();
+watch(
+  () => route.fullPath,
+  () => refreshData(),
+);
+
 // Search state
 const searchQuery = ref("");
 const selectedCurrency = ref("all");

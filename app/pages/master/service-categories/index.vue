@@ -22,6 +22,11 @@ const {
 const { pending } = await useAsyncData("categories-list", () => fetchCategories(), {
   server: false,
 });
+const route = useRoute();
+watch(
+  () => route.fullPath,
+  () => refreshNuxtData("categories-list"),
+);
 const { canManage, requireManage } = useFeatureAccess("master.service");
 
 // Search state

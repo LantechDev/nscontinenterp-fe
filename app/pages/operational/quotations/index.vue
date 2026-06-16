@@ -32,6 +32,7 @@ definePageMeta({
 const { quotations, isLoading, fetchQuotations, deleteQuotation } = useQuotations();
 const { confirm } = useConfirm();
 const router = useRouter();
+const route = useRoute();
 const { canManage, requireManage } = useFeatureAccess("operational.quotation");
 
 const page = ref(1);
@@ -89,6 +90,14 @@ watch(search, () => {
 onMounted(() => {
   loadData();
 });
+
+// Refetch saat navigasi kembali dari halaman create/edit/detail
+watch(
+  () => route.fullPath,
+  () => {
+    loadData();
+  },
+);
 
 // KPI Summary based on sales funnel status matching finance/dashboard.vue style
 const stats = computed(() => {

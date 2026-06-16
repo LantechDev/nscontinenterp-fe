@@ -20,6 +20,11 @@ const {
 } = useServiceUnits();
 
 const { pending } = await useAsyncData("units-list", () => fetchUnits(), { server: false });
+const route = useRoute();
+watch(
+  () => route.fullPath,
+  () => refreshNuxtData("units-list"),
+);
 const { canManage, requireManage } = useFeatureAccess("master.service");
 
 // Search state

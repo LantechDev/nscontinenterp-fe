@@ -97,6 +97,12 @@ const {
   { server: false },
 );
 
+const route = useRoute();
+watch(
+  () => route.fullPath,
+  () => refreshNuxtData("bl-conditions-list"),
+);
+
 watch(
   initialData,
   (value) => {
