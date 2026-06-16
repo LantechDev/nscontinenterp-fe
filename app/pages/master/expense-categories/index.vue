@@ -19,13 +19,18 @@ const {
   deleteCategory,
 } = useExpenseCategories();
 
-const { pending } = await useAsyncData("expense-categories-list", () => fetchCategories(), {
-  server: false,
+const pending = ref(false);
+onMounted(async () => {
+  pending.value = true;
+  await fetchCategories();
+  pending.value = false;
 });
 const route = useRoute();
 watch(
   () => route.fullPath,
-  () => refreshNuxtData("expense-categories-list"),
+  () => {
+    fetchCategories();
+  },
 );
 const { canManage, requireManage } = useFeatureAccess("master.finance");
 

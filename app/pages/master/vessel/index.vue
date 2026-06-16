@@ -19,11 +19,18 @@ const {
   deleteVessel,
 } = useVessels();
 
-const { pending } = await useAsyncData("vessels-list", () => fetchVessels(), { server: false });
+const pending = ref(false);
+onMounted(async () => {
+  pending.value = true;
+  await fetchVessels();
+  pending.value = false;
+});
 const route = useRoute();
 watch(
   () => route.fullPath,
-  () => refreshNuxtData("vessels-list"),
+  () => {
+    fetchVessels();
+  },
 );
 const { canManage, requireManage } = useFeatureAccess("master.logistics");
 

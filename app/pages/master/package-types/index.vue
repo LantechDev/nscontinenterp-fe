@@ -29,11 +29,18 @@ const {
   deletePackageType,
 } = usePackageTypes();
 
-await useAsyncData("package-types-list", () => fetchPackageTypes(), { server: false });
+const pending = ref(false);
+onMounted(async () => {
+  pending.value = true;
+  await fetchPackageTypes();
+  pending.value = false;
+});
 const route = useRoute();
 watch(
   () => route.fullPath,
-  () => refreshNuxtData("package-types-list"),
+  () => {
+    fetchPackageTypes();
+  },
 );
 const { canManage, requireManage } = useFeatureAccess("master.logistics");
 

@@ -19,11 +19,18 @@ const {
   deleteUnit,
 } = useServiceUnits();
 
-const { pending } = await useAsyncData("units-list", () => fetchUnits(), { server: false });
+const pending = ref(false);
+onMounted(async () => {
+  pending.value = true;
+  await fetchUnits();
+  pending.value = false;
+});
 const route = useRoute();
 watch(
   () => route.fullPath,
-  () => refreshNuxtData("units-list"),
+  () => {
+    fetchUnits();
+  },
 );
 const { canManage, requireManage } = useFeatureAccess("master.service");
 

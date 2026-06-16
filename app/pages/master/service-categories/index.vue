@@ -19,13 +19,18 @@ const {
   deleteCategory,
 } = useServiceCategories();
 
-const { pending } = await useAsyncData("categories-list", () => fetchCategories(), {
-  server: false,
+const pending = ref(false);
+onMounted(async () => {
+  pending.value = true;
+  await fetchCategories();
+  pending.value = false;
 });
 const route = useRoute();
 watch(
   () => route.fullPath,
-  () => refreshNuxtData("categories-list"),
+  () => {
+    fetchCategories();
+  },
 );
 const { canManage, requireManage } = useFeatureAccess("master.service");
 
