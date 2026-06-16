@@ -243,6 +243,7 @@ const formData = reactive({
   exchangeRate: 1,
   allowMultipleInvoices: false,
   notes: "",
+  taxId: "",
   charges: [] as Array<QuotationCharge & { tempId: number }>,
 });
 
@@ -292,6 +293,7 @@ async function loadQuotation() {
     formData.exchangeRate = Number(q.exchangeRate || 1);
     formData.allowMultipleInvoices = Boolean(q.allowMultipleInvoices);
     formData.notes = q.notes || "";
+    formData.taxId = q.taxId || "";
 
     formData.charges = (q.charges || []).map((ch) => ({
       id: ch.id,
@@ -303,6 +305,8 @@ async function loadQuotation() {
       quantity: Number(ch.quantity || 1),
       unitPrice: Number(ch.unitPrice || 0),
       amount: Number(ch.quantity || 1) * Number(ch.unitPrice || 0),
+      atCost: Boolean(ch.atCost),
+      currency: (ch.currency || "IDR") as "IDR" | "USD",
     }));
 
     // Fetch and merge selected POL/POD to ensure they are available in dropdown options on page load
@@ -354,6 +358,7 @@ function addChargeLine() {
     quantity: 1,
     unitPrice: 0,
     taxId: "",
+    atCost: false,
     amount: 0,
     currency: "IDR",
   });
@@ -517,6 +522,7 @@ const groupedTotals = computed(() => {
   };
 
   formData.charges.forEach((ch) => {
+    if (ch.atCost) return;
     const currency = ch.currency || "IDR";
     if (!totals[currency]) {
       totals[currency] = { subTotal: 0, taxAmount: 0, total: 0 };
@@ -524,21 +530,20 @@ const groupedTotals = computed(() => {
     const qty = Number(ch.quantity || 0);
     const price = Number(ch.unitPrice || 0);
     const amount = qty * price;
-
-    const tax = masterData.value?.taxes.find((t) => t.id === ch.taxId);
-    const rate = tax ? tax.rate : 0;
-    const taxValue = amount * (rate / 100);
-
     totals[currency].subTotal += amount;
-    totals[currency].taxAmount += taxValue;
   });
 
-  // Round IDR
-  totals.IDR.subTotal = Math.round(totals.IDR.subTotal);
-  totals.IDR.taxAmount = Math.round(totals.IDR.taxAmount);
-  totals.IDR.total = totals.IDR.subTotal + totals.IDR.taxAmount;
+  // Single PPN rate from quotation-level tax
+  const selectedTax = masterData.value?.taxes.find((t) => t.id === formData.taxId);
+  const taxRate = selectedTax && selectedTax.id ? selectedTax.rate : 0;
 
-  totals.USD.total = totals.USD.subTotal + totals.USD.taxAmount;
+  Object.keys(totals).forEach((curr) => {
+    const entry = totals[curr];
+    if (!entry) return;
+    entry.subTotal = Math.round(entry.subTotal);
+    entry.taxAmount = Math.round(entry.subTotal * (taxRate / 100));
+    entry.total = entry.subTotal + entry.taxAmount;
+  });
 
   return totals;
 });
@@ -646,9 +651,10 @@ async function handleSubmit() {
     salesName: formData.salesName ? uppercase(formData.salesName) : null,
     status: formData.status,
     notes: formData.notes ? uppercase(formData.notes) : null,
-    currency: "IDR",
-    exchangeRate: 1,
+    currency: formData.currency || "IDR",
+    exchangeRate: Number(formData.exchangeRate || 1),
     allowMultipleInvoices: formData.allowMultipleInvoices,
+    taxId: formData.taxId || null,
     subTotal: legacySubTotal,
     taxAmount: legacySubTotal > 0 ? (legacyTaxTotal / legacySubTotal) * 100 : 0,
     taxTotal: legacyTaxTotal,
@@ -656,12 +662,12 @@ async function handleSubmit() {
     charges: formData.charges.map((ch) => ({
       id: ch.id,
       serviceId: ch.serviceId,
-      taxId: ch.taxId || null,
       description: ch.description || "Service Item",
       quantity: Number(ch.quantity || 1),
-      unitPrice: Number(ch.unitPrice || 0),
-      amount: Number(ch.quantity || 1) * Number(ch.unitPrice || 0),
+      unitPrice: ch.atCost ? 0 : Number(ch.unitPrice || 0),
+      amount: ch.atCost ? 0 : Number(ch.quantity || 1) * Number(ch.unitPrice || 0),
       currency: ch.currency || "IDR",
+      atCost: Boolean(ch.atCost),
     })),
   };
 
@@ -1204,18 +1210,10 @@ function scrollTo(id: string) {
               :icon="Calculator"
               no-padding
             >
-              <div class="p-6 pb-0 flex items-center justify-between">
+              <div class="p-6 pb-0">
                 <span class="text-xs font-semibold text-muted-foreground"
                   >List of quotation services & charges</span
                 >
-                <button
-                  v-if="!isLocked"
-                  type="button"
-                  @click="addChargeLine"
-                  class="inline-flex items-center gap-1.5 text-xs font-bold text-[#062c58] hover:bg-blue-50/50 px-3 py-1.5 rounded-lg border border-blue-100 transition-colors"
-                >
-                  <Plus class="w-3.5 h-3.5" /> Add Service Line
-                </button>
               </div>
 
               <div class="border-t border-b border-border bg-muted/5 mt-4">
@@ -1226,7 +1224,7 @@ function scrollTo(id: string) {
                   <div class="col-span-5">Service / Description</div>
                   <div class="col-span-2 text-center">Qty / Currency</div>
                   <div class="col-span-2 text-right">Unit Price</div>
-                  <div class="col-span-2 text-right pr-4">Tax</div>
+                  <div class="col-span-2 text-center pr-4">At Cost</div>
                   <div class="col-span-1"></div>
                 </div>
 
@@ -1288,53 +1286,58 @@ function scrollTo(id: string) {
 
                     <!-- Unit Price -->
                     <div class="col-span-2 space-y-1.5">
-                      <input
-                        type="text"
-                        :disabled="isLocked"
-                        :value="formatInputCurrency(ch.unitPrice, ch.currency)"
-                        v-uppercase
-                        @input="
-                          (e) =>
-                            (ch.unitPrice = parseInputCurrency(
-                              (e.target as HTMLInputElement).value,
-                              ch.currency,
-                            ))
-                        "
-                        class="w-full px-3 py-2 bg-white border border-border rounded-lg text-sm text-right font-semibold focus:ring-1 focus:ring-[#062c58] outline-none transition-all shadow-sm h-10 disabled:bg-gray-50 disabled:opacity-75"
-                      />
+                      <template v-if="ch.atCost">
+                        <div
+                          class="h-10 flex items-center justify-end text-[11px] font-extrabold text-muted-foreground uppercase tracking-widest"
+                        >
+                          AT COST
+                        </div>
+                      </template>
+                      <template v-else>
+                        <input
+                          type="text"
+                          :disabled="isLocked"
+                          :value="formatInputCurrency(ch.unitPrice, ch.currency)"
+                          v-uppercase
+                          @input="
+                            (e) =>
+                              (ch.unitPrice = parseInputCurrency(
+                                (e.target as HTMLInputElement).value,
+                                ch.currency,
+                              ))
+                          "
+                          class="w-full px-3 py-2 bg-white border border-border rounded-lg text-sm text-right font-semibold focus:ring-1 focus:ring-[#062c58] outline-none transition-all shadow-sm h-10 disabled:bg-gray-50 disabled:opacity-75"
+                        />
+                      </template>
                       <p
                         class="text-[9px] text-right font-bold text-muted-foreground whitespace-nowrap pt-2"
                       >
                         Sub:
                         {{
                           formatCurrency(
-                            Number(ch.quantity || 1) * Number(ch.unitPrice || 0),
+                            Number(ch.quantity || 1) * Number(ch.atCost ? 0 : ch.unitPrice || 0),
                             ch.currency,
                           )
                         }}
                       </p>
                     </div>
 
-                    <!-- Tax select -->
-                    <div class="col-span-2 flex flex-col items-end pr-4">
-                      <Combobox
-                        v-model="ch.taxId"
-                        :options="masterData?.taxes || []"
-                        :disabled="isLocked"
-                        placeholder="Tax..."
-                        class="w-full h-10"
-                      />
-                      <p class="text-[9px] text-right mt-1.5 font-bold text-slate-400">
-                        Tax:
-                        {{
-                          formatCurrency(
-                            Number(ch.quantity || 1) *
-                              Number(ch.unitPrice || 0) *
-                              ((masterData?.taxes.find((t) => t.id === ch.taxId)?.rate || 0) / 100),
-                            ch.currency,
-                          )
-                        }}
-                      </p>
+                    <!-- At Cost checkbox -->
+                    <div class="col-span-2 flex flex-col items-center justify-center pr-4">
+                      <label
+                        class="relative inline-flex items-center cursor-pointer"
+                        :class="{ 'opacity-50': isLocked }"
+                      >
+                        <input
+                          type="checkbox"
+                          v-model="ch.atCost"
+                          :disabled="isLocked"
+                          class="sr-only peer"
+                        />
+                        <div
+                          class="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#062c58]"
+                        ></div>
+                      </label>
                     </div>
 
                     <!-- Delete line -->
@@ -1351,6 +1354,29 @@ function scrollTo(id: string) {
                     </div>
                   </div>
                 </div>
+              </div>
+
+              <div class="px-6 py-3 flex items-end justify-between">
+                <div class="min-w-[240px] w-72 space-y-1.5">
+                  <label
+                    class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest"
+                    >PPN / Tax</label
+                  >
+                  <Combobox
+                    v-model="formData.taxId"
+                    :options="masterData?.taxes || []"
+                    :disabled="isLocked"
+                    placeholder="Select PPN..."
+                  />
+                </div>
+                <button
+                  v-if="!isLocked"
+                  type="button"
+                  @click="addChargeLine"
+                  class="inline-flex items-center gap-1.5 text-xs font-bold text-[#062c58] hover:bg-blue-50/50 px-3 py-1.5 rounded-lg border border-blue-100 transition-colors"
+                >
+                  <Plus class="w-3.5 h-3.5" /> Add Service Line
+                </button>
               </div>
 
               <!-- Total summary block -->

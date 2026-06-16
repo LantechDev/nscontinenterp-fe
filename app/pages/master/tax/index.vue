@@ -93,6 +93,12 @@ watch(
   { immediate: true },
 );
 
+const route = useRoute();
+watch(
+  () => route.fullPath,
+  () => refreshBootstrap(),
+);
+
 const isPageLoading = computed(() => isLoading.value || isBootstrapping.value);
 
 const taxStats = computed(() => {

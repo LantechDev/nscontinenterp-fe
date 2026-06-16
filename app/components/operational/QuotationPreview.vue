@@ -6,6 +6,7 @@ import { toast } from "vue-sonner";
 import type { Quotation } from "~/composables/useQuotations";
 import { useBankAccounts, type BankAccount } from "~/composables/useBankAccounts";
 import { useFinanceTax, type Tax } from "~/composables/useFinanceTax";
+import { useServices, type Service } from "~/composables/useServices";
 
 const props = defineProps<{
   quotation: Quotation | null;
@@ -185,6 +186,17 @@ const loadBankAccounts = async () => {
 const { fetchTaxes } = useFinanceTax();
 const taxList = ref<Tax[]>([]);
 
+const { fetchServices } = useServices();
+const serviceList = ref<Service[]>([]);
+
+const serviceUnitMap = computed(() => {
+  const map = new Map<string, string>();
+  serviceList.value.forEach((s) => {
+    if (s.unit?.name) map.set(s.id, s.unit.name);
+  });
+  return map;
+});
+
 onMounted(async () => {
   if (typeof window !== "undefined") {
     logoUrl.value = window.location.origin + "/images/transparentnscontinenttebal.png";
@@ -194,6 +206,11 @@ onMounted(async () => {
   const taxRes = await fetchTaxes({ limit: 100 });
   if (taxRes && taxRes.items) {
     taxList.value = taxRes.items;
+  }
+
+  const servicesRes = await fetchServices();
+  if (servicesRes && servicesRes.data) {
+    serviceList.value = servicesRes.data;
   }
 });
 
@@ -216,6 +233,7 @@ const groupedTotals = computed(() => {
   if (!props.quotation?.charges) return totals;
 
   props.quotation.charges.forEach((ch) => {
+    if (ch.atCost) return;
     const currency = ch.currency || "IDR";
     if (!totals[currency]) {
       totals[currency] = { subTotal: 0, taxAmount: 0, total: 0 };
@@ -568,30 +586,34 @@ defineExpose({
           <div
             class="flex border-b border-[#062c58] bg-[#062c58]/5 font-bold text-[0.6rem] h-[35px]"
           >
-            <div class="w-[5%] border-r border-[#062c58] flex items-center justify-center">NO</div>
+            <div class="w-[4%] border-r border-[#062c58] flex items-center justify-center">NO</div>
             <div class="flex-1 border-r border-[#062c58] flex items-center px-3">
               SERVICE / CHARGE DESCRIPTION
             </div>
-            <div class="w-[8%] border-r border-[#062c58] flex items-center justify-center">QTY</div>
-            <div class="w-[18%] border-r border-[#062c58] flex items-center justify-end px-3">
+            <div class="w-[6%] border-r border-[#062c58] flex items-center justify-center">QTY</div>
+            <div class="w-[11%] border-r border-[#062c58] flex items-center justify-center">
+              UOP
+            </div>
+            <div class="w-[15%] border-r border-[#062c58] flex items-center justify-end px-3">
               UNIT PRICE
             </div>
-            <div class="w-[12%] border-r border-[#062c58] flex items-center justify-center">
+            <div class="w-[10%] border-r border-[#062c58] flex items-center justify-center">
               TAX
             </div>
-            <div class="w-[18%] flex items-center justify-end px-3">TOTAL AMOUNT</div>
+            <div class="w-[15%] flex items-center justify-end px-3">TOTAL AMOUNT</div>
           </div>
 
           <!-- Items List Container -->
           <div class="flex-1 relative">
             <!-- Vertical Grid Lines Background -->
             <div class="absolute inset-0 flex pointer-events-none">
-              <div class="w-[5%] border-r border-[#062c58]/30"></div>
+              <div class="w-[4%] border-r border-[#062c58]/30"></div>
               <div class="flex-1 border-r border-[#062c58]/30"></div>
-              <div class="w-[8%] border-r border-[#062c58]/30"></div>
-              <div class="w-[18%] border-r border-[#062c58]/30"></div>
-              <div class="w-[12%] border-r border-[#062c58]/30"></div>
-              <div class="w-[18%]"></div>
+              <div class="w-[6%] border-r border-[#062c58]/30"></div>
+              <div class="w-[11%] border-r border-[#062c58]/30"></div>
+              <div class="w-[15%] border-r border-[#062c58]/30"></div>
+              <div class="w-[10%] border-r border-[#062c58]/30"></div>
+              <div class="w-[15%]"></div>
             </div>
 
             <!-- Scrollable Items Area -->
@@ -601,19 +623,30 @@ defineExpose({
                 :key="idx"
                 class="flex border-b border-[#062c58]/10 min-h-[35px] items-start py-2"
               >
-                <div class="w-[5%] text-center text-[0.7rem]">{{ idx + 1 }}</div>
+                <div class="w-[4%] text-center text-[0.7rem]">{{ idx + 1 }}</div>
                 <div class="flex-1 px-3 text-[0.7rem] font-medium uppercase leading-tight">
                   <span>{{ item.description || "-" }}</span>
                 </div>
-                <div class="w-[8%] text-center text-[0.7rem]">{{ item.quantity }}</div>
-                <div class="w-[18%] text-right px-3 text-[0.7rem] text-black">
-                  {{ item.currency || "IDR" }} {{ formatCurrency(item.unitPrice, item.currency) }}
+                <div class="w-[6%] text-center text-[0.7rem]">{{ item.quantity }}</div>
+                <div class="w-[11%] text-center text-[0.7rem] font-medium text-black/70">
+                  {{ item.serviceId ? serviceUnitMap.get(item.serviceId) || "-" : "-" }}
                 </div>
-                <div class="w-[12%] text-center text-[0.7rem] text-[#062c58]/80">
+                <div class="w-[15%] text-right px-3 text-[0.7rem] text-black">
+                  <template v-if="item.atCost">AT COST</template>
+                  <template v-else
+                    >{{ item.currency || "IDR" }}
+                    {{ formatCurrency(item.unitPrice, item.currency) }}</template
+                  >
+                </div>
+                <div class="w-[10%] text-center text-[0.7rem] text-[#062c58]/80">
                   {{ getTaxRateLabel(item.taxId) }}
                 </div>
-                <div class="w-[18%] text-right px-3 text-[0.7rem] font-medium text-black">
-                  {{ item.currency || "IDR" }} {{ formatCurrency(item.amount, item.currency) }}
+                <div class="w-[15%] text-right px-3 text-[0.7rem] font-medium text-black">
+                  <template v-if="item.atCost">AT COST</template>
+                  <template v-else
+                    >{{ item.currency || "IDR" }}
+                    {{ formatCurrency(item.amount, item.currency) }}</template
+                  >
                 </div>
               </div>
 
@@ -624,12 +657,13 @@ defineExpose({
                 :key="'spacer-' + i"
                 class="flex min-h-[35px] border-b border-[#062c58]/5"
               >
-                <div class="w-[5%]"></div>
+                <div class="w-[4%]"></div>
                 <div class="flex-1"></div>
-                <div class="w-[8%]"></div>
-                <div class="w-[18%]"></div>
-                <div class="w-[12%]"></div>
-                <div class="w-[18%]"></div>
+                <div class="w-[6%]"></div>
+                <div class="w-[11%]"></div>
+                <div class="w-[15%]"></div>
+                <div class="w-[10%]"></div>
+                <div class="w-[15%]"></div>
               </div>
             </div>
           </div>

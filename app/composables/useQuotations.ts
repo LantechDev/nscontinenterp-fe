@@ -13,6 +13,7 @@ export interface QuotationCharge {
   unitPrice: number;
   amount: number;
   currency?: "IDR" | "USD";
+  atCost?: boolean;
 
   // Backward compatibility
   vendorId?: string | null;

@@ -39,6 +39,10 @@ const { confirm } = useConfirm();
 const { canManage, requireManage } = useFeatureAccess("operational.job");
 
 const { pending } = await useAsyncData("jobs-list", () => fetchJobs(), { server: false });
+watch(
+  () => route.fullPath,
+  () => refreshNuxtData("jobs-list"),
+);
 
 onUnmounted(() => {});
 

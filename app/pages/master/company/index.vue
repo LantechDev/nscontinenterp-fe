@@ -38,6 +38,12 @@ const [companiesData, categoriesData] = await Promise.all([
 const pending = computed(() => companiesData.pending.value);
 const refresh = companiesData.refresh;
 
+const route = useRoute();
+watch(
+  () => route.fullPath,
+  () => refreshNuxtData("companies-list"),
+);
+
 const { confirm } = useConfirm();
 
 const isDetailOpen = ref(false);

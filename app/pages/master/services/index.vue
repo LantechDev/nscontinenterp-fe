@@ -19,6 +19,11 @@ const {
 } = useServices();
 
 const { pending } = await useAsyncData("services-list", () => fetchServices(), { server: false });
+const route = useRoute();
+watch(
+  () => route.fullPath,
+  () => refreshNuxtData("services-list"),
+);
 const { canManage, requireManage } = useFeatureAccess("master.service");
 const { confirm } = useConfirm();
 

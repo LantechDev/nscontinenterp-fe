@@ -95,6 +95,12 @@ watch(
   { immediate: true },
 );
 
+const route = useRoute();
+watch(
+  () => route.fullPath,
+  () => refreshBootstrap(),
+);
+
 watch(
   bootstrapError,
   (err) => {

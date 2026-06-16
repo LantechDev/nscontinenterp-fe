@@ -5,6 +5,7 @@ import html2canvas from "html2canvas";
 import { toast } from "vue-sonner";
 import type { InvoiceDetail } from "~/composables/useInvoices";
 import { useBankAccounts, type BankAccount } from "~/composables/useBankAccounts";
+import { useServices, type Service } from "~/composables/useServices";
 
 const props = defineProps<{
   invoice: InvoiceDetail | null;
@@ -206,11 +207,27 @@ const loadBankAccounts = async () => {
   }
 };
 
+const { fetchServices } = useServices();
+const serviceList = ref<Service[]>([]);
+
+const serviceUnitMap = computed(() => {
+  const map = new Map<string, string>();
+  serviceList.value.forEach((s) => {
+    if (s.unit?.name) map.set(s.id, s.unit.name);
+  });
+  return map;
+});
+
 onMounted(async () => {
   if (typeof window !== "undefined") {
     logoUrl.value = window.location.origin + "/images/transparentnscontinenttebal.png";
   }
   await loadBankAccounts();
+
+  const servicesRes = await fetchServices();
+  if (servicesRes && servicesRes.data) {
+    serviceList.value = servicesRes.data;
+  }
 });
 
 const matchedBankAccount = computed(() => {
@@ -848,28 +865,32 @@ defineExpose({
             v-if="mode === 'invoice'"
             class="flex border-b border-[#062c58] bg-[#062c58]/5 font-bold text-[0.6rem] h-[35px]"
           >
-            <div class="w-[5%] border-r border-[#062c58] flex items-center justify-center">NO</div>
+            <div class="w-[4%] border-r border-[#062c58] flex items-center justify-center">NO</div>
             <div class="flex-1 border-r border-[#062c58] flex items-center px-3">DESCRIPTION</div>
-            <div class="w-[7%] border-r border-[#062c58] flex items-center justify-center">QTY</div>
-            <div class="w-[18%] border-r border-[#062c58] flex items-center justify-end px-3">
+            <div class="w-[6%] border-r border-[#062c58] flex items-center justify-center">QTY</div>
+            <div class="w-[11%] border-r border-[#062c58] flex items-center justify-center">
+              UOP
+            </div>
+            <div class="w-[15%] border-r border-[#062c58] flex items-center justify-end px-3">
               UNIT PRICE
             </div>
-            <div class="w-[12%] border-r border-[#062c58] flex items-center justify-center">
+            <div class="w-[10%] border-r border-[#062c58] flex items-center justify-center">
               TAX
             </div>
-            <div class="w-[18%] flex items-center justify-end px-3">TOTAL AMOUNT</div>
+            <div class="w-[15%] flex items-center justify-end px-3">TOTAL AMOUNT</div>
           </div>
 
           <!-- Items List Container -->
           <div v-if="mode === 'invoice'" class="flex-1 relative">
             <!-- Vertical Grid Lines Background -->
             <div class="absolute inset-0 flex pointer-events-none">
-              <div class="w-[5%] border-r border-[#062c58]/30"></div>
+              <div class="w-[4%] border-r border-[#062c58]/30"></div>
               <div class="flex-1 border-r border-[#062c58]/30"></div>
-              <div class="w-[7%] border-r border-[#062c58]/30"></div>
-              <div class="w-[18%] border-r border-[#062c58]/30"></div>
-              <div class="w-[12%] border-r border-[#062c58]/30"></div>
-              <div class="w-[18%]"></div>
+              <div class="w-[6%] border-r border-[#062c58]/30"></div>
+              <div class="w-[11%] border-r border-[#062c58]/30"></div>
+              <div class="w-[15%] border-r border-[#062c58]/30"></div>
+              <div class="w-[10%] border-r border-[#062c58]/30"></div>
+              <div class="w-[15%]"></div>
             </div>
 
             <!-- Scrollable Items Area -->
@@ -879,20 +900,23 @@ defineExpose({
                 :key="item.id || `${page.pageNumber}-${idx}`"
                 class="flex border-b border-[#062c58]/10 min-h-[35px] items-start py-2"
               >
-                <div class="w-[5%] text-center text-[0.7rem]">
+                <div class="w-[4%] text-center text-[0.7rem]">
                   {{ page.startIndex + idx + 1 }}
                 </div>
                 <div class="flex-1 px-3 text-[0.7rem] font-medium uppercase leading-tight">
                   {{ item.description }}
                 </div>
-                <div class="w-[7%] text-center text-[0.7rem]">{{ item.quantity }}</div>
-                <div class="w-[18%] text-right px-3 text-[0.7rem] text-black">
+                <div class="w-[6%] text-center text-[0.7rem]">{{ item.quantity }}</div>
+                <div class="w-[11%] text-center text-[0.7rem] font-medium text-black/70">
+                  {{ item.service?.id ? serviceUnitMap.get(item.service.id) || "-" : "-" }}
+                </div>
+                <div class="w-[15%] text-right px-3 text-[0.7rem] text-black">
                   {{ formatCurrency(item.unitPrice) }}
                 </div>
-                <div class="w-[12%] text-center text-[0.7rem] text-[#062c58]/80">
+                <div class="w-[10%] text-center text-[0.7rem] text-[#062c58]/80">
                   {{ item.tax?.rate ? Number(item.tax.rate) + "%" : "-" }}
                 </div>
-                <div class="w-[18%] text-right px-3 text-[0.7rem] font-medium text-black">
+                <div class="w-[15%] text-right px-3 text-[0.7rem] font-medium text-black">
                   {{ formatCurrency(item.amount) }}
                 </div>
               </div>
@@ -904,12 +928,13 @@ defineExpose({
                 :key="`spacer-${page.pageNumber}-${i}`"
                 class="flex min-h-[35px] border-b border-[#062c58]/5"
               >
-                <div class="w-[5%]"></div>
+                <div class="w-[4%]"></div>
                 <div class="flex-1"></div>
-                <div class="w-[7%]"></div>
-                <div class="w-[18%]"></div>
-                <div class="w-[12%]"></div>
-                <div class="w-[18%]"></div>
+                <div class="w-[6%]"></div>
+                <div class="w-[11%]"></div>
+                <div class="w-[15%]"></div>
+                <div class="w-[10%]"></div>
+                <div class="w-[15%]"></div>
               </div>
             </div>
           </div>

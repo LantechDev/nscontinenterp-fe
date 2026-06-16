@@ -34,6 +34,11 @@ const {
 } = useMovementTypes(props.kind);
 
 await useAsyncData(`${props.kind}-movements-list`, () => fetchMovements(), { server: false });
+const route = useRoute();
+watch(
+  () => route.fullPath,
+  () => refreshNuxtData(`${props.kind}-movements-list`),
+);
 const { canManage, requireManage } = useFeatureAccess("master.logistics");
 
 const searchQuery = ref("");
