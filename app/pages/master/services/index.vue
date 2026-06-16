@@ -18,11 +18,18 @@ const {
   deleteService,
 } = useServices();
 
-const { pending } = await useAsyncData("services-list", () => fetchServices(), { server: false });
+const pending = ref(false);
+onMounted(async () => {
+  pending.value = true;
+  await fetchServices();
+  pending.value = false;
+});
 const route = useRoute();
 watch(
   () => route.fullPath,
-  () => refreshNuxtData("services-list"),
+  () => {
+    fetchServices();
+  },
 );
 const { canManage, requireManage } = useFeatureAccess("master.service");
 const { confirm } = useConfirm();

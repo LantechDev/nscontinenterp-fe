@@ -38,10 +38,17 @@ const router = useRouter();
 const { confirm } = useConfirm();
 const { canManage, requireManage } = useFeatureAccess("operational.job");
 
-const { pending } = await useAsyncData("jobs-list", () => fetchJobs(), { server: false });
+const pending = ref(false);
+onMounted(async () => {
+  pending.value = true;
+  await fetchJobs();
+  pending.value = false;
+});
 watch(
   () => route.fullPath,
-  () => refreshNuxtData("jobs-list"),
+  () => {
+    fetchJobs();
+  },
 );
 
 onUnmounted(() => {});

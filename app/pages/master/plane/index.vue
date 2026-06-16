@@ -19,11 +19,18 @@ const {
   deletePlane,
 } = usePlanes();
 
-const { pending } = await useAsyncData("planes-list", () => fetchPlanes(), { server: false });
+const pending = ref(false);
+onMounted(async () => {
+  pending.value = true;
+  await fetchPlanes();
+  pending.value = false;
+});
 const route = useRoute();
 watch(
   () => route.fullPath,
-  () => refreshNuxtData("planes-list"),
+  () => {
+    fetchPlanes();
+  },
 );
 const { canManage, requireManage } = useFeatureAccess("master.logistics");
 

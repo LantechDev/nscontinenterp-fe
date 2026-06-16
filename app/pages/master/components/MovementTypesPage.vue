@@ -33,11 +33,18 @@ const {
   deleteMovement,
 } = useMovementTypes(props.kind);
 
-await useAsyncData(`${props.kind}-movements-list`, () => fetchMovements(), { server: false });
+const pending = ref(false);
+onMounted(async () => {
+  pending.value = true;
+  await fetchMovements();
+  pending.value = false;
+});
 const route = useRoute();
 watch(
   () => route.fullPath,
-  () => refreshNuxtData(`${props.kind}-movements-list`),
+  () => {
+    fetchMovements();
+  },
 );
 const { canManage, requireManage } = useFeatureAccess("master.logistics");
 

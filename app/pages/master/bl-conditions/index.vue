@@ -80,43 +80,38 @@ const statusOptions = [
   { id: "inactive", name: "Inactive" },
 ];
 
-// SSR Data Injection pattern
-const {
-  data: initialData,
-  pending: isBootstrapping,
-  error: bootstrapError,
-  refresh: refreshBootstrap,
-} = await useAsyncData(
-  "bl-conditions-list",
-  async () => {
+const isBootstrapping = ref(false);
+const bootstrapError = ref<Error | null>(null);
+
+const fetchBlConditions = async () => {
+  isBootstrapping.value = true;
+  bootstrapError.value = null;
+  try {
     const res = await $fetch<{ success: boolean; data: BlCondition[] }>(
       "/api/master/bl-conditions",
     );
-    return { items: res.data };
-  },
-  { server: false },
-);
+    setData({ items: res.data });
+  } catch (err) {
+    bootstrapError.value = err as Error;
+  } finally {
+    isBootstrapping.value = false;
+  }
+};
+
+const refreshBootstrap = () => {
+  fetchBlConditions();
+};
 
 const route = useRoute();
 watch(
   () => route.fullPath,
-  () => refreshNuxtData("bl-conditions-list"),
-);
-
-watch(
-  initialData,
-  (value) => {
-    if (value) {
-      setData(value);
-    }
+  () => {
+    fetchBlConditions();
   },
-  { immediate: true },
 );
 
 onMounted(() => {
-  if (!initialData.value) {
-    initialize();
-  }
+  fetchBlConditions();
 });
 
 const isPageLoading = computed(() => isLoading.value || isBootstrapping.value);
