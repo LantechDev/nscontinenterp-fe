@@ -241,21 +241,20 @@ const groupedTotals = computed(() => {
     const qty = Number(ch.quantity || 0);
     const price = Number(ch.unitPrice || 0);
     const amount = qty * price;
-
-    const tax = taxList.value.find((t) => t.id === ch.taxId);
-    const rate = tax ? Number(tax.rate) : 0;
-    const taxValue = amount * (rate / 100);
-
     totals[currency].subTotal += amount;
-    totals[currency].taxAmount += taxValue;
   });
 
-  // Round IDR
-  totals.IDR.subTotal = Math.round(totals.IDR.subTotal);
-  totals.IDR.taxAmount = Math.round(totals.IDR.taxAmount);
-  totals.IDR.total = totals.IDR.subTotal + totals.IDR.taxAmount;
+  // Single PPN rate from quotation-level tax
+  const selectedTax = taxList.value.find((t) => t.id === props.quotation?.taxId);
+  const taxRate = selectedTax && selectedTax.id ? Number(selectedTax.rate) : 0;
 
-  totals.USD.total = totals.USD.subTotal + totals.USD.taxAmount;
+  Object.keys(totals).forEach((curr) => {
+    const entry = totals[curr];
+    if (!entry) return;
+    entry.subTotal = Math.round(entry.subTotal);
+    entry.taxAmount = Math.round(entry.subTotal * (taxRate / 100));
+    entry.total = entry.subTotal + entry.taxAmount;
+  });
 
   return totals;
 });

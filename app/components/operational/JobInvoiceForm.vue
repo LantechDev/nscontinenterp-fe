@@ -43,12 +43,14 @@ const props = defineProps<{
     currency?: string;
     exchangeRate?: number;
     notes?: string | null;
+    taxId?: string | null;
     items?: Array<{
       serviceId?: string | null;
       description: string;
       quantity: number;
       unitPrice: number;
       taxId?: string | null;
+      atCost?: boolean;
     }>;
   } | null;
 }>();
@@ -68,9 +70,11 @@ interface FormItem {
   quantity: number;
   unitPrice: number;
   taxId?: string | null;
+  atCost?: boolean;
 }
 
 const prefillTaxId =
+  props.prefillData?.taxId ||
   props.prefillData?.items?.find((item) => item.taxId)?.taxId ||
   props.prefillData?.items?.[0]?.taxId ||
   "";
@@ -97,6 +101,7 @@ const form = ref({
     quantity: Number(item.quantity),
     unitPrice: Number(item.unitPrice),
     taxId: item.taxId || null,
+    atCost: false,
   })) ||
     props.prefillData?.items?.map((item) => ({
       serviceId: item.serviceId || "",
@@ -104,7 +109,10 @@ const form = ref({
       quantity: item.quantity,
       unitPrice: item.unitPrice,
       taxId: item.taxId || null,
-    })) || [{ serviceId: "", description: "", quantity: 1, unitPrice: 0 }]) as FormItem[],
+      atCost: Boolean(item.atCost),
+    })) || [
+      { serviceId: "", description: "", quantity: 1, unitPrice: 0, atCost: false },
+    ]) as FormItem[],
 });
 
 // Service Modal State
@@ -590,6 +598,11 @@ const formatInputCurrency = (val: number | string, currency: string = form.value
                     class="w-full pl-10 pr-3 py-2 bg-white border border-border rounded-md text-sm text-right font-medium focus:ring-2 focus:ring-[#012D5A]/20 focus:border-[#012D5A] outline-none transition-all"
                   />
                 </div>
+                <span
+                  v-if="item.atCost"
+                  class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-extrabold bg-amber-50 text-amber-700 border border-amber-200 uppercase tracking-wider mt-1"
+                  >AT COST</span
+                >
               </div>
               <div class="col-span-2 flex items-center justify-between gap-2 pr-2">
                 <p class="text-sm font-bold text-[#012D5A] tabular-nums text-right flex-1">
