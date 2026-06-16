@@ -80,8 +80,7 @@ export function useServiceCategories() {
       const data = await $fetch<ServiceCategory>("/api/master/service-categories", {
         ...localMutationOptions("POST", payload),
       });
-      categories.value = [...categories.value, data];
-      refreshNuxtData("categories-list");
+      await fetchCategories();
       debugCategoriesState("create", data.id);
       return { success: true, data };
     } catch (error) {
@@ -100,8 +99,7 @@ export function useServiceCategories() {
       const data = await $fetch<ServiceCategory>(`/api/master/service-categories/${id}`, {
         ...localMutationOptions("PUT", payload),
       });
-      categories.value = categories.value.map((c) => (c.id === id ? { ...c, ...data } : c));
-      refreshNuxtData("categories-list");
+      await fetchCategories();
       debugCategoriesState("update", id);
       return { success: true, data };
     } catch (error) {
@@ -117,8 +115,7 @@ export function useServiceCategories() {
       await $fetch(`/api/master/service-categories/${id}`, {
         ...localMutationOptions("DELETE"),
       });
-      categories.value = categories.value.filter((c) => c.id !== id);
-      refreshNuxtData("categories-list");
+      await fetchCategories();
       debugCategoriesState("delete", id);
       return { success: true };
     } catch (error) {
