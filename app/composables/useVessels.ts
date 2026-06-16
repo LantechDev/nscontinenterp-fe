@@ -50,8 +50,8 @@ type LocalMutationMethod = "POST" | "PUT" | "PATCH" | "DELETE";
 
 const localMutationOptions = <TBody>(method: LocalMutationMethod, body?: TBody) =>
   body === undefined
-    ? { method, skipNuxtDataRefresh: true }
-    : { method, body, skipNuxtDataRefresh: true };
+    ? { method, skipNuxtDataRefresh: false }
+    : { method, body, skipNuxtDataRefresh: false };
 
 export function useVessels() {
   const vessels = useState<Vessel[]>("vessels-list", () => []);

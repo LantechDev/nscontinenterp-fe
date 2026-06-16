@@ -134,12 +134,14 @@ const prefillFromQuotation = ref<{
   currency?: string;
   exchangeRate?: number;
   notes?: string | null;
+  taxId?: string | null;
   items?: Array<{
     serviceId?: string | null;
     description: string;
     quantity: number;
     unitPrice: number;
     taxId?: string | null;
+    atCost?: boolean;
   }>;
 } | null>(null);
 
@@ -382,6 +384,7 @@ const proceedPrefillQuotation = (q: Quotation, targetCurrency: string, exchangeR
       quantity: Number(ch.quantity),
       unitPrice: unitPrice,
       taxId: ch.taxId || null,
+      atCost: Boolean(ch.atCost),
     };
   });
 
@@ -390,6 +393,7 @@ const proceedPrefillQuotation = (q: Quotation, targetCurrency: string, exchangeR
     currency: targetCurrency,
     exchangeRate: targetCurrency === "IDR" ? 1 : exchangeRate,
     notes: q.notes,
+    taxId: q.taxId || null,
     items: convertedItems,
   };
 
