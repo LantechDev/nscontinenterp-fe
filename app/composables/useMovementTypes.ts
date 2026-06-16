@@ -69,8 +69,7 @@ export function useMovementTypes(kind: MovementKind) {
       const data = await $fetch<MovementType>(movementPath(kind), {
         ...localMutationOptions("POST", payload),
       });
-      movements.value = [...movements.value, data];
-      refreshNuxtData(`${kind}-movements-list`);
+      await fetchMovements();
       return { success: true, data };
     } catch (error) {
       return { success: false, error: getErrorMessage(error) };
@@ -88,10 +87,7 @@ export function useMovementTypes(kind: MovementKind) {
       const data = await $fetch<MovementType>(`${movementPath(kind)}/${id}`, {
         ...localMutationOptions("PUT", payload),
       });
-      movements.value = movements.value.map((item) =>
-        item.id === id ? { ...item, ...data } : item,
-      );
-      refreshNuxtData(`${kind}-movements-list`);
+      await fetchMovements();
       return { success: true, data };
     } catch (error) {
       return { success: false, error: getErrorMessage(error) };
@@ -106,8 +102,7 @@ export function useMovementTypes(kind: MovementKind) {
       await $fetch(`${movementPath(kind)}/${id}`, {
         ...localMutationOptions("DELETE"),
       });
-      movements.value = movements.value.filter((item) => item.id !== id);
-      refreshNuxtData(`${kind}-movements-list`);
+      await fetchMovements();
       return { success: true };
     } catch (error) {
       return { success: false, error: getErrorMessage(error) };

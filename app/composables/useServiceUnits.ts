@@ -94,8 +94,7 @@ export function useServiceUnits() {
       const data = await $fetch<ServiceUnit>("/api/master/service-units", {
         ...localMutationOptions("POST", payload),
       });
-      units.value = [...units.value, data];
-      refreshNuxtData("units-list");
+      await fetchUnits();
       debugUnitsState("create", data.id);
       return { success: true, data };
     } catch (error) {
@@ -117,8 +116,7 @@ export function useServiceUnits() {
       if (currentUnit.value?.id === id) {
         currentUnit.value = data;
       }
-      units.value = units.value.map((u) => (u.id === id ? { ...u, ...data } : u));
-      refreshNuxtData("units-list");
+      await fetchUnits();
       debugUnitsState("update", id);
       return { success: true, data };
     } catch (error) {
@@ -134,8 +132,7 @@ export function useServiceUnits() {
       await $fetch(`/api/master/service-units/${id}`, {
         ...localMutationOptions("DELETE"),
       });
-      units.value = units.value.filter((u) => u.id !== id);
-      refreshNuxtData("units-list");
+      await fetchUnits();
       if (currentUnit.value?.id === id) {
         currentUnit.value = null;
       }

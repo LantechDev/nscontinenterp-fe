@@ -68,8 +68,7 @@ export function useExpenseCategories() {
       const data = await $fetch<ExpenseCategory>("/api/master/expense-categories", {
         ...localMutationOptions("POST", payload),
       });
-      categories.value = [...categories.value, data];
-      refreshNuxtData("expense-categories-list");
+      await fetchCategories();
       return { success: true, data };
     } catch (error) {
       return { success: false, error: getErrorMessage(error) };
@@ -88,8 +87,7 @@ export function useExpenseCategories() {
       const data = await $fetch<ExpenseCategory>(`/api/master/expense-categories/${id}`, {
         ...localMutationOptions("PATCH", payload),
       });
-      categories.value = categories.value.map((c) => (c.id === id ? { ...c, ...data } : c));
-      refreshNuxtData("expense-categories-list");
+      await fetchCategories();
       return { success: true, data };
     } catch (error) {
       return { success: false, error: getErrorMessage(error) };
@@ -104,8 +102,7 @@ export function useExpenseCategories() {
       await $fetch(`/api/master/expense-categories/${id}`, {
         ...localMutationOptions("DELETE"),
       });
-      categories.value = categories.value.filter((c) => c.id !== id);
-      refreshNuxtData("expense-categories-list");
+      await fetchCategories();
       return { success: true };
     } catch (error) {
       return { success: false, error: getErrorMessage(error) };

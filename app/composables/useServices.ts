@@ -130,8 +130,7 @@ export function useServices() {
       const data = await $fetch<Service>("/api/master/services", {
         ...localMutationOptions("POST", payload),
       });
-      services.value = [...services.value, data];
-      refreshNuxtData("services-list");
+      await fetchServices();
       debugServicesState("create", data.id);
       return { success: true, data };
     } catch (error) {
@@ -150,8 +149,7 @@ export function useServices() {
       if (currentService.value?.id === id) {
         currentService.value = data;
       }
-      services.value = services.value.map((s) => (s.id === id ? { ...s, ...data } : s));
-      refreshNuxtData("services-list");
+      await fetchServices();
       debugServicesState("update", id);
       return { success: true, data };
     } catch (error) {
@@ -167,8 +165,7 @@ export function useServices() {
       await $fetch(`/api/master/services/${id}`, {
         ...localMutationOptions("DELETE"),
       });
-      services.value = services.value.filter((s) => s.id !== id);
-      refreshNuxtData("services-list");
+      await fetchServices();
       if (currentService.value?.id === id) {
         currentService.value = null;
       }

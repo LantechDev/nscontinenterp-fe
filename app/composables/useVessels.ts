@@ -94,8 +94,7 @@ export function useVessels() {
       const data = await $fetch<Vessel>("/api/master/vessels", {
         ...localMutationOptions("POST", vesselData),
       });
-      vessels.value = [data, ...vessels.value];
-      refreshNuxtData("vessels-list");
+      await fetchVessels();
       return { success: true, data };
     } catch (error) {
       return { success: false, error: getErrorMessage(error) };
@@ -114,8 +113,7 @@ export function useVessels() {
       const data = await $fetch<Vessel>(`/api/master/vessels/${id}`, {
         ...localMutationOptions("PUT", vesselData),
       });
-      vessels.value = vessels.value.map((v) => (v.id === id ? { ...v, ...data } : v));
-      refreshNuxtData("vessels-list");
+      await fetchVessels();
       return { success: true, data };
     } catch (error) {
       return { success: false, error: getErrorMessage(error) };
@@ -131,8 +129,7 @@ export function useVessels() {
       await $fetch(`/api/master/vessels/${id}`, {
         ...localMutationOptions("DELETE"),
       });
-      vessels.value = vessels.value.filter((v) => v.id !== id);
-      refreshNuxtData("vessels-list");
+      await fetchVessels();
       return { success: true };
     } catch (error) {
       return { success: false, error: getErrorMessage(error) };
