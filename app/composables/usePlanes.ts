@@ -74,7 +74,7 @@ export function usePlanes() {
     isLoading.value = true;
     try {
       const data = await $fetch<Plane[]>("/api/master/planes", {
-        params: { search },
+        params: { search, _t: Date.now() },
       });
       planes.value = data || [];
       return { success: true, data: planes.value };
@@ -95,6 +95,7 @@ export function usePlanes() {
         ...localMutationOptions("POST", planeData),
       });
       await fetchPlanes();
+      await refreshNuxtData("planes-list");
       return { success: true, data };
     } catch (error) {
       return { success: false, error: getErrorMessage(error) };
@@ -114,6 +115,7 @@ export function usePlanes() {
         ...localMutationOptions("PUT", planeData),
       });
       await fetchPlanes();
+      await refreshNuxtData("planes-list");
       return { success: true, data };
     } catch (error) {
       return { success: false, error: getErrorMessage(error) };
@@ -130,6 +132,7 @@ export function usePlanes() {
         ...localMutationOptions("DELETE"),
       });
       await fetchPlanes();
+      await refreshNuxtData("planes-list");
       return { success: true };
     } catch (error) {
       return { success: false, error: getErrorMessage(error) };
