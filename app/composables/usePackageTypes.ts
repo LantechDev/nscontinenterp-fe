@@ -57,7 +57,9 @@ export function usePackageTypes() {
   }> {
     isLoading.value = true;
     try {
-      const data = await $fetch<PackageType[]>("/api/master/package-types");
+      const data = await $fetch<PackageType[]>("/api/master/package-types", {
+        params: { _t: Date.now() },
+      });
       packageTypes.value = data || [];
       return { success: true, data: packageTypes.value };
     } catch (error) {
@@ -76,6 +78,7 @@ export function usePackageTypes() {
         ...localMutationOptions("POST", payload),
       });
       await fetchPackageTypes();
+      await refreshNuxtData("package-types-list");
       debugPackageTypesState("create", data.id);
       return { success: true, data };
     } catch (error) {
@@ -95,6 +98,7 @@ export function usePackageTypes() {
         ...localMutationOptions("PUT", payload),
       });
       await fetchPackageTypes();
+      await refreshNuxtData("package-types-list");
       debugPackageTypesState("update", id);
       return { success: true, data };
     } catch (error) {
@@ -111,6 +115,7 @@ export function usePackageTypes() {
         ...localMutationOptions("DELETE"),
       });
       await fetchPackageTypes();
+      await refreshNuxtData("package-types-list");
       debugPackageTypesState("delete", id);
       return { success: true };
     } catch (error) {

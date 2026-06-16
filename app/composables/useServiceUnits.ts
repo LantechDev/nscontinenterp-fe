@@ -61,7 +61,9 @@ export function useServiceUnits() {
   }> {
     isLoading.value = true;
     try {
-      const data = await $fetch<ServiceUnit[]>("/api/master/service-units");
+      const data = await $fetch<ServiceUnit[]>("/api/master/service-units", {
+        params: { _t: Date.now() },
+      });
       units.value = data || [];
       return { success: true, data: units.value };
     } catch (error) {
@@ -95,6 +97,7 @@ export function useServiceUnits() {
         ...localMutationOptions("POST", payload),
       });
       await fetchUnits();
+      await refreshNuxtData("units-list");
       debugUnitsState("create", data.id);
       return { success: true, data };
     } catch (error) {
@@ -117,6 +120,7 @@ export function useServiceUnits() {
         currentUnit.value = data;
       }
       await fetchUnits();
+      await refreshNuxtData("units-list");
       debugUnitsState("update", id);
       return { success: true, data };
     } catch (error) {
@@ -133,6 +137,7 @@ export function useServiceUnits() {
         ...localMutationOptions("DELETE"),
       });
       await fetchUnits();
+      await refreshNuxtData("units-list");
       if (currentUnit.value?.id === id) {
         currentUnit.value = null;
       }

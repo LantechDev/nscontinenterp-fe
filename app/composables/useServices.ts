@@ -80,7 +80,7 @@ export function useServices() {
     isLoading.value = true;
     try {
       const data = await $fetch<Service[]>("/api/master/services", {
-        params: { search, categoryId },
+        params: { search, categoryId, _t: Date.now() },
       });
       services.value = data || [];
       return { success: true, data: services.value };
@@ -131,6 +131,7 @@ export function useServices() {
         ...localMutationOptions("POST", payload),
       });
       await fetchServices();
+      await refreshNuxtData("services-list");
       debugServicesState("create", data.id);
       return { success: true, data };
     } catch (error) {
@@ -150,6 +151,7 @@ export function useServices() {
         currentService.value = data;
       }
       await fetchServices();
+      await refreshNuxtData("services-list");
       debugServicesState("update", id);
       return { success: true, data };
     } catch (error) {
@@ -166,6 +168,7 @@ export function useServices() {
         ...localMutationOptions("DELETE"),
       });
       await fetchServices();
+      await refreshNuxtData("services-list");
       if (currentService.value?.id === id) {
         currentService.value = null;
       }

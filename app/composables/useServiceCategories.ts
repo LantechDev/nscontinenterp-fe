@@ -62,7 +62,9 @@ export function useServiceCategories() {
   }> {
     isLoading.value = true;
     try {
-      const data = await $fetch<ServiceCategory[]>("/api/master/service-categories");
+      const data = await $fetch<ServiceCategory[]>("/api/master/service-categories", {
+        params: { _t: Date.now() },
+      });
       categories.value = data || [];
       return { success: true, data: categories.value };
     } catch (error) {
@@ -81,6 +83,7 @@ export function useServiceCategories() {
         ...localMutationOptions("POST", payload),
       });
       await fetchCategories();
+      await refreshNuxtData("categories-list");
       debugCategoriesState("create", data.id);
       return { success: true, data };
     } catch (error) {
@@ -100,6 +103,7 @@ export function useServiceCategories() {
         ...localMutationOptions("PUT", payload),
       });
       await fetchCategories();
+      await refreshNuxtData("categories-list");
       debugCategoriesState("update", id);
       return { success: true, data };
     } catch (error) {
@@ -116,6 +120,7 @@ export function useServiceCategories() {
         ...localMutationOptions("DELETE"),
       });
       await fetchCategories();
+      await refreshNuxtData("categories-list");
       debugCategoriesState("delete", id);
       return { success: true };
     } catch (error) {

@@ -50,7 +50,9 @@ export function useExpenseCategories() {
   }> {
     isLoading.value = true;
     try {
-      const data = await $fetch<ExpenseCategory[]>("/api/master/expense-categories");
+      const data = await $fetch<ExpenseCategory[]>("/api/master/expense-categories", {
+        params: { _t: Date.now() },
+      });
       categories.value = data || [];
       return { success: true, data: categories.value };
     } catch (error) {
@@ -69,6 +71,7 @@ export function useExpenseCategories() {
         ...localMutationOptions("POST", payload),
       });
       await fetchCategories();
+      await refreshNuxtData("expense-categories-list");
       return { success: true, data };
     } catch (error) {
       return { success: false, error: getErrorMessage(error) };
@@ -88,6 +91,7 @@ export function useExpenseCategories() {
         ...localMutationOptions("PATCH", payload),
       });
       await fetchCategories();
+      await refreshNuxtData("expense-categories-list");
       return { success: true, data };
     } catch (error) {
       return { success: false, error: getErrorMessage(error) };
@@ -103,6 +107,7 @@ export function useExpenseCategories() {
         ...localMutationOptions("DELETE"),
       });
       await fetchCategories();
+      await refreshNuxtData("expense-categories-list");
       return { success: true };
     } catch (error) {
       return { success: false, error: getErrorMessage(error) };
