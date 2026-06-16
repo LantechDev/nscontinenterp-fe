@@ -95,6 +95,7 @@ export function usePlanes() {
         ...localMutationOptions("POST", planeData),
       });
       planes.value = [data, ...planes.value];
+      refreshNuxtData("planes-list");
       return { success: true, data };
     } catch (error) {
       return { success: false, error: getErrorMessage(error) };
@@ -114,6 +115,7 @@ export function usePlanes() {
         ...localMutationOptions("PUT", planeData),
       });
       planes.value = planes.value.map((p) => (p.id === id ? { ...p, ...data } : p));
+      refreshNuxtData("planes-list");
       return { success: true, data };
     } catch (error) {
       return { success: false, error: getErrorMessage(error) };
@@ -130,6 +132,7 @@ export function usePlanes() {
         ...localMutationOptions("DELETE"),
       });
       planes.value = planes.value.filter((p) => p.id !== id);
+      refreshNuxtData("planes-list");
       return { success: true };
     } catch (error) {
       return { success: false, error: getErrorMessage(error) };

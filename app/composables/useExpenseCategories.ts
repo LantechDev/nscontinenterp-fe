@@ -69,6 +69,7 @@ export function useExpenseCategories() {
         ...localMutationOptions("POST", payload),
       });
       categories.value = [...categories.value, data];
+      refreshNuxtData("expense-categories-list");
       return { success: true, data };
     } catch (error) {
       return { success: false, error: getErrorMessage(error) };
@@ -88,6 +89,7 @@ export function useExpenseCategories() {
         ...localMutationOptions("PATCH", payload),
       });
       categories.value = categories.value.map((c) => (c.id === id ? { ...c, ...data } : c));
+      refreshNuxtData("expense-categories-list");
       return { success: true, data };
     } catch (error) {
       return { success: false, error: getErrorMessage(error) };
@@ -103,6 +105,7 @@ export function useExpenseCategories() {
         ...localMutationOptions("DELETE"),
       });
       categories.value = categories.value.filter((c) => c.id !== id);
+      refreshNuxtData("expense-categories-list");
       return { success: true };
     } catch (error) {
       return { success: false, error: getErrorMessage(error) };

@@ -95,6 +95,7 @@ export function useVessels() {
         ...localMutationOptions("POST", vesselData),
       });
       vessels.value = [data, ...vessels.value];
+      refreshNuxtData("vessels-list");
       return { success: true, data };
     } catch (error) {
       return { success: false, error: getErrorMessage(error) };
@@ -114,6 +115,7 @@ export function useVessels() {
         ...localMutationOptions("PUT", vesselData),
       });
       vessels.value = vessels.value.map((v) => (v.id === id ? { ...v, ...data } : v));
+      refreshNuxtData("vessels-list");
       return { success: true, data };
     } catch (error) {
       return { success: false, error: getErrorMessage(error) };
@@ -130,6 +132,7 @@ export function useVessels() {
         ...localMutationOptions("DELETE"),
       });
       vessels.value = vessels.value.filter((v) => v.id !== id);
+      refreshNuxtData("vessels-list");
       return { success: true };
     } catch (error) {
       return { success: false, error: getErrorMessage(error) };

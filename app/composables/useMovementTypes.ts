@@ -70,6 +70,7 @@ export function useMovementTypes(kind: MovementKind) {
         ...localMutationOptions("POST", payload),
       });
       movements.value = [...movements.value, data];
+      refreshNuxtData(`${kind}-movements-list`);
       return { success: true, data };
     } catch (error) {
       return { success: false, error: getErrorMessage(error) };
@@ -90,6 +91,7 @@ export function useMovementTypes(kind: MovementKind) {
       movements.value = movements.value.map((item) =>
         item.id === id ? { ...item, ...data } : item,
       );
+      refreshNuxtData(`${kind}-movements-list`);
       return { success: true, data };
     } catch (error) {
       return { success: false, error: getErrorMessage(error) };
@@ -105,6 +107,7 @@ export function useMovementTypes(kind: MovementKind) {
         ...localMutationOptions("DELETE"),
       });
       movements.value = movements.value.filter((item) => item.id !== id);
+      refreshNuxtData(`${kind}-movements-list`);
       return { success: true };
     } catch (error) {
       return { success: false, error: getErrorMessage(error) };
