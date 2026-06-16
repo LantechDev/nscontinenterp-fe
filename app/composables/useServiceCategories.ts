@@ -81,6 +81,7 @@ export function useServiceCategories() {
         ...localMutationOptions("POST", payload),
       });
       categories.value = [...categories.value, data];
+      refreshNuxtData("categories-list");
       debugCategoriesState("create", data.id);
       return { success: true, data };
     } catch (error) {
@@ -100,6 +101,7 @@ export function useServiceCategories() {
         ...localMutationOptions("PUT", payload),
       });
       categories.value = categories.value.map((c) => (c.id === id ? { ...c, ...data } : c));
+      refreshNuxtData("categories-list");
       debugCategoriesState("update", id);
       return { success: true, data };
     } catch (error) {
@@ -116,6 +118,7 @@ export function useServiceCategories() {
         ...localMutationOptions("DELETE"),
       });
       categories.value = categories.value.filter((c) => c.id !== id);
+      refreshNuxtData("categories-list");
       debugCategoriesState("delete", id);
       return { success: true };
     } catch (error) {

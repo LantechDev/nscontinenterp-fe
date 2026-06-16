@@ -95,6 +95,7 @@ export function useServiceUnits() {
         ...localMutationOptions("POST", payload),
       });
       units.value = [...units.value, data];
+      refreshNuxtData("units-list");
       debugUnitsState("create", data.id);
       return { success: true, data };
     } catch (error) {
@@ -117,6 +118,7 @@ export function useServiceUnits() {
         currentUnit.value = data;
       }
       units.value = units.value.map((u) => (u.id === id ? { ...u, ...data } : u));
+      refreshNuxtData("units-list");
       debugUnitsState("update", id);
       return { success: true, data };
     } catch (error) {
@@ -133,6 +135,7 @@ export function useServiceUnits() {
         ...localMutationOptions("DELETE"),
       });
       units.value = units.value.filter((u) => u.id !== id);
+      refreshNuxtData("units-list");
       if (currentUnit.value?.id === id) {
         currentUnit.value = null;
       }
