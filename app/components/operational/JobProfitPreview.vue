@@ -128,31 +128,105 @@ const customerName = computed(() => {
   return props.job?.customer?.name || "-";
 });
 
-// Pagination: the cost (vendor invoice) list can overflow one A4 page. Split it across
-// pages — page 1 shares space with the job info + revenue table so it holds fewer rows.
-const COST_ROWS_PAGE_1 = 9;
-const COST_ROWS_PAGE_N = 24;
+const MAIN_PX = 950;
+const SECTION_PX = 56;
+const JOBINFO_PX = 92;
+const SUMMARY_PX = 50;
+const FOOTER_PX = 108;
+const ROW_BASE_PX = 24;
+const LINE_PX = 14;
+const VENDOR_CHARS_PER_LINE = 20;
 
-interface CostPage {
-  rows: ProfitExpense[];
+const linesFor = (text: string | null | undefined, charsPerLine: number) =>
+  Math.max(1, Math.ceil((text?.length || 0) / charsPerLine));
+
+const revenueRowPx = (inv: ProfitInvoice) =>
+  ROW_BASE_PX + Math.max(1, inv.currency === "USD" ? 2 : 1) * LINE_PX;
+
+const costRowPx = (exp: ProfitExpense) => {
+  const vendorLines = linesFor(exp.vendor?.name, VENDOR_CHARS_PER_LINE);
+  const amountLines = exp.currency === "USD" ? 2 : 1;
+  return ROW_BASE_PX + Math.max(vendorLines, amountLines) * LINE_PX;
+};
+
+interface ReportPage {
   isFirst: boolean;
   isLast: boolean;
+  showRevenue: boolean;
+  revenueRows: ProfitInvoice[];
+  revenueContinued: boolean;
+  showCost: boolean;
+  costRows: ProfitExpense[];
+  costContinued: boolean;
 }
 
-const costPages = computed<CostPage[]>(() => {
+const reportPages = computed<ReportPage[]>(() => {
+  const revs = invoices.value;
   const costs = vendorInvoices.value;
-  if (costs.length === 0) return [{ rows: [], isFirst: true, isLast: true }];
 
-  const pages: CostPage[] = [];
-  let idx = 0;
+  const pages: ReportPage[] = [];
+  let ri = 0;
+  let ci = 0;
+  let costStarted = false;
   let first = true;
-  while (idx < costs.length) {
-    const cap = first ? COST_ROWS_PAGE_1 : COST_ROWS_PAGE_N;
-    const rows = costs.slice(idx, idx + cap);
-    idx += cap;
-    pages.push({ rows, isFirst: first, isLast: idx >= costs.length });
+
+  while (true) {
+    let budget = first ? MAIN_PX - JOBINFO_PX - SUMMARY_PX : MAIN_PX;
+    const page: ReportPage = {
+      isFirst: first,
+      isLast: false,
+      showRevenue: false,
+      revenueRows: [],
+      revenueContinued: false,
+      showCost: false,
+      costRows: [],
+      costContinued: costStarted,
+    };
+
+    if (ri < revs.length || (first && revs.length === 0)) {
+      page.showRevenue = true;
+      page.revenueContinued = ri > 0;
+      budget -= SECTION_PX;
+      while (ri < revs.length) {
+        const inv = revs[ri];
+        if (!inv) break;
+        const h = revenueRowPx(inv);
+        if (budget - h < 0 && page.revenueRows.length > 0) break;
+        page.revenueRows.push(inv);
+        ri++;
+        budget -= h;
+      }
+    }
+
+    const revenueDone = ri >= revs.length;
+
+    if (revenueDone && budget > SECTION_PX + ROW_BASE_PX && (ci < costs.length || !costStarted)) {
+      page.showCost = true;
+      page.costContinued = costStarted;
+      budget -= SECTION_PX;
+      costStarted = true;
+
+      while (ci < costs.length) {
+        const exp = costs[ci];
+        if (!exp) break;
+        const h = costRowPx(exp);
+        const reserve = ci === costs.length - 1 ? FOOTER_PX : 0;
+        if (budget - h - reserve < 0 && page.costRows.length > 0) break;
+        page.costRows.push(exp);
+        ci++;
+        budget -= h;
+      }
+    }
+
+    pages.push(page);
     first = false;
+
+    if (ri >= revs.length && ci >= costs.length && costStarted) break;
+    if (pages.length > 100) break;
   }
+
+  const lastPage = pages[pages.length - 1];
+  if (lastPage) lastPage.isLast = true;
   return pages;
 });
 
@@ -210,7 +284,7 @@ defineExpose({
   >
     <div class="relative group flex flex-col gap-10" ref="printContainerRef">
       <div
-        v-for="(page, pIdx) in costPages"
+        v-for="(page, pIdx) in reportPages"
         :key="pIdx"
         class="a4-page-wrapper bg-white shadow-xl shrink-0 flex flex-col text-[#062c58] border"
         style="
@@ -243,7 +317,7 @@ defineExpose({
           </div>
           <div class="w-[35%] text-right pb-1 flex flex-col items-end justify-end h-full">
             <div class="text-[0.6rem] font-mono mb-1 text-black">
-              PAGE: {{ pIdx + 1 }} OF {{ costPages.length }}
+              PAGE: {{ pIdx + 1 }} OF {{ reportPages.length }}
             </div>
             <h1 class="text-xl font-bold tracking-widest uppercase leading-none text-[#062c58]">
               PROFIT REPORT
@@ -333,17 +407,19 @@ defineExpose({
 
           <!-- Details Section -->
           <div class="flex-1 flex flex-col">
-            <!-- Revenue Table (first page only) -->
-            <div v-if="page.isFirst" class="flex-1 flex flex-col min-h-0 border-b border-[#062c58]">
+            <!-- Revenue Table -->
+            <div v-if="page.showRevenue" class="flex flex-col border-b border-[#062c58]">
               <div
                 class="bg-[#062c58]/5 px-3 py-1.5 border-b border-[#062c58] flex justify-between"
               >
-                <span class="font-bold text-[0.65rem] text-[#062c58]">REVENUE (INVOICES)</span>
+                <span class="font-bold text-[0.65rem] text-[#062c58]"
+                  >REVENUE (INVOICES){{ page.revenueContinued ? " — CONTINUED" : "" }}</span
+                >
                 <span class="font-bold text-[0.65rem] text-[#062c58]"
                   >TOTAL: {{ formatCurrency(totalRevenue) }}</span
                 >
               </div>
-              <div class="flex-1 overflow-hidden relative">
+              <div class="relative">
                 <table class="w-full text-left font-mono">
                   <thead
                     class="text-[0.55rem] font-bold border-b border-[#062c58]/20 bg-gray-50/50"
@@ -356,7 +432,11 @@ defineExpose({
                     </tr>
                   </thead>
                   <tbody class="text-[0.65rem]">
-                    <tr v-for="inv in invoices" :key="inv.id" class="border-b border-[#062c58]/5">
+                    <tr
+                      v-for="inv in page.revenueRows"
+                      :key="inv.id"
+                      class="border-b border-[#062c58]/5"
+                    >
                       <td class="px-3 py-2">{{ formatDate(inv.issuedDate || inv.createdAt) }}</td>
                       <td class="px-3 py-2 font-bold">{{ inv.invoiceNumber }}</td>
                       <td class="px-3 py-2 truncate max-w-xs">
@@ -380,7 +460,7 @@ defineExpose({
                         </div>
                       </td>
                     </tr>
-                    <tr v-if="invoices.length === 0">
+                    <tr v-if="page.revenueRows.length === 0">
                       <td colspan="4" class="px-3 py-4 text-center text-muted-foreground italic">
                         No revenue recorded
                       </td>
@@ -391,16 +471,16 @@ defineExpose({
             </div>
 
             <!-- Cost Table -->
-            <div class="flex-1 flex flex-col min-h-0">
+            <div v-if="page.showCost" class="flex flex-col">
               <div class="bg-red-50/50 px-3 py-1.5 border-b border-[#062c58] flex justify-between">
                 <span class="font-bold text-[0.65rem] text-red-700"
-                  >COSTS (VENDOR INVOICES){{ page.isFirst ? "" : " — CONTINUED" }}</span
+                  >COSTS (VENDOR INVOICES){{ page.costContinued ? " — CONTINUED" : "" }}</span
                 >
                 <span class="font-bold text-[0.65rem] text-red-700"
                   >TOTAL: {{ formatCurrency(totalCost) }}</span
                 >
               </div>
-              <div class="flex-1 overflow-hidden relative">
+              <div class="relative">
                 <table class="w-full text-left font-mono">
                   <thead
                     class="text-[0.55rem] font-bold border-b border-[#062c58]/20 bg-gray-50/50"
@@ -413,7 +493,11 @@ defineExpose({
                     </tr>
                   </thead>
                   <tbody class="text-[0.65rem]">
-                    <tr v-for="exp in page.rows" :key="exp.id" class="border-b border-[#062c58]/5">
+                    <tr
+                      v-for="exp in page.costRows"
+                      :key="exp.id"
+                      class="border-b border-[#062c58]/5"
+                    >
                       <td class="px-3 py-2">{{ formatDate(exp.date || exp.createdAt) }}</td>
                       <td class="px-3 py-2 font-bold">{{ exp.vendor?.name || "-" }}</td>
                       <td class="px-3 py-2 truncate max-w-xs">
@@ -442,7 +526,7 @@ defineExpose({
                         </div>
                       </td>
                     </tr>
-                    <tr v-if="page.rows.length === 0">
+                    <tr v-if="page.costRows.length === 0">
                       <td colspan="4" class="px-3 py-4 text-center text-muted-foreground italic">
                         No costs recorded
                       </td>
