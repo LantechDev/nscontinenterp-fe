@@ -1,4 +1,5 @@
 <script setup lang="ts">
+/* eslint-disable @typescript-eslint/no-explicit-any -- loose quotation charge data */
 import { ref, computed, nextTick, onMounted } from "vue";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
@@ -358,6 +359,58 @@ const truckTypeValue = computed(() => {
   return props.quotation?.truckType || "-";
 });
 
+const FIRST_PAGE_ITEM_SLOTS = 13;
+const CONTINUATION_PAGE_ITEM_SLOTS = 20;
+const DESCRIPTION_CHARS_PER_SLOT = 60;
+
+const getItemSlotCount = (description?: string | null) =>
+  Math.max(1, Math.ceil((description || "").length / DESCRIPTION_CHARS_PER_SLOT));
+
+interface QuotationPreviewPage {
+  items: any[];
+  startIndex: number;
+  pageNumber: number;
+  isFirstPage: boolean;
+  isLastPage: boolean;
+}
+
+const previewPages = computed<QuotationPreviewPage[]>(() => {
+  const items = props.quotation?.charges || [];
+  const pages: Array<{ items: any[]; startIndex: number }> = [];
+
+  let currentItems: any[] = [];
+  let currentStartIndex = 0;
+  let currentSlots = 0;
+  let currentBudget = FIRST_PAGE_ITEM_SLOTS;
+
+  items.forEach((item: any, index: number) => {
+    const itemSlots = getItemSlotCount(item.description);
+    const shouldStartNewPage = currentItems.length > 0 && currentSlots + itemSlots > currentBudget;
+
+    if (shouldStartNewPage) {
+      pages.push({ items: currentItems, startIndex: currentStartIndex });
+      currentItems = [];
+      currentStartIndex = index;
+      currentSlots = 0;
+      currentBudget = CONTINUATION_PAGE_ITEM_SLOTS;
+    }
+
+    currentItems.push(item);
+    currentSlots += itemSlots;
+  });
+
+  if (currentItems.length > 0 || pages.length === 0) {
+    pages.push({ items: currentItems, startIndex: currentStartIndex });
+  }
+
+  return pages.map((page, index) => ({
+    ...page,
+    pageNumber: index + 1,
+    isFirstPage: index === 0,
+    isLastPage: index === pages.length - 1,
+  }));
+});
+
 const generatePDF = async () => {
   if (!printContainerRef.value || !props.quotation) return false;
 
@@ -413,6 +466,8 @@ defineExpose({
   >
     <div class="relative group flex flex-col gap-10" ref="printContainerRef">
       <div
+        v-for="page in previewPages"
+        :key="page.pageNumber"
         class="a4-page-wrapper bg-white shadow-xl shrink-0 flex flex-col text-[#062c58] border"
         style="
           width: 794px;
@@ -441,7 +496,9 @@ defineExpose({
             </h1>
           </div>
           <div class="w-[35%] text-right pb-1 flex flex-col items-end justify-end h-full">
-            <div class="text-[0.6rem] font-mono mb-1 text-black">PAGE: 1 OF 1</div>
+            <div class="text-[0.6rem] font-mono mb-1 text-black">
+              PAGE: {{ page.pageNumber }} OF {{ previewPages.length }}
+            </div>
           </div>
         </div>
 
@@ -449,137 +506,156 @@ defineExpose({
         <div
           class="main-border-container border border-[#062c58] flex-1 flex flex-col text-[0.7rem] relative overflow-hidden h-full"
         >
-          <!-- Parties & Quotation Info Header -->
-          <div class="flex border-b border-[#062c58]" style="min-height: 100px">
-            <div
-              class="w-1/2 border-r border-[#062c58] pt-2 px-3 pb-2 flex flex-col justify-between"
-            >
-              <div>
-                <span class="font-bold mb-1 text-[0.6rem] leading-none block uppercase"
-                  >QUOTATION TO:</span
-                >
-                <div class="text-xs text-black uppercase leading-tight">
-                  {{ quotation?.customerName || "-" }}
-                </div>
-                <div
-                  class="text-[0.65rem] text-black leading-normal mt-1 uppercase whitespace-pre-wrap"
-                >
-                  {{ quotation?.customerAddress || "-" }}
-                </div>
-              </div>
-            </div>
-            <div class="w-1/2">
-              <div class="flex border-b border-[#062c58]" style="height: 50px">
-                <div class="w-1/2 border-r border-[#062c58] pt-2 px-3">
-                  <span class="font-bold text-[0.6rem] leading-none mb-1 block uppercase"
-                    >QUOTATION NO.</span
-                  >
-                  <span class="font-mono text-[0.8rem] text-black">{{
-                    quotation?.number || "DRAFT"
-                  }}</span>
-                </div>
-                <div class="w-1/2 pt-2 px-3">
-                  <span class="font-bold text-[0.6rem] leading-none mb-1 block uppercase"
-                    >DATE</span
-                  >
-                  <span class="font-mono text-[0.75rem] text-black">{{
-                    formatDate(quotation?.date)
-                  }}</span>
-                </div>
-              </div>
-              <div class="flex" style="height: 50px">
-                <div class="w-full pt-2 px-3">
-                  <span class="font-bold text-[0.6rem] leading-none mb-1 block uppercase"
-                    >VALID UNTIL</span
-                  >
-                  <span class="font-mono text-[0.75rem] text-black">{{
-                    formatDate(quotation?.validUntil)
-                  }}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Secondary Sales Operational Info -->
-          <div class="flex border-b border-[#062c58]" style="min-height: 45px">
-            <div class="w-1/3 border-r border-[#062c58] pt-2 px-3 pb-1">
-              <span class="font-bold text-[0.6rem] block leading-none mb-1"
-                >SALES REPRESENTATIVE</span
+          <!-- Parties & Quotation Info Header (first page only) -->
+          <template v-if="page.isFirstPage">
+            <div class="flex border-b border-[#062c58]" style="min-height: 100px">
+              <div
+                class="w-1/2 border-r border-[#062c58] pt-2 px-3 pb-2 flex flex-col justify-between"
               >
-              <span class="font-mono text-[0.75rem] uppercase text-black">
-                {{ quotation?.salesName || "-" }}
-              </span>
+                <div>
+                  <span class="font-bold mb-1 text-[0.6rem] leading-none block uppercase"
+                    >QUOTATION TO:</span
+                  >
+                  <div class="text-xs text-black uppercase leading-tight">
+                    {{ quotation?.customerName || "-" }}
+                  </div>
+                  <div
+                    class="text-[0.65rem] text-black leading-normal mt-1 uppercase whitespace-pre-wrap"
+                  >
+                    {{ quotation?.customerAddress || "-" }}
+                  </div>
+                </div>
+              </div>
+              <div class="w-1/2">
+                <div class="flex border-b border-[#062c58]" style="height: 50px">
+                  <div class="w-1/2 border-r border-[#062c58] pt-2 px-3">
+                    <span class="font-bold text-[0.6rem] leading-none mb-1 block uppercase"
+                      >QUOTATION NO.</span
+                    >
+                    <span class="font-mono text-[0.8rem] text-black">{{
+                      quotation?.number || "DRAFT"
+                    }}</span>
+                  </div>
+                  <div class="w-1/2 pt-2 px-3">
+                    <span class="font-bold text-[0.6rem] leading-none mb-1 block uppercase"
+                      >DATE</span
+                    >
+                    <span class="font-mono text-[0.75rem] text-black">{{
+                      formatDate(quotation?.date)
+                    }}</span>
+                  </div>
+                </div>
+                <div class="flex" style="height: 50px">
+                  <div class="w-full pt-2 px-3">
+                    <span class="font-bold text-[0.6rem] leading-none mb-1 block uppercase"
+                      >VALID UNTIL</span
+                    >
+                    <span class="font-mono text-[0.75rem] text-black">{{
+                      formatDate(quotation?.validUntil)
+                    }}</span>
+                  </div>
+                </div>
+              </div>
             </div>
-            <div class="w-1/3 border-r border-[#062c58] pt-2 px-3 pb-1">
-              <span class="font-bold text-[0.6rem] block leading-none mb-1">CUSTOMER PIC</span>
-              <span class="font-mono text-[0.75rem] uppercase text-black">
-                {{ quotation?.picName || "-" }}
-              </span>
-            </div>
-            <div class="w-1/3 pt-2 px-3 pb-1">
-              <span class="font-bold text-[0.6rem] block leading-none mb-1">FREE TIME</span>
-              <span class="font-mono text-[0.75rem] uppercase text-black">
-                {{ quotation?.freeTime || "-" }}
-              </span>
-            </div>
-          </div>
 
-          <!-- Routing & Cargo Info -->
-          <div class="flex border-b border-[#062c58]" style="min-height: 45px">
-            <div class="w-1/4 border-r border-[#062c58] pt-2 px-3 pb-1">
-              <span class="font-bold text-[0.6rem] block leading-none mb-1">TRADE TYPE</span>
-              <span class="font-mono text-[0.7rem] uppercase text-black">
-                {{ tradeTypeLabel }}
-              </span>
+            <!-- Secondary Sales Operational Info -->
+            <div class="flex border-b border-[#062c58]" style="min-height: 45px">
+              <div class="w-1/3 border-r border-[#062c58] pt-2 px-3 pb-1">
+                <span class="font-bold text-[0.6rem] block leading-none mb-1"
+                  >SALES REPRESENTATIVE</span
+                >
+                <span class="font-mono text-[0.75rem] uppercase text-black">
+                  {{ quotation?.salesName || "-" }}
+                </span>
+              </div>
+              <div class="w-1/3 border-r border-[#062c58] pt-2 px-3 pb-1">
+                <span class="font-bold text-[0.6rem] block leading-none mb-1">CUSTOMER PIC</span>
+                <span class="font-mono text-[0.75rem] uppercase text-black">
+                  {{ quotation?.picName || "-" }}
+                </span>
+              </div>
+              <div class="w-1/3 pt-2 px-3 pb-1">
+                <span class="font-bold text-[0.6rem] block leading-none mb-1">FREE TIME</span>
+                <span class="font-mono text-[0.75rem] uppercase text-black">
+                  {{ quotation?.freeTime || "-" }}
+                </span>
+              </div>
             </div>
-            <div class="w-1/4 border-r border-[#062c58] pt-2 px-3 pb-1">
-              <span class="font-bold text-[0.6rem] block leading-none mb-1">SERVICE TYPE</span>
-              <span class="font-mono text-[0.7rem] uppercase text-black">
-                {{ serviceTypeLabel }}
-              </span>
-            </div>
-            <div class="w-1/4 border-r border-[#062c58] pt-2 px-3 pb-1">
-              <span class="font-bold text-[0.6rem] block leading-none mb-1">TYPE OF SHIPMENT</span>
-              <span class="font-mono text-[0.7rem] uppercase text-black">
-                {{ shipmentTypeLabel }}
-              </span>
-            </div>
-            <div class="w-1/4 pt-2 px-3 pb-1">
-              <span class="font-bold text-[0.6rem] block leading-none mb-1">TRUCK TYPE</span>
-              <span class="font-mono text-[0.7rem] uppercase text-black">
-                {{ truckTypeValue }}
-              </span>
-            </div>
-          </div>
 
-          <div class="flex border-b border-[#062c58]" style="min-height: 45px">
-            <div class="w-1/4 border-r border-[#062c58] pt-2 px-3 pb-1">
-              <span class="font-bold text-[0.6rem] block leading-none mb-1">{{ originLabel }}</span>
-              <span class="font-mono text-[0.7rem] uppercase text-black">
-                {{ originValue }}
+            <!-- Routing & Cargo Info -->
+            <div class="flex border-b border-[#062c58]" style="min-height: 45px">
+              <div class="w-1/4 border-r border-[#062c58] pt-2 px-3 pb-1">
+                <span class="font-bold text-[0.6rem] block leading-none mb-1">TRADE TYPE</span>
+                <span class="font-mono text-[0.7rem] uppercase text-black">
+                  {{ tradeTypeLabel }}
+                </span>
+              </div>
+              <div class="w-1/4 border-r border-[#062c58] pt-2 px-3 pb-1">
+                <span class="font-bold text-[0.6rem] block leading-none mb-1">SERVICE TYPE</span>
+                <span class="font-mono text-[0.7rem] uppercase text-black">
+                  {{ serviceTypeLabel }}
+                </span>
+              </div>
+              <div class="w-1/4 border-r border-[#062c58] pt-2 px-3 pb-1">
+                <span class="font-bold text-[0.6rem] block leading-none mb-1"
+                  >TYPE OF SHIPMENT</span
+                >
+                <span class="font-mono text-[0.7rem] uppercase text-black">
+                  {{ shipmentTypeLabel }}
+                </span>
+              </div>
+              <div class="w-1/4 pt-2 px-3 pb-1">
+                <span class="font-bold text-[0.6rem] block leading-none mb-1">TRUCK TYPE</span>
+                <span class="font-mono text-[0.7rem] uppercase text-black">
+                  {{ truckTypeValue }}
+                </span>
+              </div>
+            </div>
+
+            <div class="flex border-b border-[#062c58]" style="min-height: 45px">
+              <div class="w-1/4 border-r border-[#062c58] pt-2 px-3 pb-1">
+                <span class="font-bold text-[0.6rem] block leading-none mb-1">{{
+                  originLabel
+                }}</span>
+                <span class="font-mono text-[0.7rem] uppercase text-black">
+                  {{ originValue }}
+                </span>
+              </div>
+              <div class="w-1/4 border-r border-[#062c58] pt-2 px-3 pb-1">
+                <span class="font-bold text-[0.6rem] block leading-none mb-1">{{
+                  destinationLabel
+                }}</span>
+                <span class="font-mono text-[0.7rem] uppercase text-black">
+                  {{ destinationValue }}
+                </span>
+              </div>
+              <div class="w-1/4 border-r border-[#062c58] pt-2 px-3 pb-1">
+                <span class="font-bold text-[0.6rem] block leading-none mb-1">CONTAINER TYPE</span>
+                <span class="font-mono text-[0.7rem] uppercase text-black">
+                  {{ containerTypeValue }}
+                </span>
+              </div>
+              <div class="w-1/4 pt-2 px-3 pb-1">
+                <span class="font-bold text-[0.6rem] block leading-none mb-1">TERM</span>
+                <span class="font-mono text-[0.7rem] uppercase text-black">
+                  {{ quotation?.term || "-" }}
+                </span>
+              </div>
+            </div>
+          </template>
+
+          <!-- Continuation header (page 2+) -->
+          <template v-else>
+            <div
+              class="flex border-b border-[#062c58] items-center px-3 bg-white"
+              style="min-height: 40px"
+            >
+              <span class="font-bold text-[0.6rem] uppercase tracking-wider text-[#062c58]">
+                QUOTATION {{ quotation?.number || "DRAFT" }} — {{ quotation?.customerName || "-" }}
+                (CONTINUED)
               </span>
             </div>
-            <div class="w-1/4 border-r border-[#062c58] pt-2 px-3 pb-1">
-              <span class="font-bold text-[0.6rem] block leading-none mb-1">{{
-                destinationLabel
-              }}</span>
-              <span class="font-mono text-[0.7rem] uppercase text-black">
-                {{ destinationValue }}
-              </span>
-            </div>
-            <div class="w-1/4 border-r border-[#062c58] pt-2 px-3 pb-1">
-              <span class="font-bold text-[0.6rem] block leading-none mb-1">CONTAINER TYPE</span>
-              <span class="font-mono text-[0.7rem] uppercase text-black">
-                {{ containerTypeValue }}
-              </span>
-            </div>
-            <div class="w-1/4 pt-2 px-3 pb-1">
-              <span class="font-bold text-[0.6rem] block leading-none mb-1">TERM</span>
-              <span class="font-mono text-[0.7rem] uppercase text-black">
-                {{ quotation?.term || "-" }}
-              </span>
-            </div>
-          </div>
+          </template>
 
           <!-- Items Table Header -->
           <div
@@ -618,11 +694,11 @@ defineExpose({
             <!-- Scrollable Items Area -->
             <div class="relative z-[1] p-0 font-mono text-black">
               <div
-                v-for="(item, idx) in quotation?.charges || []"
-                :key="idx"
+                v-for="(item, idx) in page.items"
+                :key="page.startIndex + idx"
                 class="flex border-b border-[#062c58]/10 min-h-[35px] items-start py-2"
               >
-                <div class="w-[4%] text-center text-[0.7rem]">{{ idx + 1 }}</div>
+                <div class="w-[4%] text-center text-[0.7rem]">{{ page.startIndex + idx + 1 }}</div>
                 <div class="flex-1 px-3 text-[0.7rem] font-medium uppercase leading-tight">
                   <span>{{ item.description || "-" }}</span>
                 </div>
@@ -649,10 +725,10 @@ defineExpose({
                 </div>
               </div>
 
-              <!-- Empty spacer rows to maintain layout if few items -->
+              <!-- Empty spacer rows to fill the last page below the items -->
               <div
-                v-if="(quotation?.charges?.length || 0) < 10"
-                v-for="i in 10 - (quotation?.charges?.length || 0)"
+                v-if="page.isLastPage && page.items.length < FIRST_PAGE_ITEM_SLOTS"
+                v-for="i in FIRST_PAGE_ITEM_SLOTS - page.items.length"
                 :key="'spacer-' + i"
                 class="flex min-h-[35px] border-b border-[#062c58]/5"
               >
@@ -667,8 +743,8 @@ defineExpose({
             </div>
           </div>
 
-          <!-- Notes & Totals Footer Area -->
-          <div class="border-t border-[#062c58] mt-auto">
+          <!-- Notes & Totals Footer Area (last page only) -->
+          <div v-if="page.isLastPage" class="border-t border-[#062c58] mt-auto">
             <div class="flex items-stretch min-h-[140px]">
               <!-- Left: Remarks / Notes (full width) -->
               <div class="w-[58%] border-r border-[#062c58] p-3 flex flex-col justify-start gap-1">
@@ -720,8 +796,8 @@ defineExpose({
           </div>
         </div>
 
-        <!-- Authorized Signature & Footer Credits -->
-        <div class="mt-4 flex justify-between items-end">
+        <!-- Authorized Signature & Footer Credits (last page only) -->
+        <div v-if="page.isLastPage" class="mt-4 flex justify-between items-end">
           <div class="w-[55%]">
             <p class="text-[0.5rem] italic text-[#062c58]/60 uppercase leading-tight font-medium">
               This quotation is a formal proposal for standard cargo services. All quotes are

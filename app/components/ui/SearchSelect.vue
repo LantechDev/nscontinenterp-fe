@@ -89,11 +89,9 @@ const filteredOptions = computed(() => {
 });
 
 const selectedLabel = computed(() => {
-  if (!props.modelValue) {
-    return props.placeholder || "Select option...";
-  }
-
-  // Try to find in all available options
+  // Match against options first so an explicit option with an empty value (e.g. a
+  // "Non PPN (None)" choice whose id is "") still shows its label instead of the
+  // placeholder. Only fall back to the placeholder when nothing matches.
   const selected = allOptions.value.find((opt) => getOptionValue(opt) === props.modelValue);
   if (selected) {
     return getOptionLabel(selected);

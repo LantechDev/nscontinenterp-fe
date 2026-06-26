@@ -15,6 +15,8 @@ export interface TaxFormData {
   type: string;
   description: string;
   isActive: boolean;
+  isDefault: boolean;
+  dppBasePercent: number;
 }
 
 export type TaxViewMode = "list" | "grid";
@@ -69,6 +71,8 @@ export function useTaxPage() {
     type: "",
     description: "",
     isActive: true,
+    isDefault: false,
+    dppBasePercent: 100,
   });
 
   // Computed
@@ -124,6 +128,8 @@ export function useTaxPage() {
       type: "",
       description: "",
       isActive: true,
+      isDefault: false,
+      dppBasePercent: 100,
     };
 
     isEditModalOpen.value = true; // Open immediately to show loading state
@@ -141,6 +147,8 @@ export function useTaxPage() {
         type: tax.type || "",
         description: tax.description || "",
         isActive: tax.isActive ?? true,
+        isDefault: tax.isDefault ?? false,
+        dppBasePercent: tax.dppBasePercent != null ? Number(tax.dppBasePercent) : 100,
       };
 
       editError.value = null;
@@ -171,6 +179,8 @@ export function useTaxPage() {
         type: formData.value.type,
         description: formData.value.description.toUpperCase(),
         isActive: formData.value.isActive,
+        isDefault: formData.value.isDefault,
+        dppBasePercent: formData.value.dppBasePercent,
       });
 
       if (result) {

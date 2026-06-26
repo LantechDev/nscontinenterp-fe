@@ -81,21 +81,29 @@ const selectedTax = computed(() => {
   return taxList.value.find((t) => t.id === form.value.taxId);
 });
 
+// PPh is a withholding tax (deducted); PPN is added. dppBasePercent (e.g. 50 for
+// certain PPh) limits the taxed portion of the base.
+const isWithholdingTax = computed(() => (selectedTax.value?.type || "").toLowerCase() === "pph");
+
 const taxAmount = computed(() => {
+  // Magnitude (always positive).
   const rate = selectedTax.value ? Number(selectedTax.value.rate) : 0;
-  return (subtotal.value * rate) / 100;
+  const dpp = selectedTax.value ? Number(selectedTax.value.dppBasePercent ?? 100) : 100;
+  return (subtotal.value * (dpp / 100) * rate) / 100;
 });
+
+const signedTax = computed(() => (isWithholdingTax.value ? -taxAmount.value : taxAmount.value));
 
 const totalAmount = computed(() => {
   if (isBreakdownMode.value) {
-    return subtotal.value + taxAmount.value;
+    return subtotal.value + signedTax.value;
   }
   return form.value.amount;
 });
 
-watch([subtotal, taxAmount], ([newSubtotal, newTaxAmount]) => {
+watch([subtotal, signedTax], ([newSubtotal, newSignedTax]) => {
   if (isBreakdownMode.value) {
-    form.value.amount = newSubtotal + newTaxAmount;
+    form.value.amount = newSubtotal + newSignedTax;
   }
 });
 
@@ -211,11 +219,15 @@ onMounted(async () => {
   }));
 
   taxList.value = taxesResp?.items || [];
+  // The master now has a real "NON PPN" (rate 0) row. Only fall back to a synthetic
+  // empty option when that row is missing (e.g. an org that hasn't been seeded), so
+  // the dropdown never shows two non-PPN entries.
+  const hasNonPpnRow = taxList.value.some((t) => Number(t.rate) === 0);
   taxOptions.value = [
-    { id: "", name: "Non PPN (None)" },
+    ...(hasNonPpnRow ? [] : [{ id: "", name: "NON PPN" }]),
     ...taxList.value.map((t: Tax) => ({
       id: t.id,
-      name: `${t.name} (${t.rate}%)`,
+      name: `${t.name} (${Number(t.rate)}%)`,
     })),
   ];
 
@@ -265,6 +277,10 @@ onMounted(async () => {
   } else {
     // Generate expense number
     form.value.number = `EXP-${Date.now().toString().slice(-6)}`;
+    // Pre-select the organization default tax (NON PPN unless changed in master),
+    // so a new vendor invoice stays non-PPN unless the user picks another tax.
+    const defaultTax = taxList.value.find((t) => t.isDefault);
+    form.value.taxId = defaultTax?.id ?? "";
   }
 });
 
@@ -722,11 +738,14 @@ async function onCompanyCreated(company: Company) {
                 <div class="flex flex-col">
                   <span
                     class="text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em]"
-                    >Tax ({{ selectedTax?.name }})</span
+                    >{{ isWithholdingTax ? "PPh" : "Tax" }} ({{ selectedTax?.name }})</span
                   >
                 </div>
-                <span class="font-bold text-foreground text-base tabular-nums">
-                  {{ formatCurrency(taxAmount) }}
+                <span
+                  class="font-bold text-base tabular-nums"
+                  :class="isWithholdingTax ? 'text-red-600' : 'text-foreground'"
+                >
+                  {{ isWithholdingTax ? "- " : "" }}{{ formatCurrency(taxAmount) }}
                 </span>
               </div>
 

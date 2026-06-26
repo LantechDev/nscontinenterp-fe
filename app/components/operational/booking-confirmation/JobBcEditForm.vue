@@ -1,29 +1,18 @@
 <script setup lang="ts">
+/* eslint-disable @typescript-eslint/no-explicit-any -- loose job/BC snapshot data */
 import { ref, computed, watch, onMounted } from "vue";
-import { Trash2, Box, Plus, FileText, Users, Clock, MapPin, Truck } from "lucide-vue-next";
+import { Trash2, Box, Plus, FileText, Users, Clock, Truck } from "lucide-vue-next";
 import { toast } from "vue-sonner";
 
 import Combobox from "~/components/ui/Combobox.vue";
 import JobPartyRow from "~/pages/operational/jobs/components/JobPartyRow.vue";
 import SectionCard from "~/pages/operational/jobs/components/SectionCard.vue";
 import DatePicker from "~/components/ui/DatePicker.vue";
+import TimePicker from "~/components/ui/TimePicker.vue";
 import Checkbox from "~/components/ui/Checkbox.vue";
 import VesselQuickAddModal from "~/components/operational/VesselQuickAddModal.vue";
 import PlaneQuickAddModal from "~/components/operational/PlaneQuickAddModal.vue";
 import type { Plane } from "~/composables/usePlanes";
-
-import type {
-  ActiveJobData,
-  EditFormType,
-  EblContainerItem,
-  EblContainer,
-  EblVessel,
-} from "./types";
-
-// Depending on your project auto-imports, you might already have useMasterData
-// If not explicitly declared, Nuxt 3 auto-imports it.
-// Assuming useMasterData is auto-imported globally.
-
 import type {
   Company,
   ContainerType,
@@ -33,11 +22,95 @@ import type {
   MovementType,
 } from "~/composables/useMasterData";
 
+// Standalone Booking Confirmation edit form. Adapted from operational/ebl/JobEblEditForm.vue.
+// All edits persist to the BC's OWN snapshot (bc_parties / bc_containers / bc_vessels +
+// booking_confirmations columns) — they do NOT mutate the Job or the eBL.
+
+export interface BcVesselForm {
+  id?: string | number;
+  vesselId?: string | null;
+  vesselName?: string | null;
+  voyageNumber?: string | null;
+  etd?: string | null;
+  eta?: string | null;
+  tsPortId?: string | null;
+  sequence?: number;
+  vesselType?: string | null;
+}
+
+export interface BcContainerItemForm {
+  sequenceNo: number;
+  qty: number;
+  packageTypeCode?: string | null;
+  grossWeight?: number | null;
+  netWeight?: number | null;
+  measurementCbm?: number | null;
+  description?: string | null;
+  hsCode?: string | null;
+}
+
+export interface BcContainerForm {
+  containerNumber?: string | null;
+  sealNumber?: string | null;
+  containerTypeId?: string | null;
+  vehicleNumber?: string | null;
+  driverName?: string | null;
+  driverContactNumber?: string | null;
+  isHazardous?: boolean;
+  items?: BcContainerItemForm[];
+}
+
+export interface BookingConfirmationForm {
+  // BC general
+  bookingNumber: string;
+  bookingDate: string | null;
+  serviceContractNo: string;
+  warehouseDepotName: string;
+  warehouseDepotAddress: string;
+  pickupLocation: string;
+  cutoffDate: string | null;
+  cutoffTime: string;
+  remarks: string;
+
+  // Parties
+  shipperId?: string;
+  shipperAddressId?: string;
+  consigneeId?: string;
+  consigneeAddressId?: string;
+  notifyPartyId?: string;
+  notifyPartyAddressId?: string;
+  isNotifySameAsConsignee?: boolean;
+
+  // Cargo
+  mainDescription?: string;
+  shippingMark?: string;
+
+  // Routing / movement
+  pol?: string;
+  pod?: string;
+  cargoMovementId?: string;
+  deliveryMovementId?: string;
+  eta?: string;
+  dateCargoReceived?: string;
+
+  // Freight
+  freightPayment?: string;
+  prepaidValue?: string;
+  collectValue?: string;
+
+  // References
+  shipperReferences: string[];
+  showShipperReferencesOnBc: boolean;
+
+  vessels: BcVesselForm[];
+  containers: BcContainerForm[];
+}
+
 const props = defineProps<{
-  jobData: ActiveJobData;
+  jobData: any;
 }>();
 
-const editForm = defineModel<EditFormType>({ required: true });
+const editForm = defineModel<BookingConfirmationForm>({ required: true });
 
 const {
   fetchCompanies,
@@ -45,14 +118,9 @@ const {
   fetchPackageTypes,
   fetchVessels,
   fetchPlanes,
-  fetchPorts,
   fetchCargoMovements,
   fetchDeliveryMovements,
-  createVessel,
-  createPlane,
 } = useMasterData();
-
-const { confirm } = useConfirm();
 
 const companies = ref<Company[]>([]);
 const containerTypes = ref<ContainerType[]>([]);
@@ -70,6 +138,11 @@ const vessels = ref<Vessel[]>([]);
 const planes = ref<Plane[]>([]);
 const portsPol = ref<Port[]>([]);
 const portsPod = ref<Port[]>([]);
+
+const isAir = computed(
+  () => props.jobData?.shipmentType === "AIR" || props.jobData?.serviceType === "AIR",
+);
+const isTrucking = computed(() => props.jobData?.serviceType === "TRUCKING");
 
 onMounted(async () => {
   const [c, ct, pt, cargoMoves, deliveryMoves, v, p] = await Promise.all([
@@ -90,148 +163,25 @@ onMounted(async () => {
   planes.value = p;
 
   const portType = isAir.value ? "air" : "ocean";
-
-  if (editForm.value.pol) {
-    portsPol.value = await $fetch<Port[]>(
-      `/api/master/ports?q=${editForm.value.pol}&type=${portType}`,
-    );
-  } else {
-    portsPol.value = await $fetch<Port[]>(`/api/master/ports?type=${portType}`);
-  }
-  if (editForm.value.pod) {
-    portsPod.value = await $fetch<Port[]>(
-      `/api/master/ports?q=${editForm.value.pod}&type=${portType}`,
-    );
-  } else {
-    portsPod.value = await $fetch<Port[]>(`/api/master/ports?type=${portType}`);
-  }
-
-  // Sync Shipper References from Job if empty in eBL
-  if (
-    props.jobData?.shipperReferences &&
-    (!editForm.value.shipperReferences || editForm.value.shipperReferences.length === 0)
-  ) {
-    editForm.value.shipperReferences = [...props.jobData.shipperReferences];
-  }
-
-  // Pull basic fields + transport from jobData (especially important for AIR / Plane jobs)
-  const j = props.jobData;
-  if (j) {
-    // Job Customer
-    if (!editForm.value.customerId && j.customerId) {
-      editForm.value.customerId = j.customerId;
-    }
-
-    // Final ETA
-    if (!editForm.value.eta && j.eta) {
-      editForm.value.eta = j.eta;
-    }
-
-    // Date Cargo Received (on the job or first BL)
-    const jobDateCargo =
-      ((j as Record<string, unknown>).dateCargoReceived as string | undefined) ||
-      ((j.billsOfLading?.[0] as Record<string, unknown>)?.dateCargoReceived as string | undefined);
-    if (!editForm.value.dateCargoReceived && jobDateCargo) {
-      editForm.value.dateCargoReceived = jobDateCargo;
-    }
-
-    // POL / POD fallback
-    if (!editForm.value.pol && j.pol) editForm.value.pol = j.pol;
-    if (!editForm.value.pod && j.pod) editForm.value.pod = j.pod;
-
-    // Seed / fill the eBL's vessel/plane legs from the job's vessels.
-    // The render response now guarantees a complete job.vessels array (with eta + transportId for planes).
-    // We still support the extended shape for safety.
-    interface JobVesselData extends EblVessel {
-      transportId?: string | null;
-      vessel?: { name?: string | null } | null;
-      plane?: { name?: string | null } | null;
-    }
-    const jobVessels = (j.vessels || []) as unknown as JobVesselData[];
-    if (jobVessels.length > 0) {
-      const formVessels = editForm.value.vessels;
-      if (!formVessels || formVessels.length === 0) {
-        editForm.value.vessels = jobVessels.map((vessel, idx) => ({
-          id: Date.now() + idx,
-          vesselId: vessel.vesselId || vessel.transportId || "",
-          vesselName: vessel.vesselName || vessel.vessel?.name || vessel.plane?.name || "",
-          voyageNumber: vessel.voyageNumber || "",
-          etd: vessel.etd || "",
-          eta: vessel.eta || "",
-          sequence: vessel.sequence || idx,
-          vesselType: vessel.vesselType || (idx === 0 ? "feeder" : "mother"),
-          tsPortId: vessel.tsPortId || "",
-        }));
-      } else {
-        // Backfill *all* legs (incl. last leg ETA POD) when eBL already has vessel entries
-        const len = Math.min(jobVessels.length, formVessels.length);
-        for (let i = 0; i < len; i++) {
-          const jv = jobVessels[i];
-          const fv = formVessels[i];
-          if (fv && jv) {
-            if (!fv.vesselId) fv.vesselId = jv.vesselId || jv.transportId || "";
-            if (!fv.vesselName)
-              fv.vesselName = jv.vesselName || jv.vessel?.name || jv.plane?.name || "";
-            if (!fv.voyageNumber) fv.voyageNumber = jv.voyageNumber || "";
-            if (!fv.etd) fv.etd = jv.etd || "";
-            if (!fv.eta) fv.eta = jv.eta || "";
-            if (!fv.tsPortId) fv.tsPortId = jv.tsPortId || "";
-          }
-        }
-      }
-      // Extra safety net: last vessel leg (ETA POD) falls back to job top-level eta
-      if (formVessels && formVessels.length > 0) {
-        const last = formVessels[formVessels.length - 1];
-        if (last && !last.eta && j.eta) {
-          last.eta = j.eta;
-        }
-      }
-    }
-  }
+  portsPol.value = editForm.value.pol
+    ? await $fetch<Port[]>(`/api/master/ports?q=${editForm.value.pol}&type=${portType}`)
+    : await $fetch<Port[]>(`/api/master/ports?type=${portType}`);
+  portsPod.value = editForm.value.pod
+    ? await $fetch<Port[]>(`/api/master/ports?q=${editForm.value.pod}&type=${portType}`)
+    : await $fetch<Port[]>(`/api/master/ports?type=${portType}`);
 });
 
-// Vessel Modal State
+// Vessel / Plane quick-add modals
 const isVesselModalOpen = ref(false);
 const presetVesselName = ref("");
-const activeVesselObj = ref<EblVessel | null>(null);
-
-// Plane Modal State (for Air Freight)
+const activeVesselObj = ref<BcVesselForm | null>(null);
 const isPlaneModalOpen = ref(false);
 const presetPlaneName = ref("");
-const activePlaneObj = ref<EblVessel | null>(null);
+const activePlaneObj = ref<BcVesselForm | null>(null);
 
-const isAir = computed(
-  () => props.jobData?.shipmentType === "AIR" || editForm.value.shipmentType === "AIR",
-);
+const documentName = "Booking Confirmation";
 
-const isTrucking = computed(
-  () => props.jobData?.serviceType === "TRUCKING" || props.jobData?.job?.serviceType === "TRUCKING",
-);
-
-const documentName = computed(() =>
-  isTrucking.value ? "Waybill" : isAir.value ? "Air Waybill" : "Bill of Lading",
-);
-
-const formatTargetDateTime = (dateValue?: string | null, timeValue?: string | null) => {
-  if (!dateValue && !timeValue) return "-";
-
-  let dateLabel = "";
-  if (dateValue) {
-    const date = new Date(dateValue);
-    dateLabel = Number.isNaN(date.getTime())
-      ? dateValue
-      : new Intl.DateTimeFormat("en-GB", {
-          day: "2-digit",
-          month: "short",
-          year: "numeric",
-        })
-          .format(date)
-          .toUpperCase();
-  }
-
-  return [dateLabel, timeValue || ""].filter(Boolean).join(" ") || "-";
-};
-
+// Notify mirrors consignee when "same as consignee" is on.
 watch(
   () => editForm.value.isNotifySameAsConsignee,
   (val) => {
@@ -244,42 +194,33 @@ watch(
     }
   },
 );
-
 watch(
   () => editForm.value.consigneeId,
   (val) => {
-    if (editForm.value.isNotifySameAsConsignee) {
-      editForm.value.notifyPartyId = val;
-    }
+    if (editForm.value.isNotifySameAsConsignee) editForm.value.notifyPartyId = val;
   },
 );
-
 watch(
   () => editForm.value.consigneeAddressId,
   (val) => {
-    if (editForm.value.isNotifySameAsConsignee) {
-      editForm.value.notifyPartyAddressId = val;
-    }
+    if (editForm.value.isNotifySameAsConsignee) editForm.value.notifyPartyAddressId = val;
   },
 );
 
 const assignDefaultAddress = (
   companyId: string,
-  addressKey:
-    | "shipperAddressId"
-    | "consigneeAddressId"
-    | "notifyPartyAddressId"
-    | "forwarderAddressId"
-    | "customerAddressId",
+  addressKey: "shipperAddressId" | "consigneeAddressId" | "notifyPartyAddressId",
 ) => {
   if (!companyId) {
     editForm.value[addressKey] = "";
     return;
   }
-  const company = companies.value.find((c) => c.id === companyId);
+  const company = companies.value.find((cc) => cc.id === companyId);
   if (company && company.addresses && company.addresses.length > 0) {
     const defaultAddr = company.addresses.find((a: Record<string, unknown>) => a.isDefault);
-    editForm.value[addressKey] = defaultAddr ? defaultAddr.id : company.addresses[0]!.id;
+    editForm.value[addressKey] = defaultAddr
+      ? (defaultAddr.id as string)
+      : company.addresses[0]!.id;
   } else {
     editForm.value[addressKey] = "";
   }
@@ -296,20 +237,12 @@ watch(
 watch(
   () => editForm.value.notifyPartyId,
   (val) => {
-    if (!editForm.value.isNotifySameAsConsignee) {
+    if (!editForm.value.isNotifySameAsConsignee)
       assignDefaultAddress(val || "", "notifyPartyAddressId");
-    }
   },
 );
-watch(
-  () => editForm.value.forwarderId,
-  (val) => assignDefaultAddress(val || "", "forwarderAddressId"),
-);
-watch(
-  () => editForm.value.customerId,
-  (val) => assignDefaultAddress(val || "", "customerAddressId"),
-);
 
+// Freight payment → prepaid/collect display strings
 watch(
   () => [editForm.value.freightPayment, editForm.value.pol, editForm.value.pod],
   () => {
@@ -318,22 +251,32 @@ watch(
       portsPol.value.find((p) => p.code === f.pol)?.name || props.jobData?.polName || f.pol || "";
     const podCity =
       portsPod.value.find((p) => p.code === f.pod)?.name || props.jobData?.podName || f.pod || "";
-
     f.prepaidValue = "";
     f.collectValue = "";
-
-    if (f.freightPayment === "PREPAID_POL") {
-      f.prepaidValue = `PREPAID AT ${polCity.toUpperCase()}`;
-    } else if (f.freightPayment === "PREPAID_POD") {
+    if (f.freightPayment === "PREPAID_POL") f.prepaidValue = `PREPAID AT ${polCity.toUpperCase()}`;
+    else if (f.freightPayment === "PREPAID_POD")
       f.prepaidValue = `PREPAID AT ${podCity.toUpperCase()}`;
-    } else if (f.freightPayment === "COLLECT_POL") {
+    else if (f.freightPayment === "COLLECT_POL")
       f.collectValue = `COLLECT AT ${polCity.toUpperCase()}`;
-    } else if (f.freightPayment === "COLLECT_POD") {
+    else if (f.freightPayment === "COLLECT_POD")
       f.collectValue = `COLLECT AT ${podCity.toUpperCase()}`;
-    }
   },
   { deep: true },
 );
+
+const FREIGHT_PAYMENT_OPTIONS = computed(() => {
+  const f = editForm.value;
+  const polCity =
+    portsPol.value.find((p) => p.code === f.pol)?.name || props.jobData?.polName || f.pol || "POL";
+  const podCity =
+    portsPod.value.find((p) => p.code === f.pod)?.name || props.jobData?.podName || f.pod || "POD";
+  return [
+    { id: "PREPAID_POL", name: `Prepaid at POL (${polCity})` },
+    { id: "PREPAID_POD", name: `Prepaid at POD (${podCity})` },
+    { id: "COLLECT_POL", name: `Collect at POL (${polCity})` },
+    { id: "COLLECT_POD", name: `Collect at POD (${podCity})` },
+  ];
+});
 
 const handleSearchPol = async (q: string) => {
   const type = isAir.value ? "air" : "ocean";
@@ -348,7 +291,7 @@ const handleSearchPod = async (q: string) => {
   );
 };
 
-const handleCreateTransport = (name: string, item?: EblVessel) => {
+const handleCreateTransport = (name: string, item?: BcVesselForm) => {
   if (isAir.value) {
     presetPlaneName.value = name;
     activePlaneObj.value = item || null;
@@ -360,119 +303,27 @@ const handleCreateTransport = (name: string, item?: EblVessel) => {
   }
 };
 
-const handleCreateVessel = handleCreateTransport;
-
 const onVesselCreateSuccess = async (vessel: { id: string; name: string }) => {
   vessels.value = await fetchVessels();
-
-  // Auto-assign the created vessel to the active field
-  if (activeVesselObj.value) {
-    activeVesselObj.value.vesselId = vessel.id;
-  } else {
-    if (!editForm.value.vessels) editForm.value.vessels = [];
-    if (editForm.value.vessels && editForm.value.vessels.length > 0) {
-      const firstVessel = editForm.value.vessels[0];
-      if (firstVessel) {
-        firstVessel.vesselId = vessel.id;
-      }
-    } else {
-      editForm.value.vessels.push({
-        vesselId: vessel.id,
-        vesselName: vessel.name,
-        voyageNumber: "",
-        etd: "",
-        sequence: 0,
-      });
-    }
-  }
-
+  if (activeVesselObj.value) activeVesselObj.value.vesselId = vessel.id;
   isVesselModalOpen.value = false;
   toast.success(`Vessel "${vessel.name}" created successfully.`);
 };
-
 const onPlaneCreateSuccess = async (plane: { id: string; name: string }) => {
   planes.value = await fetchPlanes();
-
   if (activePlaneObj.value) {
     activePlaneObj.value.vesselId = plane.id;
     activePlaneObj.value.vesselName = plane.name;
-  } else {
-    if (!editForm.value.vessels) editForm.value.vessels = [];
-    if (editForm.value.vessels && editForm.value.vessels.length > 0) {
-      const first = editForm.value.vessels[0];
-      if (first) {
-        first.vesselId = plane.id;
-        first.vesselName = plane.name;
-      }
-    } else {
-      editForm.value.vessels.push({
-        vesselId: plane.id,
-        vesselName: plane.name,
-        voyageNumber: "",
-        etd: "",
-        sequence: 0,
-      });
-    }
   }
-
   isPlaneModalOpen.value = false;
   toast.success(`Plane "${plane.name}" created successfully.`);
 };
-
-const TRADE_TYPES = [
-  { id: "EXPORT", name: "Export" },
-  { id: "IMPORT", name: "Import" },
-];
-
-const BL_TYPES = [
-  { id: "DRAFT", name: "DRAFT" },
-  { id: "ORIGINAL", name: "ORIGINAL" },
-  { id: "SEAWAYBILL", name: "SEAWAYBILL" },
-  { id: "TELEX_RELEASE", name: "TELEX RELEASE/EXPRESS RELEASE" },
-];
-
-const FREIGHT_PAYMENT_OPTIONS = computed(() => {
-  const f = editForm.value;
-  const polCity =
-    portsPol.value.find((p) => p.code === f.pol)?.name ||
-    props.jobData?.polName ||
-    f.pol ||
-    "POLPort";
-  const podCity =
-    portsPod.value.find((p) => p.code === f.pod)?.name ||
-    props.jobData?.podName ||
-    f.pod ||
-    "PODPort";
-
-  return [
-    { id: "PREPAID_POL", name: `Prepaid at POL (${polCity})` },
-    { id: "PREPAID_POD", name: `Prepaid at POD (${podCity})` },
-    { id: "COLLECT_POL", name: `Collect at POL (${polCity})` },
-    { id: "COLLECT_POD", name: `Collect at POD (${podCity})` },
-  ];
-});
-
-const addContainer = () => {
-  if (!editForm.value.containers) editForm.value.containers = [];
-  editForm.value.containers.push({
-    containerNumber: "",
-    sealNumber: "",
-    containerTypeId: "",
-    vehicleNumber: "",
-    driverName: "",
-    driverContactNumber: "",
-    isHazardous: false,
-    items: [{ sequenceNo: 1, qty: 1, packageTypeCode: "", description: "" }],
-  });
-};
-const removeContainer = (idx: number) => editForm.value.containers.splice(idx, 1);
 
 function getVesselLabels(index: number) {
   const vesselsCount = editForm.value.vessels?.length || 0;
   const isFirst = index === 0;
   const isLast = index === vesselsCount - 1;
   const air = isAir.value;
-
   return {
     header: air
       ? isFirst
@@ -521,7 +372,6 @@ function addVessel() {
   });
 }
 
-// Maintain Vessel Roles and Sequence
 watch(
   () => editForm.value.vessels,
   (vesselList) => {
@@ -532,14 +382,27 @@ watch(
       v.vesselType = idx === 0 ? "feeder" : "mother";
       if (v.vesselId) {
         const found = list.find((item) => item.id === v.vesselId);
-        if (found?.name) {
-          v.vesselName = found.name;
-        }
+        if (found?.name) v.vesselName = found.name;
       }
     });
   },
   { deep: true },
 );
+
+const addContainer = () => {
+  if (!editForm.value.containers) editForm.value.containers = [];
+  editForm.value.containers.push({
+    containerNumber: "",
+    sealNumber: "",
+    containerTypeId: "",
+    vehicleNumber: "",
+    driverName: "",
+    driverContactNumber: "",
+    isHazardous: false,
+    items: [{ sequenceNo: 1, qty: 1, packageTypeCode: "", description: "" }],
+  });
+};
+const removeContainer = (idx: number) => editForm.value.containers.splice(idx, 1);
 
 const newShipperRef = ref("");
 const addShipperRef = () => {
@@ -556,16 +419,105 @@ const removeShipperRef = (index: number) => {
 
 <template>
   <div class="max-w-6xl mx-auto space-y-6">
+    <!-- BC General -->
+    <SectionCard id="general" title="General Information" :icon="FileText">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div class="space-y-2">
+          <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
+            >Booking Number <span class="text-red-500">*</span></label
+          >
+          <input
+            v-model="editForm.bookingNumber"
+            v-uppercase
+            type="text"
+            class="input-field h-10"
+            placeholder="Enter Booking Number"
+          />
+        </div>
+        <div class="space-y-2">
+          <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
+            >Booking Date</label
+          >
+          <DatePicker v-model="editForm.bookingDate" />
+        </div>
+        <div class="space-y-2 md:col-span-2">
+          <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
+            >Service Contract No.</label
+          >
+          <input
+            v-model="editForm.serviceContractNo"
+            v-uppercase
+            type="text"
+            class="input-field h-10"
+            placeholder="Enter Service Contract No."
+          />
+        </div>
+        <div class="space-y-2 md:col-span-2">
+          <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
+            >Warehouse/Depot Name <span class="text-red-500">*</span></label
+          >
+          <input
+            v-model="editForm.warehouseDepotName"
+            v-uppercase
+            type="text"
+            class="input-field h-10"
+            placeholder="Warehouse/Depot Name"
+          />
+        </div>
+        <div class="space-y-2 md:col-span-2">
+          <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
+            >Warehouse/Depot Address</label
+          >
+          <textarea
+            v-model="editForm.warehouseDepotAddress"
+            v-uppercase
+            rows="3"
+            class="input-field h-24 py-2 resize-y"
+            placeholder="Warehouse/Depot Address"
+          ></textarea>
+        </div>
+        <div class="space-y-2 md:col-span-2">
+          <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
+            >Pickup Location</label
+          >
+          <textarea
+            v-model="editForm.pickupLocation"
+            v-uppercase
+            rows="2"
+            class="input-field h-16 py-2 resize-y"
+            placeholder="Pickup Location"
+          ></textarea>
+        </div>
+        <div class="space-y-2">
+          <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
+            >Cutoff Date</label
+          >
+          <DatePicker v-model="editForm.cutoffDate" />
+        </div>
+        <div class="space-y-2">
+          <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
+            >Cutoff Time</label
+          >
+          <TimePicker v-model="editForm.cutoffTime" placeholder="Select cutoff time..." />
+        </div>
+        <div class="space-y-2 md:col-span-2">
+          <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
+            >Remarks</label
+          >
+          <textarea
+            v-model="editForm.remarks"
+            v-uppercase
+            rows="4"
+            class="input-field h-32 py-2 resize-y"
+            placeholder="Additional Remarks..."
+          ></textarea>
+        </div>
+      </div>
+    </SectionCard>
+
+    <!-- Involved Parties -->
     <SectionCard id="parties" title="Involved Parties" :icon="Users" no-padding>
       <div class="w-full">
-        <JobPartyRow
-          label="Job Customer"
-          required
-          :companies="companies"
-          v-model:companyId="editForm.customerId"
-          v-model:addressId="editForm.customerAddressId"
-        />
-
         <JobPartyRow
           label="Shipper"
           required
@@ -573,7 +525,6 @@ const removeShipperRef = (index: number) => {
           v-model:companyId="editForm.shipperId"
           v-model:addressId="editForm.shipperAddressId"
         />
-
         <JobPartyRow
           label="Consignee"
           required
@@ -581,7 +532,6 @@ const removeShipperRef = (index: number) => {
           v-model:companyId="editForm.consigneeId"
           v-model:addressId="editForm.consigneeAddressId"
         />
-
         <JobPartyRow
           v-if="!isTrucking"
           label="Notify Party"
@@ -602,17 +552,7 @@ const removeShipperRef = (index: number) => {
           </template>
         </JobPartyRow>
 
-        <JobPartyRow
-          v-slot:default
-          v-if="!isTrucking"
-          label="Forwarder"
-          description="(Optional)"
-          :companies="companies"
-          v-model:companyId="editForm.forwarderId"
-          v-model:addressId="editForm.forwarderAddressId"
-        />
-
-        <!-- Shipper References (PO Numbers) -->
+        <!-- Shipper References -->
         <div class="px-6 py-5 bg-muted/10 border-t border-border/50">
           <div class="flex items-center justify-between mb-4">
             <div class="flex flex-col">
@@ -627,13 +567,12 @@ const removeShipperRef = (index: number) => {
               </p>
             </div>
             <div class="flex items-center gap-2">
-              <Checkbox v-model="editForm.showShipperReferencesOnBl" />
+              <Checkbox v-model="editForm.showShipperReferencesOnBc" />
               <span class="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider"
-                >Show on {{ isTrucking ? "Waybill" : "BL" }}</span
+                >Show on BC</span
               >
             </div>
           </div>
-
           <div class="space-y-3">
             <div class="flex gap-2">
               <input
@@ -652,7 +591,6 @@ const removeShipperRef = (index: number) => {
                 Add
               </button>
             </div>
-
             <div v-if="editForm.shipperReferences?.length" class="flex flex-wrap gap-2 pt-1">
               <div
                 v-for="(ref, index) in editForm.shipperReferences"
@@ -682,23 +620,21 @@ const removeShipperRef = (index: number) => {
       </div>
     </SectionCard>
 
-    <!-- Route Details Integrated into Movement -->
-
+    <!-- Cargo Information -->
     <SectionCard id="cargo" title="Cargo Information" :icon="Box">
       <div class="space-y-6">
-        <div class="space-y-2 md:col-span-4">
+        <div class="space-y-2">
           <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
             >MAIN DESCRIPTION (OVERALL COMMODITY)</label
           >
           <textarea
             v-model.trim="editForm.mainDescription"
             v-uppercase
-            rows="10"
+            rows="8"
             :placeholder="`Description of goods to appear on ${documentName}...`"
-            class="input-field min-h-[250px] py-3 resize-y transition-all duration-200"
+            class="input-field min-h-[200px] py-3 resize-y"
           ></textarea>
         </div>
-
         <div class="space-y-2">
           <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
             >SHIPPING MARKS</label
@@ -708,16 +644,15 @@ const removeShipperRef = (index: number) => {
             v-uppercase
             rows="6"
             placeholder="Enter marks and numbers..."
-            class="input-field min-h-[120px] py-3 resize-y transition-all duration-200"
+            class="input-field min-h-[120px] py-3 resize-y"
           ></textarea>
         </div>
       </div>
     </SectionCard>
 
+    <!-- Route & Movement (ocean / air) -->
     <SectionCard v-if="!isTrucking" id="movement" title="Route & Movement Schedule" :icon="Clock">
       <div class="space-y-8">
-        <!-- Integrated Route Details -->
-
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pb-6 border-b border-border/50">
           <div class="space-y-2">
             <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
@@ -741,7 +676,6 @@ const removeShipperRef = (index: number) => {
           </div>
         </div>
 
-        <!-- Multi-Vessel List -->
         <div class="space-y-4">
           <div class="flex items-center justify-between">
             <h4
@@ -763,16 +697,14 @@ const removeShipperRef = (index: number) => {
             <div
               v-for="(vessel, vIndex) in editForm.vessels"
               :key="vessel.id || vIndex"
-              class="p-5 bg-muted/5 border border-border/50 rounded-2xl relative group/vessel transition-all hover:bg-white hover:shadow-sm"
+              class="p-5 bg-muted/5 border border-border/50 rounded-2xl relative transition-all hover:bg-white hover:shadow-sm"
             >
               <div class="grid grid-cols-1 md:grid-cols-12 gap-5 items-end">
-                <!-- Vessel Selection -->
                 <div class="md:col-span-5 space-y-2">
                   <label
                     class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1"
+                    >{{ getVesselLabels(vIndex).header }}</label
                   >
-                    {{ getVesselLabels(vIndex).header }}
-                  </label>
                   <Combobox
                     v-model="vessel.vesselId"
                     :options="isAir ? planes : vessels"
@@ -780,12 +712,10 @@ const removeShipperRef = (index: number) => {
                     value-key="id"
                     :placeholder="isAir ? 'Search Plane...' : 'Search Vessel...'"
                     allow-create
-                    @create="(name) => handleCreateVessel(name, vessel)"
+                    @create="(name) => handleCreateTransport(name, vessel)"
                     class="h-10"
                   />
                 </div>
-
-                <!-- Voyage Number -->
                 <div class="md:col-span-3 space-y-2">
                   <label
                     class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1"
@@ -799,8 +729,6 @@ const removeShipperRef = (index: number) => {
                     :placeholder="isAir ? 'Plane No...' : 'Voyage...'"
                   />
                 </div>
-
-                <!-- ETD -->
                 <div class="md:col-span-2 space-y-2">
                   <label
                     class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1"
@@ -808,33 +736,22 @@ const removeShipperRef = (index: number) => {
                   >
                   <DatePicker v-model="vessel.etd" placeholder="Select ETD..." class="h-10" />
                 </div>
-
-                <!-- ETA -->
                 <div class="md:col-span-2 space-y-2 relative">
                   <label
                     class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1"
                     >{{ getVesselLabels(vIndex).eta }}</label
                   >
                   <DatePicker v-model="vessel.eta" placeholder="Select ETA..." class="h-10" />
-                  <!-- Micro hint for transit -->
-                  <div
-                    v-if="vIndex === 0 && getVesselLabels(vIndex).hasTransit"
-                    class="absolute -bottom-4 left-1 text-[9px] text-primary font-bold animate-pulse"
-                  >
-                    Transit detected → T/S Port
-                  </div>
                 </div>
 
                 <div
                   class="md:col-span-12 grid grid-cols-1 md:grid-cols-2 gap-6 mt-2 pt-4 border-t border-border/40"
                 >
-                  <!-- Left Port Picker -->
                   <div class="space-y-2">
                     <label
                       class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1 opacity-70"
+                      >{{ getVesselLabels(vIndex).leftPortLabel }}</label
                     >
-                      {{ getVesselLabels(vIndex).leftPortLabel }}
-                    </label>
                     <Combobox
                       v-if="vIndex === 0"
                       v-model="editForm.pol"
@@ -858,14 +775,11 @@ const removeShipperRef = (index: number) => {
                       @search="handleSearchPod"
                     />
                   </div>
-
-                  <!-- Right Port Picker -->
                   <div class="space-y-2">
                     <label
                       class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1 opacity-70"
+                      >{{ getVesselLabels(vIndex).rightPortLabel }}</label
                     >
-                      {{ getVesselLabels(vIndex).rightPortLabel }}
-                    </label>
                     <Combobox
                       v-if="vIndex === editForm.vessels.length - 1"
                       v-model="editForm.pod"
@@ -889,25 +803,8 @@ const removeShipperRef = (index: number) => {
                       @search="handleSearchPod"
                     />
                   </div>
-
-                  <!-- Port Collision Warning -->
-                  <div
-                    class="col-span-1 md:col-span-2"
-                    v-if="
-                      (vIndex === 0 ? editForm.pol : editForm.vessels[vIndex - 1]!.tsPortId) ===
-                        (vIndex === editForm.vessels.length - 1 ? editForm.pod : vessel.tsPortId) &&
-                      (vIndex === 0 ? editForm.pol : editForm.vessels[vIndex - 1]!.tsPortId)
-                    "
-                  >
-                    <p
-                      class="text-[10px] text-destructive font-bold animate-pulse flex items-center gap-1 bg-destructive/5 p-2 rounded-lg border border-destructive/10"
-                    >
-                      ⚠️ Left and Right port cannot be the same
-                    </p>
-                  </div>
                 </div>
 
-                <!-- Remove Button -->
                 <div class="md:col-span-1 flex justify-end pb-1" v-if="editForm.vessels.length > 1">
                   <button
                     type="button"
@@ -921,7 +818,6 @@ const removeShipperRef = (index: number) => {
             </div>
           </div>
 
-          <!-- Final ETA -->
           <div class="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4">
             <div class="space-y-2">
               <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
@@ -929,7 +825,7 @@ const removeShipperRef = (index: number) => {
               >
               <DatePicker v-model="editForm.eta" placeholder="Select Final ETA..." />
             </div>
-            <div class="space-y-2 md:col-span-1">
+            <div class="space-y-2">
               <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
                 >Date Cargo Received</label
               >
@@ -940,78 +836,21 @@ const removeShipperRef = (index: number) => {
       </div>
     </SectionCard>
 
-    <SectionCard v-else id="movement" title="Trucking Route & Dates" :icon="MapPin">
-      <div class="space-y-6">
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div class="space-y-2">
-            <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
-              >Pickup Address</label
-            >
-            <div class="input-field min-h-[76px] py-3 whitespace-pre-wrap bg-muted/20">
-              {{ jobData?.pickupAddress || jobData?.job?.pickupAddress || "-" }}
-            </div>
-          </div>
-          <div class="space-y-2">
-            <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
-              >Delivery Address</label
-            >
-            <div class="input-field min-h-[76px] py-3 whitespace-pre-wrap bg-muted/20">
-              {{ jobData?.deliveryAddress || jobData?.job?.deliveryAddress || "-" }}
-            </div>
-          </div>
-        </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4 border-t border-border/50">
-          <div class="space-y-2">
-            <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
-              >Pickup Target</label
-            >
-            <div class="input-field h-10 bg-muted/20">
-              {{
-                formatTargetDateTime(
-                  jobData?.pickupDate || jobData?.job?.pickupDate,
-                  jobData?.pickupTime || jobData?.job?.pickupTime,
-                )
-              }}
-            </div>
-          </div>
-          <div class="space-y-2">
-            <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
-              >Delivery Target</label
-            >
-            <div class="input-field h-10 bg-muted/20">
-              {{
-                formatTargetDateTime(
-                  jobData?.deliveryDate || jobData?.job?.deliveryDate,
-                  jobData?.deliveryTime || jobData?.job?.deliveryTime,
-                )
-              }}
-            </div>
-          </div>
-          <div class="space-y-2">
-            <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
-              >Date Cargo Received</label
-            >
-            <DatePicker v-model="editForm.dateCargoReceived" placeholder="Select Date..." />
-          </div>
+    <!-- Trucking dates -->
+    <SectionCard v-else id="movement" title="Dates" :icon="Clock">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="space-y-2">
+          <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
+            >Date Cargo Received</label
+          >
+          <DatePicker v-model="editForm.dateCargoReceived" placeholder="Select Date..." />
         </div>
       </div>
     </SectionCard>
 
+    <!-- Freight & Charges -->
     <SectionCard id="freight" title="Freight & Charges" :icon="FileText">
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div class="space-y-2 md:col-span-2">
-          <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
-            >Service Contract No.</label
-          >
-          <input
-            v-model="editForm.serviceContractNo"
-            v-uppercase
-            type="text"
-            class="input-field h-10"
-            placeholder="Enter Service Contract No."
-          />
-        </div>
         <div class="space-y-2">
           <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
             >Freight Payment</label
@@ -1039,6 +878,7 @@ const removeShipperRef = (index: number) => {
       </div>
     </SectionCard>
 
+    <!-- Containers Breakdown -->
     <SectionCard
       id="containers"
       :title="isTrucking ? 'Truck Breakdown' : 'Containers Breakdown'"
@@ -1067,7 +907,7 @@ const removeShipperRef = (index: number) => {
               :key="index"
               class="space-y-4 pb-4 border-b border-border/50 last:border-0 last:pb-0"
             >
-              <!-- Trucking UI -->
+              <!-- Trucking -->
               <div
                 v-if="isTrucking"
                 class="grid grid-cols-1 md:grid-cols-12 gap-4 items-end relative"
@@ -1126,14 +966,14 @@ const removeShipperRef = (index: number) => {
                   <button
                     type="button"
                     @click="removeContainer(Number(index))"
-                    class="p-2 text-muted-foreground hover:text-destructive transition-colors disabled:opacity-50"
+                    class="p-2 text-muted-foreground hover:text-destructive transition-colors"
                   >
                     <Trash2 class="w-4 h-4" />
                   </button>
                 </div>
               </div>
 
-              <!-- Container / Ocean UI -->
+              <!-- Ocean / Air -->
               <div v-else class="grid grid-cols-1 md:grid-cols-12 gap-4 items-end relative">
                 <div class="col-span-3 space-y-1.5 pt-px">
                   <label class="text-[10px] font-bold text-muted-foreground uppercase opacity-70"
@@ -1181,7 +1021,7 @@ const removeShipperRef = (index: number) => {
                   <button
                     type="button"
                     @click="removeContainer(Number(index))"
-                    class="p-2 text-muted-foreground hover:text-destructive transition-colors disabled:opacity-50"
+                    class="p-2 text-muted-foreground hover:text-destructive transition-colors"
                   >
                     <Trash2 class="w-4 h-4" />
                   </button>
@@ -1321,7 +1161,7 @@ const removeShipperRef = (index: number) => {
                         v-model="item.description"
                         v-uppercase
                         rows="6"
-                        class="input-field text-sm placeholder:opacity-50 resize-y min-h-[100px] py-2 transition-all duration-200"
+                        class="input-field text-sm placeholder:opacity-50 resize-y min-h-[100px] py-2"
                         :placeholder="
                           isTrucking
                             ? 'Description of goods loaded on this truck...'
@@ -1338,14 +1178,11 @@ const removeShipperRef = (index: number) => {
       </div>
     </SectionCard>
 
-    <!-- Quick Add Vessel Modal -->
     <VesselQuickAddModal
       v-model:is-open="isVesselModalOpen"
       :initial-name="presetVesselName"
       @success="onVesselCreateSuccess"
     />
-
-    <!-- Quick Add Plane Modal (Air Freight) -->
     <PlaneQuickAddModal
       v-model:is-open="isPlaneModalOpen"
       :initial-name="presetPlaneName"
