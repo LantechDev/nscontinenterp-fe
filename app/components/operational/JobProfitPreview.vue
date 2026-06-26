@@ -128,6 +128,34 @@ const customerName = computed(() => {
   return props.job?.customer?.name || "-";
 });
 
+// Pagination: the cost (vendor invoice) list can overflow one A4 page. Split it across
+// pages — page 1 shares space with the job info + revenue table so it holds fewer rows.
+const COST_ROWS_PAGE_1 = 9;
+const COST_ROWS_PAGE_N = 24;
+
+interface CostPage {
+  rows: ProfitExpense[];
+  isFirst: boolean;
+  isLast: boolean;
+}
+
+const costPages = computed<CostPage[]>(() => {
+  const costs = vendorInvoices.value;
+  if (costs.length === 0) return [{ rows: [], isFirst: true, isLast: true }];
+
+  const pages: CostPage[] = [];
+  let idx = 0;
+  let first = true;
+  while (idx < costs.length) {
+    const cap = first ? COST_ROWS_PAGE_1 : COST_ROWS_PAGE_N;
+    const rows = costs.slice(idx, idx + cap);
+    idx += cap;
+    pages.push({ rows, isFirst: first, isLast: idx >= costs.length });
+    first = false;
+  }
+  return pages;
+});
+
 const generatePDF = async () => {
   if (!printContainerRef.value || !props.job) return false;
 
@@ -182,6 +210,8 @@ defineExpose({
   >
     <div class="relative group flex flex-col gap-10" ref="printContainerRef">
       <div
+        v-for="(page, pIdx) in costPages"
+        :key="pIdx"
         class="a4-page-wrapper bg-white shadow-xl shrink-0 flex flex-col text-[#062c58] border"
         style="
           width: 794px;
@@ -212,7 +242,9 @@ defineExpose({
             </span>
           </div>
           <div class="w-[35%] text-right pb-1 flex flex-col items-end justify-end h-full">
-            <div class="text-[0.6rem] font-mono mb-1 text-black">PAGE: 1 OF 1</div>
+            <div class="text-[0.6rem] font-mono mb-1 text-black">
+              PAGE: {{ pIdx + 1 }} OF {{ costPages.length }}
+            </div>
             <h1 class="text-xl font-bold tracking-widest uppercase leading-none text-[#062c58]">
               PROFIT REPORT
             </h1>
@@ -223,8 +255,8 @@ defineExpose({
         <div
           class="main-border-container border border-[#062c58] flex-1 flex flex-col text-[0.7rem] relative overflow-hidden h-full"
         >
-          <!-- Job Info Section -->
-          <div class="flex border-b border-[#062c58]" style="min-height: 80px">
+          <!-- Job Info Section (first page only) -->
+          <div v-if="page.isFirst" class="flex border-b border-[#062c58]" style="min-height: 80px">
             <div class="w-1/2 border-r border-[#062c58] pt-1 px-2 pb-2">
               <span class="font-bold mb-1 text-[0.6rem] leading-none block uppercase"
                 >CUSTOMER:</span
@@ -281,8 +313,11 @@ defineExpose({
             </div>
           </div>
 
-          <!-- Financial Summary Header -->
-          <div class="bg-[#062c58] text-white px-3 py-2 flex justify-between items-center">
+          <!-- Financial Summary Header (first page only) -->
+          <div
+            v-if="page.isFirst"
+            class="bg-[#062c58] text-white px-3 py-2 flex justify-between items-center"
+          >
             <span class="font-bold text-xs tracking-wider">FINANCIAL PERFORMANCE SUMMARY</span>
             <div class="flex gap-6">
               <div class="flex flex-col items-end">
@@ -298,8 +333,8 @@ defineExpose({
 
           <!-- Details Section -->
           <div class="flex-1 flex flex-col">
-            <!-- Revenue Table -->
-            <div class="flex-1 flex flex-col min-h-0 border-b border-[#062c58]">
+            <!-- Revenue Table (first page only) -->
+            <div v-if="page.isFirst" class="flex-1 flex flex-col min-h-0 border-b border-[#062c58]">
               <div
                 class="bg-[#062c58]/5 px-3 py-1.5 border-b border-[#062c58] flex justify-between"
               >
@@ -358,7 +393,9 @@ defineExpose({
             <!-- Cost Table -->
             <div class="flex-1 flex flex-col min-h-0">
               <div class="bg-red-50/50 px-3 py-1.5 border-b border-[#062c58] flex justify-between">
-                <span class="font-bold text-[0.65rem] text-red-700">COSTS (VENDOR INVOICES)</span>
+                <span class="font-bold text-[0.65rem] text-red-700"
+                  >COSTS (VENDOR INVOICES){{ page.isFirst ? "" : " — CONTINUED" }}</span
+                >
                 <span class="font-bold text-[0.65rem] text-red-700"
                   >TOTAL: {{ formatCurrency(totalCost) }}</span
                 >
@@ -376,11 +413,7 @@ defineExpose({
                     </tr>
                   </thead>
                   <tbody class="text-[0.65rem]">
-                    <tr
-                      v-for="exp in vendorInvoices"
-                      :key="exp.id"
-                      class="border-b border-[#062c58]/5"
-                    >
+                    <tr v-for="exp in page.rows" :key="exp.id" class="border-b border-[#062c58]/5">
                       <td class="px-3 py-2">{{ formatDate(exp.date || exp.createdAt) }}</td>
                       <td class="px-3 py-2 font-bold">{{ exp.vendor?.name || "-" }}</td>
                       <td class="px-3 py-2 truncate max-w-xs">
@@ -409,7 +442,7 @@ defineExpose({
                         </div>
                       </td>
                     </tr>
-                    <tr v-if="vendorInvoices.length === 0">
+                    <tr v-if="page.rows.length === 0">
                       <td colspan="4" class="px-3 py-4 text-center text-muted-foreground italic">
                         No costs recorded
                       </td>
@@ -420,8 +453,8 @@ defineExpose({
             </div>
           </div>
 
-          <!-- Summary Footer area -->
-          <div class="border-t border-[#062c58] mt-auto bg-gray-50">
+          <!-- Summary Footer area (last page only) -->
+          <div v-if="page.isLast" class="border-t border-[#062c58] mt-auto bg-gray-50">
             <div class="flex h-24">
               <div class="w-1/2 p-3 text-[0.55rem] italic text-muted-foreground leading-tight">
                 This report is generated for internal management analysis purposes. Data shown is

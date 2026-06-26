@@ -12,6 +12,8 @@ defineProps<{
     type: string;
     description: string;
     isActive: boolean;
+    isDefault: boolean;
+    dppBasePercent: number;
   };
   taxTypeOptions: Array<{ value: string; label: string }>;
 }>();
@@ -101,6 +103,21 @@ const emit = defineEmits<{
             </div>
 
             <div>
+              <label class="block text-sm font-medium mb-1">Dikali (%) / DPP Base</label>
+              <input
+                v-model.number="formData.dppBasePercent"
+                type="number"
+                step="0.01"
+                min="0"
+                max="100"
+                class="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+              <p class="text-xs text-muted-foreground mt-1">
+                Default 100. Untuk PPh tertentu (dikali ½) isi 50.
+              </p>
+            </div>
+
+            <div>
               <label class="block text-sm font-medium mb-1">Deskripsi</label>
               <textarea
                 v-model="formData.description"
@@ -118,6 +135,17 @@ const emit = defineEmits<{
               <span
                 class="text-sm font-medium select-none group-hover:text-blue-900 transition-colors"
                 >Pajak Aktif</span
+              >
+            </div>
+
+            <div
+              class="flex items-center gap-2 cursor-pointer w-fit group"
+              @click="formData.isDefault = !formData.isDefault"
+            >
+              <Checkbox v-model="formData.isDefault" class="pointer-events-none" />
+              <span
+                class="text-sm font-medium select-none group-hover:text-blue-900 transition-colors"
+                >Jadikan default (otomatis terpilih di invoice baru)</span
               >
             </div>
           </div>

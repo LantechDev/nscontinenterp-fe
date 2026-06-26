@@ -246,6 +246,11 @@ const taxStats = computed(() => {
                       <Calculator class="w-4 h-4" />
                     </div>
                     <span class="text-sm font-medium">{{ tax.name }}</span>
+                    <span
+                      v-if="tax.isDefault"
+                      class="text-[10px] font-bold uppercase tracking-wide bg-emerald-50 text-emerald-600 border border-emerald-100 px-1.5 py-0.5 rounded"
+                      >Default</span
+                    >
                   </div>
                 </td>
                 <td class="py-3 px-4">
@@ -316,7 +321,14 @@ const taxStats = computed(() => {
                 <Calculator class="w-6 h-6" />
               </div>
               <div>
-                <h3 class="font-bold text-base text-foreground">{{ tax.name }}</h3>
+                <div class="flex items-center gap-2">
+                  <h3 class="font-bold text-base text-foreground">{{ tax.name }}</h3>
+                  <span
+                    v-if="tax.isDefault"
+                    class="text-[10px] font-bold uppercase tracking-wide bg-emerald-50 text-emerald-600 border border-emerald-100 px-1.5 py-0.5 rounded"
+                    >Default</span
+                  >
+                </div>
                 <p class="text-xs text-muted-foreground uppercase">{{ tax.type }}</p>
               </div>
             </div>

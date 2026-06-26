@@ -3,6 +3,7 @@ import { ArrowLeft, Save } from "lucide-vue-next";
 import { toast } from "vue-sonner";
 import { useFinanceTax } from "~/composables/useFinanceTax";
 import Combobox from "~/components/ui/Combobox.vue";
+import Checkbox from "~/components/ui/Checkbox.vue";
 
 definePageMeta({
   layout: "dashboard",
@@ -16,6 +17,8 @@ const form = ref({
   type: "",
   description: "",
   isActive: true,
+  isDefault: false,
+  dppBasePercent: 100,
 });
 const taxTypeOptions = [
   { id: "ppn", name: "PPN" },
@@ -101,6 +104,21 @@ async function handleSubmit() {
             <label class="text-sm font-medium">Status</label>
             <Combobox v-model="isActiveValue" :options="statusOptions" placeholder="Pilih status" />
           </div>
+          <div class="space-y-2">
+            <label class="text-sm font-medium">Dikali (%) / DPP Base</label>
+            <input
+              v-model.number="form.dppBasePercent"
+              type="number"
+              step="0.01"
+              min="0"
+              max="100"
+              class="w-full px-4 py-2 border rounded-lg focus:ring-1 focus:ring-primary outline-none"
+              placeholder="100"
+            />
+            <p class="text-xs text-muted-foreground">
+              Default 100. Untuk PPh yang dikali ½ isi 50.
+            </p>
+          </div>
         </div>
         <div class="space-y-2">
           <label class="text-sm font-medium">Deskripsi</label>
@@ -111,6 +129,16 @@ async function handleSubmit() {
             class="w-full px-4 py-2 border rounded-lg focus:ring-1 focus:ring-primary outline-none resize-none"
             placeholder="Catatan tambahan..."
           ></textarea>
+        </div>
+
+        <div
+          class="flex items-center gap-2 cursor-pointer w-fit group"
+          @click="form.isDefault = !form.isDefault"
+        >
+          <Checkbox v-model="form.isDefault" class="pointer-events-none" />
+          <span class="text-sm font-medium select-none group-hover:text-blue-900 transition-colors"
+            >Jadikan default (otomatis terpilih di invoice baru)</span
+          >
         </div>
         <div class="flex justify-end gap-3 pt-4 border-t border-border">
           <button

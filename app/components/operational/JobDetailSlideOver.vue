@@ -22,9 +22,12 @@ import {
   Check,
   Truck,
   Plane as PlaneIcon,
+  Download,
 } from "lucide-vue-next";
 import JobFinanceTab from "./JobFinanceTab.vue";
+import JobCoverPreview from "./JobCoverPreview.vue";
 import JobEblTab from "./JobEblTab.vue";
+import JobBookingConfirmationTab from "./JobBookingConfirmationTab.vue";
 import JobDocumentTab from "./JobDocumentTab.vue";
 import { useAuth } from "~/composables/useAuth";
 const { canApproveJobs, user } = useAuth();
@@ -59,10 +62,14 @@ const { canManage, requireManage, canApprove } = useFeatureAccess("operational.j
 const activeTab = ref("overview");
 const tabs = [
   { id: "overview", label: "Overview" },
+  { id: "bookingConfirmation", label: "Booking Confirmation" },
   { id: "ebl", label: "eBL" },
   { id: "finance", label: "Finance" },
+  { id: "jobCover", label: "Job Cover" },
   { id: "document", label: "Upload Document" },
 ];
+
+const jobCoverPreviewRef = ref<InstanceType<typeof JobCoverPreview> | null>(null);
 
 const { fetchVessels, fetchPlanes, createVessel, createPlane, fetchPorts } = useMasterData();
 const masterPorts = ref<Port[]>([]);
@@ -1614,6 +1621,12 @@ watch(
                   />
                 </div>
 
+                <JobBookingConfirmationTab
+                  v-else-if="activeTab === 'bookingConfirmation'"
+                  :job="job"
+                  :can-manage-job="canManage"
+                />
+
                 <!-- eBL Tab -->
                 <div v-else-if="activeTab === 'ebl'" class="space-y-8 animate-fade-in pb-12 pt-4">
                   <JobEblTab
@@ -1623,6 +1636,34 @@ watch(
                     :is-completed="isCompleted"
                     :can-manage-job="canManage"
                   />
+                </div>
+
+                <!-- Job Cover Tab (internal filing cover sheet) -->
+                <div
+                  v-else-if="activeTab === 'jobCover'"
+                  class="space-y-4 animate-fade-in pb-12 pt-4"
+                >
+                  <div class="flex items-center justify-between">
+                    <div>
+                      <h2 class="text-lg font-bold text-foreground leading-none">Job Cover</h2>
+                      <p class="text-xs text-muted-foreground mt-1">
+                        Internal filing cover sheet for this job.
+                      </p>
+                    </div>
+                    <button
+                      @click="jobCoverPreviewRef?.generatePDF()"
+                      :disabled="jobCoverPreviewRef?.isGeneratingPDF || !job"
+                      class="px-4 py-2 bg-[#012D5A] hover:bg-[#012D5A]/90 text-white rounded-md shadow-sm text-xs font-semibold flex items-center gap-2 transition-colors disabled:opacity-50"
+                    >
+                      <Loader2
+                        v-if="jobCoverPreviewRef?.isGeneratingPDF"
+                        class="w-3.5 h-3.5 animate-spin"
+                      />
+                      <Download v-else class="w-3.5 h-3.5" />
+                      {{ jobCoverPreviewRef?.isGeneratingPDF ? "Generating..." : "Download PDF" }}
+                    </button>
+                  </div>
+                  <JobCoverPreview ref="jobCoverPreviewRef" :job="job" />
                 </div>
 
                 <!-- Document Tab -->

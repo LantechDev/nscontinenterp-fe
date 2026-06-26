@@ -87,6 +87,7 @@ export interface ActiveBlData {
   isNegotiable?: boolean;
   createdAt?: string;
   blType?: string;
+  serviceContractNo?: string | null;
   shipperReferences?: string[];
   showShipperReferencesOnBl?: boolean;
   vessels?: EblVessel[];
@@ -173,6 +174,7 @@ export interface EditFormType {
   shippingMark?: string;
   blNumber?: string;
   blType?: string;
+  serviceContractNo?: string;
   freightTerm?: string;
   freightPayment?: string;
   prepaidValue?: string;

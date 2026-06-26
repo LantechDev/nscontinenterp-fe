@@ -112,6 +112,7 @@ const editForm = ref<EditFormType>({
 
   blNumber: "",
   blType: "DRAFT",
+  serviceContractNo: "",
   freightTerm: "PREPAID",
   freightPayment: "",
   prepaidValue: "",
@@ -211,6 +212,7 @@ const toggleEditMode = () => {
 
     blNumber: blDoc?.blNumber || "",
     blType: blDoc?.blType || "DRAFT",
+    serviceContractNo: blDoc?.serviceContractNo || "",
     freightTerm: blDoc?.freightTerm || "PREPAID",
     prepaidValue: blDoc?.prepaid || "",
     collectValue: blDoc?.collect || "",
@@ -366,6 +368,7 @@ const handleSaveDraft = async () => {
 
       blNumber: f.blNumber || undefined,
       blType: f.blType || undefined,
+      serviceContractNo: f.serviceContractNo || undefined,
       freightTerm: (f.freightTerm as "PREPAID" | "COLLECT") || undefined,
       prepaid: f.prepaidValue || undefined,
       collect: f.collectValue || undefined,

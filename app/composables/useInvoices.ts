@@ -12,6 +12,9 @@ export interface Invoice {
   taxId?: string;
   taxAmount: number;
   taxTotal?: number;
+  discountType?: "PERCENTAGE" | "FIXED" | null;
+  discountValue?: number | null;
+  discountAmount?: number;
   total: number;
   balanceDue: number;
   status: {
@@ -274,6 +277,8 @@ export function useInvoices() {
     blNumber?: string;
     taxes?: Array<{ taxId: string; baseAmount?: number }>;
     quotationId?: string | null;
+    discountType?: "PERCENTAGE" | "FIXED" | null;
+    discountValue?: number | null;
   }): Promise<{ success: boolean; data?: Invoice; error?: string }> {
     isLoading.value = true;
     try {
@@ -317,6 +322,8 @@ export function useInvoices() {
         amount: number;
       }>;
       taxes?: Array<{ taxId: string; baseAmount?: number }>;
+      discountType?: "PERCENTAGE" | "FIXED" | null;
+      discountValue?: number | null;
     }>,
   ): Promise<{ success: boolean; data?: Invoice; error?: string }> {
     isLoading.value = true;

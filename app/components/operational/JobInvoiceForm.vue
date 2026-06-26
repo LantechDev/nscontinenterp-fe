@@ -94,6 +94,8 @@ const form = ref({
   blNumber: props.invoice?.blNumber || props.invoice?.job?.billsOfLading?.[0]?.blNumber || "",
   quotationId: props.invoice?.quotationId || props.prefillData?.quotationId || null,
   taxId: props.invoice?.taxId || props.invoice?.invoiceTaxes?.[0]?.taxId || prefillTaxId || "",
+  discountType: (props.invoice?.discountType as "PERCENTAGE" | "FIXED" | null) ?? null,
+  discountValue: props.invoice?.discountValue != null ? Number(props.invoice.discountValue) : 0,
   items: (props.invoice?.items?.map((item) => ({
     id: item.id,
     serviceId: item.service?.id || "",
@@ -147,20 +149,30 @@ onMounted(async () => {
   }
 
   const [taxesRes] = await Promise.all([
-    fetchTaxes({ isActive: true }),
+    fetchTaxes({ isActive: true, limit: 100 }),
     fetchServices(),
     fetchCompanies({ type: "CUSTOMER" }),
   ]);
 
   if (taxesRes?.items) {
     taxList.value = taxesRes.items;
+    // The master now has a real "NON PPN" (rate 0) row. Only fall back to a synthetic
+    // empty option when that row is missing, so there's never two non-PPN entries.
+    const hasNonPpnRow = taxList.value.some((t) => Number(t.rate) === 0);
     taxOptions.value = [
-      { id: "", name: "Non PPN (None)" },
+      ...(hasNonPpnRow ? [] : [{ id: "", name: "NON PPN" }]),
       ...taxList.value.map((t: Tax) => ({
         id: t.id,
         name: `${t.name} (${Number(t.rate)}%)`,
       })),
     ];
+
+    // New invoice with no explicit prefill tax -> pre-select the org default (NON PPN
+    // unless changed in master). An explicit prefill tax (from a quotation) still wins.
+    if (!props.invoice?.id && !prefillTaxId) {
+      const defaultTax = taxList.value.find((t) => t.isDefault);
+      if (defaultTax) form.value.taxId = defaultTax.id;
+    }
   }
 });
 
@@ -262,14 +274,46 @@ const selectedTax = computed(() => {
   return taxList.value.find((t) => t.id === form.value.taxId);
 });
 
+// Optional discount, applied before tax (reduces the taxable base / DPP).
+// Hidden behind an "Add Discount" toggle so it doesn't clutter the totals by default.
+const showDiscount = ref(!!props.invoice?.discountType);
+const discountTypeOptions = computed(() => [
+  { id: "PERCENTAGE", name: "Discount (%)" },
+  { id: "FIXED", name: `Discount (${form.value.currency})` },
+]);
+
+const removeDiscount = () => {
+  form.value.discountType = null;
+  form.value.discountValue = 0;
+  showDiscount.value = false;
+};
+
+const discountAmount = computed(() => {
+  const val = Number(form.value.discountValue) || 0;
+  if (!form.value.discountType || val <= 0) return 0;
+  let raw = form.value.discountType === "PERCENTAGE" ? (subTotal.value * val) / 100 : val;
+  raw = Math.max(0, Math.min(raw, subTotal.value));
+  return form.value.currency === "IDR" ? Math.round(raw) : raw;
+});
+
+const discountedBase = computed(() => subTotal.value - discountAmount.value);
+
+// PPh is a withholding tax (deducted); PPN is added. Some taxes only apply to a
+// portion of the base (dppBasePercent, e.g. 50 for certain PPh).
+const isWithholdingTax = computed(() => (selectedTax.value?.type || "").toLowerCase() === "pph");
+
 const taxAmount = computed(() => {
+  // Magnitude of the tax (always positive).
   const rate = selectedTax.value ? Number(selectedTax.value.rate) : 0;
-  const sum = (subTotal.value * rate) / 100;
+  const dpp = selectedTax.value ? Number(selectedTax.value.dppBasePercent ?? 100) : 100;
+  const sum = (discountedBase.value * (dpp / 100) * rate) / 100;
   return form.value.currency === "IDR" ? Math.round(sum) : sum;
 });
 
+const signedTax = computed(() => (isWithholdingTax.value ? -taxAmount.value : taxAmount.value));
+
 const total = computed(() => {
-  const sum = subTotal.value + taxAmount.value;
+  const sum = discountedBase.value + signedTax.value;
   return form.value.currency === "IDR" ? Math.round(sum) : sum;
 });
 
@@ -282,8 +326,10 @@ const handleSubmit = async () => {
     return;
   }
 
+  // Send whichever tax is selected (incl. the rate-0 "NON PPN" row) so the choice is
+  // persisted and reloads correctly on edit. A rate-0 tax simply yields 0 PPN.
   const taxesPayload = form.value.taxId
-    ? [{ taxId: form.value.taxId, baseAmount: subTotal.value }]
+    ? [{ taxId: form.value.taxId, baseAmount: discountedBase.value }]
     : [];
 
   const payload = {
@@ -297,6 +343,8 @@ const handleSubmit = async () => {
     subTotal: subTotal.value,
     taxAmount: taxAmount.value,
     taxes: taxesPayload,
+    discountType: form.value.discountType || null,
+    discountValue: form.value.discountType ? Number(form.value.discountValue) || 0 : null,
     total: total.value,
     balanceDue: total.value,
     notes: form.value.notes,
@@ -671,11 +719,63 @@ const formatInputCurrency = (val: number | string, currency: string = form.value
               formatCurrency(subTotal)
             }}</span>
           </div>
+
+          <!-- Discount (optional) — hidden until the user adds one; applied before tax -->
+          <button
+            v-if="!showDiscount"
+            type="button"
+            @click="showDiscount = true"
+            class="inline-flex items-center gap-1 text-xs font-bold text-[#012D5A] hover:bg-[#012D5A]/5 px-2 py-1 rounded transition-colors"
+          >
+            <Plus class="w-3 h-3" /> Add Discount
+          </button>
+          <template v-else>
+            <div class="flex items-center gap-2">
+              <Combobox
+                v-model="form.discountType"
+                :options="discountTypeOptions"
+                placeholder="Select type"
+                class="flex-1 min-w-0"
+              />
+              <input
+                v-if="form.discountType"
+                v-model.number="form.discountValue"
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="0"
+                class="w-24 h-10 px-2 text-sm text-right border border-input rounded-md bg-background outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+              />
+              <button
+                type="button"
+                @click="removeDiscount"
+                title="Remove discount"
+                class="p-1.5 text-muted-foreground hover:text-red-500 transition-colors"
+              >
+                <X class="w-4 h-4" />
+              </button>
+            </div>
+            <div v-if="discountAmount > 0" class="flex justify-between text-sm">
+              <span class="text-muted-foreground font-inter"
+                >Discount{{
+                  form.discountType === "PERCENTAGE" ? ` (${form.discountValue}%)` : ""
+                }}</span
+              >
+              <span class="font-medium text-red-600 font-inter"
+                >- {{ formatCurrency(discountAmount) }}</span
+              >
+            </div>
+          </template>
+
           <div v-if="taxAmount > 0" class="flex items-center justify-between text-sm">
-            <span class="text-muted-foreground font-inter">Tax ({{ selectedTax?.name }})</span>
-            <span class="font-medium text-foreground font-inter">{{
-              formatCurrency(taxAmount)
-            }}</span>
+            <span class="text-muted-foreground font-inter"
+              >{{ isWithholdingTax ? "PPh" : "Tax" }} ({{ selectedTax?.name }})</span
+            >
+            <span
+              class="font-medium font-inter"
+              :class="isWithholdingTax ? 'text-red-600' : 'text-foreground'"
+              >{{ isWithholdingTax ? "- " : "" }}{{ formatCurrency(taxAmount) }}</span
+            >
           </div>
           <div class="flex justify-between border-t border-border pt-2 mt-2">
             <span class="font-bold text-[#0a0b0b] text-lg font-inter">{{

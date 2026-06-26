@@ -17,6 +17,20 @@ const props = defineProps<{
 
 const mode = computed(() => props.mode || "invoice");
 
+// Tax line in the totals: PPh is a withholding tax shown as a deduction; PPN is added.
+const firstTax = computed(() => props.invoice?.invoiceTaxes?.[0] || null);
+const isWithholdingTax = computed(() => (firstTax.value?.taxType || "").toLowerCase() === "pph");
+const taxRatesLabel = computed(() => {
+  const taxesArr = props.invoice?.invoiceTaxes || [];
+  if (!taxesArr.length) return "0%";
+  return Array.from(new Set(taxesArr.map((t) => Number(t.rate))))
+    .map((r) => r + "%")
+    .join(", ");
+});
+const taxDisplayAmount = computed(() =>
+  Number(firstTax.value?.taxAmount ?? props.invoice?.taxAmount ?? 0),
+);
+
 const headerTitle = computed(() => {
   if (mode.value === "receipt") return "";
   return props.invoice?.status?.code === "draft" ? "PROFORMA INVOICE" : "COMMERCIAL INVOICE";
@@ -995,20 +1009,31 @@ defineExpose({
                       {{ formatCurrency(invoice?.subTotal) }}
                     </div>
                   </div>
-                  <div class="flex border-b border-[#062c58]/20 h-[35px] items-center shrink-0">
+                  <div
+                    v-if="Number(invoice?.discountAmount) > 0"
+                    class="flex border-b border-[#062c58]/20 h-[35px] items-center shrink-0"
+                  >
                     <div class="w-1/2 px-3 font-bold text-[0.65rem] text-[#062c58]">
-                      VAT / TAX ({{
-                        invoice?.invoiceTaxes?.length
-                          ? Array.from(new Set(invoice.invoiceTaxes.map((t) => Number(t.rate))))
-                              .map((r) => r + "%")
-                              .join(", ")
-                          : "0%"
-                      }})
+                      DISCOUNT{{
+                        invoice?.discountType === "PERCENTAGE"
+                          ? ` (${Number(invoice?.discountValue)}%)`
+                          : ""
+                      }}
                     </div>
                     <div
                       class="flex-1 px-3 text-right font-mono text-[0.75rem] font-medium text-black"
                     >
-                      {{ formatCurrency(invoice?.taxAmount) }}
+                      - {{ formatCurrency(invoice?.discountAmount) }}
+                    </div>
+                  </div>
+                  <div class="flex border-b border-[#062c58]/20 h-[35px] items-center shrink-0">
+                    <div class="w-1/2 px-3 font-bold text-[0.65rem] text-[#062c58]">
+                      {{ isWithholdingTax ? "PPh" : "VAT / TAX" }} ({{ taxRatesLabel }})
+                    </div>
+                    <div
+                      class="flex-1 px-3 text-right font-mono text-[0.75rem] font-medium text-black"
+                    >
+                      {{ isWithholdingTax ? "- " : "" }}{{ formatCurrency(taxDisplayAmount) }}
                     </div>
                   </div>
                   <div class="flex bg-[#062c58] text-white flex-1 items-center">

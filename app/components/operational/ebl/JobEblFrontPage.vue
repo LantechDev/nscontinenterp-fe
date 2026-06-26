@@ -137,6 +137,39 @@ const motherTransport = computed(() => {
   );
 });
 
+// Plain "<name> / <voyage>" with no FEEDER:/MV: label prefix.
+const vesselVoyageText = (transport?: (typeof transportList.value)[number]) => {
+  if (!transport) return "";
+  const name = getTransportName(transport);
+  const voyage = getTransportVoyage(transport);
+  return [name, voyage].filter(Boolean).join(" / ");
+};
+
+// A distinct mother leg only exists on a transshipment (2+ legs). For a direct
+// shipment the single vessel is the ocean vessel, so it belongs in VESSEL/VOYAGE.
+const hasDistinctMother = computed(
+  () => !!motherTransport.value && motherTransport.value !== feederTransport.value,
+);
+
+// FEEDER VESSEL cell = feeder vessel + voyage; only shown when there's a separate
+// mother leg (a real transshipment), otherwise blank for a direct shipment.
+const feederVesselDisplay = computed(() => {
+  if (!hasDistinctMother.value) return "-";
+  return vesselVoyageText(feederTransport.value) || "-";
+});
+
+// VESSEL/VOYAGE cell = mother vessel + voyage; falls back to the single/first vessel
+// for a direct shipment so the cell is never blank.
+const motherVesselDisplay = computed(() => {
+  const primary = hasDistinctMother.value ? motherTransport.value : feederTransport.value;
+  return (
+    vesselVoyageText(primary) ||
+    (props.isAir
+      ? getVal(props.jobData?.plane?.name, "-")
+      : getVal(props.jobData?.vessel?.name, "-"))
+  );
+});
+
 const transportLegs = computed(() => {
   if (props.isTrucking) {
     const truckTypeStr = props.jobData?.truckType || "";
@@ -614,17 +647,27 @@ const formatDate = (dateStr?: string | null) => {
           </div>
         </template>
         <div class="flex border-b border-[#062c58]" style="min-height: 40px">
-          <div class="w-[25%] border-r border-[#062c58] pt-0.5 px-2 pb-1.5">
+          <!-- PRE-CARRIAGE BY carries the feeder vessel + voyage for ocean BLs (the old
+               standalone FEEDER VESSEL cell was removed). Air/Trucking keep their fields. -->
+          <div
+            :class="isTrucking || isAir ? 'w-[25%]' : 'w-[50%]'"
+            class="border-r border-[#062c58] pt-0.5 px-2 pb-1.5"
+          >
             <span class="font-bold text-[0.6rem] block leading-none mb-0.5">{{
               isTrucking ? "DRIVER CONTACT" : "PRE-CARRIAGE BY"
             }}</span>
             <span class="font-mono text-[10px] uppercase leading-none text-black">{{
               isTrucking
                 ? getVal(containers[0]?.driverContactNumber, "-")
-                : getVal(jobData?.preCarriageBy, "-")
+                : isAir
+                  ? getVal(jobData?.preCarriageBy, "-")
+                  : feederVesselDisplay
             }}</span>
           </div>
-          <div class="w-[25%] border-r border-[#062c58] pt-0.5 px-2 pb-1.5">
+          <div
+            :class="isTrucking || isAir ? 'w-[25%] border-r border-[#062c58]' : 'w-[50%]'"
+            class="pt-0.5 px-2 pb-1.5"
+          >
             <span class="font-bold text-[0.6rem] block leading-none mb-0.5">{{
               isTrucking ? "PICKUP ADDRESS" : "PLACE OF RECEIPT"
             }}</span>
@@ -632,7 +675,9 @@ const formatDate = (dateStr?: string | null) => {
               placeOfReceiptVal
             }}</span>
           </div>
-          <div class="w-[50%] pt-0.5 px-2 pb-1.5">
+          <!-- Combined VESSEL/VOYAGE cell only for Air/Trucking; ocean BLs show the mother
+               vessel in the VESSEL/VOYAGE cell of the PORT OF LOADING row below. -->
+          <div v-if="isTrucking || isAir" class="w-[50%] pt-0.5 px-2 pb-1.5">
             <span class="font-bold text-[0.6rem] block leading-none mb-0.5">{{
               transportScheduleLabel
             }}</span>
@@ -644,10 +689,10 @@ const formatDate = (dateStr?: string | null) => {
         <div class="flex border-b border-[#062c58]" style="min-height: 40px">
           <div class="w-[25%] border-r border-[#062c58] pt-0.5 px-2 pb-1.5">
             <span class="font-bold text-[0.6rem] block leading-none mb-0.5">{{
-              primaryTransportLabel
+              isTrucking || isAir ? primaryTransportLabel : transportScheduleLabel
             }}</span>
             <span class="font-mono text-[10px] uppercase leading-none text-black">
-              {{ primaryTransportName }}
+              {{ isTrucking || isAir ? primaryTransportName : motherVesselDisplay }}
             </span>
           </div>
           <div class="w-[25%] border-r border-[#062c58] pt-0.5 px-2 pb-1.5">
@@ -778,10 +823,10 @@ const formatDate = (dateStr?: string | null) => {
             </template>
           </div>
           <div
-            class="w-[10%] border-r border-[#062c58] p-1 flex flex-col items-center justify-center leading-tight text-[0.5rem]"
+            class="w-[10%] border-r border-[#062c58] px-1 flex flex-col items-center justify-center leading-none text-[0.5rem]"
           >
             <span>QUANTITY</span><span class="font-normal">(FOR CUSTOMS</span
-            ><span class="font-normal">DECLARATION ONLY)</span>
+            ><span class="font-normal">DECLARATION</span><span class="font-normal">ONLY)</span>
           </div>
           <div
             class="w-[3%] border-r border-[#062c58] p-1 flex flex-col items-center justify-center leading-none"
@@ -794,7 +839,7 @@ const formatDate = (dateStr?: string | null) => {
           <div class="w-[12.5%] border-r border-[#062c58] p-1 flex items-center justify-center">
             GROSS WEIGHT
           </div>
-          <div class="w-[12.5%] p-1 flex items-center justify-center">GROSS MEASUREMENT</div>
+          <div class="w-[12.5%] p-1 flex items-center justify-center">MEASUREMENT</div>
         </div>
       </div>
 
@@ -808,7 +853,7 @@ const formatDate = (dateStr?: string | null) => {
           <div class="w-[12.5%]"></div>
         </div>
 
-        <div class="relative z-[1] text-black font-mono pt-1">
+        <div class="relative z-[1] text-black font-mono pt-2">
           <template v-for="(cnt, cIdx) in page.pageItems" :key="cIdx">
             <div
               v-if="cnt.isHeaderVisible && !cnt.isFallback"
@@ -941,20 +986,24 @@ const formatDate = (dateStr?: string | null) => {
         </div>
         <div
           class="flex border-b border-[#062c58] text-[0.5rem] font-bold"
-          style="min-height: 35px"
+          style="min-height: 45px"
         >
           <div class="w-[20%] border-r border-[#062c58] pt-1 px-2 pb-2">
-            <span class="text-[0.55rem] leading-tight text-[#062c58] font-bold uppercase block"
-              >FREIGHT & CHARGES PAYABLE AT / BY:</span
+            <span class="text-[0.5rem] leading-none text-[#062c58] font-bold uppercase block"
+              >FREIGHT &amp; CHARGES PAYABLE AT / BY:</span
             >
             <span
-              class="uppercase font-mono text-[0.55rem] text-black leading-tight font-normal mt-1 block max-h-[1.35rem] overflow-hidden break-words"
+              class="uppercase font-mono text-[0.55rem] text-black leading-tight font-normal mt-1 block break-words"
               :title="freightPayableAtRaw"
               >{{ freightPayableAt || "-" }}</span
             >
           </div>
           <div class="w-[15%] border-r border-[#062c58] p-1">
             <span class="text-[#062c58] font-bold block">SERVICE CONTRACT NO.</span>
+            <span
+              class="uppercase font-mono text-[0.55rem] text-black leading-tight font-normal mt-1 block break-words"
+              >{{ getVal(activeBl?.serviceContractNo) }}</span
+            >
           </div>
           <div class="w-[12%] border-r border-[#062c58] p-1">
             <span class="text-[#062c58] font-bold block">DOC FORM NO.</span>

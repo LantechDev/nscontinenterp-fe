@@ -70,10 +70,12 @@ const subtotal = computed(() => {
   return props.expense.items.reduce((sum, item) => sum + Number(item.amount), 0);
 });
 
+// Signed: positive = PPN (added), negative = PPh withholding (deducted).
 const taxAmount = computed(() => {
   const total = Number(props.expense?.amount || 0);
-  return Math.max(0, total - subtotal.value);
+  return total - subtotal.value;
 });
+const isWithholdingTax = computed(() => taxAmount.value < 0);
 
 type VendorInvoicePreviewItem = NonNullable<Expense["items"]>[number];
 
@@ -441,11 +443,13 @@ defineExpose({
                     </div>
                   </div>
                   <div class="flex border-b border-[#062c58]/20 h-[35px] items-center shrink-0">
-                    <div class="w-1/2 px-3 font-bold text-[0.65rem] text-[#062c58]">VAT / TAX</div>
+                    <div class="w-1/2 px-3 font-bold text-[0.65rem] text-[#062c58]">
+                      {{ isWithholdingTax ? "PPh" : "VAT / TAX" }}
+                    </div>
                     <div
                       class="flex-1 px-3 text-right font-mono text-[0.75rem] font-medium text-black"
                     >
-                      {{ formatCurrency(taxAmount) }}
+                      {{ isWithholdingTax ? "- " : "" }}{{ formatCurrency(Math.abs(taxAmount)) }}
                     </div>
                   </div>
                   <div class="flex bg-[#062c58] text-white flex-1 items-center">
