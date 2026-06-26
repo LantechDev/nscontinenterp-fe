@@ -387,39 +387,55 @@ interface InvoicePreviewPage {
 }
 
 const FIRST_PAGE_ITEM_SLOTS = 10;
-const CONTINUATION_PAGE_ITEM_SLOTS = 18;
-const DESCRIPTION_CHARS_PER_SLOT = 52;
 
-const getItemSlotCount = (description?: string | null) =>
-  Math.max(1, Math.ceil((description || "").length / DESCRIPTION_CHARS_PER_SLOT));
+const MAIN_PX = 1009;
+const FIRST_HEADER_PX = 250;
+const CONT_HEADER_PX = 34;
+const TABLE_HEADER_PX = 35;
+const FOOTER_PX = 145;
+const SIGNATURE_PX = 95;
+const LAST_PAGE_RESERVE_PX = FOOTER_PX + SIGNATURE_PX;
+const ITEM_ROW_MIN_PX = 35;
+const ITEM_LINE_PX = 14;
+const ITEM_ROW_PADDING_PX = 14;
+const DESC_CHARS_PER_LINE = 42;
+
+const itemRowPx = (description?: string | null) => {
+  const lines = Math.max(1, Math.ceil((description || "").length / DESC_CHARS_PER_LINE));
+  return Math.max(ITEM_ROW_MIN_PX, lines * ITEM_LINE_PX + ITEM_ROW_PADDING_PX);
+};
 
 const paginatedInvoicePages = computed<InvoicePreviewPage[]>(() => {
   const items = props.invoice?.items || [];
   const pages: Array<{ items: InvoicePreviewItem[]; startIndex: number }> = [];
 
-  let currentItems: InvoicePreviewItem[] = [];
-  let currentStartIndex = 0;
-  let currentSlots = 0;
-  let currentBudget = FIRST_PAGE_ITEM_SLOTS;
+  let i = 0;
+  let first = true;
 
-  items.forEach((item, index) => {
-    const itemSlots = getItemSlotCount(item.description);
-    const shouldStartNewPage = currentItems.length > 0 && currentSlots + itemSlots > currentBudget;
+  while (i < items.length) {
+    const header = first ? FIRST_HEADER_PX : CONT_HEADER_PX;
+    let budget = MAIN_PX - header - TABLE_HEADER_PX;
 
-    if (shouldStartNewPage) {
-      pages.push({ items: currentItems, startIndex: currentStartIndex });
-      currentItems = [];
-      currentStartIndex = index;
-      currentSlots = 0;
-      currentBudget = CONTINUATION_PAGE_ITEM_SLOTS;
+    const startIndex = i;
+    const pageItems: InvoicePreviewItem[] = [];
+
+    while (i < items.length) {
+      const item = items[i];
+      if (!item) break;
+      const h = itemRowPx(item.description);
+      const reserve = i === items.length - 1 ? LAST_PAGE_RESERVE_PX : 0;
+      if (budget - h - reserve < 0 && pageItems.length > 0) break;
+      pageItems.push(item);
+      i++;
+      budget -= h;
     }
 
-    currentItems.push(item);
-    currentSlots += itemSlots;
-  });
+    pages.push({ items: pageItems, startIndex });
+    first = false;
+  }
 
-  if (currentItems.length > 0 || pages.length === 0) {
-    pages.push({ items: currentItems, startIndex: currentStartIndex });
+  if (pages.length === 0) {
+    pages.push({ items: [], startIndex: 0 });
   }
 
   return pages.map((page, index) => ({
