@@ -7,6 +7,7 @@ export interface Tax {
   isActive: boolean;
   isDefault?: boolean;
   dppBasePercent?: number;
+  isDeduction?: boolean;
   createdAt: string;
 }
 

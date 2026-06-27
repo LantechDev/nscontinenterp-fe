@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { UploadCloud, FileText, Trash2, Download, Loader2, Eye, X } from "lucide-vue-next";
-import { ref, onMounted } from "vue";
+import { ref, computed, onMounted } from "vue";
 import { toast } from "vue-sonner";
 
 const props = defineProps<{
@@ -10,7 +10,6 @@ const props = defineProps<{
 const { getJobDocuments, uploadJobDocument, deleteJobDocument } = useJobs();
 const { confirm: confirmDialog } = useConfirm();
 
-// Files fetched from DB
 const uploadedDocuments = ref<JobDocumentItem[]>([]);
 const isLoading = ref(true);
 const isUploading = ref(false);
@@ -19,6 +18,28 @@ const isDragging = ref(false);
 const previewDoc = ref<JobDocumentItem | null>(null);
 const isPdfLoading = ref(false);
 const pdfBlobUrl = ref<string | null>(null);
+const textContent = ref<string | null>(null);
+const isTextLoading = ref(false);
+
+const getExtension = (name: string): string => {
+  const dot = name.lastIndexOf(".");
+  return dot >= 0 ? name.slice(dot + 1).toLowerCase() : "";
+};
+const OFFICE_EXTENSIONS = ["doc", "docx", "xls", "xlsx", "ppt", "pptx"];
+const TEXT_EXTENSIONS = ["csv", "txt"];
+
+const isOfficeDoc = (file: JobDocumentItem): boolean =>
+  OFFICE_EXTENSIONS.includes(getExtension(file.fileName));
+const isTextDoc = (file: JobDocumentItem): boolean =>
+  TEXT_EXTENSIONS.includes(getExtension(file.fileName)) ||
+  file.fileType === "text/plain" ||
+  file.fileType === "text/csv";
+
+const officeViewerUrl = computed(() =>
+  previewDoc.value
+    ? `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(previewDoc.value.fileUrl)}`
+    : "",
+);
 
 const loadDocuments = async () => {
   isLoading.value = true;
@@ -48,7 +69,7 @@ const handleFileInput = async (e: Event) => {
     for (const file of Array.from(target.files)) {
       await uploadFileToApi(file);
     }
-    target.value = ""; // reset input
+    target.value = "";
   }
 };
 
@@ -119,6 +140,23 @@ const downloadFile = async (fileUrl: string, fileName: string) => {
 
 const openPreview = async (file: JobDocumentItem) => {
   previewDoc.value = file;
+  textContent.value = null;
+
+  if (isTextDoc(file)) {
+    isTextLoading.value = true;
+    try {
+      const response = await fetch(file.fileUrl);
+      if (!response.ok) throw new Error("Failed to fetch text file");
+      textContent.value = await response.text();
+    } catch (err) {
+      console.error("Failed to load text preview", err);
+      toast.error("Failed to load text preview.");
+    } finally {
+      isTextLoading.value = false;
+    }
+    return;
+  }
+
   if (file.fileType === "application/pdf") {
     isPdfLoading.value = true;
     pdfBlobUrl.value = null;
@@ -142,6 +180,7 @@ const closePreview = () => {
     window.URL.revokeObjectURL(pdfBlobUrl.value);
     pdfBlobUrl.value = null;
   }
+  textContent.value = null;
   previewDoc.value = null;
 };
 </script>
@@ -157,7 +196,6 @@ const closePreview = () => {
       </div>
     </div>
 
-    <!-- Upload Area -->
     <div
       class="border-2 border-dashed rounded-xl p-10 text-center transition-all duration-200 flex flex-col items-center justify-center gap-4 relative overflow-hidden"
       :class="[
@@ -170,7 +208,6 @@ const closePreview = () => {
       @dragleave.prevent="isDragging = false"
       @drop.prevent="!isUploading && handleDrop($event)"
     >
-      <!-- Uploading Overlay / Animation -->
       <div
         v-if="isUploading"
         class="absolute inset-0 bg-white/95 flex flex-col items-center justify-center gap-3 backdrop-blur-[2px] animate-fade-in z-10"
@@ -193,7 +230,6 @@ const closePreview = () => {
         </div>
       </div>
 
-      <!-- Normal Upload Area Content -->
       <div
         class="flex flex-col items-center justify-center gap-4 transition-opacity duration-200"
         :class="{ 'opacity-0 pointer-events-none': isUploading }"
@@ -211,12 +247,17 @@ const closePreview = () => {
           class="px-5 py-2.5 bg-[#012D5A] text-white text-sm font-semibold rounded-lg hover:bg-[#012D5A]/90 cursor-pointer transition-colors shadow-sm mt-4 inline-flex items-center gap-2"
         >
           Browse Files
-          <input type="file" multiple class="hidden" @change="handleFileInput" />
+          <input
+            type="file"
+            multiple
+            accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.csv,.txt,.zip,.msg,.png,.jpg,.jpeg,.gif,.webp,.svg,.bmp,.tif,.tiff"
+            class="hidden"
+            @change="handleFileInput"
+          />
         </label>
       </div>
     </div>
 
-    <!-- File List -->
     <div v-if="isLoading" class="flex justify-center p-8">
       <Loader2 class="w-6 h-6 animate-spin text-[#012D5A]" />
     </div>
@@ -231,7 +272,6 @@ const closePreview = () => {
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <!-- Uploading Placeholder (Virtual Item) -->
         <div
           v-if="isUploading"
           class="flex items-center justify-between p-4 bg-[#012D5A]/5 border border-[#012D5A]/20 border-dashed rounded-xl shadow-sm animate-pulse"
@@ -313,7 +353,6 @@ const closePreview = () => {
       <p class="text-xs text-muted-foreground">Files you upload will appear here.</p>
     </div>
 
-    <!-- Preview Modal -->
     <Teleport to="body">
       <div
         v-if="previewDoc"
@@ -348,13 +387,11 @@ const closePreview = () => {
           <div
             class="p-4 flex-1 overflow-auto bg-gray-50/50 flex justify-center items-center min-h-[500px]"
           >
-            <!-- Image Preview -->
             <img
               v-if="previewDoc.fileType.startsWith('image/')"
               :src="previewDoc.fileUrl"
               class="max-w-full max-h-full object-contain rounded-lg shadow-sm"
             />
-            <!-- PDF Preview -->
             <div
               v-else-if="previewDoc.fileType === 'application/pdf'"
               class="w-full h-full min-h-[70vh] flex flex-col relative"
@@ -374,7 +411,40 @@ const closePreview = () => {
                 class="w-full h-full flex-1 border border-border rounded-lg shadow-sm bg-white"
               ></iframe>
             </div>
-            <!-- Unrecognized / Fallback -->
+            <div
+              v-else-if="isOfficeDoc(previewDoc)"
+              class="w-full h-full min-h-[70vh] flex flex-col"
+            >
+              <iframe
+                :src="officeViewerUrl"
+                class="w-full h-full flex-1 border border-border rounded-lg shadow-sm bg-white"
+              ></iframe>
+              <p class="text-xs text-muted-foreground mt-2 text-center">
+                Pratinjau dirender oleh Microsoft Office Online.
+                <button
+                  class="underline hover:text-foreground"
+                  @click="downloadFile(previewDoc.fileUrl, previewDoc.fileName)"
+                >
+                  Unduh file
+                </button>
+                untuk membuka di aplikasi.
+              </p>
+            </div>
+            <div
+              v-else-if="isTextDoc(previewDoc)"
+              class="w-full h-full min-h-[70vh] flex flex-col relative"
+            >
+              <div
+                v-if="isTextLoading"
+                class="absolute inset-0 flex items-center justify-center bg-white/80 z-10"
+              >
+                <Loader2 class="w-8 h-8 animate-spin text-[#012D5A]" />
+              </div>
+              <pre
+                class="w-full h-full flex-1 overflow-auto text-left text-sm font-mono whitespace-pre-wrap break-words border border-border rounded-lg shadow-sm bg-white p-4"
+                >{{ textContent || "" }}</pre
+              >
+            </div>
             <div v-else class="text-center p-8 bg-white border border-border rounded-xl shadow-sm">
               <FileText class="w-16 h-16 text-muted-foreground opacity-50 mx-auto mb-4" />
               <p class="text-foreground font-medium text-lg">No preview available</p>

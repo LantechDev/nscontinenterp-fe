@@ -106,6 +106,7 @@ const formData = reactive({
   currency: "IDR",
   swiftCode: "",
   isActive: true,
+  isDefault: false,
 });
 
 const uppercase = (value: string) => value.toUpperCase();
@@ -119,6 +120,7 @@ const openCreateModal = () => {
   formData.currency = "IDR";
   formData.swiftCode = "";
   formData.isActive = true;
+  formData.isDefault = false;
   isModalOpen.value = true;
 };
 
@@ -131,6 +133,7 @@ const openEditModal = (account: BankAccount) => {
   formData.currency = account.currency;
   formData.swiftCode = account.swiftCode || "";
   formData.isActive = account.isActive;
+  formData.isDefault = account.isDefault ?? false;
   isModalOpen.value = true;
 };
 
@@ -321,6 +324,11 @@ const toggleMenu = (id: string) => {
                       <Landmark class="w-4 h-4" />
                     </div>
                     <span class="text-sm font-medium">{{ account.bankName }}</span>
+                    <span
+                      v-if="account.isDefault"
+                      class="text-[10px] font-bold uppercase tracking-wide bg-emerald-50 text-emerald-600 border border-emerald-100 px-1.5 py-0.5 rounded"
+                      >Default</span
+                    >
                   </div>
                 </td>
                 <td class="py-3 px-4 text-sm text-muted-foreground font-mono">
@@ -394,7 +402,14 @@ const toggleMenu = (id: string) => {
                 <Landmark class="w-6 h-6" />
               </div>
               <div>
-                <h3 class="font-bold text-base text-foreground">{{ account.bankName }}</h3>
+                <div class="flex items-center gap-2">
+                  <h3 class="font-bold text-base text-foreground">{{ account.bankName }}</h3>
+                  <span
+                    v-if="account.isDefault"
+                    class="text-[10px] font-bold uppercase tracking-wide bg-emerald-50 text-emerald-600 border border-emerald-100 px-1.5 py-0.5 rounded"
+                    >Default</span
+                  >
+                </div>
                 <p class="text-xs text-muted-foreground font-mono">{{ account.accountNumber }}</p>
                 <p
                   v-if="account.swiftCode"
@@ -535,6 +550,15 @@ const toggleMenu = (id: string) => {
               <span class="ml-3 text-sm select-none cursor-pointer">Active</span>
             </div>
           </div>
+        </div>
+        <div
+          class="flex items-center gap-2 cursor-pointer w-fit group"
+          @click="formData.isDefault = !formData.isDefault"
+        >
+          <Checkbox v-model="formData.isDefault" class="pointer-events-none" />
+          <span class="text-sm font-medium select-none group-hover:text-blue-900 transition-colors"
+            >Jadikan default (otomatis terpilih di transaksi baru)</span
+          >
         </div>
       </form>
       <template #footer>

@@ -155,7 +155,9 @@ export function useExpensePage() {
   const taxOptions = ref<Array<{ id: string; name: string; rate: number }>>([]);
 
   // Dynamic category options fetched from the API
-  const serviceCategoryList = ref<Array<{ id: string; name: string; code?: string }>>([]);
+  const serviceCategoryList = ref<
+    Array<{ id: string; name: string; code?: string; isDefault?: boolean }>
+  >([]);
   const categoryOptions = computed(() => {
     const isJob = filters.value.type === "JOB";
     return [
@@ -216,7 +218,7 @@ export function useExpensePage() {
     const fetchCategoryOptions = () =>
       isJob
         ? fetchCategories()
-        : $fetch<Array<{ id: string; name: string; code?: string }>>(
+        : $fetch<Array<{ id: string; name: string; code?: string; isDefault?: boolean }>>(
             "/api/master/expense-categories",
           );
 
@@ -240,16 +242,18 @@ export function useExpensePage() {
         Array.isArray(catResult.data)
       ) {
         serviceCategoryList.value = catResult.data.map(
-          (c: { id: string; name: string; code?: string }) => ({
+          (c: { id: string; name: string; code?: string; isDefault?: boolean }) => ({
             id: c.id,
             name: c.name,
             code: c.code,
+            isDefault: c.isDefault,
           }),
         );
       }
     } else {
       serviceCategoryList.value =
-        (catResult as Array<{ id: string; name: string; code?: string }>) || [];
+        (catResult as Array<{ id: string; name: string; code?: string; isDefault?: boolean }>) ||
+        [];
     }
   };
 
@@ -269,13 +273,17 @@ export function useExpensePage() {
       editingExpenseId.value = "";
       await loadDropdownData();
 
+      // Pre-select the default category (service category for JOB, expense category otherwise).
+      const isJob = filters.value.type === "JOB";
+      const defaultCategoryId = selectDefaultId(serviceCategoryList.value);
+
       formData.value = {
         number: `EXP-${Date.now().toString().slice(-6)}`,
         description: "",
         amount: 0,
         date: new Date().toISOString().split("T")[0] || "",
-        categoryId: "",
-        expenseCategoryId: "",
+        categoryId: isJob ? defaultCategoryId : "",
+        expenseCategoryId: isJob ? "" : defaultCategoryId,
         vendorId: "",
         jobId: "",
         taxId: "",

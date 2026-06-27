@@ -17,23 +17,26 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<{
   (e: "update:isOpen", value: boolean): void;
-  (e: "submit", data: { name: string }): void;
+  (e: "submit", data: { name: string; isDefault: boolean }): void;
 }>();
 
 // Form state
 const formData = ref({
   name: "",
+  isDefault: false,
 });
 
 const resetForm = () => {
   formData.value = {
     name: "",
+    isDefault: false,
   };
 };
 
 const handleSubmit = () => {
   emit("submit", {
     name: formData.value.name.toUpperCase(),
+    isDefault: formData.value.isDefault,
   });
 };
 
@@ -49,6 +52,7 @@ watch(
     if (unit) {
       formData.value = {
         name: unit.name,
+        isDefault: unit.isDefault ?? false,
       };
     } else {
       resetForm();
@@ -88,6 +92,11 @@ defineExpose({ resetForm });
           required
         />
       </div>
+
+      <label class="flex items-center gap-2 cursor-pointer w-fit select-none">
+        <input v-model="formData.isDefault" type="checkbox" class="w-4 h-4 accent-[#012D5A]" />
+        <span class="text-sm font-medium">Jadikan default (otomatis terpilih di form baru)</span>
+      </label>
     </form>
 
     <template #footer>

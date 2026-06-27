@@ -55,6 +55,7 @@ export interface PackageType {
   id: string;
   code: string;
   name: string;
+  isDefault?: boolean;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -63,6 +64,7 @@ export interface MovementType {
   id: string;
   code: string;
   name: string;
+  isDefault?: boolean;
   createdAt?: string;
   updatedAt?: string;
 }

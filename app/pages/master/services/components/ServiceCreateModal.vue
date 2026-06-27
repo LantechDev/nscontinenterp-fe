@@ -72,15 +72,26 @@ const formData = ref({
   categoryId: "",
 });
 
+// Defaults from master data — pre-selected when creating a new service.
+const defaultUnitId = computed(() => selectDefaultId(units.value));
+const defaultCategoryId = computed(() => selectDefaultId(categories.value));
+
 const resetForm = () => {
   formData.value = {
     name: "",
     code: "",
     status: "Active",
-    unitId: "",
-    categoryId: "",
+    unitId: defaultUnitId.value,
+    categoryId: defaultCategoryId.value,
   };
 };
+
+// Master data loads after mount; apply defaults once available (new form only).
+watch([units, categories], () => {
+  if (props.initialData) return;
+  if (!formData.value.unitId) formData.value.unitId = defaultUnitId.value;
+  if (!formData.value.categoryId) formData.value.categoryId = defaultCategoryId.value;
+});
 
 const syncForm = () => {
   if (props.initialData) {

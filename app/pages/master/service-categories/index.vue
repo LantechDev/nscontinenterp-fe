@@ -116,7 +116,7 @@ const openEditModal = (category: ServiceCategory) => {
   isModalOpen.value = true;
 };
 
-const handleSubmit = async (formData: { name: string }) => {
+const handleSubmit = async (formData: { name: string; isDefault: boolean }) => {
   if (!formData.name) {
     formError.value = "Category name is required";
     return;
@@ -127,6 +127,7 @@ const handleSubmit = async (formData: { name: string }) => {
 
   const categoryData = {
     name: formData.name,
+    isDefault: formData.isDefault,
   };
 
   let result;
@@ -271,7 +272,14 @@ const handleDelete = async () => {
             <p class="text-xs font-bold text-muted-foreground uppercase tracking-widest">
               {{ category.code }}
             </p>
-            <h3 class="font-semibold text-foreground truncate">{{ category.name }}</h3>
+            <h3 class="font-semibold text-foreground truncate">
+              {{ category.name }}
+              <span
+                v-if="category.isDefault"
+                class="ml-1 text-[10px] font-bold uppercase tracking-wide bg-emerald-50 text-emerald-600 border border-emerald-100 px-1.5 py-0.5 rounded"
+                >Default</span
+              >
+            </h3>
             <p class="text-xs text-muted-foreground mt-2">
               Created {{ new Date(category.createdAt).toLocaleDateString("id-ID") }}
             </p>

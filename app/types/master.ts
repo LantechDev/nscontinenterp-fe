@@ -15,6 +15,7 @@ export interface ServiceCategory {
   defaultCostAccountId?: string | null;
   defaultRevenueAccount?: ServiceCategoryDefaultAccount | null;
   defaultCostAccount?: ServiceCategoryDefaultAccount | null;
+  isDefault?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -23,6 +24,7 @@ export interface ServiceUnit {
   id: string;
   code: string;
   name: string;
+  isDefault?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -33,6 +35,7 @@ export interface ExpenseCategory {
   name: string;
   defaultDebitAccountId?: string | null;
   defaultDebitAccount?: ServiceCategoryDefaultAccount | null;
+  isDefault?: boolean;
   createdAt: string;
   updatedAt: string;
 }

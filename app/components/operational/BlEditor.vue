@@ -142,7 +142,12 @@ watch(
           packageTypes.value = res || [];
         }),
         loadBlData(),
-      ]);
+      ]).then(() => {
+        // Pre-select the default package type when none is set yet (new/empty BL).
+        if (!formData.packageTypeId) {
+          formData.packageTypeId = selectDefaultId(packageTypes.value);
+        }
+      });
     }
   },
 );

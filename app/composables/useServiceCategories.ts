@@ -9,6 +9,7 @@ export interface CreateServiceCategoryInput {
   name: string;
   defaultRevenueAccountId?: string | null;
   defaultCostAccountId?: string | null;
+  isDefault?: boolean;
 }
 
 type ErrorResponse = {

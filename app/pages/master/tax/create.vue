@@ -19,6 +19,7 @@ const form = ref({
   isActive: true,
   isDefault: false,
   dppBasePercent: 100,
+  isDeduction: false,
 });
 const taxTypeOptions = [
   { id: "ppn", name: "PPN" },
@@ -28,6 +29,25 @@ const statusOptions = [
   { id: "true", name: "Aktif" },
   { id: "false", name: "Nonaktif" },
 ];
+const treatmentOptions = [
+  { id: "addition", name: "Penambah (ditambahkan ke total)" },
+  { id: "deduction", name: "Pengurang (dipotong dari total)" },
+];
+const treatmentValue = computed({
+  get: () => (form.value.isDeduction ? "deduction" : "addition"),
+  set: (value: string | null | undefined) => {
+    form.value.isDeduction = value === "deduction";
+  },
+});
+
+// Tipe PPh lazimnya pengurang, PPN penambah. Saat user ganti tipe, ikuti default
+// itu — tapi tetap bisa di-override manual lewat field Perlakuan.
+watch(
+  () => form.value.type,
+  (type) => {
+    form.value.isDeduction = type.toLowerCase() === "pph";
+  },
+);
 const isActiveValue = computed({
   get: () => String(form.value.isActive),
   set: (value: string | null | undefined) => {
@@ -117,6 +137,18 @@ async function handleSubmit() {
             />
             <p class="text-xs text-muted-foreground">
               Default 100. Untuk PPh yang dikali ½ isi 50.
+            </p>
+          </div>
+          <div class="space-y-2">
+            <label class="text-sm font-medium">Perlakuan terhadap Total</label>
+            <Combobox
+              v-model="treatmentValue"
+              :options="treatmentOptions"
+              placeholder="Pilih perlakuan"
+            />
+            <p class="text-xs text-muted-foreground">
+              Pengurang = dipotong (PPh). Penambah = ditambahkan (PPN). Otomatis mengikuti tipe,
+              bisa diubah manual.
             </p>
           </div>
         </div>

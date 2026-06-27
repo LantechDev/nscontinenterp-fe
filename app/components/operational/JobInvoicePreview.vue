@@ -244,16 +244,9 @@ onMounted(async () => {
   }
 });
 
-const matchedBankAccount = computed(() => {
-  if (!props.invoice) return null;
-
-  return (
-    bankAccounts.value.find((b) => b.currency === props.invoice?.currency) ||
-    bankAccounts.value.find((b) => b.currency === "IDR") ||
-    bankAccounts.value[0] ||
-    null
-  );
-});
+const matchedBankAccount = computed(() =>
+  props.invoice ? selectBankAccount(bankAccounts.value, props.invoice.currency) : null,
+);
 
 const isGeneratingPDF = ref(false);
 const printContainerRef = ref<HTMLElement | null>(null);
