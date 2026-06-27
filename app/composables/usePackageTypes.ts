@@ -3,10 +3,12 @@ import type { PackageType } from "~/composables/useMasterData";
 export interface CreatePackageTypeInput {
   name: string;
   code?: string;
+  isDefault?: boolean;
 }
 
 export interface UpdatePackageTypeInput {
   name: string;
+  isDefault?: boolean;
 }
 
 type ErrorResponse = {

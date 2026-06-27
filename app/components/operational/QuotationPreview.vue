@@ -260,16 +260,9 @@ const groupedTotals = computed(() => {
   return totals;
 });
 
-const matchedBankAccount = computed(() => {
-  if (!props.quotation) return null;
-
-  return (
-    bankAccounts.value.find((b) => b.currency === props.quotation?.currency) ||
-    bankAccounts.value.find((b) => b.currency === "IDR") ||
-    bankAccounts.value[0] ||
-    null
-  );
-});
+const matchedBankAccount = computed(() =>
+  props.quotation ? selectBankAccount(bankAccounts.value, props.quotation.currency) : null,
+);
 
 const isGeneratingPDF = ref(false);
 const printContainerRef = ref<HTMLElement | null>(null);

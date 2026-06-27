@@ -7,6 +7,7 @@ export interface ServiceUnitStats {
 
 export interface CreateServiceUnitInput {
   name: string;
+  isDefault?: boolean;
 }
 
 type ErrorResponse = {

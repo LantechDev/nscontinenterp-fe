@@ -8,6 +8,7 @@ export interface ExpenseCategoryStats {
 export interface CreateExpenseCategoryInput {
   name: string;
   defaultDebitAccountId?: string | null;
+  isDefault?: boolean;
 }
 
 type ErrorResponse = {

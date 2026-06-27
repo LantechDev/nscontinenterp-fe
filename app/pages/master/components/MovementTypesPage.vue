@@ -107,12 +107,14 @@ const movementToDelete = ref<MovementType | null>(null);
 const formData = ref({
   code: "",
   name: "",
+  isDefault: false,
 });
 
 const resetForm = () => {
   formData.value = {
     code: "",
     name: "",
+    isDefault: false,
   };
   formError.value = null;
 };
@@ -130,6 +132,7 @@ const openEditModal = (movement: MovementType) => {
   formData.value = {
     code: movement.code,
     name: movement.name,
+    isDefault: movement.isDefault ?? false,
   };
   formError.value = null;
   isModalOpen.value = true;
@@ -153,10 +156,12 @@ const handleSubmit = async () => {
   const result = editingMovement.value
     ? await updateMovement(editingMovement.value.id, {
         name: formData.value.name.toUpperCase(),
+        isDefault: formData.value.isDefault,
       })
     : await createMovement({
         code: formData.value.code.toUpperCase() || undefined,
         name: formData.value.name.toUpperCase(),
+        isDefault: formData.value.isDefault,
       });
 
   if (result.success) {
@@ -344,7 +349,14 @@ const formatDate = (dateStr?: string) => {
             class="border-b border-border last:border-0 hover:bg-muted/30 transition-colors"
           >
             <td class="py-3 px-4 text-sm font-medium">{{ movement.code }}</td>
-            <td class="py-3 px-4 text-sm font-medium">{{ movement.name }}</td>
+            <td class="py-3 px-4 text-sm font-medium">
+              {{ movement.name }}
+              <span
+                v-if="movement.isDefault"
+                class="ml-2 text-[10px] font-bold uppercase tracking-wide bg-emerald-50 text-emerald-600 border border-emerald-100 px-1.5 py-0.5 rounded"
+                >Default</span
+              >
+            </td>
             <td class="py-3 px-4 text-sm text-muted-foreground">
               {{ formatDate(movement.createdAt) }}
             </td>
@@ -394,7 +406,14 @@ const formatDate = (dateStr?: string) => {
             <p class="text-xs font-bold text-muted-foreground uppercase tracking-widest">
               {{ movement.code }}
             </p>
-            <h3 class="font-semibold text-foreground truncate">{{ movement.name }}</h3>
+            <h3 class="font-semibold text-foreground truncate">
+              {{ movement.name }}
+              <span
+                v-if="movement.isDefault"
+                class="ml-1 text-[10px] font-bold uppercase tracking-wide bg-emerald-50 text-emerald-600 border border-emerald-100 px-1.5 py-0.5 rounded"
+                >Default</span
+              >
+            </h3>
             <p class="text-xs text-muted-foreground mt-2">
               Created {{ formatDate(movement.createdAt) }}
             </p>
@@ -473,6 +492,11 @@ const formatDate = (dateStr?: string) => {
             required
           />
         </div>
+
+        <label class="flex items-center gap-2 cursor-pointer w-fit select-none">
+          <input v-model="formData.isDefault" type="checkbox" class="w-4 h-4 accent-[#012D5A]" />
+          <span class="text-sm font-medium">Jadikan default (otomatis terpilih di Job baru)</span>
+        </label>
       </form>
 
       <template #footer>

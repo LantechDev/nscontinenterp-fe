@@ -300,7 +300,9 @@ const discountedBase = computed(() => subTotal.value - discountAmount.value);
 
 // PPh is a withholding tax (deducted); PPN is added. Some taxes only apply to a
 // portion of the base (dppBasePercent, e.g. 50 for certain PPh).
-const isWithholdingTax = computed(() => (selectedTax.value?.type || "").toLowerCase() === "pph");
+const isWithholdingTax = computed(
+  () => selectedTax.value?.isDeduction ?? (selectedTax.value?.type || "").toLowerCase() === "pph",
+);
 
 const taxAmount = computed(() => {
   // Magnitude of the tax (always positive).

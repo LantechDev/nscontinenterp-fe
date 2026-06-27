@@ -80,7 +80,14 @@ const formatDate = (dateStr: string) => {
           class="border-b border-border last:border-0 hover:bg-muted/30 transition-colors"
         >
           <td class="py-3 px-4 text-sm font-medium">{{ category.code }}</td>
-          <td class="py-3 px-4 text-sm font-medium">{{ category.name }}</td>
+          <td class="py-3 px-4 text-sm font-medium">
+            {{ category.name }}
+            <span
+              v-if="category.isDefault"
+              class="ml-2 text-[10px] font-bold uppercase tracking-wide bg-emerald-50 text-emerald-600 border border-emerald-100 px-1.5 py-0.5 rounded"
+              >Default</span
+            >
+          </td>
           <td class="py-3 px-4 text-sm text-muted-foreground">
             {{ formatDate(category.createdAt) }}
           </td>

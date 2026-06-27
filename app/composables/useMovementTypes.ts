@@ -5,10 +5,12 @@ export type MovementKind = "cargo" | "delivery";
 export interface CreateMovementTypeInput {
   name: string;
   code?: string;
+  isDefault?: boolean;
 }
 
 export interface UpdateMovementTypeInput {
   name: string;
+  isDefault?: boolean;
 }
 
 type ErrorResponse = {

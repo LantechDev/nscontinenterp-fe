@@ -17,6 +17,7 @@ export interface TaxFormData {
   isActive: boolean;
   isDefault: boolean;
   dppBasePercent: number;
+  isDeduction: boolean;
 }
 
 export type TaxViewMode = "list" | "grid";
@@ -73,6 +74,7 @@ export function useTaxPage() {
     isActive: true,
     isDefault: false,
     dppBasePercent: 100,
+    isDeduction: false,
   });
 
   // Computed
@@ -130,6 +132,7 @@ export function useTaxPage() {
       isActive: true,
       isDefault: false,
       dppBasePercent: 100,
+      isDeduction: false,
     };
 
     isEditModalOpen.value = true; // Open immediately to show loading state
@@ -149,6 +152,8 @@ export function useTaxPage() {
         isActive: tax.isActive ?? true,
         isDefault: tax.isDefault ?? false,
         dppBasePercent: tax.dppBasePercent != null ? Number(tax.dppBasePercent) : 100,
+        // Fallback to type-based behavior for legacy rows where isDeduction is unset.
+        isDeduction: tax.isDeduction ?? tax.type?.toLowerCase() === "pph",
       };
 
       editError.value = null;
@@ -181,6 +186,7 @@ export function useTaxPage() {
         isActive: formData.value.isActive,
         isDefault: formData.value.isDefault,
         dppBasePercent: formData.value.dppBasePercent,
+        isDeduction: formData.value.isDeduction,
       });
 
       if (result) {

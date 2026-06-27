@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import Checkbox from "~/components/ui/Checkbox.vue";
 import Combobox from "~/components/ui/Combobox.vue";
-defineProps<{
+const props = defineProps<{
   isOpen: boolean;
   isSubmitting: boolean;
   editError: string | null;
@@ -14,6 +14,7 @@ defineProps<{
     isActive: boolean;
     isDefault: boolean;
     dppBasePercent: number;
+    isDeduction: boolean;
   };
   taxTypeOptions: Array<{ value: string; label: string }>;
 }>();
@@ -22,6 +23,17 @@ const emit = defineEmits<{
   close: [];
   submit: [];
 }>();
+
+const treatmentOptions = [
+  { id: "addition", name: "Penambah (ditambahkan ke total)" },
+  { id: "deduction", name: "Pengurang (dipotong dari total)" },
+];
+const treatmentValue = computed({
+  get: () => (props.formData.isDeduction ? "deduction" : "addition"),
+  set: (value: string | null | undefined) => {
+    props.formData.isDeduction = value === "deduction";
+  },
+});
 </script>
 
 <template>
@@ -114,6 +126,18 @@ const emit = defineEmits<{
               />
               <p class="text-xs text-muted-foreground mt-1">
                 Default 100. Untuk PPh tertentu (dikali ½) isi 50.
+              </p>
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium mb-1">Perlakuan terhadap Total</label>
+              <Combobox
+                v-model="treatmentValue"
+                :options="treatmentOptions"
+                placeholder="Pilih perlakuan"
+              />
+              <p class="text-xs text-muted-foreground mt-1">
+                Pengurang = dipotong (PPh). Penambah = ditambahkan (PPN).
               </p>
             </div>
 

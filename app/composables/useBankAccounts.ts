@@ -6,6 +6,7 @@ export interface BankAccount {
   currency: string;
   swiftCode?: string;
   isActive: boolean;
+  isDefault?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -17,6 +18,7 @@ export interface CreateBankAccount {
   currency: string;
   swiftCode?: string;
   isActive?: boolean;
+  isDefault?: boolean;
 }
 
 export interface UpdateBankAccount extends Partial<CreateBankAccount> {}

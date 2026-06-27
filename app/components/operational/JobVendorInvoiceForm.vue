@@ -83,7 +83,9 @@ const selectedTax = computed(() => {
 
 // PPh is a withholding tax (deducted); PPN is added. dppBasePercent (e.g. 50 for
 // certain PPh) limits the taxed portion of the base.
-const isWithholdingTax = computed(() => (selectedTax.value?.type || "").toLowerCase() === "pph");
+const isWithholdingTax = computed(
+  () => selectedTax.value?.isDeduction ?? (selectedTax.value?.type || "").toLowerCase() === "pph",
+);
 
 const taxAmount = computed(() => {
   // Magnitude (always positive).

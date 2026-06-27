@@ -127,6 +127,18 @@ const packageTypes = computed(() => masterData.value?.packageTypes || []);
 const cargoMovementOptions = computed(() => masterData.value?.cargoMovements || []);
 const deliveryMovementOptions = computed(() => masterData.value?.deliveryMovements || []);
 
+// Master data loads after mount. Once available, apply the flagged default movement —
+// but only while the field still holds its initial hardcoded value (don't clobber a
+// user pick). Falls back to the hardcoded code when no default is flagged.
+watch([cargoMovementOptions, deliveryMovementOptions], () => {
+  if (formData.cargoMovementId === "FCL_FCL") {
+    formData.cargoMovementId = selectDefaultId(cargoMovementOptions.value, "FCL_FCL");
+  }
+  if (formData.deliveryMovementId === "CY_DOOR") {
+    formData.deliveryMovementId = selectDefaultId(deliveryMovementOptions.value, "CY_DOOR");
+  }
+});
+
 const searchedPorts = ref<Port[]>([]);
 watch(
   () => masterData.value?.ports,
