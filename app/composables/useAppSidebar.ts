@@ -52,6 +52,7 @@ export const NAV_ITEMS: NavItem[] = [
     icon: Package,
     children: [
       { title: "Company", href: "/master/company", icon: Building2 },
+      { title: "Company Category", href: "/master/company-categories", icon: Tag },
       { title: "Service", href: "/master/services", icon: Wrench },
       { title: "Service Category", href: "/master/service-categories", icon: Tag },
       { title: "Expense Category", href: "/master/expense-categories", icon: Tag },

@@ -398,6 +398,16 @@ onMounted(() => {
                   </p>
                 </div>
               </div>
+
+              <div
+                v-if="Number(expense?.creditBalance || 0) > 0"
+                class="pt-4 border-t border-border space-y-1"
+              >
+                <p class="text-[10px] font-bold uppercase text-muted-foreground">Kelebihan Bayar</p>
+                <p class="text-sm font-semibold text-emerald-600">
+                  {{ formatCurrency(Number(expense?.creditBalance)) }}
+                </p>
+              </div>
             </div>
           </div>
 

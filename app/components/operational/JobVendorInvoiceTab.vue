@@ -607,16 +607,61 @@ const getStatusColor = (code?: string) => {
             </div>
           </div>
 
-          <div class="border-t border-border pt-3 flex items-center justify-between">
-            <p
-              class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest line-clamp-1 flex-1 pr-4"
-            >
-              {{ expense.description }}
-            </p>
-            <div
-              class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-gray-100 text-gray-500 uppercase border border-gray-200"
-            >
-              {{ expense.category?.name || "General" }}
+          <div class="border-t border-border pt-3">
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <p
+                  class="text-[9px] text-muted-foreground mb-1 uppercase tracking-widest font-bold opacity-70"
+                >
+                  Description
+                </p>
+                <p class="text-[10px] font-bold text-foreground line-clamp-2">
+                  {{ expense.description }}
+                </p>
+              </div>
+              <div class="text-right">
+                <p
+                  class="text-[9px] text-muted-foreground mb-1 uppercase tracking-widest font-bold opacity-70"
+                >
+                  Balance Due
+                </p>
+                <template v-if="getExpenseStatusCode(expense) === 'VOIDED'">
+                  <p class="font-black text-xs text-gray-400 line-through whitespace-nowrap">
+                    Voided
+                  </p>
+                </template>
+                <template v-else-if="Number(expense.balanceDue || 0) > 0">
+                  <p class="font-black text-xs text-red-600 whitespace-nowrap">
+                    {{ formatCurrency(Number(expense.balanceDue), expense.currency) }}
+                  </p>
+                  <p
+                    v-if="expense.currency && expense.currency !== 'IDR'"
+                    class="text-[9px] text-muted-foreground font-semibold mt-0.5 whitespace-nowrap"
+                  >
+                    {{
+                      formatCurrency(
+                        Number(expense.balanceDue || 0) * Number(expense.exchangeRate || 1),
+                        "IDR",
+                      )
+                    }}
+                  </p>
+                </template>
+                <template v-else>
+                  <p class="font-black text-xs text-green-600 whitespace-nowrap">Paid In Full</p>
+                  <p
+                    v-if="Number(expense.creditBalance || 0) > 0"
+                    class="text-[10px] text-emerald-600 font-semibold mt-0.5"
+                  >
+                    +{{ formatCurrency(Number(expense.creditBalance), expense.currency) }} overpaid
+                  </p>
+                </template>
+              </div>
+            </div>
+            <div class="flex items-center justify-end mt-2">
+              <span
+                class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-gray-100 text-gray-500 uppercase border border-gray-200"
+                >{{ expense.category?.name || "General" }}</span
+              >
             </div>
           </div>
         </div>

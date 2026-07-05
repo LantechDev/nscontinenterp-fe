@@ -265,6 +265,7 @@ export function useInvoices() {
     taxTotal?: number;
     total: number;
     balanceDue: number;
+    creditBalance?: number;
     items: Array<{
       serviceId?: string;
       taxId?: string;
@@ -311,6 +312,7 @@ export function useInvoices() {
       exchangeRate?: number;
       total: number;
       balanceDue: number;
+      creditBalance: number;
       statusId: string;
       items: Array<{
         id?: string;
