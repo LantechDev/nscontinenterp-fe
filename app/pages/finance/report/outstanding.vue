@@ -286,6 +286,7 @@ onMounted(() => {
         </div>
 
         <div class="flex items-center gap-3">
+          <LayoutGlobalSearchButton compact />
           <button
             @click="openExportPopup($event)"
             :disabled="isExporting || !reportData"

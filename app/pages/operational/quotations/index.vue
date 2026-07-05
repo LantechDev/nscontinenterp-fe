@@ -241,6 +241,22 @@ function copyQuotation(quotationId: string) {
   if (!requireManage("You only have view access for quotations.")) return;
   router.push(`/operational/quotations/create?copyFrom=${quotationId}`);
 }
+
+// Open detail directly from a deep link (e.g. global search: /operational/quotations?id=...)
+watch(
+  () => route.query.id,
+  (newId) => {
+    if (newId) {
+      setTimeout(() => {
+        openDetail(newId as string);
+        if (typeof window !== "undefined") {
+          window.history.replaceState({}, "", route.path);
+        }
+      }, 50);
+    }
+  },
+  { immediate: true },
+);
 </script>
 
 <template>
@@ -256,6 +272,7 @@ function copyQuotation(quotationId: string) {
           </p>
         </div>
         <div class="flex items-center gap-2">
+          <LayoutGlobalSearchButton compact />
           <NuxtLink
             v-if="canManage"
             to="/operational/quotations/create"

@@ -246,8 +246,27 @@ const limitText = (val: unknown, maxLength = 18) => {
   return `${text.slice(0, maxLength).trimEnd()}...`;
 };
 
-const freightPayableAtRaw = computed(() => getVal(props.jobData?.podName, props.jobData?.pod));
+// "Freight & charges payable at/by" must follow the freight-payment choice, not
+// always the POD. The prepaid/collect summary already encodes the city
+// (e.g. "PREPAID AT BELAWAN"), so extract it from there. Falls back to POL for a
+// prepaid selection and POD otherwise.
+const freightPayableAtRaw = computed(() => {
+  const summary = getVal(props.activeBl?.prepaid) || getVal(props.activeBl?.collect);
+  const match = summary.match(/\bAT\s+(.+)$/i);
+  if (match?.[1]) return match[1].trim();
+  if (getVal(props.activeBl?.prepaid)) return getVal(props.jobData?.polName, props.jobData?.pol);
+  return getVal(props.jobData?.podName, props.jobData?.pod);
+});
 const freightPayableAt = computed(() => limitText(freightPayableAtRaw.value, 18));
+
+// Combined PREPAID/COLLECT indicator shown above the payable city. Only one shows,
+// driven by which side the freight-payment selection populated.
+const freightTermLabel = computed(() => {
+  if (getVal(props.activeBl?.prepaid)) return "FREIGHT PREPAID";
+  if (getVal(props.activeBl?.collect)) return "FREIGHT COLLECT";
+  const term = getVal(props.activeBl?.freightTerm);
+  return term ? `FREIGHT ${term.toUpperCase()}` : "";
+});
 
 const formatNumber = (num: unknown, decimals: number = 3): string => {
   if (!num && num !== 0) return "-";
@@ -287,6 +306,63 @@ const getContainerTotals = (cnt: EblContainer) => {
 
   return { gw, nw, cbm, qty };
 };
+
+// Cargo figure sourced ONLY from real data: sum the line items, else fall back to
+// the container's OWN same-named total. No cross-field or job-level fallback, so an
+// absent value returns null and the cell shows "-" instead of fabricating a number
+// (e.g. the quantity leaking into net weight).
+const cargoFigure = (
+  cnt: EblContainer,
+  itemKey: "qty" | "grossWeight" | "netWeight" | "measurementCbm",
+  containerKeys: Array<keyof EblContainer>,
+): number | null => {
+  const items = Array.isArray(cnt.items) ? cnt.items : [];
+  let sum = 0;
+  let hasValue = false;
+  for (const it of items) {
+    const raw = it?.[itemKey];
+    if (raw == null) continue;
+    const n = Number(raw);
+    if (!Number.isNaN(n)) {
+      sum += n;
+      hasValue = true;
+    }
+  }
+  if (hasValue) return sum;
+  for (const key of containerKeys) {
+    const raw = cnt?.[key];
+    if (raw == null) continue;
+    const n = Number(raw);
+    if (!Number.isNaN(n)) return n;
+  }
+  return null;
+};
+
+// Renders "<number> <unit>" or a bare "-" when the value is missing.
+const figureText = (val: number | null | undefined, unit: string, decimals = 3) =>
+  val === null || val === undefined ? "-" : `${formatNumber(val, decimals)} ${unit}`;
+
+// Package unit shown next to a container's total quantity (e.g. "PKGS").
+const containerPackageUnit = (cnt: EblContainer) => {
+  const items = Array.isArray(cnt.items) ? cnt.items : [];
+  const codes = Array.from(
+    new Set(items.map((it) => (it.packageTypeCode || "").trim()).filter(Boolean)),
+  );
+  return codes.length === 1 ? codes[0] : "PKGS";
+};
+
+// "<qty> <unit>" for the container header row, or "-" when there's no quantity.
+const containerQtyText = (cnt: EblContainer) => {
+  const qty = cargoFigure(cnt, "qty", ["totalQty", "quantity"]);
+  return qty === null ? "-" : `${formatNumber(qty, 0)} ${containerPackageUnit(cnt)}`;
+};
+
+// A container with a single line item shows its qty/weights/measurement once, in the
+// header row, so the per-item row omits those columns to avoid duplication. With
+// multiple items each row keeps its own figures.
+const isSingleDetail = (cnt: EblContainer) =>
+  (Array.isArray(cnt.items) ? cnt.items.length : (cnt.renderItems?.length ?? 0)) === 1;
+const showItemFigures = (cnt: EblContainer) => !isSingleDetail(cnt) || !cnt.isHeaderVisible;
 
 const findPartyByRole = (roleCodes: string[]) => {
   const normalizedRoles = roleCodes.map((role) => role.replace(/[\s-]/g, "_").toUpperCase());
@@ -872,11 +948,13 @@ const formatDate = (dateStr?: string | null) => {
                 </template>
                 <template v-else>
                   {{ cnt.containerNumber || ""
-                  }}<span v-if="cnt.sealNumber" class="ml-1">/{{ cnt.sealNumber }}</span>
+                  }}<span v-if="cnt.containerType?.code || cnt.containerType?.name" class="ml-1"
+                    >/ {{ cnt.containerType?.code || cnt.containerType?.name }}</span
+                  ><span v-if="cnt.sealNumber" class="ml-1">/ {{ cnt.sealNumber }}</span>
                 </template>
               </div>
               <div class="w-[10%] px-2 text-right text-[11px]">
-                {{ formatNumber(getContainerTotals(cnt).qty, 0) }}
+                {{ containerQtyText(cnt) }}
               </div>
               <div class="w-[3%] flex items-center justify-center text-[10px] leading-none">
                 {{ cnt.isHazardous ? "X" : "" }}
@@ -890,11 +968,34 @@ const formatDate = (dateStr?: string | null) => {
                       : `1X${cnt.containerType?.code || ""} S.T.C.:`
                 }}
               </div>
-              <div class="w-[12.5%] px-3 text-right text-[11px]">
-                {{ formatNumber(getContainerTotals(cnt).gw) }}KGS
+              <div class="w-[12.5%] px-3 text-right text-[11px] leading-tight">
+                <div>
+                  GW
+                  {{
+                    figureText(
+                      cargoFigure(cnt, "grossWeight", ["totalGrossWeight", "grossWeight"]),
+                      "KGS",
+                    )
+                  }}
+                </div>
+                <div>
+                  NW
+                  {{
+                    figureText(
+                      cargoFigure(cnt, "netWeight", ["totalNetWeight", "netWeight"]),
+                      "KGS",
+                    )
+                  }}
+                </div>
               </div>
               <div class="w-[12.5%] px-3 text-right text-[11px]">
-                {{ formatNumber(getContainerTotals(cnt).cbm) }}CBM
+                {{
+                  figureText(
+                    cargoFigure(cnt, "measurementCbm", ["totalMeasurementCbm", "measurement"]),
+                    "CBM",
+                    2,
+                  )
+                }}
               </div>
             </div>
 
@@ -907,15 +1008,18 @@ const formatDate = (dateStr?: string | null) => {
                 {{ page.pageIndex === 0 && cIdx === 0 && iIdx === 0 ? jobData?.shippingMark : "" }}
               </div>
               <div class="w-[10%] px-2 text-right text-[11px]">
-                {{ formatNumber(item.qty, 0) }}
+                <template v-if="showItemFigures(cnt)">
+                  {{
+                    item.qty === null || item.qty === undefined
+                      ? "-"
+                      : `${formatNumber(item.qty, 0)} ${item.packageTypeCode || "PKGS"}`
+                  }}
+                </template>
               </div>
               <div class="w-[3%] flex items-center justify-center text-[10px] leading-none">
                 {{ cnt.isHazardous ? "X" : "" }}
               </div>
               <div class="w-[40%] px-3 font-mono">
-                <div class="font-bold underline mb-0.5 text-[11px]">
-                  {{ item.packageTypeCode || "PKGS" }} OF:
-                </div>
                 <div
                   v-for="(line, lIdx) in item.displayLines"
                   :key="lIdx"
@@ -927,11 +1031,16 @@ const formatDate = (dateStr?: string | null) => {
                   (HS CODE: {{ item.hsCode }})
                 </div>
               </div>
-              <div class="w-[12.5%] px-3 text-right text-[11px]">
-                {{ formatNumber(item.grossWeight, 0) }}
+              <div class="w-[12.5%] px-3 text-right text-[11px] leading-tight">
+                <template v-if="showItemFigures(cnt)">
+                  <div>GW {{ figureText(item.grossWeight, "KGS") }}</div>
+                  <div>NW {{ figureText(item.netWeight, "KGS") }}</div>
+                </template>
               </div>
               <div class="w-[12.5%] px-3 text-right text-[11px]">
-                {{ formatNumber(item.measurementCbm, 2) }}
+                <template v-if="showItemFigures(cnt)">
+                  {{ figureText(item.measurementCbm, "CBM", 2) }}
+                </template>
               </div>
             </div>
 
@@ -993,7 +1102,12 @@ const formatDate = (dateStr?: string | null) => {
               >FREIGHT &amp; CHARGES PAYABLE AT / BY:</span
             >
             <span
-              class="uppercase font-mono text-[0.55rem] text-black leading-tight font-normal mt-1 block break-words"
+              v-if="freightTermLabel"
+              class="uppercase font-mono text-[0.6rem] text-black font-bold mt-1 block leading-none"
+              >{{ freightTermLabel }}</span
+            >
+            <span
+              class="uppercase font-mono text-[0.55rem] text-black leading-tight font-normal mt-0.5 block break-words"
               :title="freightPayableAtRaw"
               >{{ freightPayableAt || "-" }}</span
             >
@@ -1079,7 +1193,7 @@ const formatDate = (dateStr?: string | null) => {
                 <div
                   class="w-[17.5%] px-2 text-left text-black font-normal text-[8.1px] break-words"
                 >
-                  {{ activeBl?.collect }}
+                  {{ activeBl?.prepaid ? "" : activeBl?.collect }}
                 </div>
               </div>
             </div>

@@ -309,7 +309,7 @@ const taxAmount = computed(() => {
   const rate = selectedTax.value ? Number(selectedTax.value.rate) : 0;
   const dpp = selectedTax.value ? Number(selectedTax.value.dppBasePercent ?? 100) : 100;
   const sum = (discountedBase.value * (dpp / 100) * rate) / 100;
-  return form.value.currency === "IDR" ? Math.round(sum) : sum;
+  return ceilTaxByCurrency(sum, form.value.currency);
 });
 
 const signedTax = computed(() => (isWithholdingTax.value ? -taxAmount.value : taxAmount.value));
