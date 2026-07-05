@@ -1,0 +1,293 @@
+<script setup lang="ts">
+import { Plus, Search, Pencil, Trash2, Loader2, Building2 } from "lucide-vue-next";
+
+definePageMeta({
+  layout: "dashboard",
+});
+
+const {
+  fetchCompanyCategories,
+  createCompanyCategory,
+  updateCompanyCategory,
+  deleteCompanyCategory,
+} = useMasterData();
+
+const { canManage, requireManage } = useFeatureAccess("master.company");
+const isLoading = ref(false);
+const categories = ref<Array<{ id: string; name: string; code: string; createdAt?: string }>>([]);
+const searchQuery = ref("");
+const isModalOpen = ref(false);
+const isDeleteModalOpen = ref(false);
+const isSubmitting = ref(false);
+const formError = ref<string | null>(null);
+const editingCategory = ref<(typeof categories.value)[0] | null>(null);
+const categoryToDelete = ref<(typeof categories.value)[0] | null>(null);
+const formData = ref({ name: "" });
+
+async function loadCategories() {
+  isLoading.value = true;
+  categories.value = await fetchCompanyCategories();
+  isLoading.value = false;
+}
+
+const filteredCategories = computed(() => {
+  const q = searchQuery.value.toLowerCase();
+  if (!q) return categories.value;
+  return categories.value.filter((c) => c.name.toLowerCase().includes(q) || c.code.includes(q));
+});
+
+onMounted(loadCategories);
+
+const resetForm = () => {
+  formData.value = { name: "" };
+  formError.value = null;
+};
+
+const openCreateModal = () => {
+  if (!requireManage("You only have view access for company master data.")) return;
+  editingCategory.value = null;
+  resetForm();
+  isModalOpen.value = true;
+};
+
+const openEditModal = (cat: (typeof categories.value)[0]) => {
+  if (!requireManage("You only have view access for company master data.")) return;
+  editingCategory.value = cat;
+  formData.value = { name: cat.name };
+  formError.value = null;
+  isModalOpen.value = true;
+};
+
+const handleSubmit = async () => {
+  if (!formData.value.name.trim()) {
+    formError.value = "Category name is required";
+    return;
+  }
+  isSubmitting.value = true;
+  formError.value = null;
+
+  const result = editingCategory.value
+    ? await updateCompanyCategory(editingCategory.value.id, formData.value.name.trim())
+    : await createCompanyCategory(formData.value.name.trim());
+
+  if (result.success) {
+    isModalOpen.value = false;
+    await loadCategories();
+  } else {
+    formError.value = result.error || "Failed to save category";
+  }
+  isSubmitting.value = false;
+};
+
+const openDeleteModal = (cat: (typeof categories.value)[0]) => {
+  if (!requireManage("You only have view access for company master data.")) return;
+  categoryToDelete.value = cat;
+  isDeleteModalOpen.value = true;
+};
+
+const handleDelete = async () => {
+  if (!categoryToDelete.value) return;
+  isSubmitting.value = true;
+  const result = await deleteCompanyCategory(categoryToDelete.value.id);
+  if (result.success) {
+    isDeleteModalOpen.value = false;
+    categoryToDelete.value = null;
+    await loadCategories();
+  } else {
+    formError.value = result.error || "Failed to delete category";
+  }
+  isSubmitting.value = false;
+};
+
+const formatDate = (d?: string) => {
+  if (!d) return "-";
+  return new Date(d).toLocaleDateString("id-ID", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+};
+</script>
+
+<template>
+  <div class="space-y-6 animate-fade-in p-6">
+    <div class="flex items-center justify-between">
+      <div>
+        <h1 class="text-2xl font-bold">Company Categories</h1>
+        <p class="text-sm text-muted-foreground mt-1">
+          Manage company type classifications used in company forms
+        </p>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div class="border border-border rounded-lg bg-white p-4">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm text-muted-foreground">Total Categories</p>
+            <p class="text-2xl font-bold">{{ categories.length }}</p>
+          </div>
+          <div
+            class="h-10 w-10 rounded-lg bg-[#012D5A]/10 text-[#012D5A] flex items-center justify-center"
+          >
+            <Building2 class="w-5 h-5" />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex items-center justify-between gap-4">
+      <div class="relative w-full max-w-sm">
+        <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        <input
+          v-model="searchQuery"
+          type="text"
+          placeholder="Search categories..."
+          class="w-full pl-10 pr-4 py-2 text-sm border border-border rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground"
+        />
+      </div>
+      <button
+        v-if="canManage"
+        type="button"
+        class="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-[#012D5A] text-white hover:bg-[#012D5A]/90 rounded-lg transition-colors min-w-fit whitespace-nowrap"
+        @click="openCreateModal"
+      >
+        <Plus class="w-4 h-4" />
+        <span>New Category</span>
+      </button>
+    </div>
+
+    <div v-if="isLoading" class="flex items-center justify-center py-12">
+      <Loader2 class="w-8 h-8 animate-spin text-[#012D5A]" />
+    </div>
+
+    <div v-else class="border border-border rounded-xl bg-white overflow-x-auto">
+      <table class="w-full min-w-[480px]">
+        <thead>
+          <tr class="border-b border-border bg-white text-left">
+            <th class="py-3 px-4 text-sm font-medium text-foreground">Code</th>
+            <th class="py-3 px-4 text-sm font-medium text-foreground">Name</th>
+            <th class="py-3 px-4 text-sm font-medium text-foreground">Created</th>
+            <th v-if="canManage" class="py-3 px-4 w-10"></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr
+            v-for="cat in filteredCategories"
+            :key="cat.id"
+            class="border-b border-border last:border-0 hover:bg-muted/30 transition-colors"
+          >
+            <td class="py-3 px-4 text-sm font-medium text-muted-foreground">{{ cat.code }}</td>
+            <td class="py-3 px-4 text-sm font-medium">{{ cat.name }}</td>
+            <td class="py-3 px-4 text-sm text-muted-foreground">
+              {{ formatDate(cat.createdAt) }}
+            </td>
+            <td v-if="canManage" class="py-3 px-4 text-right">
+              <div class="flex items-center justify-end gap-1">
+                <button
+                  class="p-1.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                  @click="openEditModal(cat)"
+                >
+                  <Pencil class="w-4 h-4" />
+                </button>
+                <button
+                  class="p-1.5 rounded text-muted-foreground hover:text-red-600 hover:bg-red-50 transition-colors"
+                  @click="openDeleteModal(cat)"
+                >
+                  <Trash2 class="w-4 h-4" />
+                </button>
+              </div>
+            </td>
+          </tr>
+          <tr v-if="filteredCategories.length === 0">
+            <td :colspan="canManage ? 4 : 3" class="py-8 text-center text-muted-foreground">
+              No categories found
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <UiModal
+      v-model="isModalOpen"
+      :title="editingCategory ? 'Edit Category' : 'Add New Category'"
+      :description="editingCategory ? 'Update category name' : 'Create a new company type category'"
+      width="max-w-md"
+    >
+      <form class="space-y-4" @submit.prevent="handleSubmit">
+        <div v-if="formError" class="p-3 bg-red-50 border border-red-200 rounded-lg">
+          <p class="text-sm text-red-600">{{ formError }}</p>
+        </div>
+
+        <div class="space-y-1.5">
+          <label class="text-sm font-medium text-foreground">
+            Category Name <span class="text-red-500">*</span>
+          </label>
+          <input
+            v-model="formData.name"
+            type="text"
+            placeholder="e.g. Shipping Line, Freight Forwarder"
+            class="w-full px-3 py-2 rounded-lg border border-border focus:outline-none focus:ring-1 focus:ring-primary"
+            required
+          />
+        </div>
+
+        <div class="flex justify-end gap-2 pt-2">
+          <button
+            type="button"
+            class="px-4 py-2 text-sm font-medium bg-white border border-gray-300 rounded-lg text-foreground hover:bg-gray-50 transition-colors"
+            :disabled="isSubmitting"
+            @click="isModalOpen = false"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            class="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-[#012D5A] text-white rounded-lg hover:bg-[#012D5A]/90 transition-colors disabled:opacity-50"
+            :disabled="isSubmitting"
+          >
+            <Loader2 v-if="isSubmitting" class="w-4 h-4 animate-spin" />
+            <Plus v-else class="w-4 h-4" />
+            {{ isSubmitting ? "Saving..." : "Save" }}
+          </button>
+        </div>
+      </form>
+    </UiModal>
+
+    <UiModal
+      v-model="isDeleteModalOpen"
+      title="Delete Category"
+      description="Are you sure you want to delete this category? This action cannot be undone."
+      width="max-w-md"
+    >
+      <div v-if="categoryToDelete" class="py-2">
+        <p class="text-sm text-muted-foreground">
+          You are about to delete
+          <span class="font-medium text-foreground">{{ categoryToDelete.name }}</span
+          >.
+        </p>
+      </div>
+
+      <template #footer>
+        <button
+          type="button"
+          class="px-4 py-2 text-sm font-medium bg-white border border-gray-300 rounded-lg text-foreground hover:bg-gray-50 transition-colors"
+          :disabled="isSubmitting"
+          @click="isDeleteModalOpen = false"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          class="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          :disabled="isSubmitting"
+          @click="handleDelete"
+        >
+          <Loader2 v-if="isSubmitting" class="w-4 h-4 animate-spin" />
+          <Trash2 v-else class="w-4 h-4" />
+          {{ isSubmitting ? "Deleting..." : "Delete" }}
+        </button>
+      </template>
+    </UiModal>
+  </div>
+</template>

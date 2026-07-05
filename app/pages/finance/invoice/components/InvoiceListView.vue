@@ -9,6 +9,7 @@ interface InvoiceData {
   dueDate: string;
   total: number;
   balanceDue: number;
+  creditBalance?: number;
   status: { code: string; name: string };
   company: { name: string };
   job?: { id?: string; jobNumber: string };
@@ -84,6 +85,7 @@ const groupedInvoices = computed(() => {
             <th class="py-3 px-4 text-sm font-medium text-foreground">Tanggal</th>
             <th class="py-3 px-4 text-sm font-medium text-foreground">Jatuh Tempo</th>
             <th class="py-3 px-4 text-sm font-medium text-foreground">Total</th>
+            <th class="py-3 px-4 text-sm font-medium text-foreground">Kelebihan</th>
             <th class="py-3 px-4 text-sm font-medium text-foreground">Status</th>
             <th class="py-3 px-4 w-10"></th>
           </tr>
@@ -170,6 +172,12 @@ const groupedInvoices = computed(() => {
                     )
                   }}
                 </div>
+              </td>
+              <td class="py-3 px-4 text-sm font-medium">
+                <span v-if="Number(invoice.creditBalance || 0) > 0" class="text-emerald-600">
+                  {{ formatInvoiceTotal(invoice.creditBalance || 0, invoice.currency) }}
+                </span>
+                <span v-else class="text-muted-foreground">-</span>
               </td>
               <td class="py-3 px-4">
                 <span

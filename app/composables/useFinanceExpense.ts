@@ -36,6 +36,7 @@ export interface Expense {
   description: string;
   amount: number;
   balanceDue: number;
+  creditBalance?: number;
   date: string;
   categoryId?: string;
   expenseCategoryId?: string;

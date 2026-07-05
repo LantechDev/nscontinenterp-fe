@@ -59,6 +59,7 @@ const invoices = ref<
     status?: { code: string; name: string };
     total: number;
     balanceDue: number;
+    creditBalance?: number;
     quotationId?: string | null;
     currency: string;
     exchangeRate?: number;
@@ -1172,6 +1173,12 @@ const handlePaymentVoided = async () => {
               </template>
               <template v-else>
                 <p class="font-black text-xs text-green-600 whitespace-nowrap">Paid In Full</p>
+                <p
+                  v-if="Number(invoice.creditBalance || 0) > 0"
+                  class="text-[9px] text-emerald-600 font-semibold mt-0.5 whitespace-nowrap"
+                >
+                  +{{ formatCurrency(invoice.creditBalance || 0, invoice.currency) }} overpaid
+                </p>
               </template>
             </div>
           </div>

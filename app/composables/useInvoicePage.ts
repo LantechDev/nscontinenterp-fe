@@ -51,6 +51,7 @@ export interface InvoiceData {
   dueDate: string;
   total: number;
   balanceDue: number;
+  creditBalance?: number;
   status: { code: string; name: string };
   company: { name: string };
   job?: { id: string; jobNumber: string };

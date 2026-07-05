@@ -104,6 +104,7 @@ const handleRowClickIfAllowed = (id: string) => {
 };
 
 const statsCards = computed(() => {
+  const creditTotal = expenses.value.reduce((sum, e) => sum + Number(e.creditBalance || 0), 0);
   return [
     {
       title: "Total Biaya",
@@ -122,6 +123,12 @@ const statsCards = computed(() => {
       value: formatCurrency(summary.value.totalOutstanding),
       changeLabel: "Biaya outstanding",
       isPrimary: true,
+    },
+    {
+      title: "Kelebihan Bayar",
+      value: formatCurrency(creditTotal),
+      changeLabel: "Overpayment",
+      isPrimary: false,
     },
   ];
 });
@@ -260,7 +267,7 @@ const isPageLoading = computed(() => isLoading.value || isBootstrapping.value);
     </div>
 
     <!-- Rekap Cards -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
       <FinanceStatCard
         v-for="(card, index) in statsCards"
         :key="index"
@@ -337,6 +344,7 @@ const isPageLoading = computed(() => isLoading.value || isBootstrapping.value);
                 <th class="py-3 px-4 text-sm font-medium text-foreground">Vendor</th>
                 <th class="py-3 px-4 text-sm font-medium text-foreground">Tanggal</th>
                 <th class="py-3 px-4 text-sm font-medium text-foreground">Jumlah</th>
+                <th class="py-3 px-4 text-sm font-medium text-foreground">Kelebihan</th>
                 <th class="py-3 px-4 w-10"></th>
               </tr>
             </thead>
@@ -369,6 +377,12 @@ const isPageLoading = computed(() => isLoading.value || isBootstrapping.value);
                 </td>
                 <td class="py-3 px-4 text-sm font-medium text-destructive">
                   {{ formatCurrency(Number(expense.amount)) }}
+                </td>
+                <td class="py-3 px-4 text-sm font-medium">
+                  <span v-if="Number(expense.creditBalance || 0) > 0" class="text-emerald-600">
+                    {{ formatCurrency(Number(expense.creditBalance)) }}
+                  </span>
+                  <span v-else class="text-muted-foreground">-</span>
                 </td>
                 <td class="py-3 px-4 text-right">
                   <div class="flex gap-1 justify-end">

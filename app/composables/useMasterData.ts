@@ -177,6 +177,32 @@ export function useMasterData() {
     }
   }
 
+  async function updateCompanyCategory(
+    id: string,
+    name: string,
+  ): Promise<AuthResponse<CompanyCategory>> {
+    try {
+      const data = await $fetch<CompanyCategory>(`/api/master/company-categories/${id}`, {
+        method: "PUT",
+        body: { name },
+      });
+      return { success: true, data };
+    } catch (error) {
+      return handleApiError<CompanyCategory>(error);
+    }
+  }
+
+  async function deleteCompanyCategory(id: string): Promise<AuthResponse<null>> {
+    try {
+      await $fetch(`/api/master/company-categories/${id}`, {
+        method: "DELETE",
+      });
+      return { success: true };
+    } catch (error) {
+      return handleApiError(error);
+    }
+  }
+
   async function fetchVessels(query?: string) {
     try {
       const data = await $fetch<Vessel[]>("/api/master/vessels", {
@@ -310,6 +336,8 @@ export function useMasterData() {
     fetchPorts,
     fetchPaymentMethods,
     fetchCompanyCategories,
+    updateCompanyCategory,
+    deleteCompanyCategory,
     createCompany,
     createVessel,
     createPlane,
