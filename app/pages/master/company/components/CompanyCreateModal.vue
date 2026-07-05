@@ -30,7 +30,6 @@ const isEditMode = computed(() => props.mode === "edit");
 const { createCompany, updateCompany } = useCompanies();
 const isSubmitting = ref(false);
 const formError = ref<string | null>(null);
-const phoneError = ref<string | null>(null);
 const phoneOptions = ref<{ code: string; dialCode: string }[]>([
   { code: "ID", dialCode: "+62" },
   { code: "US", dialCode: "+1" },
@@ -110,43 +109,21 @@ const dialCodeMap = computed(() => {
   return map;
 });
 
-const phoneRules: Record<
-  string,
-  {
-    min: number;
-    max: number;
-  }
-> = {
-  ID: { min: 9, max: 13 },
-  US: { min: 10, max: 10 },
-  SG: { min: 8, max: 8 },
-  MY: { min: 9, max: 10 },
-};
-
 const uppercase = (value: string) => value.toUpperCase();
 
 const normalizePhone = (countryCode: string, rawValue: string) => {
-  const dialCode = dialCodeMap.value[countryCode];
   const digits = rawValue.replace(/\D/g, "");
 
   if (!digits) {
-    return { error: "Phone number is required." };
+    return { value: "" };
   }
 
+  const dialCode = dialCodeMap.value[countryCode];
   let nationalNumber = digits;
   if (dialCode && digits.startsWith(dialCode)) {
     nationalNumber = digits.slice(dialCode.length);
   }
   nationalNumber = nationalNumber.replace(/^0+/, "");
-
-  const rule = phoneRules[countryCode];
-  if (rule && (nationalNumber.length < rule.min || nationalNumber.length > rule.max)) {
-    return {
-      error: `Phone number length for ${countryCode} must be ${rule.min}${
-        rule.max === rule.min ? "" : `-${rule.max}`
-      } digits.`,
-    };
-  }
 
   return {
     value: dialCode ? `+${dialCode}${nationalNumber}` : rawValue,
@@ -195,7 +172,6 @@ const resetForm = () => {
     notes: "",
   };
   formError.value = null;
-  phoneError.value = null;
 };
 watch(isOpen, (val) => {
   if (!val) return;
@@ -228,13 +204,6 @@ watch(isOpen, (val) => {
   }
 });
 
-watch(
-  () => [formData.value.phone, formData.value.countryCode],
-  () => {
-    phoneError.value = null;
-  },
-);
-
 const loadPhoneOptions = async () => {
   try {
     const response =
@@ -254,20 +223,15 @@ onMounted(() => {
 });
 
 const handleSubmitCompany = async () => {
-  if (!formData.value.name || !formData.value.email || !formData.value.phone) {
-    formError.value = "Please fill in all required fields (Name, Email, Phone)";
+  if (!formData.value.name) {
+    formError.value = "Please fill in all required fields (Name)";
     return;
   }
   if (isEditMode.value && !props.company?.id) {
     formError.value = "Company data is missing.";
     return;
   }
-  phoneError.value = null;
   const normalizedPhone = normalizePhone(formData.value.countryCode, formData.value.phone);
-  if (normalizedPhone.error) {
-    phoneError.value = normalizedPhone.error;
-    return;
-  }
   isSubmitting.value = true;
   formError.value = null;
   const payload = {
@@ -332,22 +296,17 @@ const handleSubmitCompany = async () => {
             />
           </div>
           <div class="space-y-1.5">
-            <label class="text-sm font-medium text-foreground"
-              >Email <span class="text-red-500">*</span></label
-            >
+            <label class="text-sm font-medium text-foreground">Email</label>
             <input
               v-model="formData.email"
               type="email"
               placeholder="Input email"
               class="w-full px-3 py-2 rounded-lg border border-border focus:outline-none focus:ring-1 focus:ring-primary"
-              required
               v-uppercase
             />
           </div>
           <div class="space-y-1.5">
-            <label class="text-sm font-medium text-foreground"
-              >Phone number <span class="text-red-500">*</span></label
-            >
+            <label class="text-sm font-medium text-foreground">Phone number</label>
             <div class="flex gap-2">
               <SearchSelect
                 v-model="selectedCountryCode"
@@ -360,11 +319,9 @@ const handleSubmitCompany = async () => {
                 type="tel"
                 placeholder="812-3456-7890"
                 class="flex-1 px-3 py-2 rounded-lg border border-border focus:outline-none focus:ring-1 focus:ring-primary"
-                required
                 v-uppercase
               />
             </div>
-            <p v-if="phoneError" class="text-xs text-red-500">{{ phoneError }}</p>
           </div>
           <div class="space-y-1.5">
             <label class="text-sm font-medium text-foreground">Status</label>

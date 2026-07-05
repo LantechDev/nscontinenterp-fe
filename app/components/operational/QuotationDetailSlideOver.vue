@@ -31,6 +31,7 @@ import { useQuotations, type Quotation, type QuotationCharge } from "~/composabl
 import { useFinanceTax } from "~/composables/useFinanceTax";
 import { toast } from "vue-sonner";
 import QuotationPreview from "./QuotationPreview.vue";
+import QuotationCostingTab from "./QuotationCostingTab.vue";
 
 interface Props {
   modelValue: boolean;
@@ -55,9 +56,11 @@ const activeTab = ref("overview");
 const tabs = [
   { id: "overview", label: "Overview" },
   { id: "items", label: "Quotation Items & Pricing" },
+  { id: "costing", label: "Costing & Profit" },
   { id: "usage", label: "Usage" },
-  { id: "pdf", label: "PDF Preview" },
 ];
+
+const canEditCosting = computed(() => canManage.value && quotation.value?.status !== "CONVERTED");
 
 const isConverting = ref(false);
 const isUpdatingStatus = ref(false);
@@ -162,11 +165,11 @@ const groupedTotals = computed(() => {
     totals[currency].taxAmount += taxValue;
   });
 
-  // Round IDR
-  totals.IDR.subTotal = Math.round(totals.IDR.subTotal);
-  totals.IDR.taxAmount = Math.round(totals.IDR.taxAmount);
+  totals.IDR.subTotal = roundByCurrency(totals.IDR.subTotal, "IDR");
+  totals.IDR.taxAmount = ceilTaxByCurrency(totals.IDR.taxAmount, "IDR");
   totals.IDR.total = totals.IDR.subTotal + totals.IDR.taxAmount;
 
+  totals.USD.taxAmount = ceilTaxByCurrency(totals.USD.taxAmount, "USD");
   totals.USD.total = totals.USD.subTotal + totals.USD.taxAmount;
 
   return totals;
@@ -826,37 +829,41 @@ const handleGeneratePDF = async () => {
                       </div>
                     </div>
                   </div>
+                  <!-- Client PDF Preview (moved into Pricing tab) -->
+                  <div class="space-y-4 pt-4 border-t border-border/60">
+                    <div
+                      class="flex items-center justify-between bg-white border border-border p-4 rounded-xl shadow-sm"
+                    >
+                      <div>
+                        <h4 class="text-xs font-bold text-gray-800 uppercase tracking-wider">
+                          Quotation PDF Printout
+                        </h4>
+                        <p class="text-xs text-muted-foreground mt-0.5">
+                          Generate high-fidelity legal PDF for client acceptance.
+                        </p>
+                      </div>
+                      <button
+                        @click="handleGeneratePDF"
+                        :disabled="isGeneratingPDF"
+                        class="inline-flex items-center px-4 py-2 bg-[#012D5A] hover:bg-[#012D5A]/90 text-white text-xs font-bold rounded-lg shadow-sm gap-2 transition-all active:scale-95 disabled:opacity-50"
+                      >
+                        <Loader2 v-if="isGeneratingPDF" class="w-3.5 h-3.5 animate-spin" />
+                        <Download v-else class="w-3.5 h-3.5" />
+                        <span>{{ isGeneratingPDF ? "Generating" : "Download Proposal PDF" }}</span>
+                      </button>
+                    </div>
+
+                    <QuotationPreview ref="previewRef" :quotation="quotation" />
+                  </div>
                 </div>
 
-                <!-- Tab 3: PDF Printable Layout -->
-                <div v-else-if="activeTab === 'pdf'" class="space-y-4 animate-fade-in">
-                  <div
-                    class="flex items-center justify-between bg-white border border-border p-4 rounded-xl shadow-sm"
-                  >
-                    <div>
-                      <h4 class="text-xs font-bold text-gray-800 uppercase tracking-wider">
-                        Quotation PDF Printout
-                      </h4>
-                      <p class="text-xs text-muted-foreground mt-0.5">
-                        Generate high-fidelity legal PDF for client acceptance.
-                      </p>
-                    </div>
-                    <button
-                      @click="handleGeneratePDF"
-                      :disabled="isGeneratingPDF"
-                      class="inline-flex items-center px-4 py-2 bg-[#012D5A] hover:bg-[#012D5A]/90 text-white text-xs font-bold rounded-lg shadow-sm gap-2 transition-all active:scale-95 disabled:opacity-50"
-                    >
-                      <Loader2
-                        v-slot:default
-                        v-if="isGeneratingPDF"
-                        class="w-3.5 h-3.5 animate-spin"
-                      />
-                      <Download v-else class="w-3.5 h-3.5" />
-                      <span>{{ isGeneratingPDF ? "Generating" : "Download Proposal PDF" }}</span>
-                    </button>
-                  </div>
-
-                  <QuotationPreview ref="previewRef" :quotation="quotation" />
+                <!-- Tab 3: Costing & Profit -->
+                <div v-else-if="activeTab === 'costing'" class="animate-fade-in">
+                  <QuotationCostingTab
+                    v-if="quotation"
+                    :quotation="quotation"
+                    :editable="canEditCosting"
+                  />
                 </div>
 
                 <!-- Tab: Usage (Invoice & Job Traceability) -->

@@ -58,10 +58,41 @@ type ViewMode = "list" | "grid";
 const viewMode = ref<ViewMode>("list");
 
 const filteredJobs = computed(() => {
+  const q = searchQuery.value.trim().toLowerCase();
   return jobs.value.filter((job) => {
-    const matchesSearch =
-      job.jobNumber.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-      job.commodity.toLowerCase().includes(searchQuery.value.toLowerCase());
+    const matchesSearch = (() => {
+      if (!q) return true;
+      // Kumpulkan semua field yang bisa dicari jadi satu "haystack"
+      const haystack = [
+        job.jobNumber,
+        job.commodity,
+        // PO / shipper references (INV/SVM, dll)
+        ...(job.shipperReferences || []),
+        // Port of loading / discharge (kode & nama lengkap)
+        job.pol,
+        job.polName,
+        job.pod,
+        job.podName,
+        // Alamat untuk trucking
+        job.pickupAddress,
+        job.deliveryAddress,
+        // Customer
+        job.customer?.name,
+        // Tanggal — mentah (ISO) & terformat, biar bisa cari "08 Jul 2026" atau "2026-07"
+        job.etd,
+        formatDate(job.etd),
+        job.eta,
+        formatDate(job.eta),
+        job.pickupDate,
+        formatDate(job.pickupDate),
+        job.deliveryDate,
+        formatDate(job.deliveryDate),
+      ]
+        .filter((v) => v && v !== "-")
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(q);
+    })();
 
     const matchesStatus =
       !statusFilter.value || job.status?.code?.toUpperCase() === statusFilter.value.toUpperCase();
@@ -286,7 +317,7 @@ watch(
           <input
             v-model="searchQuery"
             type="text"
-            placeholder="Cari job..."
+            placeholder="Cari no job, PO/ref, POL/POD, customer, ETD..."
             class="w-full pl-10 pr-4 py-2 text-sm border border-border rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground"
           />
         </div>

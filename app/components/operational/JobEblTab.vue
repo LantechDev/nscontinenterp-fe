@@ -448,6 +448,17 @@ const loadBlRender = async (blId: string) => {
       const mappedBl = data.bl || (data as unknown as ActiveBlData);
       if (data.renderContainers) mappedBl.renderContainers = data.renderContainers;
       if (data.jobContainers) mappedBl.jobContainers = data.jobContainers;
+      // Use the server's authoritative totals so the BL summary (esp. net weight)
+      // doesn't fall back to unrelated fields like quantity when per-item data is sparse.
+      if (data.totals) {
+        if (typeof data.totals.qty === "number") mappedBl.totalQty = data.totals.qty;
+        if (typeof data.totals.grossWeight === "number")
+          mappedBl.totalGrossWeight = data.totals.grossWeight;
+        if (typeof data.totals.netWeight === "number")
+          mappedBl.totalNetWeight = data.totals.netWeight;
+        if (typeof data.totals.measurement === "number")
+          mappedBl.totalMeasurementCbm = data.totals.measurement;
+      }
       if (data.parties) mappedBl.renderParties = data.parties;
       if (data.mainDescription !== undefined) mappedBl.mainDescription = data.mainDescription;
       if (data.job) {
@@ -826,17 +837,6 @@ const submitReject = async () => {
           </div>
 
           <button
-            v-if="canManage && editMode"
-            @click="handleSaveDraft"
-            :disabled="isSavingDraft"
-            class="px-4 py-2 bg-[#012D5A] hover:bg-[#012D5A]/90 text-white rounded-md shadow-sm text-xs font-semibold flex items-center gap-2 transition-colors"
-          >
-            <Save v-if="!isSavingDraft" class="w-3.5 h-3.5" />
-            <Loader2 v-else class="w-3.5 h-3.5 animate-spin" />
-            {{ isSavingDraft ? "Saving..." : "Save Draft" }}
-          </button>
-
-          <button
             v-if="!editMode"
             @click="handleGeneratePDF"
             :disabled="isGeneratingPDF || !jobData"
@@ -881,6 +881,31 @@ const submitReject = async () => {
       <div v-if="editMode" class="w-full relative">
         <div class="flex-1 w-full min-w-0">
           <JobEblEditForm v-model="editForm" :jobData="jobData" />
+        </div>
+
+        <!-- Sticky Save Bar -->
+        <div
+          class="sticky bottom-0 z-20 -mx-8 mt-6 flex items-center justify-end gap-3 border-t border-border bg-white/95 px-8 py-4 backdrop-blur-sm"
+        >
+          <button
+            type="button"
+            @click="toggleEditMode"
+            :disabled="isSavingDraft"
+            class="px-4 py-2 text-xs font-semibold rounded-md border border-border bg-white hover:bg-gray-50 flex items-center gap-2 shadow-sm transition-colors disabled:opacity-50"
+          >
+            <X class="w-3.5 h-3.5" />
+            Cancel Edit
+          </button>
+          <button
+            v-if="canManage"
+            @click="handleSaveDraft"
+            :disabled="isSavingDraft"
+            class="px-4 py-2 bg-[#012D5A] hover:bg-[#012D5A]/90 text-white rounded-md shadow-sm text-xs font-semibold flex items-center gap-2 transition-colors disabled:opacity-50"
+          >
+            <Save v-if="!isSavingDraft" class="w-3.5 h-3.5" />
+            <Loader2 v-else class="w-3.5 h-3.5 animate-spin" />
+            {{ isSavingDraft ? "Saving..." : "Save Draft" }}
+          </button>
         </div>
       </div>
 

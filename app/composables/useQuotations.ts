@@ -28,6 +28,36 @@ export interface QuotationCharge {
   sellingExchangeRate?: number;
 }
 
+export interface QuotationCostItem {
+  id?: string;
+  costId?: string;
+  serviceId?: string | null;
+  serviceName?: string | null;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  currency: "IDR" | "USD";
+  amount: number;
+}
+
+export interface QuotationCost {
+  id?: string;
+  quotationId?: string;
+  number?: string | null;
+  vendorId?: string | null;
+  vendorName?: string | null;
+  categoryId?: string | null;
+  date?: string | null;
+  exchangeRate: number;
+  taxId?: string | null;
+  taxRate?: number;
+  subTotal: number;
+  taxTotal: number;
+  amount: number;
+  notes?: string | null;
+  items: QuotationCostItem[];
+}
+
 export interface Quotation {
   id: string;
   number: string;
@@ -76,6 +106,9 @@ export interface Quotation {
   updatedAt: string;
 
   charges: QuotationCharge[];
+
+  // Internal costing lines (AP side) for profit analysis
+  costs?: QuotationCost[];
 
   // Multi-use feature (from the switch in create quotation)
   allowMultipleInvoices?: boolean;
@@ -341,6 +374,31 @@ export function useQuotations() {
     }
   }
 
+  async function updateQuotationCosts(
+    id: string,
+    costs: QuotationCost[],
+  ): Promise<ApiResponse<Quotation>> {
+    isLoading.value = true;
+    try {
+      const data = await $fetch<Quotation>(`/api/operational/quotations/${id}/costs`, {
+        method: "PUT",
+        body: { costs },
+      });
+      const index = quotations.value.findIndex((q) => q.id === id);
+      if (index !== -1) {
+        quotations.value[index] = data;
+      }
+      if (currentQuotation.value?.id === id) {
+        currentQuotation.value = data;
+      }
+      return { success: true, data };
+    } catch (error) {
+      return handleApiError(error);
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
   async function deleteQuotation(id: string): Promise<ApiResponse> {
     isLoading.value = true;
     try {
@@ -385,6 +443,7 @@ export function useQuotations() {
     getQuotation,
     createQuotation,
     updateQuotation,
+    updateQuotationCosts,
     deleteQuotation,
     convertQuotationToJob,
   };

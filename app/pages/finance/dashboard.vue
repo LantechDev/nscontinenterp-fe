@@ -1225,6 +1225,7 @@ function handleTaxReportExportExcel() {
           </p>
         </div>
         <div class="flex flex-wrap items-center gap-3">
+          <LayoutGlobalSearchButton compact />
           <!-- Date inputs for Custom Date range -->
           <div v-if="selectedPeriod === 'custom'" class="flex items-center gap-3">
             <div class="flex items-center gap-2">

@@ -252,9 +252,9 @@ const groupedTotals = computed(() => {
   Object.keys(totals).forEach((curr) => {
     const entry = totals[curr];
     if (!entry) return;
-    entry.subTotal = Math.round(entry.subTotal);
-    entry.taxAmount = Math.round(entry.subTotal * (taxRate / 100));
-    entry.total = entry.subTotal + entry.taxAmount;
+    entry.subTotal = roundByCurrency(entry.subTotal, curr);
+    entry.taxAmount = ceilTaxByCurrency(entry.subTotal * (taxRate / 100), curr);
+    entry.total = roundByCurrency(entry.subTotal + entry.taxAmount, curr);
   });
 
   return totals;
