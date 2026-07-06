@@ -10,8 +10,8 @@ import {
   CheckCircle2,
   CalendarClock,
   Edit,
-  DollarSign,
-  TrendingUp,
+  ArrowLeft,
+  Eye,
   Briefcase,
   User,
   MessageSquare,
@@ -65,6 +65,7 @@ const canEditCosting = computed(() => canManage.value && quotation.value?.status
 const isConverting = ref(false);
 const isUpdatingStatus = ref(false);
 const isGeneratingPDF = ref(false);
+const showPreview = ref(false);
 const previewRef = ref<InstanceType<typeof QuotationPreview> | null>(null);
 const taxesList = ref<Array<{ id: string; name: string; rate: number }>>([]);
 
@@ -276,12 +277,21 @@ const handleUpdateStatus = async (newStatus: string) => {
 };
 
 const getTaxRate = (taxId?: string | null) => {
-  if (!taxId) return 0;
+  if (!taxId) {
+    const fallbackId = quotation.value?.taxId;
+    if (!fallbackId) return 0;
+    const fallbackTax = taxesList.value.find((t) => t.id === fallbackId);
+    return fallbackTax ? fallbackTax.rate : 0;
+  }
   const tax = taxesList.value.find((t) => t.id === taxId);
   return tax ? tax.rate : 0;
 };
 
 const handleGeneratePDF = async () => {
+  if (!showPreview.value) {
+    showPreview.value = true;
+    await nextTick();
+  }
   if (!previewRef.value) return;
   isGeneratingPDF.value = true;
   try {
@@ -723,136 +733,150 @@ const handleGeneratePDF = async () => {
                 </div>
 
                 <!-- Tab 2: Pricing Charges -->
-                <div v-else-if="activeTab === 'items'" class="space-y-6 animate-fade-in">
-                  <!-- Tabular service lines list -->
-                  <div class="bg-white border border-border rounded-xl overflow-hidden shadow-sm">
-                    <table class="w-full text-left border-collapse text-sm">
-                      <thead>
-                        <tr
-                          class="border-b border-border bg-gray-50 text-[10px] font-bold text-muted-foreground uppercase tracking-wider"
-                        >
-                          <th class="py-3.5 px-6">Service / Description</th>
-                          <th class="py-3.5 px-4 text-center">Qty</th>
-                          <th class="py-3.5 px-4 text-right">Unit Price</th>
-                          <th class="py-3.5 px-4 text-right">Tax Rate</th>
-                          <th class="py-3.5 px-6 text-right">Line Total</th>
-                        </tr>
-                      </thead>
-                      <tbody class="divide-y divide-border/50">
-                        <tr
-                          v-for="(ch, idx) in quotation.charges"
-                          :key="ch.id || idx"
-                          class="hover:bg-gray-50/50 transition-colors"
-                        >
-                          <td class="py-4 px-6">
-                            <p class="font-bold text-[#012D5A] text-sm">
-                              {{ ch.serviceName || "Service Item" }}
-                            </p>
-                            <p class="text-xs text-muted-foreground mt-0.5 whitespace-pre-line">
-                              {{ ch.description || "-" }}
-                            </p>
-                          </td>
-                          <td class="py-4 px-4 text-center font-semibold text-foreground">
-                            {{ ch.quantity }}
-                          </td>
-                          <td class="py-4 px-4 text-right font-medium text-foreground">
-                            {{ formatCurrency(ch.unitPrice, ch.currency) }}
-                          </td>
-                          <td class="py-4 px-4 text-right text-xs font-semibold text-slate-400">
-                            {{ getTaxRate(ch.taxId) }}%
-                          </td>
-                          <td class="py-4 px-6 text-right font-bold text-[#012D5A]">
-                            {{
-                              formatCurrency(
-                                Number(ch.quantity || 1) *
-                                  Number(ch.unitPrice || 0) *
-                                  (1 + getTaxRate(ch.taxId) / 100),
-                                ch.currency,
-                              )
-                            }}
-                          </td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
-
-                  <!-- Totals computation block -->
-                  <div class="flex justify-end pt-2">
-                    <div
-                      class="w-[380px] space-y-4 bg-gray-50/50 p-5 rounded-xl border border-border shadow-sm text-left"
+                <div v-else-if="activeTab === 'items'" class="animate-fade-in">
+                  <!-- View 1: Charges List + Summary -->
+                  <div v-show="!showPreview" class="space-y-6">
+                    <!-- Preview Card (triggers navigation to preview view) -->
+                    <button
+                      @click="showPreview = true"
+                      class="w-full bg-white border border-border rounded-xl p-5 hover:border-[#012D5A]/30 hover:shadow-md transition-all text-left group"
                     >
-                      <h4
-                        class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest"
-                      >
-                        Quotation Summary
-                      </h4>
-                      <div class="divide-y divide-border/50">
-                        <div
-                          v-for="(t, curr) in groupedTotals"
-                          :key="curr"
-                          class="py-2.5 first:pt-0 last:pb-0"
-                        >
+                      <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-3">
                           <div
-                            v-if="
-                              t.total > 0 ||
-                              (curr === 'IDR' &&
-                                Object.values(groupedTotals).every((x) => x.total === 0))
-                            "
-                            class="space-y-1.5"
+                            class="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center shrink-0"
                           >
-                            <span
-                              class="text-[10px] font-extrabold text-[#062c58] uppercase tracking-wider"
-                              >{{ curr }} Charges</span
+                            <Eye class="w-5 h-5 text-[#012D5A]" />
+                          </div>
+                          <div>
+                            <h4
+                              class="text-sm font-bold text-foreground group-hover:text-[#012D5A] transition-colors"
                             >
-                            <div class="flex justify-between text-xs text-muted-foreground">
-                              <span>Subtotal</span>
-                              <span class="font-semibold text-foreground">{{
-                                formatCurrency(t.subTotal, curr)
-                              }}</span>
-                            </div>
-                            <div class="flex justify-between text-xs text-muted-foreground">
-                              <span>VAT / Tax</span>
-                              <span class="font-semibold text-foreground">{{
-                                formatCurrency(t.taxAmount, curr)
-                              }}</span>
-                            </div>
+                              Quotation PDF Preview
+                            </h4>
+                            <p class="text-xs text-muted-foreground mt-0.5">
+                              View the formal quotation document ready for client acceptance
+                            </p>
+                          </div>
+                        </div>
+                        <ArrowLeft class="w-4 h-4 rotate-180 text-muted-foreground shrink-0 ml-4" />
+                      </div>
+                    </button>
+
+                    <div class="bg-white border border-border rounded-xl overflow-hidden shadow-sm">
+                      <table class="w-full text-left border-collapse text-sm">
+                        <thead>
+                          <tr
+                            class="border-b border-border bg-gray-50 text-[10px] font-bold text-muted-foreground uppercase tracking-wider"
+                          >
+                            <th class="py-3.5 px-6">Service / Description</th>
+                            <th class="py-3.5 px-4 text-center">Qty</th>
+                            <th class="py-3.5 px-4 text-right">Unit Price</th>
+                            <th class="py-3.5 px-4 text-right">Tax Rate</th>
+                            <th class="py-3.5 px-6 text-right">Line Total</th>
+                          </tr>
+                        </thead>
+                        <tbody class="divide-y divide-border/50">
+                          <tr
+                            v-for="(ch, idx) in quotation.charges"
+                            :key="ch.id || idx"
+                            class="hover:bg-gray-50/50 transition-colors"
+                          >
+                            <td class="py-4 px-6">
+                              <p class="font-bold text-[#012D5A] text-sm">
+                                {{ ch.serviceName || "Service Item" }}
+                              </p>
+                              <p class="text-xs text-muted-foreground mt-0.5 whitespace-pre-line">
+                                {{ ch.description || "-" }}
+                              </p>
+                            </td>
+                            <td class="py-4 px-4 text-center font-semibold text-foreground">
+                              {{ ch.quantity }}
+                            </td>
+                            <td class="py-4 px-4 text-right font-medium text-foreground">
+                              {{ formatCurrency(ch.unitPrice, ch.currency) }}
+                            </td>
+                            <td class="py-4 px-4 text-right text-xs font-semibold text-slate-400">
+                              {{ getTaxRate(ch.taxId) }}%
+                            </td>
+                            <td class="py-4 px-6 text-right font-bold text-[#012D5A]">
+                              {{
+                                formatCurrency(
+                                  Number(ch.quantity || 1) *
+                                    Number(ch.unitPrice || 0) *
+                                    (1 + getTaxRate(ch.taxId) / 100),
+                                  ch.currency,
+                                )
+                              }}
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <div class="flex justify-end pt-2">
+                      <div
+                        class="w-[380px] space-y-4 bg-gray-50/50 p-5 rounded-xl border border-border shadow-sm text-left"
+                      >
+                        <h4
+                          class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest"
+                        >
+                          Quotation Summary
+                        </h4>
+                        <div class="divide-y divide-border/50">
+                          <div
+                            v-for="(t, curr) in groupedTotals"
+                            :key="curr"
+                            class="py-2.5 first:pt-0 last:pb-0"
+                          >
                             <div
-                              class="flex justify-between text-sm font-bold text-[#062c58] pt-1 border-t border-dashed border-border/60"
+                              v-if="
+                                t.total > 0 ||
+                                (curr === 'IDR' &&
+                                  Object.values(groupedTotals).every((x) => x.total === 0))
+                              "
+                              class="space-y-1.5"
                             >
-                              <span>Total Amount</span>
-                              <span class="text-base font-black">{{
-                                formatCurrency(t.total, curr)
-                              }}</span>
+                              <span
+                                class="text-[10px] font-extrabold text-[#062c58] uppercase tracking-wider"
+                                >{{ curr }} Charges</span
+                              >
+                              <div class="flex justify-between text-xs text-muted-foreground">
+                                <span>Subtotal</span>
+                                <span class="font-semibold text-foreground">{{
+                                  formatCurrency(t.subTotal, curr)
+                                }}</span>
+                              </div>
+                              <div class="flex justify-between text-xs text-muted-foreground">
+                                <span>VAT / Tax</span>
+                                <span class="font-semibold text-foreground">{{
+                                  formatCurrency(t.taxAmount, curr)
+                                }}</span>
+                              </div>
+                              <div
+                                class="flex justify-between text-sm font-bold text-[#062c58] pt-1 border-t border-dashed border-border/60"
+                              >
+                                <span>Total Amount</span>
+                                <span class="text-base font-black">{{
+                                  formatCurrency(t.total, curr)
+                                }}</span>
+                              </div>
                             </div>
                           </div>
                         </div>
                       </div>
                     </div>
                   </div>
-                  <!-- Client PDF Preview (moved into Pricing tab) -->
-                  <div class="space-y-4 pt-4 border-t border-border/60">
-                    <div
-                      class="flex items-center justify-between bg-white border border-border p-4 rounded-xl shadow-sm"
-                    >
-                      <div>
-                        <h4 class="text-xs font-bold text-gray-800 uppercase tracking-wider">
-                          Quotation PDF Printout
-                        </h4>
-                        <p class="text-xs text-muted-foreground mt-0.5">
-                          Generate high-fidelity legal PDF for client acceptance.
-                        </p>
-                      </div>
-                      <button
-                        @click="handleGeneratePDF"
-                        :disabled="isGeneratingPDF"
-                        class="inline-flex items-center px-4 py-2 bg-[#012D5A] hover:bg-[#012D5A]/90 text-white text-xs font-bold rounded-lg shadow-sm gap-2 transition-all active:scale-95 disabled:opacity-50"
-                      >
-                        <Loader2 v-if="isGeneratingPDF" class="w-3.5 h-3.5 animate-spin" />
-                        <Download v-else class="w-3.5 h-3.5" />
-                        <span>{{ isGeneratingPDF ? "Generating" : "Download Proposal PDF" }}</span>
-                      </button>
-                    </div>
 
+                  <!-- View 2: PDF Preview -->
+                  <div v-show="showPreview">
+                    <button
+                      @click="showPreview = false"
+                      class="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors mb-6 px-1"
+                    >
+                      <ArrowLeft class="w-4 h-4" />
+                      <span class="font-semibold">Back to Items</span>
+                    </button>
                     <QuotationPreview ref="previewRef" :quotation="quotation" />
                   </div>
                 </div>
