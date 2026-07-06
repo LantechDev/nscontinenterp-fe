@@ -216,7 +216,12 @@ onMounted(async () => {
 });
 
 const getTaxRateLabel = (taxId: string | null | undefined) => {
-  if (!taxId) return "-";
+  if (!taxId) {
+    const fallbackId = props.quotation?.taxId;
+    if (!fallbackId) return "-";
+    const found = taxList.value.find((t) => t.id === fallbackId);
+    return found ? `${found.rate}%` : "-";
+  }
   const found = taxList.value.find((t) => t.id === taxId);
   return found ? `${found.rate}%` : "-";
 };
