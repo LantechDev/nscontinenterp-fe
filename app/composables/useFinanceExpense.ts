@@ -4,6 +4,7 @@ export interface ExpenseItem {
   description: string;
   quantity: number;
   unitPrice: number;
+  currency?: string;
   amount: number;
 }
 
@@ -78,6 +79,16 @@ export interface ExpenseFilters {
   limit?: number;
   type?: "JOB" | "GENERAL";
 }
+
+export const getOverpayment = (expense: {
+  creditBalance?: number | null;
+  balanceDue?: number | null;
+}) => {
+  const cb = Number(expense.creditBalance || 0);
+  if (cb > 0) return cb;
+  const bd = Number(expense.balanceDue || 0);
+  return bd < 0 ? Math.abs(bd) : 0;
+};
 
 export function useFinanceExpense() {
   const isLoading = ref(false);

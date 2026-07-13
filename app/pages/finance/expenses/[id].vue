@@ -15,7 +15,7 @@ import {
   History,
   Loader2,
 } from "lucide-vue-next";
-import { useFinanceExpense, type Expense } from "~/composables/useFinanceExpense";
+import { useFinanceExpense, getOverpayment, type Expense } from "~/composables/useFinanceExpense";
 import { useExpensePage } from "~/composables/useExpensePage";
 import { ExpenseEditModal } from "./components";
 import { generateExpensePdf } from "./utils/pdf-generator";
@@ -400,12 +400,24 @@ onMounted(() => {
               </div>
 
               <div
-                v-if="Number(expense?.creditBalance || 0) > 0"
+                v-if="
+                  getOverpayment({
+                    creditBalance: expense?.creditBalance,
+                    balanceDue: expense?.balanceDue,
+                  }) > 0
+                "
                 class="pt-4 border-t border-border space-y-1"
               >
                 <p class="text-[10px] font-bold uppercase text-muted-foreground">Kelebihan Bayar</p>
                 <p class="text-sm font-semibold text-emerald-600">
-                  {{ formatCurrency(Number(expense?.creditBalance)) }}
+                  {{
+                    formatCurrency(
+                      getOverpayment({
+                        creditBalance: expense?.creditBalance,
+                        balanceDue: expense?.balanceDue,
+                      }),
+                    )
+                  }}
                 </p>
               </div>
             </div>

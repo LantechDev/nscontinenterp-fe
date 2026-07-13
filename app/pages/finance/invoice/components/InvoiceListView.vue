@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Receipt, Download, ArrowRight } from "lucide-vue-next";
 import { cn } from "~/lib/utils";
+import { getOverpayment } from "~/composables/useFinanceExpense";
 
 interface InvoiceData {
   id: string;
@@ -174,8 +175,8 @@ const groupedInvoices = computed(() => {
                 </div>
               </td>
               <td class="py-3 px-4 text-sm font-medium">
-                <span v-if="Number(invoice.creditBalance || 0) > 0" class="text-emerald-600">
-                  {{ formatInvoiceTotal(invoice.creditBalance || 0, invoice.currency) }}
+                <span v-if="getOverpayment(invoice) > 0" class="text-emerald-600">
+                  {{ formatInvoiceTotal(getOverpayment(invoice), invoice.currency) }}
                 </span>
                 <span v-else class="text-muted-foreground">-</span>
               </td>

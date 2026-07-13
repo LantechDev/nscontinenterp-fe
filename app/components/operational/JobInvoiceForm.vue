@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Plus, Trash2, X, Building2 } from "lucide-vue-next";
+import { Plus, Trash2, X, Building2, Loader2, RefreshCw } from "lucide-vue-next";
 import { useInvoices } from "~/composables/useInvoices";
 import { useServices } from "~/composables/useServices";
 import { useCompanies } from "~/composables/useCompanies";
@@ -23,6 +23,7 @@ const invoiceSchema = z.object({
         description: z.string().min(1, "Description is required"),
         quantity: z.number().gt(0, "Quantity must be greater than 0"),
         unitPrice: z.number().gt(0, "Unit Price must be greater than 0"),
+        currency: z.string().default("IDR"),
       }),
     )
     .min(1, "At least one service item is required"),
@@ -49,6 +50,7 @@ const props = defineProps<{
       description: string;
       quantity: number;
       unitPrice: number;
+      currency?: string;
       taxId?: string | null;
       atCost?: boolean;
     }>;
@@ -69,6 +71,7 @@ interface FormItem {
   description: string;
   quantity: number;
   unitPrice: number;
+  currency: string;
   taxId?: string | null;
   atCost?: boolean;
 }
@@ -102,6 +105,7 @@ const form = ref({
     description: item.description,
     quantity: Number(item.quantity),
     unitPrice: Number(item.unitPrice),
+    currency: item.currency || "IDR",
     taxId: item.taxId || null,
     atCost: false,
   })) ||
@@ -110,10 +114,11 @@ const form = ref({
       description: item.description,
       quantity: item.quantity,
       unitPrice: item.unitPrice,
+      currency: item.currency || "IDR",
       taxId: item.taxId || null,
       atCost: Boolean(item.atCost),
     })) || [
-      { serviceId: "", description: "", quantity: 1, unitPrice: 0, atCost: false },
+      { serviceId: "", description: "", quantity: 1, unitPrice: 0, currency: "IDR", atCost: false },
     ]) as FormItem[],
 });
 
@@ -176,17 +181,39 @@ onMounted(async () => {
   }
 });
 
+const hasUSDItems = computed(() => {
+  return form.value.items.some((item) => item.currency === "USD");
+});
+
+watch(
+  () => form.value.items,
+  (newItems) => {
+    if (newItems.length > 0 && newItems.every((item) => item.currency === "USD")) {
+      form.value.currency = "USD";
+    } else {
+      form.value.currency = "IDR";
+    }
+  },
+  { deep: true, immediate: true },
+);
+
 watch(
   () => form.value.currency,
   (newCurrency) => {
-    if (newCurrency === "IDR") {
+    if (newCurrency === "IDR" && !hasUSDItems.value) {
       form.value.exchangeRate = 1;
     }
   },
 );
 
 const addItem = () => {
-  form.value.items.push({ serviceId: "", description: "", quantity: 1, unitPrice: 0 });
+  form.value.items.push({
+    serviceId: "",
+    description: "",
+    quantity: 1,
+    unitPrice: 0,
+    currency: "IDR",
+  });
 };
 
 const removeItem = (index: number) => {
@@ -263,10 +290,20 @@ async function submitServiceForm(formData: {
 }
 
 const subTotal = computed(() => {
-  const sum = form.value.items.reduce(
-    (acc, item) => acc + Number(item.quantity) * Number(item.unitPrice),
-    0,
-  );
+  const sum = form.value.items.reduce((acc, item) => {
+    const itemAmount = Number(item.quantity || 0) * Number(item.unitPrice || 0);
+    const itemCurrency = item.currency || "IDR";
+    const invoiceCurrency = form.value.currency;
+    const rate = Number(form.value.exchangeRate || 1);
+
+    if (itemCurrency === "USD" && invoiceCurrency === "IDR") {
+      return acc + itemAmount * rate;
+    } else if (itemCurrency === "IDR" && invoiceCurrency === "USD") {
+      return acc + (rate > 0 ? itemAmount / rate : 0);
+    }
+    return acc + itemAmount;
+  }, 0);
+
   return form.value.currency === "IDR" ? Math.round(sum) : sum;
 });
 
@@ -328,6 +365,18 @@ const handleSubmit = async () => {
     return;
   }
 
+  // Validate that exchangeRate is provided if any item is USD and overall billing is IDR
+  if (
+    hasUSDItems.value &&
+    form.value.currency === "IDR" &&
+    Number(form.value.exchangeRate || 0) <= 1
+  ) {
+    toast.error(
+      "Exchange rate must be greater than 1 when USD items are present on an IDR invoice",
+    );
+    return;
+  }
+
   // Send whichever tax is selected (incl. the rate-0 "NON PPN" row) so the choice is
   // persisted and reloads correctly on edit. A rate-0 tax simply yields 0 PPN.
   const taxesPayload = form.value.taxId
@@ -339,7 +388,7 @@ const handleSubmit = async () => {
     invoiceNumber: form.value.invoiceNumber,
     companyId: form.value.customerId,
     currency: form.value.currency,
-    exchangeRate: form.value.currency === "IDR" ? 1 : form.value.exchangeRate,
+    exchangeRate: hasUSDItems.value ? Number(form.value.exchangeRate || 1) : 1,
     issuedDate: (form.value.issuedDate || new Date().toISOString().split("T")[0]) as string,
     dueDate: (form.value.dueDate || new Date().toISOString().split("T")[0]) as string,
     subTotal: subTotal.value,
@@ -359,6 +408,7 @@ const handleSubmit = async () => {
       description: item.description,
       quantity: Number(item.quantity),
       unitPrice: Number(item.unitPrice),
+      currency: item.currency || "IDR",
       amount: Number(item.quantity) * Number(item.unitPrice),
     })),
   };
@@ -374,12 +424,30 @@ const handleSubmit = async () => {
   }
 };
 
-const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat(form.value.currency === "IDR" ? "id-ID" : "en-US", {
+const isFetchingRate = ref(false);
+async function loadExchangeRate() {
+  isFetchingRate.value = true;
+  try {
+    const res = await $fetch<{ success: boolean; rate?: number }>(
+      "/api/finance/invoice/exchange-rate",
+    );
+    if (res?.success && res.rate) {
+      form.value.exchangeRate = res.rate;
+      toast.success("Exchange rate updated from Frankfurter API.");
+    }
+  } catch {
+    toast.error("Failed to fetch exchange rate.");
+  } finally {
+    isFetchingRate.value = false;
+  }
+}
+
+const formatCurrency = (amount: number, currency: string = form.value.currency) => {
+  return new Intl.NumberFormat(currency === "IDR" ? "id-ID" : "en-US", {
     style: "currency",
-    currency: form.value.currency,
-    minimumFractionDigits: form.value.currency === "IDR" ? 0 : 2,
-    maximumFractionDigits: form.value.currency === "IDR" ? 0 : 2,
+    currency: currency,
+    minimumFractionDigits: currency === "IDR" ? 0 : 2,
+    maximumFractionDigits: currency === "IDR" ? 0 : 2,
   }).format(amount);
 };
 
@@ -438,58 +506,58 @@ const formatInputCurrency = (val: number | string, currency: string = form.value
         <div class="h-4 w-[1px] bg-border mx-1"></div>
         <div class="flex items-center gap-2">
           <span class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest"
-            >Currency</span
+            >Invoice Currency</span
           >
-          <div class="flex border border-border rounded-lg overflow-hidden bg-white">
-            <button
-              type="button"
-              @click="form.currency = 'IDR'"
-              class="px-3 py-1 text-[10px] font-bold transition-colors"
-              :class="
-                form.currency === 'IDR'
-                  ? 'bg-[#012D5A] text-white'
-                  : 'hover:bg-gray-50 text-muted-foreground'
-              "
-            >
-              IDR
-            </button>
-            <button
-              type="button"
-              @click="form.currency = 'USD'"
-              class="px-3 py-1 text-[10px] font-bold border-l border-border transition-colors"
-              :class="
-                form.currency === 'USD'
-                  ? 'bg-[#012D5A] text-white'
-                  : 'hover:bg-gray-50 text-muted-foreground'
-              "
-            >
-              USD
-            </button>
-          </div>
+          <span
+            class="px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider bg-[#012D5A]/5 border border-[#012D5A]/10 text-[#012D5A] shadow-sm"
+          >
+            {{ form.currency }}
+          </span>
         </div>
 
         <div
-          v-if="form.currency === 'USD'"
+          v-if="hasUSDItems"
           class="flex items-center gap-2 animate-in slide-in-from-left-2 duration-300"
         >
           <span class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest"
             >Ex. Rate</span
           >
-          <div class="relative group/rate">
-            <input
-              type="text"
-              :value="formatInputCurrency(form.exchangeRate, 'IDR')"
-              v-uppercase
-              @input="
-                (e) =>
-                  (form.exchangeRate = parseInputCurrency(
-                    (e.target as HTMLInputElement).value,
-                    'IDR',
-                  ))
-              "
-              class="w-28 px-3 py-1 text-xs font-bold text-[#012D5A] border border-border rounded-lg focus:ring-2 focus:ring-[#012D5A]/10 focus:border-[#012D5A] outline-none transition-all bg-white"
-              placeholder="16,000"
-            />
+          <div class="flex gap-2 items-center">
+            <div class="relative group/rate">
+              <input
+                type="text"
+                :value="formatInputCurrency(form.exchangeRate, 'IDR')"
+                v-uppercase
+                @input="
+                  (e) =>
+                    (form.exchangeRate = parseInputCurrency(
+                      (e.target as HTMLInputElement).value,
+                      'IDR',
+                    ))
+                "
+                class="w-28 px-3 py-1 text-xs font-bold text-[#012D5A] border border-border rounded-lg focus:ring-2 focus:ring-[#012D5A]/10 focus:border-[#012D5A] outline-none transition-all bg-white"
+                placeholder="16,000"
+              />
+            </div>
+            <div class="relative group/tip">
+              <button
+                type="button"
+                @click="loadExchangeRate"
+                :disabled="isFetchingRate"
+                class="h-7 px-2 inline-flex items-center gap-1 bg-white border border-blue-200 text-[#012D5A] text-[10px] font-bold rounded-lg hover:bg-blue-50 hover:border-blue-300 transition-all disabled:opacity-50"
+              >
+                <Loader2 v-if="isFetchingRate" class="w-3 h-3 animate-spin" />
+                <RefreshCw v-else class="w-3 h-3" />
+              </button>
+              <div
+                class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 bg-gray-900 text-white text-[10px] font-medium rounded-lg opacity-0 invisible group-hover/tip:opacity-100 group-hover/tip:visible transition-all duration-150 whitespace-nowrap z-50 animate-in fade-in zoom-in-95"
+              >
+                Ambil kurs terkini dari API
+                <div
+                  class="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900"
+                ></div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -632,21 +700,29 @@ const formatInputCurrency = (val: number | string, currency: string = form.value
                 />
               </div>
               <div class="col-span-4">
-                <div class="relative">
-                  <span
-                    class="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-[10px] font-bold pr-1 border-r border-border mr-1"
-                    >{{ form.currency }}</span
+                <div class="flex gap-1.5 items-center">
+                  <select
+                    v-model="item.currency"
+                    class="px-2 py-2 bg-slate-50 border border-border rounded-md text-xs font-bold text-[#012D5A] focus:ring-2 focus:ring-[#012D5A]/20 focus:border-[#012D5A] outline-none transition-all cursor-pointer"
                   >
-                  <input
-                    type="text"
-                    :value="formatInputCurrency(item.unitPrice)"
-                    v-uppercase
-                    @input="
-                      (e) =>
-                        (item.unitPrice = parseInputCurrency((e.target as HTMLInputElement).value))
-                    "
-                    class="w-full pl-10 pr-3 py-2 bg-white border border-border rounded-md text-sm text-right font-medium focus:ring-2 focus:ring-[#012D5A]/20 focus:border-[#012D5A] outline-none transition-all"
-                  />
+                    <option value="IDR">IDR</option>
+                    <option value="USD">USD</option>
+                  </select>
+                  <div class="relative flex-1">
+                    <input
+                      type="text"
+                      :value="formatInputCurrency(item.unitPrice, item.currency)"
+                      v-uppercase
+                      @input="
+                        (e) =>
+                          (item.unitPrice = parseInputCurrency(
+                            (e.target as HTMLInputElement).value,
+                            item.currency,
+                          ))
+                      "
+                      class="w-full pr-3 py-2 bg-white border border-border rounded-md text-sm text-right font-medium focus:ring-2 focus:ring-[#012D5A]/20 focus:border-[#012D5A] outline-none transition-all"
+                    />
+                  </div>
                 </div>
                 <span
                   v-if="item.atCost"
@@ -656,7 +732,9 @@ const formatInputCurrency = (val: number | string, currency: string = form.value
               </div>
               <div class="col-span-2 flex items-center justify-between gap-2 pr-2">
                 <p class="text-sm font-bold text-[#012D5A] tabular-nums text-right flex-1">
-                  {{ formatCurrency(Number(item.quantity) * Number(item.unitPrice)) }}
+                  {{
+                    formatCurrency(Number(item.quantity) * Number(item.unitPrice), item.currency)
+                  }}
                 </p>
                 <button
                   type="button"

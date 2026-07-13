@@ -11,7 +11,7 @@ import {
 } from "lucide-vue-next";
 import { cn } from "~/lib/utils";
 import { useExpensePage } from "~/composables/useExpensePage";
-import { type Expense, type Pagination } from "~/composables/useFinanceExpense";
+import { type Expense, type Pagination, getOverpayment } from "~/composables/useFinanceExpense";
 import { type Company } from "~/composables/useMasterData";
 import { type Tax } from "~/composables/useFinanceTax";
 import { useFinanceExpense } from "~/composables/useFinanceExpense";
@@ -104,7 +104,7 @@ const handleRowClickIfAllowed = (id: string) => {
 };
 
 const statsCards = computed(() => {
-  const creditTotal = expenses.value.reduce((sum, e) => sum + Number(e.creditBalance || 0), 0);
+  const creditTotal = expenses.value.reduce((sum, e) => sum + getOverpayment(e), 0);
   return [
     {
       title: "Total Biaya",
@@ -379,8 +379,8 @@ const isPageLoading = computed(() => isLoading.value || isBootstrapping.value);
                   {{ formatCurrency(Number(expense.amount)) }}
                 </td>
                 <td class="py-3 px-4 text-sm font-medium">
-                  <span v-if="Number(expense.creditBalance || 0) > 0" class="text-emerald-600">
-                    {{ formatCurrency(Number(expense.creditBalance)) }}
+                  <span v-if="getOverpayment(expense) > 0" class="text-emerald-600">
+                    {{ formatCurrency(getOverpayment(expense)) }}
                   </span>
                   <span v-else class="text-muted-foreground">-</span>
                 </td>

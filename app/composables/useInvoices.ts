@@ -78,6 +78,7 @@ export interface InvoiceDetail extends Invoice {
     description: string;
     quantity: number;
     unitPrice: number;
+    currency?: string;
     amount: number;
     taxId?: string;
     tax?: {

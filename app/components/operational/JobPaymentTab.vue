@@ -126,20 +126,26 @@ const allPayments = computed(() => {
 });
 
 const totalPaidInIdr = computed(() => {
-  return allPayments.value.reduce((sum, p) => sum + (p.amountInIdr || 0), 0);
+  return allPayments.value
+    .filter((p) => (p.status || "").toUpperCase() !== "VOIDED")
+    .reduce((sum, p) => sum + (p.amountInIdr || 0), 0);
 });
 
 const totalPaidByCurrency = computed(() => {
   const totals: Record<string, number> = {};
-  allPayments.value.forEach((p) => {
-    const cur = p.currency || "IDR";
-    totals[cur] = (totals[cur] || 0) + Number(p.amount);
-  });
+  allPayments.value
+    .filter((p) => (p.status || "").toUpperCase() !== "VOIDED")
+    .forEach((p) => {
+      const cur = p.currency || "IDR";
+      totals[cur] = (totals[cur] || 0) + Number(p.amount);
+    });
   return totals;
 });
 
 const hasForeignCurrency = computed(() => {
-  return allPayments.value.some((p) => p.currency && p.currency !== "IDR");
+  return allPayments.value
+    .filter((p) => (p.status || "").toUpperCase() !== "VOIDED")
+    .some((p) => p.currency && p.currency !== "IDR");
 });
 
 const formatCurrency = (amount: number, currency: string = "IDR") => {

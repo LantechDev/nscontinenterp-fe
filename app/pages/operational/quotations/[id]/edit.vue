@@ -13,6 +13,9 @@ import {
   CheckCircle,
   FileText,
   Building2,
+  Loader2,
+  RefreshCw,
+  AlertTriangle,
 } from "lucide-vue-next";
 import Combobox from "~/components/ui/Combobox.vue";
 import DatePicker from "~/components/ui/DatePicker.vue";
@@ -548,6 +551,31 @@ const groupedTotals = computed(() => {
   return totals;
 });
 
+const hasUSDCharges = computed(() => formData.charges.some((ch) => ch.currency === "USD"));
+
+const quotationCurrency = computed(() => {
+  const currencies = [...new Set(formData.charges.map((ch) => ch.currency || "IDR"))];
+  return currencies.length === 1 ? currencies[0]! : "MIXED";
+});
+
+const isFetchingRate = ref(false);
+async function loadExchangeRate() {
+  isFetchingRate.value = true;
+  try {
+    const res = await $fetch<{ success: boolean; rate?: number }>(
+      "/api/finance/invoice/exchange-rate",
+    );
+    if (res?.success && res.rate) {
+      formData.exchangeRate = res.rate;
+      toast.success("Exchange rate updated from Frankfurter API.");
+    }
+  } catch {
+    toast.error("Failed to fetch exchange rate.");
+  } finally {
+    isFetchingRate.value = false;
+  }
+}
+
 const formatCurrency = (amount: number, currency: string = "IDR") => {
   return new Intl.NumberFormat(currency === "IDR" ? "id-ID" : "en-US", {
     style: "currency",
@@ -651,7 +679,7 @@ async function handleSubmit() {
     salesName: formData.salesName ? uppercase(formData.salesName) : null,
     status: formData.status,
     notes: formData.notes ? uppercase(formData.notes) : null,
-    currency: formData.currency || "IDR",
+    currency: quotationCurrency.value === "MIXED" ? "IDR" : quotationCurrency.value,
     exchangeRate: Number(formData.exchangeRate || 1),
     allowMultipleInvoices: formData.allowMultipleInvoices,
     taxId: formData.taxId || null,
@@ -1198,6 +1226,112 @@ function scrollTo(id: string) {
                     >
                       CONVERTED (Locked)
                     </span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Currency & Exchange Rate -->
+              <div
+                class="mt-6 p-4 bg-blue-50/30 rounded-xl border border-blue-100 space-y-3"
+                v-if="!isLocked"
+              >
+                <div class="flex items-center justify-between">
+                  <h4 class="text-[10px] font-black text-[#062c58] uppercase tracking-widest">
+                    Currency Configuration
+                  </h4>
+                  <span class="text-[9px] text-muted-foreground">
+                    Digunakan untuk profit analysis &amp; preview PDF
+                  </span>
+                </div>
+                <div
+                  v-if="hasUSDCharges && Number(formData.exchangeRate) <= 1"
+                  class="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg"
+                >
+                  <AlertTriangle class="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p class="text-[11px] font-bold text-amber-800">
+                      Isi exchange rate agar profit tidak negatif
+                    </p>
+                    <p class="text-[10px] text-amber-700 mt-0.5">
+                      Ada item USD di quotation. Kalau rate tetap 1, revenue USD akan dihitung
+                      sebagai IDR dan Net Profit jadi minus.
+                    </p>
+                  </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div class="space-y-1.5">
+                    <label
+                      class="text-[10px] font-black text-muted-foreground uppercase tracking-widest"
+                    >
+                      Quotation Currency
+                    </label>
+                    <div
+                      class="flex items-center gap-2 h-10 px-3 rounded-lg border"
+                      :class="isLocked ? 'bg-gray-100 border-border' : 'bg-gray-50 border-border'"
+                    >
+                      <span
+                        v-for="curr in [
+                          ...new Set(formData.charges.map((ch) => ch.currency || 'IDR')),
+                        ]"
+                        :key="curr"
+                        class="text-[11px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded border"
+                        :class="
+                          curr === 'IDR'
+                            ? 'bg-white text-[#062c58] border-[#062c58]/20'
+                            : 'bg-white text-emerald-700 border-emerald-200'
+                        "
+                      >
+                        {{ curr }}
+                      </span>
+                      <span class="text-[10px] text-muted-foreground ml-auto">auto</span>
+                    </div>
+                  </div>
+                  <div class="space-y-1.5">
+                    <label
+                      class="text-[10px] font-black text-muted-foreground uppercase tracking-widest"
+                    >
+                      Exchange Rate (USD → IDR)
+                    </label>
+                    <div class="flex gap-2 items-start">
+                      <div class="flex-1 space-y-1">
+                        <input
+                          type="text"
+                          :value="formatInputCurrency(formData.exchangeRate, 'IDR')"
+                          :disabled="isLocked"
+                          @input="
+                            (e) =>
+                              (formData.exchangeRate = parseInputCurrency(
+                                (e.target as HTMLInputElement).value,
+                                'IDR',
+                              ))
+                          "
+                          class="w-full px-3 py-2 text-sm border border-border rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-[#062c58] shadow-sm h-10 font-semibold disabled:bg-gray-50 disabled:opacity-75"
+                          placeholder="16,000"
+                        />
+                        <p class="text-[9px] font-bold text-muted-foreground">
+                          $1 = {{ formatCurrency(Number(formData.exchangeRate) || 0, "IDR") }}
+                        </p>
+                      </div>
+                      <div class="relative group/tip shrink-0">
+                        <button
+                          type="button"
+                          @click="loadExchangeRate"
+                          :disabled="isFetchingRate || isLocked"
+                          class="h-10 px-3 inline-flex items-center gap-1.5 bg-white border border-blue-200 text-[#062c58] text-[11px] font-bold rounded-lg hover:bg-blue-50 hover:border-blue-300 transition-all disabled:opacity-50"
+                        >
+                          <Loader2 v-if="isFetchingRate" class="w-3.5 h-3.5 animate-spin" />
+                          <RefreshCw v-else class="w-3.5 h-3.5" />
+                        </button>
+                        <div
+                          class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 bg-gray-900 text-white text-[10px] font-medium rounded-lg opacity-0 invisible group-hover/tip:opacity-100 group-hover/tip:visible transition-all duration-150 whitespace-nowrap z-50"
+                        >
+                          Ambil kurs terkini dari API
+                          <div
+                            class="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900"
+                          ></div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>

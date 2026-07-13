@@ -444,19 +444,26 @@ defineExpose({
                       </td>
                       <td class="px-3 py-2 text-right">
                         <div class="flex flex-col items-end">
-                          <span class="font-bold">{{
-                            formatCurrency(inv.total, inv.currency || "IDR")
-                          }}</span>
-                          <span
-                            v-if="inv.currency === 'USD'"
-                            class="text-[0.5rem] text-muted-foreground italic"
+                          <template
+                            v-if="inv.currency === 'USD' && Number(inv.exchangeRate || 1) > 1"
                           >
-                            {{
-                              formatCurrency(
-                                toNumber(inv.total) * (toNumber(inv.exchangeRate) || 1),
-                              )
-                            }}
-                          </span>
+                            <span class="font-bold">
+                              {{
+                                formatCurrency(
+                                  toNumber(inv.total) * Number(inv.exchangeRate),
+                                  "IDR",
+                                )
+                              }}
+                            </span>
+                            <span class="text-[0.5rem] text-muted-foreground italic">
+                              {{ formatCurrency(inv.total, "USD") }}
+                            </span>
+                          </template>
+                          <template v-else>
+                            <span class="font-bold">
+                              {{ formatCurrency(inv.total, inv.currency || "IDR") }}
+                            </span>
+                          </template>
                         </div>
                       </td>
                     </tr>
@@ -510,19 +517,26 @@ defineExpose({
                       </td>
                       <td class="px-3 py-2 text-right">
                         <div class="flex flex-col items-end">
-                          <span class="font-bold">{{
-                            formatCurrency(exp.amount, exp.currency || "IDR")
-                          }}</span>
-                          <span
-                            v-if="exp.currency === 'USD'"
-                            class="text-[0.5rem] text-muted-foreground italic"
+                          <template
+                            v-if="exp.currency === 'USD' && Number(exp.exchangeRate || 1) > 1"
                           >
-                            {{
-                              formatCurrency(
-                                toNumber(exp.amount) * (toNumber(exp.exchangeRate) || 1),
-                              )
-                            }}
-                          </span>
+                            <span class="font-bold">
+                              {{
+                                formatCurrency(
+                                  toNumber(exp.amount) * Number(exp.exchangeRate),
+                                  "IDR",
+                                )
+                              }}
+                            </span>
+                            <span class="text-[0.5rem] text-muted-foreground italic">
+                              {{ formatCurrency(exp.amount, "USD") }}
+                            </span>
+                          </template>
+                          <template v-else>
+                            <span class="font-bold">
+                              {{ formatCurrency(exp.amount, exp.currency || "IDR") }}
+                            </span>
+                          </template>
                         </div>
                       </td>
                     </tr>

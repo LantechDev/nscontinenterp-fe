@@ -142,6 +142,7 @@ const handleRefresh = async () => {
         <JobVendorInvoiceTab
           :job-id="jobId"
           :job-number="jobNumber"
+          :customer-id="customerId"
           :job-parties="jobParties"
           :initial-invoice-id="initialInvoiceId"
           :is-completed="isCompleted"

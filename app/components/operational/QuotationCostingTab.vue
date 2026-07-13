@@ -80,6 +80,11 @@ const costCurrencies = (cost: QuotationCost) => {
 const hasUsdItem = (cost: QuotationCost) =>
   (cost.items || []).some((it) => (it.currency || "IDR") === "USD");
 
+const usdTotal = (cost: QuotationCost) => {
+  const totals = groupCostTotals(cost.items || [], cost.taxRate || 0);
+  return totals.USD?.total || 0;
+};
+
 const previewCosts = computed<QuotationCost[]>(() =>
   costs.value.map((c) => ({ ...c, vendorName: vendorName(c) })),
 );
@@ -95,25 +100,39 @@ const profitSummary = computed(() => {
   };
 
   const quotationRate = Number(props.quotation.exchangeRate || 1);
+  const isQuotationRateConfigured = quotationRate > 1;
   let revenueIDR = 0;
   let costIDR = 0;
 
   (props.quotation.charges || []).forEach((ch) => {
     if (ch.atCost) return;
     const curr = ch.currency || "IDR";
-    if (!byCurrency[curr]) byCurrency[curr] = { revenue: 0, cost: 0, profit: 0, margin: 0 };
     const amt = Number(ch.quantity || 0) * Number(ch.unitPrice || 0);
-    byCurrency[curr].revenue += amt;
+
+    const targetCurr = curr === "USD" && isQuotationRateConfigured ? "IDR" : curr;
+    const targetAmt = curr === "USD" && isQuotationRateConfigured ? amt * quotationRate : amt;
+
+    if (!byCurrency[targetCurr])
+      byCurrency[targetCurr] = { revenue: 0, cost: 0, profit: 0, margin: 0 };
+    byCurrency[targetCurr].revenue += targetAmt;
     revenueIDR += curr === "USD" ? amt * quotationRate : amt;
   });
 
   costs.value.forEach((c) => {
     const rate = Number(c.exchangeRate || 1);
+    const isCostRateConfigured = rate > 1;
     (c.items || []).forEach((it) => {
       const curr = it.currency || "IDR";
-      if (!byCurrency[curr]) byCurrency[curr] = { revenue: 0, cost: 0, profit: 0, margin: 0 };
       const amt = Number(it.amount || Number(it.quantity || 0) * Number(it.unitPrice || 0));
-      byCurrency[curr].cost += amt;
+
+      const shouldConvertToIDR =
+        curr === "USD" && (isQuotationRateConfigured || isCostRateConfigured);
+      const targetCurr = shouldConvertToIDR ? "IDR" : curr;
+      const targetAmt = shouldConvertToIDR ? amt * rate : amt;
+
+      if (!byCurrency[targetCurr])
+        byCurrency[targetCurr] = { revenue: 0, cost: 0, profit: 0, margin: 0 };
+      byCurrency[targetCurr].cost += targetAmt;
       costIDR += curr === "USD" ? amt * rate : amt;
     });
   });
@@ -140,6 +159,14 @@ const currencyCards = computed(() =>
 );
 
 const totalCostIDR = computed(() => profitSummary.value.combined.costIDR);
+
+const totalCostUSD = computed(() => {
+  return costs.value.reduce((sum, c) => sum + usdTotal(c), 0);
+});
+
+const usdRevenue = computed(() => {
+  return profitSummary.value.byCurrency.USD?.revenue || 0;
+});
 
 // ---------- Persistence ----------
 const persist = async (list: QuotationCost[]) => {
@@ -249,50 +276,123 @@ const handlePrint = async () => {
 
     <!-- Profit summary cards -->
     <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-      <div
-        v-for="[curr, b] in currencyCards"
-        :key="curr"
-        class="border border-border rounded-xl p-4 bg-white shadow-sm"
-      >
-        <div class="text-[10px] font-extrabold text-[#012D5A] uppercase tracking-wider mb-2">
-          {{ curr }} Margin
-        </div>
-        <div class="flex justify-between text-xs py-0.5">
-          <span class="text-muted-foreground">Revenue</span>
-          <span class="font-semibold">{{ formatCurrency(b.revenue, curr) }}</span>
-        </div>
-        <div class="flex justify-between text-xs py-0.5">
-          <span class="text-muted-foreground">Cost</span>
-          <span class="font-semibold text-red-600">{{ formatCurrency(b.cost, curr) }}</span>
-        </div>
+      <!-- Case A: Kurs Terkonfigurasi (Exchange Rate > 1) -->
+      <template v-if="Number(props.quotation.exchangeRate || 1) > 1">
+        <!-- Card 1: Total Revenue -->
         <div
-          class="flex justify-between text-sm font-bold pt-1.5 mt-1 border-t border-dashed border-border"
-          :class="b.profit >= 0 ? 'text-emerald-600' : 'text-rose-600'"
+          class="border border-border rounded-xl p-4 bg-white shadow-sm flex flex-col justify-between min-h-[110px]"
         >
-          <span class="flex items-center gap-1">
-            <TrendingUp v-if="b.profit >= 0" class="w-3.5 h-3.5" />
-            <TrendingDown v-else class="w-3.5 h-3.5" />
-            {{ b.margin.toFixed(1) }}%
-          </span>
-          <span>{{ formatCurrency(b.profit, curr) }}</span>
+          <div>
+            <span class="text-[10px] font-black text-[#012D5A] uppercase tracking-widest">
+              Total Revenue
+            </span>
+            <p class="text-lg font-black text-[#012D5A] mt-1.5">
+              {{ formatCurrency(profitSummary.combined.revenueIDR, "IDR") }}
+            </p>
+          </div>
+          <p v-if="usdRevenue > 0" class="text-[9px] text-muted-foreground font-bold mt-1">
+            Original USD:
+            <span class="text-slate-500 font-extrabold">{{
+              formatCurrency(usdRevenue, "USD")
+            }}</span>
+          </p>
         </div>
-      </div>
 
-      <div
-        class="rounded-xl p-4 shadow-sm text-white flex flex-col justify-between"
-        :class="profitSummary.combined.profitIDR >= 0 ? 'bg-[#012D5A]' : 'bg-rose-700'"
-      >
-        <p class="text-[10px] font-bold uppercase tracking-widest text-white/70">
-          Net Profit (IDR eq.)
-        </p>
-        <p class="text-xl font-black mt-1">
-          {{ formatCurrency(profitSummary.combined.profitIDR, "IDR") }}
-        </p>
-        <p class="text-[11px] text-white/80 mt-0.5">
-          Margin {{ profitSummary.combined.marginIDR.toFixed(1) }}% · Cost
-          {{ formatCurrency(totalCostIDR, "IDR") }}
-        </p>
-      </div>
+        <!-- Card 2: Total Cost -->
+        <div
+          class="border border-border rounded-xl p-4 bg-white shadow-sm flex flex-col justify-between min-h-[110px]"
+        >
+          <div>
+            <span class="text-[10px] font-black text-muted-foreground uppercase tracking-widest">
+              Total Cost
+            </span>
+            <p class="text-lg font-black text-rose-600 mt-1.5">
+              {{ formatCurrency(profitSummary.combined.costIDR, "IDR") }}
+            </p>
+          </div>
+          <p v-if="totalCostUSD > 0" class="text-[9px] text-muted-foreground font-bold mt-1">
+            Original USD:
+            <span class="text-slate-500 font-extrabold">{{
+              formatCurrency(totalCostUSD, "USD")
+            }}</span>
+          </p>
+        </div>
+
+        <!-- Card 3: Net Profit -->
+        <div
+          class="rounded-xl p-4 shadow-sm text-white flex flex-col justify-between min-h-[110px]"
+          :class="profitSummary.combined.profitIDR >= 0 ? 'bg-[#012D5A]' : 'bg-rose-700'"
+        >
+          <div>
+            <p class="text-[10px] font-bold uppercase tracking-widest text-white/70">
+              Net Profit (IDR eq.)
+            </p>
+            <p class="text-xl font-black mt-1">
+              {{ formatCurrency(profitSummary.combined.profitIDR, "IDR") }}
+            </p>
+          </div>
+          <div class="flex items-center gap-1 text-[11px] text-white/95 mt-1.5 font-bold">
+            <TrendingUp
+              v-if="profitSummary.combined.profitIDR >= 0"
+              class="w-3.5 h-3.5 text-emerald-400 shrink-0"
+            />
+            <TrendingDown v-else class="w-3.5 h-3.5 text-rose-400 shrink-0" />
+            <span>Margin {{ profitSummary.combined.marginIDR.toFixed(1) }}%</span>
+          </div>
+        </div>
+      </template>
+
+      <!-- Case B: Kurs Tidak Terkonfigurasi -->
+      <template v-else>
+        <div
+          v-for="[curr, b] in currencyCards"
+          :key="curr"
+          class="border border-border rounded-xl p-4 bg-white shadow-sm flex flex-col justify-between"
+        >
+          <div>
+            <div class="text-[10px] font-extrabold text-[#012D5A] uppercase tracking-wider mb-2">
+              {{ curr }} Margin
+            </div>
+            <div class="flex justify-between text-xs py-0.5">
+              <span class="text-muted-foreground">Revenue</span>
+              <span class="font-semibold">{{ formatCurrency(b.revenue, curr) }}</span>
+            </div>
+            <div class="flex justify-between text-xs py-0.5">
+              <span class="text-muted-foreground">Cost</span>
+              <span class="font-semibold text-red-600">{{ formatCurrency(b.cost, curr) }}</span>
+            </div>
+          </div>
+          <div
+            class="flex justify-between text-sm font-bold pt-1.5 mt-1.5 border-t border-dashed border-border"
+            :class="b.profit >= 0 ? 'text-emerald-600' : 'text-rose-600'"
+          >
+            <span class="flex items-center gap-1">
+              <TrendingUp v-if="b.profit >= 0" class="w-3.5 h-3.5" />
+              <TrendingDown v-else class="w-3.5 h-3.5" />
+              {{ b.margin.toFixed(1) }}%
+            </span>
+            <span>{{ formatCurrency(b.profit, curr) }}</span>
+          </div>
+        </div>
+
+        <div
+          class="rounded-xl p-4 shadow-sm text-white flex flex-col justify-between"
+          :class="profitSummary.combined.profitIDR >= 0 ? 'bg-[#012D5A]' : 'bg-rose-700'"
+        >
+          <div>
+            <p class="text-[10px] font-bold uppercase tracking-widest text-white/70">
+              Net Profit (IDR eq.)
+            </p>
+            <p class="text-xl font-black mt-1">
+              {{ formatCurrency(profitSummary.combined.profitIDR, "IDR") }}
+            </p>
+          </div>
+          <p class="text-[11px] text-white/80 mt-1">
+            Margin {{ profitSummary.combined.marginIDR.toFixed(1) }}% · Cost
+            {{ formatCurrency(totalCostIDR, "IDR") }}
+          </p>
+        </div>
+      </template>
     </div>
 
     <!-- Cost list (vendor-invoice style cards) -->
@@ -364,11 +464,26 @@ const handlePrint = async () => {
                 <p
                   class="text-[9px] text-muted-foreground mb-0.5 uppercase tracking-widest font-bold opacity-70"
                 >
-                  Total Cost{{ hasUsdItem(cost) ? " (IDR eq.)" : "" }}
+                  Total Cost
                 </p>
-                <p class="font-black text-sm text-red-600 whitespace-nowrap">
-                  {{ formatCurrency(cost.amount, "IDR") }}
-                </p>
+                <template v-if="hasUsdItem(cost) && Number(cost.exchangeRate || 1) > 1">
+                  <p class="font-black text-sm text-red-600 whitespace-nowrap">
+                    {{ formatCurrency(cost.amount, "IDR") }}
+                  </p>
+                  <p class="text-[11px] font-bold text-slate-500 whitespace-nowrap mt-0.5">
+                    {{ formatCurrency(usdTotal(cost), "USD") }}
+                  </p>
+                </template>
+                <template v-else-if="hasUsdItem(cost)">
+                  <p class="font-black text-sm text-red-600 whitespace-nowrap">
+                    {{ formatCurrency(usdTotal(cost), "USD") }}
+                  </p>
+                </template>
+                <template v-else>
+                  <p class="font-black text-sm text-red-600 whitespace-nowrap">
+                    {{ formatCurrency(cost.amount, "IDR") }}
+                  </p>
+                </template>
               </div>
               <div
                 v-if="editable"

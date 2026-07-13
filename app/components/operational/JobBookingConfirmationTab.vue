@@ -451,9 +451,7 @@ const handleUnfinalize = async () => {
               :title="`Missing required fields: ${missingFields.join(', ')}`"
             >
               <AlertTriangle class="w-3 h-3" />
-              Incomplete · {{ missingFields.length }} field{{
-                missingFields.length > 1 ? "s" : ""
-              }}
+              Incomplete · {{ missingFields.length }} field{{ missingFields.length > 1 ? "s" : "" }}
               left
             </span>
           </div>
