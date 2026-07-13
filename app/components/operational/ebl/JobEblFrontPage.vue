@@ -1258,7 +1258,7 @@ const formatDate = (dateStr?: string | null) => {
           class="w-full text-left font-mono bg-white p-1.5"
           style="font-size: 8.5px; line-height: 10.5px"
         >
-          <span class="font-bold">SIGNED BY: </span>PT. SAMUDERA AGENCIES INDONESIA<br />
+          <span class="font-bold">SIGNED BY: </span>PT Nova Sync Continent<br />
           <span class="pl-14 italic" style="font-size: 7px; line-height: 8.5px"
             >, as agent for and on behalf of NS CONTINENT</span
           >

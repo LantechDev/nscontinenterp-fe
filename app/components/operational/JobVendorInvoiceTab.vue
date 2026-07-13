@@ -11,13 +11,18 @@ import {
   Download,
   Ban,
   History,
+  FileText,
+  ChevronRight,
+  ChevronDown,
+  Check,
 } from "lucide-vue-next";
 import JobVendorInvoiceForm from "./JobVendorInvoiceForm.vue";
 import JobVendorInvoicePreview from "./JobVendorInvoicePreview.vue";
 import JobPaymentTab from "./JobPaymentTab.vue";
 import PaymentEntryForm from "~/components/finance/PaymentEntryForm.vue";
 import Modal from "~/components/ui/Modal.vue";
-import { useFinanceExpense, type Expense } from "~/composables/useFinanceExpense";
+import { useFinanceExpense, getOverpayment, type Expense } from "~/composables/useFinanceExpense";
+import { useQuotations, type Quotation, type QuotationCost } from "~/composables/useQuotations";
 import { toast } from "vue-sonner";
 import JobFinanceHistoryModal from "./JobFinanceHistoryModal.vue";
 import type { ActivityLog } from "~/lib/activity-log-api";
@@ -25,6 +30,7 @@ import type { ActivityLog } from "~/lib/activity-log-api";
 const props = defineProps<{
   jobId: string;
   jobNumber: string;
+  customerId?: string;
   initialInvoiceId?: string;
   isCompleted?: boolean;
 }>();
@@ -33,7 +39,13 @@ const emit = defineEmits<{
   (e: "refresh-job"): void;
 }>();
 
-const { fetchExpenses, voidExpense, isLoading: isGlobalLoading } = useFinanceExpense();
+const {
+  fetchExpenses,
+  voidExpense,
+  createExpense,
+  isLoading: isGlobalLoading,
+} = useFinanceExpense();
+const { fetchQuotations } = useQuotations();
 const { canManage, requireManage } = useFeatureAccess("finance.payment");
 
 const expenses = ref<Expense[]>([]);
@@ -58,6 +70,31 @@ const showHistoryModal = ref(false);
 const isLoadingHistory = ref(false);
 const historyLogs = ref<ActivityLog[]>([]);
 const isJobHistory = ref(false);
+
+// Quotation picker state
+const showQuotationPicker = ref(false);
+const quotationsList = ref<Quotation[]>([]);
+const isLoadingQuotations = ref(false);
+const isImportingCosts = ref(false);
+
+const showReviewModal = ref(false);
+const selectedQuotation = ref<Quotation | null>(null);
+const expandedCostIds = ref<Set<string>>(new Set());
+const importedCostIds = ref<Set<string>>(new Set());
+const currentImportingCostId = ref<string | null>(null);
+
+const toggleExpandCost = (costId: string) => {
+  const next = new Set(expandedCostIds.value);
+  if (next.has(costId)) next.delete(costId);
+  else next.add(costId);
+  expandedCostIds.value = next;
+};
+
+const isCostAlreadyImported = (cost: QuotationCost) => {
+  if (cost.id && importedCostIds.value.has(cost.id)) return true;
+  if (!cost.number) return false;
+  return expenses.value.some((e) => e.number?.toUpperCase() === cost.number?.toUpperCase());
+};
 
 const fetchExpenseHistory = async (expenseId: string) => {
   isJobHistory.value = false;
@@ -118,6 +155,78 @@ const loadExpenses = async () => {
   }
 };
 
+const expenseSummary = computed(() => {
+  let totalBilledIDR = 0;
+  let totalBilledUSD = 0;
+  let totalPaidIDR = 0;
+  let totalPaidUSD = 0;
+  let totalDueIDR = 0;
+  let totalDueUSD = 0;
+  let totalOverpaidIDR = 0;
+  let totalOverpaidUSD = 0;
+
+  let hasUSD = false;
+  let hasUSDWithoutRate = false;
+
+  expenses.value.forEach((exp) => {
+    if (getExpenseStatusCode(exp) === "VOIDED") return;
+
+    const rate = Number(exp.exchangeRate || 1);
+    const isUSD = exp.currency === "USD";
+    const useRate = isUSD && rate > 1;
+
+    const amount = Number(exp.amount || 0);
+    const balanceDue = Number(exp.balanceDue || 0);
+
+    const overpayment = getOverpayment(exp);
+    let paid = balanceDue > 0 ? amount - balanceDue : amount + overpayment;
+    if (paid < 0) paid = 0;
+
+    if (isUSD) {
+      hasUSD = true;
+      totalBilledUSD += amount;
+      totalPaidUSD += paid;
+      totalDueUSD += balanceDue;
+      if (overpayment > 0) {
+        totalOverpaidUSD += overpayment;
+      }
+    }
+
+    if (useRate) {
+      totalBilledIDR += amount * rate;
+      totalPaidIDR += paid * rate;
+      totalDueIDR += balanceDue * rate;
+      if (overpayment > 0) {
+        totalOverpaidIDR += overpayment * rate;
+      }
+    } else {
+      if (isUSD) {
+        hasUSDWithoutRate = true;
+      } else {
+        totalBilledIDR += amount;
+        totalPaidIDR += paid;
+        totalDueIDR += balanceDue;
+        if (overpayment > 0) {
+          totalOverpaidIDR += overpayment;
+        }
+      }
+    }
+  });
+
+  return {
+    totalBilledIDR,
+    totalBilledUSD,
+    totalPaidIDR,
+    totalPaidUSD,
+    totalDueIDR,
+    totalDueUSD,
+    totalOverpaidIDR,
+    totalOverpaidUSD,
+    hasUSD,
+    hasUSDWithoutRate,
+  };
+});
+
 watch(
   () => props.jobId,
   async (newJobId) => {
@@ -132,6 +241,75 @@ const openCreateForm = () => {
 
   editingExpense.value = null;
   showForm.value = true;
+};
+
+const openQuotationPicker = async () => {
+  if (!requireManage("You only have view access for vendor invoices.")) return;
+  isLoadingQuotations.value = true;
+  showQuotationPicker.value = true;
+  const res = await fetchQuotations({ limit: 100, status: undefined });
+  if (res.success && res.data) {
+    quotationsList.value = (res.data.items || []).filter(
+      (q) =>
+        q.costs && q.costs.length > 0 && (!props.customerId || q.customerId === props.customerId),
+    );
+  }
+  isLoadingQuotations.value = false;
+};
+
+const getQuotationCostTotals = (q: Quotation) => {
+  const totals: Record<string, number> = {};
+  (q.costs || []).forEach((c) => {
+    totals.IDR = (totals.IDR || 0) + Number(c.amount || 0);
+  });
+  return totals;
+};
+
+const openReviewModal = (q: Quotation) => {
+  selectedQuotation.value = q;
+  expandedCostIds.value = new Set();
+  importedCostIds.value = new Set();
+  currentImportingCostId.value = null;
+  showQuotationPicker.value = false;
+  showReviewModal.value = true;
+};
+
+const costSummaryDescription = (c: QuotationCost) => {
+  const items = c.items || [];
+  if (items.length === 0) return c.notes || "Vendor Cost";
+  const first = items[0]?.description || "Vendor Cost";
+  return items.length > 1 ? `${first} +${items.length - 1} items` : first;
+};
+
+const handleImportCost = (cost: QuotationCost) => {
+  currentImportingCostId.value = cost.id || null;
+
+  const prefilledExpense: Partial<Expense> = {
+    number: cost.number || `EXP-${Date.now().toString().slice(-6)}`,
+    description: costSummaryDescription(cost),
+    amount: Number(cost.amount || 0),
+    date: cost.date || new Date().toISOString().split("T")[0],
+    categoryId: cost.categoryId || "",
+    vendorId: cost.vendorId || "",
+    taxId: cost.taxId || "",
+    notes: cost.notes || "",
+    currency: (cost.items?.[0]?.currency || "IDR") as "IDR" | "USD",
+    exchangeRate: Number(cost.exchangeRate || 1),
+    vendor: cost.vendorId ? { id: cost.vendorId, name: cost.vendorName || "No Vendor" } : undefined,
+    items: (cost.items || []).map((it) => ({
+      serviceId: it.serviceId || "",
+      description: it.description,
+      quantity: Number(it.quantity || 1),
+      unitPrice: Number(it.unitPrice || 0),
+      amount: Number(it.amount || Number(it.quantity || 1) * Number(it.unitPrice || 0)),
+    })),
+  };
+
+  editingExpense.value = prefilledExpense as unknown as Expense;
+  showReviewModal.value = false;
+  showQuotationPicker.value = false;
+  showForm.value = true;
+  toast.success(`Prefilled vendor invoice from quotation.`);
 };
 
 const openEditForm = () => {
@@ -210,8 +388,21 @@ watch(
 
 const handleSuccess = () => {
   showForm.value = false;
+  if (currentImportingCostId.value) {
+    importedCostIds.value.add(currentImportingCostId.value);
+    currentImportingCostId.value = null;
+    showReviewModal.value = true;
+  }
   loadExpenses();
   emit("refresh-job");
+};
+
+const handleCancel = () => {
+  showForm.value = false;
+  if (currentImportingCostId.value) {
+    currentImportingCostId.value = null;
+    showReviewModal.value = true;
+  }
 };
 
 const handlePaymentSuccess = () => {
@@ -291,10 +482,11 @@ const getStatusColor = (code?: string) => {
       width="2xl"
     >
       <JobVendorInvoiceForm
+        :key="editingExpense?.id || 'new-' + (editingExpense?.number || '')"
         :job-id="jobId"
         :expense="editingExpense"
         @success="handleSuccess"
-        @cancel="showForm = false"
+        @cancel="handleCancel"
       />
     </Modal>
 
@@ -311,6 +503,12 @@ const getStatusColor = (code?: string) => {
           <div>
             <h2 class="text-xl font-bold flex items-center gap-2">
               Vendor Invoice {{ activeExpense.number }}
+              <span
+                v-if="activeExpense.number?.toUpperCase().startsWith('VCOST-')"
+                class="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-bold bg-blue-50 text-blue-700 border border-blue-100 uppercase tracking-wider shrink-0"
+              >
+                From Quotation
+              </span>
             </h2>
             <p class="text-sm text-muted-foreground mt-0.5 uppercase tracking-wider font-bold">
               {{ activeExpense.vendor?.name }} • {{ formatDate(activeExpense.date) }}
@@ -509,12 +707,140 @@ const getStatusColor = (code?: string) => {
 
           <button
             v-if="canManage && !isCompleted"
+            @click="openQuotationPicker"
+            class="inline-flex items-center px-3 py-1.5 bg-white border border-[#062c58]/20 text-[#062c58] text-xs font-semibold rounded-md hover:bg-blue-50 transition-colors gap-1.5 shadow-sm"
+          >
+            <FileText class="w-3.5 h-3.5" />
+            From Quotation
+          </button>
+
+          <button
+            v-if="canManage && !isCompleted"
             @click="openCreateForm"
             class="inline-flex items-center px-3 py-1.5 bg-[#012D5A] text-white text-xs font-semibold rounded-md hover:bg-[#012D5A]/90 transition-colors gap-1.5 shadow-sm uppercase tracking-wider"
           >
             <Plus class="w-3.5 h-3.5" />
             Record Invoice
           </button>
+        </div>
+      </div>
+
+      <!-- Expense Summary Cards -->
+      <div v-if="expenses.length > 0" class="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <!-- Card 1: Total Cost -->
+        <div
+          class="border border-border rounded-xl p-4 bg-white shadow-sm flex flex-col justify-between min-h-[110px]"
+        >
+          <div class="flex items-start justify-between">
+            <div>
+              <span class="text-[10px] font-black text-muted-foreground uppercase tracking-widest">
+                Total Cost
+              </span>
+              <p class="text-base font-black text-[#012D5A] mt-1.5">
+                {{ formatCurrency(expenseSummary.totalBilledIDR, "IDR") }}
+                <span
+                  v-if="expenseSummary.hasUSDWithoutRate"
+                  class="text-xs font-bold text-[#012D5A]/70 ml-1"
+                >
+                  + {{ formatCurrency(expenseSummary.totalBilledUSD, "USD") }}
+                </span>
+              </p>
+            </div>
+            <Receipt class="w-4 h-4 text-[#012D5A] opacity-60" />
+          </div>
+          <p
+            v-if="expenseSummary.hasUSD && !expenseSummary.hasUSDWithoutRate"
+            class="text-[9px] text-muted-foreground font-bold mt-1"
+          >
+            Original USD:
+            <span class="text-slate-500 font-extrabold">{{
+              formatCurrency(expenseSummary.totalBilledUSD, "USD")
+            }}</span>
+          </p>
+        </div>
+
+        <!-- Card 2: Total Paid -->
+        <div
+          class="border border-border rounded-xl p-4 bg-white shadow-sm flex flex-col justify-between min-h-[110px]"
+        >
+          <div class="flex items-start justify-between">
+            <div>
+              <span class="text-[10px] font-black text-muted-foreground uppercase tracking-widest">
+                Total Paid
+              </span>
+              <p class="text-base font-black text-emerald-600 mt-1.5">
+                {{ formatCurrency(expenseSummary.totalPaidIDR, "IDR") }}
+                <span
+                  v-if="expenseSummary.hasUSDWithoutRate"
+                  class="text-xs font-bold text-emerald-600/70 ml-1"
+                >
+                  + {{ formatCurrency(expenseSummary.totalPaidUSD, "USD") }}
+                </span>
+              </p>
+            </div>
+            <Check class="w-4 h-4 text-emerald-600" />
+          </div>
+          <div class="space-y-0.5 mt-1">
+            <p
+              v-if="expenseSummary.totalOverpaidIDR > 0 || expenseSummary.totalOverpaidUSD > 0"
+              class="text-[9px] text-emerald-600 font-bold"
+            >
+              Includes Overpayment: {{ formatCurrency(expenseSummary.totalOverpaidIDR, "IDR") }}
+              <span v-if="expenseSummary.totalOverpaidUSD > 0">
+                + {{ formatCurrency(expenseSummary.totalOverpaidUSD, "USD") }}</span
+              >
+            </p>
+            <p
+              v-if="expenseSummary.hasUSD && !expenseSummary.hasUSDWithoutRate"
+              class="text-[9px] text-muted-foreground font-bold"
+            >
+              Original USD:
+              <span class="text-slate-500 font-extrabold">{{
+                formatCurrency(expenseSummary.totalPaidUSD, "USD")
+              }}</span>
+            </p>
+          </div>
+        </div>
+
+        <!-- Card 3: Outstanding Balance -->
+        <div
+          class="rounded-xl p-4 shadow-sm text-white flex flex-col justify-between min-h-[110px]"
+          :class="
+            expenseSummary.totalDueIDR > 0 || expenseSummary.totalDueUSD > 0
+              ? 'bg-rose-700'
+              : 'bg-[#012D5A]'
+          "
+        >
+          <div class="flex items-start justify-between">
+            <div>
+              <p class="text-[10px] font-bold uppercase tracking-widest text-white/70">
+                Outstanding Balance
+              </p>
+              <p class="text-base font-black mt-1.5">
+                {{ formatCurrency(expenseSummary.totalDueIDR, "IDR") }}
+                <span
+                  v-if="expenseSummary.hasUSDWithoutRate"
+                  class="text-xs font-bold text-white/80 ml-1"
+                >
+                  + {{ formatCurrency(expenseSummary.totalDueUSD, "USD") }}
+                </span>
+              </p>
+            </div>
+            <AlertCircle
+              v-if="expenseSummary.totalDueIDR > 0 || expenseSummary.totalDueUSD > 0"
+              class="w-4 h-4 text-white"
+            />
+            <Check v-else class="w-4 h-4 text-emerald-400" />
+          </div>
+          <p
+            v-if="expenseSummary.hasUSD && !expenseSummary.hasUSDWithoutRate"
+            class="text-[9px] text-white/80 font-bold mt-1"
+          >
+            Original USD:
+            <span class="text-white font-extrabold">{{
+              formatCurrency(expenseSummary.totalDueUSD, "USD")
+            }}</span>
+          </p>
         </div>
       </div>
 
@@ -571,6 +897,12 @@ const getStatusColor = (code?: string) => {
                     {{ expense.number }}
                   </span>
                   <span
+                    v-if="expense.number?.toUpperCase().startsWith('VCOST-')"
+                    class="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-bold bg-blue-50 text-blue-700 border border-blue-100 uppercase tracking-wider shrink-0"
+                  >
+                    From Quotation
+                  </span>
+                  <span
                     :class="[
                       'text-[9px] px-1.5 py-0.5 rounded font-black border uppercase tracking-wider',
                       getStatusColor(getExpenseStatusCode(expense)),
@@ -595,15 +927,20 @@ const getStatusColor = (code?: string) => {
               >
                 Amount
               </p>
-              <p class="font-black text-sm text-red-600 whitespace-nowrap">
-                {{ formatCurrency(Number(expense.amount), expense.currency) }}
-              </p>
-              <p
-                v-if="expense.currency && expense.currency !== 'IDR'"
-                class="text-[10px] text-muted-foreground font-semibold mt-0.5"
-              >
-                ≈ {{ formatCurrency(Number(expense.amount) * Number(expense.exchangeRate || 1)) }}
-              </p>
+              <template v-if="expense.currency === 'USD' && Number(expense.exchangeRate || 1) > 1">
+                <p class="font-black text-sm text-red-600 whitespace-nowrap">
+                  {{ formatCurrency(Number(expense.amount) * Number(expense.exchangeRate), "IDR") }}
+                </p>
+                <p class="text-[10px] text-muted-foreground font-semibold mt-0.5">
+                  {{ formatCurrency(Number(expense.amount), "USD") }} · Kurs:
+                  {{ formatCurrency(Number(expense.exchangeRate || 1), "IDR") }}
+                </p>
+              </template>
+              <template v-else>
+                <p class="font-black text-sm text-red-600 whitespace-nowrap">
+                  {{ formatCurrency(Number(expense.amount), expense.currency) }}
+                </p>
+              </template>
             </div>
           </div>
 
@@ -631,29 +968,58 @@ const getStatusColor = (code?: string) => {
                   </p>
                 </template>
                 <template v-else-if="Number(expense.balanceDue || 0) > 0">
-                  <p class="font-black text-xs text-red-600 whitespace-nowrap">
-                    {{ formatCurrency(Number(expense.balanceDue), expense.currency) }}
-                  </p>
-                  <p
-                    v-if="expense.currency && expense.currency !== 'IDR'"
-                    class="text-[9px] text-muted-foreground font-semibold mt-0.5 whitespace-nowrap"
+                  <template
+                    v-if="expense.currency === 'USD' && Number(expense.exchangeRate || 1) > 1"
                   >
-                    {{
-                      formatCurrency(
-                        Number(expense.balanceDue || 0) * Number(expense.exchangeRate || 1),
-                        "IDR",
-                      )
-                    }}
-                  </p>
+                    <p class="font-black text-xs text-red-600 whitespace-nowrap">
+                      {{
+                        formatCurrency(
+                          Number(expense.balanceDue) * Number(expense.exchangeRate),
+                          "IDR",
+                        )
+                      }}
+                    </p>
+                    <p
+                      class="text-[9px] text-muted-foreground font-semibold mt-0.5 whitespace-nowrap text-right"
+                    >
+                      {{ formatCurrency(Number(expense.balanceDue), "USD") }}
+                    </p>
+                  </template>
+                  <template v-else>
+                    <p class="font-black text-xs text-red-600 whitespace-nowrap">
+                      {{ formatCurrency(Number(expense.balanceDue), expense.currency) }}
+                    </p>
+                  </template>
                 </template>
                 <template v-else>
                   <p class="font-black text-xs text-green-600 whitespace-nowrap">Paid In Full</p>
-                  <p
-                    v-if="Number(expense.creditBalance || 0) > 0"
-                    class="text-[10px] text-emerald-600 font-semibold mt-0.5"
-                  >
-                    +{{ formatCurrency(Number(expense.creditBalance), expense.currency) }} overpaid
-                  </p>
+                  <template v-if="getOverpayment(expense) > 0">
+                    <template
+                      v-if="expense.currency === 'USD' && Number(expense.exchangeRate || 1) > 1"
+                    >
+                      <p
+                        class="text-[10px] text-emerald-600 font-semibold mt-0.5 whitespace-nowrap"
+                      >
+                        +{{
+                          formatCurrency(
+                            getOverpayment(expense) * Number(expense.exchangeRate),
+                            "IDR",
+                          )
+                        }}
+                        overpaid
+                      </p>
+                      <p
+                        class="text-[9px] text-muted-foreground mt-0.5 whitespace-nowrap text-right"
+                      >
+                        +{{ formatCurrency(getOverpayment(expense), "USD") }}
+                      </p>
+                    </template>
+                    <template v-else>
+                      <p class="text-[10px] text-emerald-600 font-semibold mt-0.5 font-bold">
+                        +{{ formatCurrency(getOverpayment(expense), expense.currency) }} overpaid
+                      </p>
+                    </template>
+                  </template>
                 </template>
               </div>
             </div>
@@ -746,5 +1112,261 @@ const getStatusColor = (code?: string) => {
           : 'List of all activities and changes related to this vendor invoice.'
       "
     />
+
+    <!-- Review Costs Modal -->
+    <Modal
+      v-model="showReviewModal"
+      title="Review Vendor Costs"
+      :description="`Quotation ${selectedQuotation?.number || ''} — pilih cost yang ingin diimpor.`"
+      width="max-w-4xl"
+    >
+      <div class="space-y-3 pt-1">
+        <div
+          v-if="!selectedQuotation || !selectedQuotation.costs?.length"
+          class="py-8 text-center text-muted-foreground text-sm"
+        >
+          Tidak ada vendor cost.
+        </div>
+        <div v-else class="space-y-2 max-h-[420px] overflow-y-auto pr-1">
+          <div
+            v-for="cost in selectedQuotation.costs"
+            :key="cost.id"
+            class="rounded-lg border border-border hover:border-[#062c58]/20 transition-all flex flex-col bg-white overflow-hidden"
+          >
+            <!-- Header Row -->
+            <div
+              class="flex items-center gap-3 p-3 cursor-pointer select-none bg-white hover:bg-slate-50/50"
+              @click="cost.id && toggleExpandCost(cost.id)"
+            >
+              <Checkbox
+                :modelValue="isCostAlreadyImported(cost)"
+                :disabled="true"
+                class="pointer-events-none"
+              />
+              <div class="flex-1 min-w-0">
+                <p class="text-sm font-bold text-foreground flex items-center gap-1.5">
+                  {{ cost.vendorName || "No Vendor" }}
+                  <span
+                    v-if="cost.number"
+                    class="text-[10px] text-muted-foreground font-normal bg-gray-100 px-1.5 py-0.5 rounded border border-gray-200"
+                  >
+                    {{ cost.number }}
+                  </span>
+                  <span
+                    v-if="isCostAlreadyImported(cost)"
+                    class="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200"
+                  >
+                    Imported
+                  </span>
+                </p>
+                <p class="text-[10px] text-muted-foreground mt-0.5">
+                  {{ cost.items?.length || 0 }} item(s)
+                </p>
+              </div>
+              <div class="text-right shrink-0 mr-2">
+                <p class="text-sm font-bold text-red-600">
+                  {{
+                    new Intl.NumberFormat("id-ID", {
+                      style: "currency",
+                      currency: "IDR",
+                      minimumFractionDigits: 0,
+                    }).format(Number(cost.amount || 0))
+                  }}
+                </p>
+                <p
+                  v-for="curr in [...new Set((cost.items || []).map((it) => it.currency || 'IDR'))]"
+                  :key="curr"
+                  class="text-[9px] font-bold text-muted-foreground uppercase"
+                >
+                  {{ curr }}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                @click.stop="handleImportCost(cost)"
+                :disabled="isCostAlreadyImported(cost)"
+                class="px-3 py-1.5 text-[11px] font-bold rounded-lg transition-all flex items-center gap-1 shadow-sm shrink-0 uppercase tracking-wider border"
+                :class="
+                  isCostAlreadyImported(cost)
+                    ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                    : 'bg-[#012D5A] hover:bg-[#012D5A]/90 border-transparent text-white'
+                "
+              >
+                {{ isCostAlreadyImported(cost) ? "Imported" : "Import" }}
+              </button>
+
+              <button
+                type="button"
+                @click.stop="cost.id && toggleExpandCost(cost.id)"
+                class="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 transition-colors"
+                :title="expandedCostIds.has(cost.id || '') ? 'Hide details' : 'Show details'"
+              >
+                <ChevronDown
+                  class="w-4 h-4 transition-transform duration-200"
+                  :class="{ 'rotate-180': cost.id && expandedCostIds.has(cost.id || '') }"
+                />
+              </button>
+            </div>
+
+            <!-- Items Details (Collapsible) -->
+            <div
+              v-if="cost.id && expandedCostIds.has(cost.id || '')"
+              class="border-t border-border/50 bg-slate-50/50 px-4 py-3 text-xs space-y-2"
+            >
+              <div
+                class="text-[10px] font-black text-muted-foreground uppercase tracking-widest border-b border-border/60 pb-1.5 mb-1.5 flex justify-between"
+              >
+                <span>Item Description</span>
+                <div class="flex gap-10">
+                  <span class="w-16 text-center">Qty / Curr</span>
+                  <span class="w-24 text-right">Unit Price</span>
+                  <span class="w-24 text-right">Total</span>
+                </div>
+              </div>
+              <div
+                v-for="item in cost.items"
+                :key="item.id"
+                class="flex justify-between items-start py-1"
+              >
+                <div class="flex-1 min-w-0 pr-4">
+                  <p class="font-bold text-foreground uppercase truncate">
+                    {{ item.serviceName || item.description }}
+                  </p>
+                  <p
+                    v-if="item.serviceName"
+                    class="text-[10px] text-muted-foreground uppercase mt-0.5 truncate"
+                  >
+                    {{ item.description }}
+                  </p>
+                </div>
+                <div class="flex gap-10 shrink-0 font-mono text-[11px]">
+                  <span class="w-16 text-center text-foreground font-semibold">
+                    {{ item.quantity }}
+                    <span class="text-[10px] text-muted-foreground font-normal">{{
+                      item.currency
+                    }}</span>
+                  </span>
+                  <span class="w-24 text-right text-foreground">
+                    {{
+                      new Intl.NumberFormat(item.currency === "IDR" ? "id-ID" : "en-US", {
+                        minimumFractionDigits: item.currency === "IDR" ? 0 : 2,
+                        maximumFractionDigits: item.currency === "IDR" ? 0 : 2,
+                      }).format(Number(item.unitPrice))
+                    }}
+                  </span>
+                  <span class="w-24 text-right text-[#012D5A] font-bold">
+                    {{
+                      new Intl.NumberFormat(item.currency === "IDR" ? "id-ID" : "en-US", {
+                        minimumFractionDigits: item.currency === "IDR" ? 0 : 2,
+                        maximumFractionDigits: item.currency === "IDR" ? 0 : 2,
+                      }).format(Number(item.quantity) * Number(item.unitPrice))
+                    }}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex justify-end items-center pt-3 border-t border-border">
+          <button
+            type="button"
+            @click="showReviewModal = false"
+            class="px-4 py-2 text-xs font-bold text-[#062c58] hover:bg-muted border border-border bg-white rounded-lg transition-colors"
+          >
+            Tutup
+          </button>
+        </div>
+      </div>
+    </Modal>
+
+    <!-- Quotation Picker Modal -->
+    <Modal
+      v-model="showQuotationPicker"
+      title="Import dari Quotation"
+      description="Pilih quotation yang memiliki vendor cost untuk diimpor sebagai vendor invoice."
+      width="max-w-4xl"
+    >
+      <div class="space-y-3 pt-1">
+        <div v-if="isLoadingQuotations" class="py-8 flex justify-center">
+          <Loader2 class="w-6 h-6 animate-spin text-[#062c58]" />
+        </div>
+        <div v-else-if="quotationsList.length === 0" class="py-8 text-center">
+          <FileText class="w-8 h-8 text-muted-foreground/30 mx-auto mb-3" />
+          <p class="text-sm font-semibold text-muted-foreground">
+            Tidak ada quotation dengan vendor cost
+          </p>
+          <p class="text-xs text-muted-foreground mt-1">
+            Tambahkan vendor cost di tab Costing quotation terlebih dahulu.
+          </p>
+        </div>
+        <div v-else class="space-y-2 max-h-[420px] overflow-y-auto pr-1">
+          <div v-for="q in quotationsList" :key="q.id">
+            <button
+              @click="openReviewModal(q)"
+              class="w-full text-left p-4 rounded-xl border border-border hover:border-[#062c58]/40 hover:bg-blue-50/30 transition-all group cursor-pointer"
+            >
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                  <div class="p-2 rounded-lg shrink-0 bg-blue-50 text-[#062c58]">
+                    <FileText class="w-4 h-4" />
+                  </div>
+                  <div>
+                    <p class="text-sm font-bold text-[#062c58]">{{ q.number }}</p>
+                    <p class="text-xs text-muted-foreground mt-0.5">
+                      {{ q.customerName }} · {{ q.date }}
+                    </p>
+                  </div>
+                </div>
+                <div class="flex items-center gap-3">
+                  <div class="text-right">
+                    <p
+                      v-for="(amount, curr) in getQuotationCostTotals(q)"
+                      :key="curr"
+                      class="text-xs font-bold text-foreground"
+                    >
+                      {{ curr }}
+                      {{
+                        new Intl.NumberFormat("id-ID", {
+                          minimumFractionDigits: 0,
+                        }).format(amount)
+                      }}
+                    </p>
+                    <span
+                      class="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded border"
+                      :class="{
+                        'bg-gray-100 text-gray-600 border-gray-200': q.status === 'DRAFT',
+                        'bg-amber-50 text-amber-700 border-amber-200': q.status === 'SENT',
+                        'bg-blue-50 text-blue-700 border-blue-200': q.status === 'CONFIRMED',
+                        'bg-emerald-50 text-emerald-700 border-emerald-200':
+                          q.status === 'CONVERTED',
+                      }"
+                    >
+                      {{ q.status }}
+                    </span>
+                  </div>
+                  <ChevronRight class="w-4 h-4 text-muted-foreground group-hover:text-[#062c58]" />
+                </div>
+              </div>
+              <div v-if="q.costs?.length" class="mt-2 pl-11">
+                <p class="text-[10px] text-muted-foreground">
+                  {{ q.costs.length }} vendor cost{{ q.costs.length > 1 ? "s" : "" }}:
+                  {{
+                    (q.costs || [])
+                      .slice(0, 2)
+                      .map((c) => c.vendorName || "No Vendor")
+                      .join(", ")
+                  }}
+                  <template v-if="(q.costs || []).length > 2">
+                    +{{ (q.costs || []).length - 2 }} more
+                  </template>
+                </p>
+              </div>
+            </button>
+          </div>
+        </div>
+      </div>
+    </Modal>
   </div>
 </template>

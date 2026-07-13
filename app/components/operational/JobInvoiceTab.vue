@@ -22,6 +22,7 @@ import JobInvoicePreview from "./JobInvoicePreview.vue";
 import JobPaymentTab from "./JobPaymentTab.vue";
 import PaymentEntryForm from "../finance/PaymentEntryForm.vue";
 import Modal from "~/components/ui/Modal.vue";
+import { getOverpayment } from "~/composables/useFinanceExpense";
 import { useInvoices, type InvoiceDetail } from "~/composables/useInvoices";
 import { useQuotations, type Quotation } from "~/composables/useQuotations";
 import { toast } from "vue-sonner";
@@ -200,6 +201,78 @@ const loadInvoices = async () => {
     error.value = result.error || "Failed to load invoices";
   }
 };
+
+const invoiceSummary = computed(() => {
+  let totalBilledIDR = 0;
+  let totalBilledUSD = 0;
+  let totalPaidIDR = 0;
+  let totalPaidUSD = 0;
+  let totalDueIDR = 0;
+  let totalDueUSD = 0;
+  let totalOverpaidIDR = 0;
+  let totalOverpaidUSD = 0;
+
+  let hasUSD = false;
+  let hasUSDWithoutRate = false;
+
+  invoices.value.forEach((inv) => {
+    if (inv.status?.code === "VOIDED") return;
+
+    const rate = Number(inv.exchangeRate || 1);
+    const isUSD = inv.currency === "USD";
+    const useRate = isUSD && rate > 1;
+
+    const amount = Number(inv.total || 0);
+    const balanceDue = Number(inv.balanceDue || 0);
+
+    const overpayment = getOverpayment(inv);
+    let paid = balanceDue > 0 ? amount - balanceDue : amount + overpayment;
+    if (paid < 0) paid = 0;
+
+    if (isUSD) {
+      hasUSD = true;
+      totalBilledUSD += amount;
+      totalPaidUSD += paid;
+      totalDueUSD += balanceDue;
+      if (overpayment > 0) {
+        totalOverpaidUSD += overpayment;
+      }
+    }
+
+    if (useRate) {
+      totalBilledIDR += amount * rate;
+      totalPaidIDR += paid * rate;
+      totalDueIDR += balanceDue * rate;
+      if (overpayment > 0) {
+        totalOverpaidIDR += overpayment * rate;
+      }
+    } else {
+      if (isUSD) {
+        hasUSDWithoutRate = true;
+      } else {
+        totalBilledIDR += amount;
+        totalPaidIDR += paid;
+        totalDueIDR += balanceDue;
+        if (overpayment > 0) {
+          totalOverpaidIDR += overpayment;
+        }
+      }
+    }
+  });
+
+  return {
+    totalBilledIDR,
+    totalBilledUSD,
+    totalPaidIDR,
+    totalPaidUSD,
+    totalDueIDR,
+    totalDueUSD,
+    totalOverpaidIDR,
+    totalOverpaidUSD,
+    hasUSD,
+    hasUSDWithoutRate,
+  };
+});
 
 const loadInvoiceDetail = async (id: string) => {
   isLoadingDetail.value = true;
@@ -1051,6 +1124,125 @@ const handlePaymentVoided = async () => {
         </div>
       </div>
 
+      <!-- Invoice Summary Cards -->
+      <div v-if="invoices.length > 0" class="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <!-- Card 1: Total Billed -->
+        <div
+          class="border border-border rounded-xl p-4 bg-white shadow-sm flex flex-col justify-between min-h-[110px]"
+        >
+          <div class="flex items-start justify-between">
+            <div>
+              <span class="text-[10px] font-black text-muted-foreground uppercase tracking-widest">
+                Total Billed
+              </span>
+              <p class="text-base font-black text-[#012D5A] mt-1.5">
+                {{ formatCurrency(invoiceSummary.totalBilledIDR, "IDR") }}
+                <span
+                  v-if="invoiceSummary.hasUSDWithoutRate"
+                  class="text-xs font-bold text-[#012D5A]/70 ml-1"
+                >
+                  + {{ formatCurrency(invoiceSummary.totalBilledUSD, "USD") }}
+                </span>
+              </p>
+            </div>
+            <FileText class="w-4 h-4 text-[#012D5A] opacity-60" />
+          </div>
+          <p
+            v-if="invoiceSummary.hasUSD && !invoiceSummary.hasUSDWithoutRate"
+            class="text-[9px] text-muted-foreground font-bold mt-1"
+          >
+            Original USD:
+            <span class="text-slate-500 font-extrabold">{{
+              formatCurrency(invoiceSummary.totalBilledUSD, "USD")
+            }}</span>
+          </p>
+        </div>
+
+        <!-- Card 2: Total Received -->
+        <div
+          class="border border-border rounded-xl p-4 bg-white shadow-sm flex flex-col justify-between min-h-[110px]"
+        >
+          <div class="flex items-start justify-between">
+            <div>
+              <span class="text-[10px] font-black text-muted-foreground uppercase tracking-widest">
+                Total Received
+              </span>
+              <p class="text-base font-black text-emerald-600 mt-1.5">
+                {{ formatCurrency(invoiceSummary.totalPaidIDR, "IDR") }}
+                <span
+                  v-if="invoiceSummary.hasUSDWithoutRate"
+                  class="text-xs font-bold text-emerald-600/70 ml-1"
+                >
+                  + {{ formatCurrency(invoiceSummary.totalPaidUSD, "USD") }}
+                </span>
+              </p>
+            </div>
+            <Check class="w-4 h-4 text-emerald-600" />
+          </div>
+          <div class="space-y-0.5 mt-1">
+            <p
+              v-if="invoiceSummary.totalOverpaidIDR > 0 || invoiceSummary.totalOverpaidUSD > 0"
+              class="text-[9px] text-emerald-600 font-bold"
+            >
+              Includes Overpayment: {{ formatCurrency(invoiceSummary.totalOverpaidIDR, "IDR") }}
+              <span v-if="invoiceSummary.totalOverpaidUSD > 0">
+                + {{ formatCurrency(invoiceSummary.totalOverpaidUSD, "USD") }}</span
+              >
+            </p>
+            <p
+              v-if="invoiceSummary.hasUSD && !invoiceSummary.hasUSDWithoutRate"
+              class="text-[9px] text-muted-foreground font-bold"
+            >
+              Original USD:
+              <span class="text-slate-500 font-extrabold">{{
+                formatCurrency(invoiceSummary.totalPaidUSD, "USD")
+              }}</span>
+            </p>
+          </div>
+        </div>
+
+        <!-- Card 3: Outstanding Balance -->
+        <div
+          class="rounded-xl p-4 shadow-sm text-white flex flex-col justify-between min-h-[110px]"
+          :class="
+            invoiceSummary.totalDueIDR > 0 || invoiceSummary.totalDueUSD > 0
+              ? 'bg-rose-700'
+              : 'bg-[#012D5A]'
+          "
+        >
+          <div class="flex items-start justify-between">
+            <div>
+              <p class="text-[10px] font-bold uppercase tracking-widest text-white/70">
+                Outstanding Balance
+              </p>
+              <p class="text-base font-black mt-1.5">
+                {{ formatCurrency(invoiceSummary.totalDueIDR, "IDR") }}
+                <span
+                  v-if="invoiceSummary.hasUSDWithoutRate"
+                  class="text-xs font-bold text-white/80 ml-1"
+                >
+                  + {{ formatCurrency(invoiceSummary.totalDueUSD, "USD") }}
+                </span>
+              </p>
+            </div>
+            <AlertCircle
+              v-if="invoiceSummary.totalDueIDR > 0 || invoiceSummary.totalDueUSD > 0"
+              class="w-4 h-4 text-white"
+            />
+            <Check v-else class="w-4 h-4 text-emerald-400" />
+          </div>
+          <p
+            v-if="invoiceSummary.hasUSD && !invoiceSummary.hasUSDWithoutRate"
+            class="text-[9px] text-white/80 font-bold mt-1"
+          >
+            Original USD:
+            <span class="text-white font-extrabold">{{
+              formatCurrency(invoiceSummary.totalDueUSD, "USD")
+            }}</span>
+          </p>
+        </div>
+      </div>
+
       <div
         v-if="isLoading && invoices.length === 0"
         class="py-12 flex flex-col items-center justify-center space-y-3"
@@ -1129,20 +1321,22 @@ const handlePaymentVoided = async () => {
               >
                 Total Amount
               </p>
-              <p class="font-black text-xs text-foreground whitespace-nowrap">
-                {{ formatCurrency(invoice.total, invoice.currency) }}
-              </p>
-              <p
-                v-if="invoice.currency && invoice.currency !== 'IDR'"
-                class="text-[9px] text-muted-foreground font-semibold mt-0.5 whitespace-nowrap"
-              >
-                {{
-                  formatCurrency(
-                    Number(invoice.total || 0) * Number(invoice.exchangeRate || 1),
-                    "IDR",
-                  )
-                }}
-              </p>
+              <template v-if="invoice.currency === 'USD' && Number(invoice.exchangeRate || 1) > 1">
+                <p class="font-black text-xs text-foreground whitespace-nowrap">
+                  {{
+                    formatCurrency(Number(invoice.total || 0) * Number(invoice.exchangeRate), "IDR")
+                  }}
+                </p>
+                <p class="text-[9px] text-muted-foreground font-semibold mt-0.5 whitespace-nowrap">
+                  {{ formatCurrency(invoice.total, "USD") }} · Kurs:
+                  {{ formatCurrency(Number(invoice.exchangeRate || 1), "IDR") }}
+                </p>
+              </template>
+              <template v-else>
+                <p class="font-black text-xs text-foreground whitespace-nowrap">
+                  {{ formatCurrency(invoice.total, invoice.currency) }}
+                </p>
+              </template>
             </div>
             <div class="text-right">
               <p
@@ -1156,29 +1350,54 @@ const handlePaymentVoided = async () => {
                 </p>
               </template>
               <template v-else-if="Number(invoice.balanceDue) > 0">
-                <p class="font-black text-xs text-red-600 whitespace-nowrap">
-                  {{ formatCurrency(invoice.balanceDue, invoice.currency) }}
-                </p>
-                <p
-                  v-if="invoice.currency && invoice.currency !== 'IDR'"
-                  class="text-[9px] text-muted-foreground font-semibold mt-0.5 whitespace-nowrap text-right"
+                <template
+                  v-if="invoice.currency === 'USD' && Number(invoice.exchangeRate || 1) > 1"
                 >
-                  {{
-                    formatCurrency(
-                      Number(invoice.balanceDue || 0) * Number(invoice.exchangeRate || 1),
-                      "IDR",
-                    )
-                  }}
-                </p>
+                  <p class="font-black text-xs text-red-600 whitespace-nowrap">
+                    {{
+                      formatCurrency(
+                        Number(invoice.balanceDue) * Number(invoice.exchangeRate),
+                        "IDR",
+                      )
+                    }}
+                  </p>
+                  <p
+                    class="text-[9px] text-muted-foreground font-semibold mt-0.5 whitespace-nowrap text-right"
+                  >
+                    {{ formatCurrency(invoice.balanceDue, "USD") }}
+                  </p>
+                </template>
+                <template v-else>
+                  <p class="font-black text-xs text-red-600 whitespace-nowrap">
+                    {{ formatCurrency(invoice.balanceDue, invoice.currency) }}
+                  </p>
+                </template>
               </template>
               <template v-else>
                 <p class="font-black text-xs text-green-600 whitespace-nowrap">Paid In Full</p>
-                <p
-                  v-if="Number(invoice.creditBalance || 0) > 0"
-                  class="text-[9px] text-emerald-600 font-semibold mt-0.5 whitespace-nowrap"
-                >
-                  +{{ formatCurrency(invoice.creditBalance || 0, invoice.currency) }} overpaid
-                </p>
+                <template v-if="getOverpayment(invoice) > 0">
+                  <template
+                    v-if="invoice.currency === 'USD' && Number(invoice.exchangeRate || 1) > 1"
+                  >
+                    <p class="text-[9px] text-emerald-600 font-semibold mt-0.5 whitespace-nowrap">
+                      +{{
+                        formatCurrency(
+                          getOverpayment(invoice) * Number(invoice.exchangeRate),
+                          "IDR",
+                        )
+                      }}
+                      overpaid
+                    </p>
+                    <p class="text-[8px] text-muted-foreground mt-0.5 whitespace-nowrap text-right">
+                      +{{ formatCurrency(getOverpayment(invoice), "USD") }}
+                    </p>
+                  </template>
+                  <template v-else>
+                    <p class="text-[9px] text-emerald-600 font-semibold mt-0.5 whitespace-nowrap">
+                      +{{ formatCurrency(getOverpayment(invoice), invoice.currency) }} overpaid
+                    </p>
+                  </template>
+                </template>
               </template>
             </div>
           </div>
