@@ -26,7 +26,10 @@ const props = defineProps<{
   isTrucking: boolean;
   watermarkColor: string;
   paginatedPagesLength: number;
+  documentMode?: "bl" | "fcr";
 }>();
+
+const isFcr = computed(() => props.documentMode === "fcr");
 
 const containers = computed(() => {
   if (
@@ -70,10 +73,22 @@ const containers = computed(() => {
 });
 
 const documentTitle = computed(() =>
-  props.isAir ? "AIR WAYBILL" : props.isTrucking ? "TRUCKING WAYBILL" : "BILL OF LADING",
+  isFcr.value
+    ? "FORWARDER CERTIFICATE OF RECEIPT"
+    : props.isAir
+      ? "AIR WAYBILL"
+      : props.isTrucking
+        ? "TRUCKING WAYBILL"
+        : "BILL OF LADING",
 );
 const documentNumberLabel = computed(() =>
-  props.isAir ? "AIR WAYBILL NO." : props.isTrucking ? "WAYBILL NO." : "BILL OF LADING NO.",
+  isFcr.value
+    ? "MBL NO."
+    : props.isAir
+      ? "AIR WAYBILL NO."
+      : props.isTrucking
+        ? "WAYBILL NO."
+        : "BILL OF LADING NO.",
 );
 const transportScheduleLabel = computed(() =>
   props.isAir ? "AIRLINE / FLIGHT NO." : props.isTrucking ? "TRUCK / DRIVER" : "VESSEL/VOYAGE",
@@ -92,11 +107,13 @@ const loadedDateLabel = computed(() =>
   props.isAir ? "FLIGHT DEPARTURE DATE" : props.isTrucking ? "PICKUP DATE" : "DATE LADEN ON BOARD",
 );
 const issuePlaceLabel = computed(() =>
-  props.isAir
-    ? "PLACE OF AWB ISSUE"
-    : props.isTrucking
-      ? "PLACE OF WAYBILL ISSUE"
-      : "PLACE OF BILL(S) ISSUE",
+  isFcr.value
+    ? "PLACE OF FCR ISSUE"
+    : props.isAir
+      ? "PLACE OF AWB ISSUE"
+      : props.isTrucking
+        ? "PLACE OF WAYBILL ISSUE"
+        : "PLACE OF BILL(S) ISSUE",
 );
 const transportList = computed(() => props.activeBl?.vessels || props.jobData?.vessels || []);
 
@@ -215,6 +232,38 @@ const exportReferences = computed(() => {
 
 const exportReferenceText = computed(() =>
   exportReferences.value.length > 0 ? exportReferences.value.join(", ") : "-",
+);
+
+const bookingNumberDisplay = computed(() =>
+  isFcr.value ? getVal(props.jobData?.carrierBookingNumber, "-") : getVal(props.jobData?.jobNumber),
+);
+
+const documentNumberDisplay = computed(() =>
+  isFcr.value ? getVal(props.jobData?.mblNumber, "-") : getVal(props.activeBl?.blNumber),
+);
+
+const bookingNumberLabel = computed(() => (isFcr.value ? "CARRIER BOOKING NO." : "BOOKING NO."));
+
+const exportReferenceLabel = computed(() =>
+  isFcr.value ? "FCR NO. / EXPORT REFERENCE" : "EXPORT REFERENCE",
+);
+
+const exportReferenceDisplay = computed(() => {
+  if (!isFcr.value) return exportReferenceText.value;
+  const parts = [getVal(props.jobData?.jobNumber), exportReferenceText.value].filter(
+    (part) => part && part !== "-",
+  );
+  return parts.length ? parts.join(" / ") : "-";
+});
+
+const receivedTermsDocumentName = computed(() =>
+  isFcr.value
+    ? "Forwarder Certificate of Receipt"
+    : props.isAir
+      ? "Air Waybill"
+      : props.isTrucking
+        ? "Waybill"
+        : "Bill of Lading",
 );
 
 const placeOfReceiptVal = computed(() =>
@@ -363,6 +412,10 @@ const containerQtyText = (cnt: EblContainer) => {
 const isSingleDetail = (cnt: EblContainer) =>
   (Array.isArray(cnt.items) ? cnt.items.length : (cnt.renderItems?.length ?? 0)) === 1;
 const showItemFigures = (cnt: EblContainer) => !isSingleDetail(cnt) || !cnt.isHeaderVisible;
+const showRenderedItemFigures = (
+  cnt: EblContainer,
+  item: EblContainerItem & { isContinuationSegment?: boolean },
+) => showItemFigures(cnt) && !item.isContinuationSegment;
 
 const findPartyByRole = (roleCodes: string[]) => {
   const normalizedRoles = roleCodes.map((role) => role.replace(/[\s-]/g, "_").toUpperCase());
@@ -458,6 +511,9 @@ const blGrandTotals = computed(() => {
 
 const formatPartyDisplay = (partyInfo: EblParty | undefined) => {
   if (!partyInfo) return "";
+  if ((partyInfo.companyName || "").trim().toUpperCase() === "SAME AS CONSIGNEE") {
+    return "SAME AS CONSIGNEE";
+  }
   const name = (partyInfo.companyName || partyInfo.company?.name || "").trim();
 
   let rawAddress = (
@@ -577,9 +633,11 @@ const formatDate = (dateStr?: string | null) => {
             <div class="w-1/2">
               <div class="flex border-b border-[#062c58]" style="min-height: 40px">
                 <div class="w-1/2 border-r border-[#062c58] pt-1 px-2 pb-2">
-                  <span class="font-bold text-[0.6rem] leading-none mb-0.5 block">BOOKING NO.</span>
+                  <span class="font-bold text-[0.6rem] leading-none mb-0.5 block">{{
+                    bookingNumberLabel
+                  }}</span>
                   <span class="font-mono text-[10px] text-black leading-none">{{
-                    getVal(jobData?.jobNumber)
+                    bookingNumberDisplay
                   }}</span>
                 </div>
                 <div class="w-1/2 pt-1 px-2 pb-2">
@@ -587,14 +645,16 @@ const formatDate = (dateStr?: string | null) => {
                     documentNumberLabel
                   }}</span>
                   <span class="font-mono text-[10px] text-black leading-none">{{
-                    getVal(activeBl?.blNumber)
+                    documentNumberDisplay
                   }}</span>
                 </div>
               </div>
               <div class="pt-1 px-2 pb-3">
-                <span class="font-bold text-[0.6rem] block leading-none">EXPORT REFERENCE</span>
+                <span class="font-bold text-[0.6rem] block leading-none">{{
+                  exportReferenceLabel
+                }}</span>
                 <div class="font-mono text-[10px] text-black pb-1.5">
-                  {{ exportReferenceText }}
+                  {{ exportReferenceDisplay }}
                 </div>
               </div>
             </div>
@@ -684,9 +744,11 @@ const formatDate = (dateStr?: string | null) => {
             <div class="w-1/2">
               <div class="flex border-b border-[#062c58]" style="min-height: 35px">
                 <div class="w-1/2 border-r border-[#062c58] pt-1 px-2 pb-2">
-                  <span class="font-bold text-[0.6rem] leading-none mb-0.5 block">BOOKING NO.</span>
+                  <span class="font-bold text-[0.6rem] leading-none mb-0.5 block">{{
+                    bookingNumberLabel
+                  }}</span>
                   <span class="font-mono text-[10px] text-black leading-none">{{
-                    getVal(jobData?.jobNumber)
+                    bookingNumberDisplay
                   }}</span>
                 </div>
                 <div class="w-1/2 pt-1 px-2 pb-2">
@@ -694,14 +756,16 @@ const formatDate = (dateStr?: string | null) => {
                     documentNumberLabel
                   }}</span>
                   <span class="font-mono text-[10px] text-black leading-none">{{
-                    getVal(activeBl?.blNumber)
+                    documentNumberDisplay
                   }}</span>
                 </div>
               </div>
               <div class="pt-1 px-2 pb-3">
-                <span class="font-bold text-[0.6rem] block leading-none">EXPORT REFERENCE</span>
+                <span class="font-bold text-[0.6rem] block leading-none">{{
+                  exportReferenceLabel
+                }}</span>
                 <div class="font-mono text-[10px] text-black pb-1.5">
-                  {{ exportReferenceText }}
+                  {{ exportReferenceDisplay }}
                 </div>
               </div>
             </div>
@@ -760,7 +824,7 @@ const formatDate = (dateStr?: string | null) => {
               }}
               or Place of Delivery, as applicable. Delivery of the Goods to the Carrier for Carriage
               hereunder constitutes acceptance by the Merchant of all the terms and conditions of
-              this {{ isAir ? "Air Waybill" : isTrucking ? "Waybill" : "Bill of Lading" }}.
+              this {{ receivedTermsDocumentName }}.
             </div>
           </div>
         </template>
@@ -961,8 +1025,26 @@ const formatDate = (dateStr?: string | null) => {
         </div>
       </div>
 
-      <div :class="[page.pageIndex === 0 ? 'cargo-window-p1' : 'cargo-window-p2']" class="relative">
-        <div class="vertical-grid-lines">
+      <div
+        :class="[
+          page.pageIndex === 0
+            ? page.pageIndex < paginatedPagesLength - 1
+              ? 'cargo-window-p1-continued'
+              : 'cargo-window-p1'
+            : 'cargo-window-p2',
+        ]"
+        class="relative"
+      >
+        <div
+          class="vertical-grid-lines"
+          :class="[
+            page.pageIndex === paginatedPagesLength - 1 &&
+            page.pageItems.length > 0 &&
+            !page.pageItems[0]?.isFallback
+              ? 'with-total-strip'
+              : '',
+          ]"
+        >
           <div class="w-[22%] border-r border-[#062c58]"></div>
           <div class="w-[10%] border-r border-[#062c58]"></div>
           <div class="w-[3%] border-r border-[#062c58]"></div>
@@ -971,12 +1053,26 @@ const formatDate = (dateStr?: string | null) => {
           <div class="w-[12.5%]"></div>
         </div>
 
-        <div class="relative z-[1] text-black font-mono pt-2">
+        <div
+          class="relative z-[1] text-black font-mono pt-2"
+          :class="[
+            page.pageIndex === paginatedPagesLength - 1 &&
+            page.pageItems.length > 0 &&
+            !page.pageItems[0]?.isFallback
+              ? 'pb-[18px]'
+              : '',
+          ]"
+        >
           <div
             v-if="page.pageIndex === 0 && containerTypeSummary && !page.pageItems[0]?.isFallback"
-            class="flex w-full mb-2 font-bold text-[12px] text-center border-b border-[#062c58]/30 pb-1"
+            class="flex w-full mb-1 font-semibold text-[9.5px] border-b border-[#062c58]/20 pb-0.5"
           >
-            <div class="w-full">{{ containerTypeSummary }}</div>
+            <div class="w-[22%]"></div>
+            <div class="w-[10%]"></div>
+            <div class="w-[3%]"></div>
+            <div class="w-[40%] px-3 text-left tracking-[0]">{{ containerTypeSummary }}</div>
+            <div class="w-[12.5%]"></div>
+            <div class="w-[12.5%]"></div>
           </div>
           <template v-for="(cnt, cIdx) in page.pageItems" :key="cIdx">
             <div
@@ -1056,7 +1152,7 @@ const formatDate = (dateStr?: string | null) => {
                 {{ page.pageIndex === 0 && cIdx === 0 && iIdx === 0 ? jobData?.shippingMark : "" }}
               </div>
               <div class="w-[10%] px-2 text-right text-[11px]">
-                <template v-if="showItemFigures(cnt)">
+                <template v-if="showRenderedItemFigures(cnt, item)">
                   {{
                     item.qty === null || item.qty === undefined
                       ? "-"
@@ -1080,19 +1176,19 @@ const formatDate = (dateStr?: string | null) => {
                 </div>
               </div>
               <div class="w-[12.5%] px-3 text-right text-[11px] leading-tight">
-                <template v-if="showItemFigures(cnt)">
+                <template v-if="showRenderedItemFigures(cnt, item)">
                   <div>GW {{ figureText(item.grossWeight, "KGS") }}</div>
                   <div>NW {{ figureText(item.netWeight, "KGS") }}</div>
                 </template>
               </div>
               <div class="w-[12.5%] px-3 text-right text-[11px]">
-                <template v-if="showItemFigures(cnt)">
+                <template v-if="showRenderedItemFigures(cnt, item)">
                   {{ figureText(item.measurementCbm, "CBM", 2) }}
                 </template>
               </div>
             </div>
 
-            <div class="mb-4"></div>
+            <div class="mb-1.5"></div>
           </template>
 
           <template v-if="page.pageItems[0]?.isFallback">
@@ -1116,48 +1212,49 @@ const formatDate = (dateStr?: string | null) => {
               </div>
             </div>
           </template>
+        </div>
 
-          <div
-            v-if="
-              page.pageIndex === paginatedPagesLength - 1 &&
-              page.pageItems.length > 0 &&
-              !page.pageItems[0]?.isFallback
-            "
-            class="flex w-full mt-4 pt-2 border-t-2 border-[#062c58] font-bold text-[12px] bg-[#062c58]/5"
-          >
-            <div class="w-[22%] pl-3 py-2 text-[11px]">TOTAL</div>
-            <div class="w-[10%] px-2 py-2 text-right text-[11px]">
-              {{ formatNumber(blGrandTotals.qty, 0) }} PKGS
-            </div>
-            <div class="w-[3%]"></div>
-            <div class="w-[40%] px-3 py-2 text-[11px]">
-              Gross Weight: {{ formatNumber(blGrandTotals.grossWeight) }} KGS
-            </div>
-            <div class="w-[12.5%] px-3 py-2 text-right text-[11px] leading-tight">
-              <div>GW {{ formatNumber(blGrandTotals.grossWeight) }} KGS</div>
-              <div>NW {{ formatNumber(blGrandTotals.netWeight) }} KGS</div>
-            </div>
-            <div class="w-[12.5%] px-3 py-2 text-right text-[11px]">
-              {{ formatNumber(blGrandTotals.measurement, 2) }} CBM
-            </div>
+        <div
+          v-if="
+            page.pageIndex === paginatedPagesLength - 1 &&
+            page.pageItems.length > 0 &&
+            !page.pageItems[0]?.isFallback
+          "
+          class="absolute left-0 right-0 bottom-0 z-[2] flex w-full border-t border-[#062c58] font-medium text-[8.5px] text-[#062c58] bg-white"
+        >
+          <div class="w-[22%] pl-3 py-1 text-[8px] font-semibold">TOTAL</div>
+          <div class="w-[10%] px-2 py-1 text-right text-[8px]">
+            {{ formatNumber(blGrandTotals.qty, 0) }} PKGS
+          </div>
+          <div class="w-[3%]"></div>
+          <div class="w-[40%] px-3 py-1 text-[8px]">
+            Gross Weight: {{ formatNumber(blGrandTotals.grossWeight) }} KGS
+          </div>
+          <div class="w-[12.5%] px-3 py-1 text-right text-[8px] leading-tight">
+            <div>GW {{ formatNumber(blGrandTotals.grossWeight) }} KGS</div>
+            <div>NW {{ formatNumber(blGrandTotals.netWeight) }} KGS</div>
+          </div>
+          <div class="w-[12.5%] px-3 py-1 text-right text-[8px]">
+            {{ formatNumber(blGrandTotals.measurement, 2) }} CBM
           </div>
         </div>
       </div>
 
       <div
         v-if="page.pageIndex < paginatedPagesLength - 1"
-        class="border-t border-[#062c58] text-center font-bold text-[0.55rem] py-1 mt-auto font-mono"
+        class="border-b border-[#062c58] text-center font-bold text-[0.55rem] py-1 mt-auto font-mono bg-white"
       >
         ** TO BE CONTINUED ON PAGE {{ page.pageIndex + 2 }} **
       </div>
 
       <div
         v-if="page.pageIndex === 0"
-        class="bl-footer border-t border-[#062c58] flex flex-col relative z-[1] bg-white"
+        class="bl-footer flex flex-col relative z-[1] bg-white"
+        :class="[page.pageIndex < paginatedPagesLength - 1 ? 'bl-footer-continued' : '']"
       >
         <div class="flex border-b border-[#062c58] text-[#062c58]" style="min-height: 20px">
           <div class="px-3 w-1/4 font-bold flex items-start pt-1 text-[0.55rem] leading-none">
-            Declared Cargo Value US $
+            {{ isFcr ? "Cargo Receipt Value US $" : "Declared Cargo Value US $" }}
           </div>
           <div
             class="border-l border-[#062c58] flex-1 text-left font-normal text-[0.45rem] leading-tight flex items-start pt-1 px-2 text-black"
@@ -1204,9 +1301,15 @@ const formatDate = (dateStr?: string | null) => {
           <div
             class="w-[29%] p-0.5 text-[0.42rem] font-normal leading-tight text-justify flex items-start text-black"
           >
-            [1] ORIGINAL
-            {{ isAir ? "AIR WAYBILL(S)" : isTrucking ? "WAYBILL(S)" : "BILL(S) OF LADING" }} HAVE
-            BEEN SIGNED, WHERE DELIVERED AGAINST ONE, THE OTHERS(S) TO BE VOID.
+            <template v-if="isFcr">
+              THIS FORWARDER CERTIFICATE OF RECEIPT IS NOT NEGOTIABLE AND DOES NOT CONSTITUTE A BILL
+              OF LADING.
+            </template>
+            <template v-else>
+              [1] ORIGINAL
+              {{ isAir ? "AIR WAYBILL(S)" : isTrucking ? "WAYBILL(S)" : "BILL(S) OF LADING" }}
+              HAVE BEEN SIGNED, WHERE DELIVERED AGAINST ONE, THE OTHERS(S) TO BE VOID.
+            </template>
           </div>
         </div>
         <div class="flex flex-1" style="min-height: 110px">
@@ -1320,8 +1423,8 @@ const formatDate = (dateStr?: string | null) => {
     <div class="mt-1 flex justify-between pr-2 text-[#062c58]" style="height: 45px">
       <div class="text-[0.45rem] w-1/2 mt-0.5 italic leading-tight">
         The printed terms and conditions on this
-        {{ isAir ? "Air Waybill" : isTrucking ? "Waybill" : "Bill" }} are available at its website
-        at www.nscontinent.com
+        {{ isFcr ? "FCR" : isAir ? "Air Waybill" : isTrucking ? "Waybill" : "Bill" }} are available
+        at its website at www.nscontinent.com
       </div>
       <div
         v-if="page.pageIndex === paginatedPagesLength - 1"
@@ -1364,7 +1467,15 @@ const formatDate = (dateStr?: string | null) => {
 }
 
 .cargo-window-p1 {
-  height: 220px;
+  height: 285px;
+  flex-shrink: 0;
+  overflow: hidden;
+  position: relative;
+  border-bottom: 1px solid #062c58;
+}
+
+.cargo-window-p1-continued {
+  height: 250px;
   flex-shrink: 0;
   overflow: hidden;
   position: relative;
@@ -1395,10 +1506,18 @@ const formatDate = (dateStr?: string | null) => {
   height: 100%;
 }
 
+.vertical-grid-lines.with-total-strip > div {
+  height: calc(100% - 17px);
+}
+
 .bl-footer {
-  height: 310px;
+  height: 245px;
   flex-shrink: 0;
   background: white;
+}
+
+.bl-footer-continued {
+  height: 225px;
 }
 
 .font-mono {

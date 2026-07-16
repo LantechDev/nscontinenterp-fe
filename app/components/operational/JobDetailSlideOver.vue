@@ -28,6 +28,7 @@ import JobFinanceTab from "./JobFinanceTab.vue";
 import JobCoverPreview from "./JobCoverPreview.vue";
 import JobEblTab from "./JobEblTab.vue";
 import JobBookingConfirmationTab from "./JobBookingConfirmationTab.vue";
+import JobFcrTab from "./JobFcrTab.vue";
 import JobDocumentTab from "./JobDocumentTab.vue";
 import { useAuth } from "~/composables/useAuth";
 const { canApproveJobs, user } = useAuth();
@@ -64,6 +65,7 @@ const tabs = [
   { id: "overview", label: "Overview" },
   { id: "bookingConfirmation", label: "Booking Confirmation" },
   { id: "ebl", label: "eBL" },
+  { id: "fcr", label: "FCR" },
   { id: "finance", label: "Finance" },
   { id: "jobCover", label: "Job Cover" },
   { id: "document", label: "Upload Document" },
@@ -1637,6 +1639,8 @@ watch(
                     :can-manage-job="canManage"
                   />
                 </div>
+
+                <JobFcrTab v-else-if="activeTab === 'fcr'" :job="job" />
 
                 <!-- Job Cover Tab (internal filing cover sheet) -->
                 <div

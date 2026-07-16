@@ -49,7 +49,9 @@ export interface EblContainer {
   measurement?: number;
   isFallback?: boolean;
   isHeaderVisible?: boolean;
-  renderItems?: Array<EblContainerItem & { displayLines?: string[] }>;
+  renderItems?: Array<
+    EblContainerItem & { displayLines?: string[]; isContinuationSegment?: boolean }
+  >;
 }
 export interface EblParty {
   partyRole?: { code?: string; name?: string };
@@ -114,6 +116,8 @@ export interface ActiveJobData {
   deliveryMovement?: { code?: string; name?: string } | null;
   deliveryMovementId?: string | null;
   customerReference?: string | null;
+  carrierBookingNumber?: string | null;
+  mblNumber?: string | null;
   preCarriageBy?: string | null;
   placeOfReceipt?: string | null;
   placeOfDelivery?: string | null;

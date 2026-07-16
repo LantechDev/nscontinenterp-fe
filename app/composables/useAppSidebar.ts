@@ -29,6 +29,7 @@ import {
   Tag,
   Scale,
   ArrowLeftRight,
+  Radar,
 } from "lucide-vue-next";
 import type { Organization } from "~/types/auth";
 
@@ -74,6 +75,7 @@ export const NAV_ITEMS: NavItem[] = [
     children: [
       { title: "Quotation & Pricing", href: "/operational/quotations", icon: Calculator },
       { title: "Job", href: "/operational/jobs", icon: ClipboardList },
+      { title: "Vessel Tracking", href: "/operational/vessel-tracking", icon: Radar },
       { title: "eBL", href: "/operational/ebl", icon: FileCheck },
       { title: "Closing Job", href: "/operational/closing", icon: FolderClosed },
     ],

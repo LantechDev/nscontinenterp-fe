@@ -1,6 +1,7 @@
 export interface Invoice {
   id: string;
   invoiceNumber: string;
+  isReimbursement?: boolean;
   issuedDate: string;
   dueDate: string;
   currency: string;
@@ -21,6 +22,10 @@ export interface Invoice {
     code: string;
     name: string;
   };
+  type?: {
+    code: string;
+    name: string;
+  } | null;
   company: {
     name: string;
   };
@@ -257,6 +262,7 @@ export function useInvoices() {
   async function createInvoice(data: {
     jobId?: string;
     invoiceNumber: string;
+    isReimbursement?: boolean;
     companyId: string;
     issuedDate: string;
     dueDate: string;
@@ -300,6 +306,7 @@ export function useInvoices() {
     id: string,
     data: Partial<{
       invoiceNumber: string;
+      isReimbursement?: boolean;
       issuedDate: string;
       dueDate: string;
       companyId: string;

@@ -31,6 +31,10 @@ const invoiceSchema = z.object({
 
 const taxList = ref<Tax[]>([]);
 const taxOptions = ref<Array<{ id: string; name: string }>>([]);
+const currencyOptions = [
+  { id: "IDR", name: "IDR" },
+  { id: "USD", name: "USD" },
+];
 
 const jobBillsOfLading = ref<Array<{ blNumber: string }>>([]);
 
@@ -84,6 +88,7 @@ const prefillTaxId =
 
 const form = ref({
   invoiceNumber: props.invoice?.invoiceNumber || "",
+  isReimbursement: Boolean(props.invoice?.isReimbursement),
   issuedDate: props.invoice?.issuedDate
     ? new Date(props.invoice.issuedDate).toISOString().split("T")[0]
     : new Date().toISOString().split("T")[0],
@@ -184,6 +189,18 @@ onMounted(async () => {
 const hasUSDItems = computed(() => {
   return form.value.items.some((item) => item.currency === "USD");
 });
+
+const normalizeCurrency = (value: string | null | undefined) => (value === "USD" ? "USD" : "IDR");
+
+const setInvoiceCurrency = (value: string | null | undefined) => {
+  form.value.currency = normalizeCurrency(value);
+};
+
+const setItemCurrency = (index: number, value: string | null | undefined) => {
+  const item = form.value.items[index];
+  if (!item) return;
+  item.currency = normalizeCurrency(value);
+};
 
 watch(
   () => form.value.items,
@@ -386,6 +403,7 @@ const handleSubmit = async () => {
   const payload = {
     jobId: props.jobId,
     invoiceNumber: form.value.invoiceNumber,
+    isReimbursement: form.value.isReimbursement,
     companyId: form.value.customerId,
     currency: form.value.currency,
     exchangeRate: hasUSDItems.value ? Number(form.value.exchangeRate || 1) : 1,
@@ -506,13 +524,47 @@ const formatInputCurrency = (val: number | string, currency: string = form.value
         <div class="h-4 w-[1px] bg-border mx-1"></div>
         <div class="flex items-center gap-2">
           <span class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest"
+            >Type</span
+          >
+          <div class="inline-flex rounded-lg border border-border bg-white p-0.5 shadow-sm">
+            <button
+              type="button"
+              @click="form.isReimbursement = false"
+              :class="[
+                'px-2.5 py-1 text-[10px] font-black uppercase tracking-wider rounded-md transition-all',
+                !form.isReimbursement
+                  ? 'bg-[#012D5A] text-white shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-gray-50',
+              ]"
+            >
+              Invoice
+            </button>
+            <button
+              type="button"
+              @click="form.isReimbursement = true"
+              :class="[
+                'px-2.5 py-1 text-[10px] font-black uppercase tracking-wider rounded-md transition-all',
+                form.isReimbursement
+                  ? 'bg-[#012D5A] text-white shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-gray-50',
+              ]"
+            >
+              Reimbursement
+            </button>
+          </div>
+        </div>
+        <div class="h-4 w-[1px] bg-border mx-1"></div>
+        <div class="flex items-center gap-2">
+          <span class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest"
             >Invoice Currency</span
           >
-          <span
-            class="px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider bg-[#012D5A]/5 border border-[#012D5A]/10 text-[#012D5A] shadow-sm"
-          >
-            {{ form.currency }}
-          </span>
+          <Combobox
+            :model-value="form.currency"
+            :options="currencyOptions"
+            class="w-32"
+            placeholder="Currency"
+            @update:model-value="setInvoiceCurrency"
+          />
         </div>
 
         <div
@@ -701,13 +753,13 @@ const formatInputCurrency = (val: number | string, currency: string = form.value
               </div>
               <div class="col-span-4">
                 <div class="flex gap-1.5 items-center">
-                  <select
-                    v-model="item.currency"
-                    class="px-2 py-2 bg-slate-50 border border-border rounded-md text-xs font-bold text-[#012D5A] focus:ring-2 focus:ring-[#012D5A]/20 focus:border-[#012D5A] outline-none transition-all cursor-pointer"
-                  >
-                    <option value="IDR">IDR</option>
-                    <option value="USD">USD</option>
-                  </select>
+                  <Combobox
+                    :model-value="item.currency"
+                    :options="currencyOptions"
+                    class="w-32 shrink-0"
+                    placeholder="Curr"
+                    @update:model-value="(value) => setItemCurrency(index, value)"
+                  />
                   <div class="relative flex-1">
                     <input
                       type="text"

@@ -104,6 +104,8 @@ export interface Job {
   placeOfIssue?: string | null;
   dateOfIssue?: string | null;
   customerReference?: string | null;
+  carrierBookingNumber?: string | null;
+  mblNumber?: string | null;
   shipperReferences?: string[] | null;
   isDirectMaster: boolean;
   createdAt: string;
@@ -268,6 +270,8 @@ export interface CreateJob {
   finalDestination?: string | null;
   etd?: string;
   eta?: string;
+  carrierBookingNumber?: string | null;
+  mblNumber?: string | null;
   shipperReferences?: string[];
   showShipperReferencesOnBl?: boolean;
   vessels?: {

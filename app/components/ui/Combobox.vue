@@ -9,6 +9,7 @@ type ComboboxOption = Record<string, any>;
 const props = withDefaults(
   defineProps<{
     modelValue: string | null | undefined;
+    selectedValues?: string[];
     options: ComboboxOption[];
     labelKey?: string;
     valueKey?: string;
@@ -16,14 +17,17 @@ const props = withDefaults(
     allowCreate?: boolean;
     filterLocal?: boolean;
     disabled?: boolean;
+    multiple?: boolean;
   }>(),
   {
     filterLocal: true,
+    multiple: false,
   },
 );
 
 const emit = defineEmits<{
   (e: "update:modelValue", value: string | null | undefined): void;
+  (e: "update:selectedValues", value: string[]): void;
   (e: "create", value: string): void;
   (e: "search", value: string): void;
 }>();
@@ -69,6 +73,13 @@ const hasExactMatch = computed(() => {
 
 const cachedSelectedOption = ref<ComboboxOption | null>(null);
 
+const selectedValues = computed(() => {
+  if (props.multiple) {
+    return props.selectedValues || [];
+  }
+  return props.modelValue ? [String(props.modelValue)] : [];
+});
+
 watch(
   () => props.modelValue,
   (newVal) => {
@@ -81,7 +92,7 @@ watch(
 watch(
   () => props.options,
   (newOptions) => {
-    if (props.modelValue && newOptions) {
+    if (!props.multiple && props.modelValue && newOptions) {
       const found = newOptions.find((opt) => getOptionValue(opt) === props.modelValue);
       if (found) {
         cachedSelectedOption.value = found;
@@ -92,6 +103,15 @@ watch(
 );
 
 const selectedLabel = computed(() => {
+  if (props.multiple) {
+    if (selectedValues.value.length === 0) return props.placeholder || "Select option...";
+    if (selectedValues.value.length === 1) {
+      const selected = props.options.find((opt) => getOptionValue(opt) === selectedValues.value[0]);
+      return selected ? getOptionLabel(selected) : selectedValues.value[0];
+    }
+    return `${selectedValues.value.length} selected`;
+  }
+
   if (
     cachedSelectedOption.value &&
     getOptionValue(cachedSelectedOption.value) === props.modelValue
@@ -107,9 +127,25 @@ const selectedLabel = computed(() => {
   return props.placeholder || "Select option...";
 });
 
-const hasSelection = computed(() => Boolean(props.modelValue));
+const hasSelection = computed(() =>
+  props.multiple ? selectedValues.value.length > 0 : Boolean(props.modelValue),
+);
+
+function isSelected(option: ComboboxOption) {
+  return selectedValues.value.includes(getOptionValue(option));
+}
 
 function selectOption(option: ComboboxOption) {
+  if (props.multiple) {
+    const optionValue = getOptionValue(option);
+    const nextValue = isSelected(option)
+      ? selectedValues.value.filter((value) => value !== optionValue)
+      : [...selectedValues.value, optionValue];
+    emit("update:selectedValues", nextValue);
+    searchQuery.value = "";
+    return;
+  }
+
   cachedSelectedOption.value = option;
   emit("update:modelValue", getOptionValue(option));
   open.value = false;
@@ -127,6 +163,10 @@ function clearSelection() {
   cachedSelectedOption.value = null;
   searchQuery.value = "";
   open.value = false;
+  if (props.multiple) {
+    emit("update:selectedValues", []);
+    return;
+  }
   emit("update:modelValue", null);
 }
 
@@ -224,14 +264,11 @@ const { floatingStyles } = useFloating(containerRef, floatingRef, {
             :key="getOptionValue(option)"
             class="relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-[#012D5A] hover:text-white data-[disabled]:pointer-events-none data-[disabled]:opacity-50"
             :class="{
-              'bg-[#012D5A] text-white': modelValue === getOptionValue(option),
+              'bg-[#012D5A] text-white': isSelected(option),
             }"
             @click="selectOption(option)"
           >
-            <Check
-              class="mr-2 h-4 w-4"
-              :class="modelValue === getOptionValue(option) ? 'opacity-100' : 'opacity-0'"
-            />
+            <Check class="mr-2 h-4 w-4" :class="isSelected(option) ? 'opacity-100' : 'opacity-0'" />
             {{ getOptionLabel(option) }}
           </div>
         </div>
