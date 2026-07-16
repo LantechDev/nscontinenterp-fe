@@ -229,6 +229,7 @@ export function useRoleAccess() {
       path.startsWith("/master/expense-categories") ||
       path.startsWith("/master/service-units") ||
       path.startsWith("/master/package-types") ||
+      path.startsWith("/master/ports") ||
       path.startsWith("/master/cargo-movements") ||
       path.startsWith("/master/delivery-movements")
     ) {
