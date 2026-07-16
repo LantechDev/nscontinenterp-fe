@@ -2,6 +2,8 @@
 import { computed } from "vue";
 import { type ExpenseFormData } from "~/composables/useExpensePage";
 import Combobox from "~/components/ui/Combobox.vue";
+import SearchSelect from "~/components/ui/SearchSelect.vue";
+import type { SearchSelectFetchFn } from "~/components/ui/SearchSelect.vue";
 
 const props = defineProps<{
   isOpen: boolean;
@@ -14,6 +16,8 @@ const props = defineProps<{
   jobs: Array<{ id: string; jobNumber: string }>;
   taxOptions: Array<{ id: string; name: string; rate: number }>;
   hideJob?: boolean;
+  useManualAccount?: boolean;
+  handleAccountSearch?: SearchSelectFetchFn;
 }>();
 
 const emit = defineEmits<{
@@ -21,6 +25,7 @@ const emit = defineEmits<{
   submit: [];
   createVendor: [name: string];
   createCategory: [name: string];
+  toggleManualAccount: [checked: boolean];
 }>();
 
 const parseInputCurrency = (val: string, currency: string = props.formData.currency) => {
@@ -65,9 +70,12 @@ const formatInputCurrency = (val: number | string, currency: string = props.form
 };
 
 const computedCategory = computed({
-  get: () => (props.hideJob ? props.formData.expenseCategoryId : props.formData.categoryId),
+  get: () =>
+    props.hideJob || props.formData.direction === "IN"
+      ? props.formData.expenseCategoryId
+      : props.formData.categoryId,
   set: (val) => {
-    if (props.hideJob) {
+    if (props.hideJob || props.formData.direction === "IN") {
       props.formData.expenseCategoryId = val;
     } else {
       props.formData.categoryId = val;
@@ -88,7 +96,17 @@ const computedCategory = computed({
       >
         <!-- Modal Header -->
         <div class="flex items-center justify-between p-6 border-b border-border">
-          <h2 class="text-xl font-bold">Edit Biaya</h2>
+          <h2 class="text-xl font-bold">
+            {{
+              editingExpenseId
+                ? formData.direction === "IN"
+                  ? "Edit Penerimaan Kas"
+                  : "Edit Pengeluaran Kas"
+                : formData.direction === "IN"
+                  ? "Catat Penerimaan Kas"
+                  : "Catat Pengeluaran Kas"
+            }}
+          </h2>
           <button @click="emit('close')" class="p-1 hover:bg-muted rounded-lg transition-colors">
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -113,8 +131,52 @@ const computedCategory = computed({
             {{ editError }}
           </div>
 
+          <!-- Transaction Direction Toggle -->
           <div>
-            <label class="block text-sm font-medium mb-1">Nomor Biaya</label>
+            <label class="block text-sm font-semibold mb-1.5">Tipe Transaksi</label>
+            <div
+              class="flex border border-border rounded-lg overflow-hidden bg-white h-10 w-full max-w-[320px]"
+            >
+              <button
+                type="button"
+                :disabled="!!editingExpenseId"
+                @click="
+                  formData.direction = 'OUT';
+                  formData.categoryId = '';
+                "
+                class="flex-1 text-xs font-bold transition-colors disabled:opacity-75"
+                :class="
+                  formData.direction === 'OUT'
+                    ? 'bg-red-600 text-white font-semibold'
+                    : 'hover:bg-gray-50 text-muted-foreground bg-white'
+                "
+              >
+                Cash Out (Pengeluaran)
+              </button>
+              <button
+                type="button"
+                :disabled="!!editingExpenseId"
+                @click="
+                  formData.direction = 'IN';
+                  formData.categoryId = '';
+                  formData.jobId = '';
+                "
+                class="flex-1 text-xs font-bold border-l border-border transition-colors disabled:opacity-75"
+                :class="
+                  formData.direction === 'IN'
+                    ? 'bg-emerald-600 text-white font-semibold'
+                    : 'hover:bg-gray-50 text-muted-foreground bg-white'
+                "
+              >
+                Cash In (Penerimaan)
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium mb-1">
+              {{ formData.direction === "IN" ? "Nomor Transaksi" : "Nomor Biaya" }}
+            </label>
             <input
               v-model="formData.number"
               type="text"
@@ -245,19 +307,21 @@ const computedCategory = computed({
             </p>
           </div>
 
-          <div :class="hideJob ? 'block' : 'grid grid-cols-2 gap-4'">
+          <div :class="hideJob || formData.direction === 'IN' ? 'block' : 'grid grid-cols-2 gap-4'">
             <div>
-              <label class="block text-sm font-medium mb-1">Vendor</label>
+              <label class="block text-sm font-medium mb-1">
+                {{ formData.direction === "IN" ? "Kontak / Sumber" : "Vendor" }}
+              </label>
               <Combobox
                 v-model="formData.vendorId"
                 :options="companies"
-                placeholder="Pilih Vendor"
+                :placeholder="formData.direction === 'IN' ? 'Pilih Kontak' : 'Pilih Vendor'"
                 allow-create
                 @create="(name) => emit('createVendor', name)"
               />
             </div>
 
-            <div v-if="!hideJob">
+            <div v-if="!hideJob && formData.direction !== 'IN'">
               <label class="block text-sm font-medium mb-1">Job</label>
               <Combobox
                 v-model="formData.jobId"
@@ -268,7 +332,7 @@ const computedCategory = computed({
             </div>
           </div>
 
-          <div>
+          <div v-if="!hideJob && formData.direction !== 'IN' && !useManualAccount">
             <label class="block text-sm font-medium mb-1">Kategori</label>
             <Combobox
               v-model="computedCategory"
@@ -278,6 +342,43 @@ const computedCategory = computed({
               placeholder="Pilih Kategori"
               allow-create
               @create="(name) => emit('createCategory', name)"
+            />
+          </div>
+
+          <div v-if="!hideJob && formData.direction !== 'IN'">
+            <div class="flex items-center gap-2 mb-3">
+              <label class="text-sm font-medium">Kategori</label>
+              <label class="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer">
+                <input
+                  type="checkbox"
+                  :checked="useManualAccount"
+                  :disabled="!!editingExpenseId"
+                  @change="
+                    (e) => {
+                      const checked = (e.target as HTMLInputElement).checked;
+                      emit('toggleManualAccount', checked);
+                    }
+                  "
+                  class="w-4 h-4 rounded border-border accent-[#012D5A]"
+                />
+                Akun Manual (COA)
+              </label>
+            </div>
+            <Combobox
+              v-if="!useManualAccount"
+              v-model="computedCategory"
+              :options="categoryOptions"
+              value-key="value"
+              label-key="label"
+              placeholder="Pilih Kategori"
+              allow-create
+              @create="(name) => emit('createCategory', name)"
+            />
+            <SearchSelect
+              v-else
+              v-model="formData.overrideAccountId"
+              :fetch-options="handleAccountSearch ?? (async () => ({ success: true, data: [] }))"
+              placeholder="Cari akun COA..."
             />
           </div>
 

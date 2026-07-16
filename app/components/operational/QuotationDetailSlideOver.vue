@@ -10,8 +10,6 @@ import {
   CheckCircle2,
   CalendarClock,
   Edit,
-  ArrowLeft,
-  Eye,
   Briefcase,
   User,
   MessageSquare,
@@ -26,12 +24,28 @@ import {
   Ship,
   Truck,
   Plane as PlaneIcon,
+  Plus,
+  Trash2,
+  MoreHorizontal,
+  Pencil,
+  ArrowLeft,
+  Eye,
+  ChevronRight,
 } from "lucide-vue-next";
-import { useQuotations, type Quotation, type QuotationCharge } from "~/composables/useQuotations";
+import {
+  useQuotations,
+  type Quotation,
+  type QuotationCharge,
+  type QuotationInvoice,
+  type QuotationInvoiceItem,
+} from "~/composables/useQuotations";
 import { useFinanceTax } from "~/composables/useFinanceTax";
 import { toast } from "vue-sonner";
+import Modal from "~/components/ui/Modal.vue";
 import QuotationPreview from "./QuotationPreview.vue";
 import QuotationCostingTab from "./QuotationCostingTab.vue";
+import QuotationInvoiceForm from "./QuotationInvoiceForm.vue";
+import QuotationInvoicePreview from "./QuotationInvoicePreview.vue";
 
 interface Props {
   modelValue: boolean;
@@ -46,7 +60,8 @@ const emit = defineEmits<{
   (e: "status-updated"): void;
 }>();
 
-const { currentQuotation, getQuotation, updateQuotation, isLoading } = useQuotations();
+const { currentQuotation, getQuotation, updateQuotation, updateQuotationInvoices, isLoading } =
+  useQuotations();
 const { confirm } = useConfirm();
 const { fetchTaxes } = useFinanceTax();
 const router = useRouter();
@@ -55,7 +70,8 @@ const { canManage, requireManage } = useFeatureAccess("operational.quotation");
 const activeTab = ref("overview");
 const tabs = [
   { id: "overview", label: "Overview" },
-  { id: "items", label: "Quotation Items & Pricing" },
+  { id: "items", label: "Service Items" },
+  { id: "invoices", label: "Quotation Invoices" },
   { id: "costing", label: "Costing & Profit" },
   { id: "usage", label: "Usage" },
 ];
@@ -65,7 +81,6 @@ const canEditCosting = computed(() => canManage.value && quotation.value?.status
 const isConverting = ref(false);
 const isUpdatingStatus = ref(false);
 const isGeneratingPDF = ref(false);
-const showPreview = ref(false);
 const previewRef = ref<InstanceType<typeof QuotationPreview> | null>(null);
 const taxesList = ref<Array<{ id: string; name: string; rate: number }>>([]);
 
@@ -74,6 +89,8 @@ const quotation = computed(() => currentQuotation.value);
 const isMultiUse = computed(() => Boolean(quotation.value?.allowMultipleInvoices));
 
 const relatedInvoices = computed(() => quotation.value?.invoices || []);
+
+const quotationInvoices = computed(() => quotation.value?.quotationInvoices || []);
 
 const getPol = computed(() => quotation.value?.polName || quotation.value?.pol || "-");
 const getPod = computed(() => quotation.value?.podName || quotation.value?.pod || "-");
@@ -150,20 +167,29 @@ const groupedTotals = computed(() => {
 
   if (!quotation.value?.charges) return totals;
 
+  const rate = Number(quotation.value?.exchangeRate || 1);
+  const shouldConvert = rate > 1;
+
   quotation.value.charges.forEach((ch) => {
     const currency = ch.currency || "IDR";
-    if (!totals[currency]) {
-      totals[currency] = { subTotal: 0, taxAmount: 0, total: 0 };
-    }
     const qty = Number(ch.quantity || 0);
     const price = Number(ch.unitPrice || 0);
     const amount = qty * price;
+    const tr = getTaxRate(ch.taxId);
+    const taxValue = amount * (tr / 100);
 
-    const rate = getTaxRate(ch.taxId);
-    const taxValue = amount * (rate / 100);
-
-    totals[currency].subTotal += amount;
-    totals[currency].taxAmount += taxValue;
+    if (shouldConvert && currency === "USD") {
+      const idrAmount = amount * rate;
+      const idrTax = taxValue * rate;
+      totals.IDR.subTotal += idrAmount;
+      totals.IDR.taxAmount += idrTax;
+    } else {
+      if (!totals[currency]) {
+        totals[currency] = { subTotal: 0, taxAmount: 0, total: 0 };
+      }
+      totals[currency].subTotal += amount;
+      totals[currency].taxAmount += taxValue;
+    }
   });
 
   totals.IDR.subTotal = roundByCurrency(totals.IDR.subTotal, "IDR");
@@ -172,6 +198,8 @@ const groupedTotals = computed(() => {
 
   totals.USD.taxAmount = ceilTaxByCurrency(totals.USD.taxAmount, "USD");
   totals.USD.total = totals.USD.subTotal + totals.USD.taxAmount;
+
+  // USD will show zero when all converted — template hides it via v-if t.total > 0
 
   return totals;
 });
@@ -235,6 +263,60 @@ const formatCurrency = (amount: number, currency: string = "IDR") => {
   }).format(amount);
 };
 
+const formatCurrencyIDR = (amount: number, currency: string = "IDR") => {
+  const rate = Number(quotation.value?.exchangeRate || 1);
+  const idrAmount = currency === "USD" && rate > 1 ? amount * rate : amount;
+  return new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(idrAmount);
+};
+
+const exchangeRateLabel = computed(() => {
+  const rate = Number(quotation.value?.exchangeRate || 1);
+  if (rate > 1) {
+    return `1 USD = ${new Intl.NumberFormat("id-ID").format(rate)} IDR`;
+  }
+  return "";
+});
+
+const itemsTotalRevenue = computed(() => {
+  let idrTotal = 0;
+  let usdTotal = 0;
+  const rate = Number(quotation.value?.exchangeRate || 1);
+  (quotation.value?.charges || []).forEach((ch) => {
+    if (ch.atCost) return;
+    const amt = Number(ch.quantity || 0) * Number(ch.unitPrice || 0);
+    if ((ch.currency || "IDR") === "USD") {
+      usdTotal += amt;
+      if (rate > 1) idrTotal += amt * rate;
+    } else {
+      idrTotal += amt;
+    }
+  });
+  return { idrTotal, usdTotal, hasUsd: usdTotal > 0, hasRate: rate > 1 };
+});
+
+const invoiceSummary = computed(() => {
+  let totalInvoicedIDR = 0;
+  let totalInvoicedUSD = 0;
+  let hasUSD = false;
+  const rate = Number(quotation.value?.exchangeRate || 1);
+  (relatedInvoices.value || []).forEach((inv) => {
+    const amt = Number(inv.total || 0);
+    if (inv.currency === "USD") {
+      hasUSD = true;
+      totalInvoicedUSD += amt;
+      if (rate > 1) totalInvoicedIDR += amt * rate;
+    } else {
+      totalInvoicedIDR += amt;
+    }
+  });
+  return { totalInvoicedIDR, totalInvoicedUSD, hasUSD, hasRate: rate > 1 };
+});
+
 const getStatusBadgeClass = (status?: string) => {
   if (!status) return "bg-gray-50 text-gray-600 border-gray-200";
   const s = status.toUpperCase();
@@ -287,8 +369,109 @@ const getTaxRate = (taxId?: string | null) => {
   return tax ? tax.rate : 0;
 };
 
+const showInvoiceForm = ref(false);
+const showPreview = ref(false);
+const editingInvoice = ref<QuotationInvoice | null>(null);
+const isCreatingInvoice = ref(false);
+const showQInvActions = ref<string | null>(null);
+const showQInvDetailActions = ref(false);
+const showQInvDetail = ref(false);
+const activeQInvDetail = ref<QuotationInvoice | null>(null);
+
+const openQInvDetail = (qinv: QuotationInvoice) => {
+  activeQInvDetail.value = qinv;
+  showQInvDetail.value = true;
+  showQInvActions.value = null;
+  showQInvDetailActions.value = false;
+};
+
+const closeQInvDetail = () => {
+  activeQInvDetail.value = null;
+  showQInvDetail.value = false;
+  showQInvDetailActions.value = false;
+};
+
+const qinvPreviewRef = ref<InstanceType<typeof QuotationInvoicePreview> | null>(null);
+
+const isGeneratingQInvPDF = ref(false);
+const handleGenerateQInvPDF = async () => {
+  if (!qinvPreviewRef.value) return;
+  isGeneratingQInvPDF.value = true;
+  try {
+    await qinvPreviewRef.value.generatePDF();
+  } finally {
+    isGeneratingQInvPDF.value = false;
+  }
+};
+
+const openEditInvoiceForm = (invoice: QuotationInvoice) => {
+  editingInvoice.value = invoice;
+  showInvoiceForm.value = true;
+  showQInvActions.value = null;
+  showQInvDetailActions.value = false;
+};
+
+const nextInvoiceNumber = computed(() => {
+  const count = (quotationInvoices.value?.length || 0) + 1;
+  return `QINV-${new Date().toISOString().slice(2, 10).replace(/-/g, "")}-${String(count).padStart(3, "0")}`;
+});
+
+const openCreateInvoiceForm = () => {
+  editingInvoice.value = null;
+  showInvoiceForm.value = true;
+};
+
+const handleInvoiceFormSubmit = async (payload: QuotationInvoice) => {
+  if (!quotation.value) return;
+  isCreatingInvoice.value = true;
+  try {
+    const existingId = editingInvoice.value?.id;
+    const updated = existingId
+      ? (quotationInvoices.value || []).map((inv) =>
+          inv.id === existingId ? { ...payload, id: existingId } : inv,
+        )
+      : [...(quotationInvoices.value || []), payload];
+    const res = await updateQuotationInvoices(quotation.value.id, updated);
+    if (res.success) {
+      toast.success(editingInvoice.value ? "Invoice updated." : "Invoice created.");
+      showInvoiceForm.value = false;
+      editingInvoice.value = null;
+    } else {
+      toast.error(res.error || "Failed to save invoice.");
+    }
+  } finally {
+    isCreatingInvoice.value = false;
+  }
+};
+
+const handleDeleteInvoice = async (invoiceId?: string) => {
+  if (!quotation.value || !invoiceId) return;
+  const yes = await confirm({
+    title: "Delete Quotation Invoice",
+    message: "Hapus quotation invoice ini?",
+    confirmText: "Hapus",
+    cancelText: "Batal",
+  });
+  if (!yes) return;
+  const updated = (quotationInvoices.value || []).filter((inv) => inv.id !== invoiceId);
+  const res = await updateQuotationInvoices(quotation.value.id, updated);
+  if (res.success) {
+    toast.success("Invoice deleted.");
+    if (activeQInvDetail.value?.id === invoiceId) closeQInvDetail();
+  } else {
+    toast.error(res.error || "Failed to delete invoice.");
+  }
+};
+
 const handleGeneratePDF = async () => {
-  if (!showPreview.value) {
+  if (!quotation.value) return;
+  const prevTab = activeTab.value;
+  const prevShowPreview = showPreview.value;
+  if (activeTab.value !== "items") {
+    activeTab.value = "items";
+    showPreview.value = true;
+    await nextTick();
+  } else if (!showPreview.value) {
     showPreview.value = true;
     await nextTick();
   }
@@ -298,6 +481,8 @@ const handleGeneratePDF = async () => {
     await previewRef.value.generatePDF();
   } finally {
     isGeneratingPDF.value = false;
+    activeTab.value = prevTab;
+    showPreview.value = prevShowPreview;
   }
 };
 </script>
@@ -731,136 +916,302 @@ const handleGeneratePDF = async () => {
                     </div>
                   </section>
                 </div>
-
-                <!-- Tab 2: Pricing Charges -->
+                <!-- Tab 2: Service Items (Printable Preview) -->
                 <div v-else-if="activeTab === 'items'" class="animate-fade-in">
-                  <!-- View 1: Charges List + Summary -->
-                  <div v-show="!showPreview" class="space-y-6">
-                    <!-- Preview Card (triggers navigation to preview view) -->
-                    <button
+                  <!-- Card View -->
+                  <div v-if="!showPreview" class="space-y-4">
+                    <div>
+                      <h3 class="text-base font-bold text-foreground">Service Items</h3>
+                      <p class="text-[11px] text-muted-foreground mt-0.5 max-w-lg">
+                        Printable quotation preview untuk dikirim ke customer. Klik untuk melihat
+                        tampilan PDF.
+                      </p>
+                    </div>
+                    <div
                       @click="showPreview = true"
-                      class="w-full bg-white border border-border rounded-xl p-5 hover:border-[#012D5A]/30 hover:shadow-md transition-all text-left group"
+                      class="group p-4 rounded-xl border border-border bg-white hover:border-[#012D5A]/30 hover:shadow-md transition-all cursor-pointer flex items-center justify-between"
                     >
-                      <div class="flex items-center justify-between">
-                        <div class="flex items-center gap-3">
-                          <div
-                            class="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center shrink-0"
+                      <div class="flex items-center gap-4">
+                        <div
+                          class="w-10 h-10 rounded-lg bg-blue-50 text-[#012D5A] flex items-center justify-center shrink-0 border border-blue-100"
+                        >
+                          <FileText class="w-5 h-5" />
+                        </div>
+                        <div>
+                          <span
+                            class="font-bold text-sm text-foreground group-hover:text-[#012D5A] transition-colors"
+                            >{{ quotation.number }}</span
                           >
-                            <Eye class="w-5 h-5 text-[#012D5A]" />
-                          </div>
-                          <div>
-                            <h4
-                              class="text-sm font-bold text-foreground group-hover:text-[#012D5A] transition-colors"
+                          <p class="text-xs text-muted-foreground mt-0.5">
+                            {{ quotation.customerName || "—" }} ·
+                            {{ (quotation.charges || []).length }} item(s)
+                          </p>
+                        </div>
+                      </div>
+                      <div class="flex items-center gap-3">
+                        <span
+                          class="px-2 py-0.5 rounded text-[10px] font-bold border uppercase tracking-wider"
+                          :class="getStatusBadgeClass(quotation.status)"
+                          >{{ quotation.status }}</span
+                        >
+                        <div class="text-right">
+                          <p class="font-black text-sm text-[#012D5A]">
+                            {{ formatCurrency(itemsTotalRevenue.idrTotal, "IDR") }}
+                          </p>
+                          <p
+                            v-if="itemsTotalRevenue.hasUsd && itemsTotalRevenue.hasRate"
+                            class="text-[9px] text-muted-foreground font-bold"
+                          >
+                            {{ formatCurrency(itemsTotalRevenue.usdTotal, "USD") }}
+                          </p>
+                        </div>
+                        <ChevronRight
+                          class="w-4 h-4 text-muted-foreground group-hover:text-[#012D5A] transition-colors"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Detail/Preview View -->
+                  <template v-else>
+                    <div
+                      class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border/50 pb-6 mb-6"
+                    >
+                      <div class="flex items-start gap-4">
+                        <button
+                          @click="showPreview = false"
+                          class="p-2 -ml-2 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground shrink-0 mt-0.5"
+                        >
+                          <ArrowLeft class="w-5 h-5" />
+                        </button>
+                        <div class="flex flex-col gap-2 mt-1">
+                          <h1 class="text-2xl font-bold text-foreground leading-none">
+                            {{ quotation.number }}
+                          </h1>
+                          <p class="text-sm text-muted-foreground leading-none mb-1">
+                            {{ quotation.customerName || "—" }} · {{ formatDate(quotation.date) }}
+                          </p>
+                          <div class="flex items-center gap-3">
+                            <span
+                              class="px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest border leading-none max-w-fit"
+                              :class="getStatusBadgeClass(quotation.status)"
+                              >{{ quotation.status }}</span
                             >
-                              Quotation PDF Preview
-                            </h4>
-                            <p class="text-xs text-muted-foreground mt-0.5">
-                              View the formal quotation document ready for client acceptance
-                            </p>
                           </div>
                         </div>
-                        <ArrowLeft class="w-4 h-4 rotate-180 text-muted-foreground shrink-0 ml-4" />
                       </div>
-                    </button>
+                      <div class="flex flex-wrap items-center justify-end gap-3 shrink-0">
+                        <button
+                          @click="handleGeneratePDF"
+                          :disabled="isGeneratingPDF"
+                          class="px-4 py-2 bg-[#012D5A] hover:bg-[#012D5A]/90 text-white rounded-md shadow-sm text-xs font-semibold flex items-center gap-2 transition-colors disabled:opacity-50"
+                        >
+                          <Loader2 v-if="isGeneratingPDF" class="w-3.5 h-3.5 animate-spin" />
+                          <Download v-else class="w-3.5 h-3.5" />
+                          {{ isGeneratingPDF ? "Generating..." : "Download PDF" }}
+                        </button>
+                      </div>
+                    </div>
+                    <QuotationPreview ref="previewRef" :quotation="quotation" />
+                  </template>
+                </div>
+                <!-- Tab 3: Quotation Invoices -->
+                <div v-else-if="activeTab === 'invoices'" class="animate-fade-in space-y-6">
+                  <div>
+                    <h3 class="text-base font-bold text-foreground">Quotation Invoices</h3>
+                    <p class="text-[11px] text-muted-foreground mt-0.5 max-w-lg">
+                      Dokumen invoice customer-facing yang dibuat dari item quotation ini. Setiap
+                      invoice mengelompokkan charge items menjadi dokumen yang bisa dicetak.
+                    </p>
+                  </div>
+                  <!-- Summary Cards -->
+                  <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div
+                      class="border border-border rounded-xl p-4 bg-white shadow-sm flex flex-col justify-between min-h-[110px]"
+                    >
+                      <div class="flex items-start justify-between">
+                        <div>
+                          <span
+                            class="text-[10px] font-black text-muted-foreground uppercase tracking-widest"
+                            >Quotation Total</span
+                          >
+                          <p class="text-lg font-black text-[#012D5A] mt-1.5">
+                            {{ formatCurrency(itemsTotalRevenue.idrTotal, "IDR") }}
+                          </p>
+                        </div>
+                        <FileText class="w-4 h-4 text-[#012D5A] opacity-60" />
+                      </div>
+                      <p
+                        v-if="itemsTotalRevenue.hasUsd && itemsTotalRevenue.hasRate"
+                        class="text-[9px] text-muted-foreground font-bold mt-1"
+                      >
+                        Original USD:
+                        <span class="text-slate-500 font-extrabold">{{
+                          formatCurrency(itemsTotalRevenue.usdTotal, "USD")
+                        }}</span>
+                      </p>
+                    </div>
+                    <div
+                      class="border border-border rounded-xl p-4 bg-white shadow-sm flex flex-col justify-between min-h-[110px]"
+                    >
+                      <div class="flex items-start justify-between">
+                        <div>
+                          <span
+                            class="text-[10px] font-black text-muted-foreground uppercase tracking-widest"
+                            >Quotation Invoices</span
+                          >
+                          <p class="text-lg font-black text-[#012D5A] mt-1.5">
+                            {{ quotationInvoices.length }}
+                          </p>
+                        </div>
+                        <Receipt class="w-4 h-4 text-[#012D5A] opacity-60" />
+                      </div>
+                      <p class="text-[9px] text-muted-foreground font-bold mt-1">
+                        Customer-facing invoice docs
+                      </p>
+                    </div>
+                    <div
+                      class="border border-border rounded-xl p-4 bg-white shadow-sm flex flex-col justify-between min-h-[110px]"
+                    >
+                      <div class="flex items-start justify-between">
+                        <div>
+                          <span
+                            class="text-[10px] font-black text-muted-foreground uppercase tracking-widest"
+                            >Job Invoices</span
+                          >
+                          <p class="text-lg font-black text-[#012D5A] mt-1.5">
+                            {{ relatedInvoices.length }}
+                          </p>
+                        </div>
+                        <Receipt class="w-4 h-4 text-[#012D5A] opacity-60" />
+                      </div>
+                      <p class="text-[9px] text-muted-foreground font-bold mt-1">
+                        Converted to jobs
+                      </p>
+                    </div>
+                  </div>
 
-                    <div class="bg-white border border-border rounded-xl overflow-hidden shadow-sm">
-                      <table class="w-full text-left border-collapse text-sm">
-                        <thead>
-                          <tr
-                            class="border-b border-border bg-gray-50 text-[10px] font-bold text-muted-foreground uppercase tracking-wider"
-                          >
-                            <th class="py-3.5 px-6">Service / Description</th>
-                            <th class="py-3.5 px-4 text-center">Qty</th>
-                            <th class="py-3.5 px-4 text-right">Unit Price</th>
-                            <th class="py-3.5 px-4 text-right">Tax Rate</th>
-                            <th class="py-3.5 px-6 text-right">Line Total</th>
-                          </tr>
-                        </thead>
-                        <tbody class="divide-y divide-border/50">
-                          <tr
-                            v-for="(ch, idx) in quotation.charges"
-                            :key="ch.id || idx"
-                            class="hover:bg-gray-50/50 transition-colors"
-                          >
-                            <td class="py-4 px-6">
-                              <p class="font-bold text-[#012D5A] text-sm">
-                                {{ ch.serviceName || "Service Item" }}
-                              </p>
-                              <p class="text-xs text-muted-foreground mt-0.5 whitespace-pre-line">
-                                {{ ch.description || "-" }}
-                              </p>
-                            </td>
-                            <td class="py-4 px-4 text-center font-semibold text-foreground">
-                              {{ ch.quantity }}
-                            </td>
-                            <td class="py-4 px-4 text-right font-medium text-foreground">
-                              {{ formatCurrency(ch.unitPrice, ch.currency) }}
-                            </td>
-                            <td class="py-4 px-4 text-right text-xs font-semibold text-slate-400">
-                              {{ getTaxRate(ch.taxId) }}%
-                            </td>
-                            <td class="py-4 px-6 text-right font-bold text-[#012D5A]">
-                              {{
-                                formatCurrency(
-                                  Number(ch.quantity || 1) *
-                                    Number(ch.unitPrice || 0) *
-                                    (1 + getTaxRate(ch.taxId) / 100),
-                                  ch.currency,
-                                )
-                              }}
-                            </td>
-                          </tr>
-                        </tbody>
-                      </table>
+                  <!-- Quotation Invoices -->
+                  <div v-if="!showQInvDetail">
+                    <div class="flex items-center justify-between mb-3">
+                      <h3 class="text-sm font-bold text-foreground flex items-center gap-2">
+                        <Receipt class="w-4 h-4" /> Quotation Invoices
+                      </h3>
+                      <button
+                        v-if="canManage && quotation?.status !== 'CONVERTED'"
+                        @click="openCreateInvoiceForm"
+                        class="inline-flex items-center px-3 py-1.5 bg-[#012D5A] text-white text-xs font-semibold rounded-md hover:bg-[#012D5A]/90 transition-colors gap-1.5 shadow-sm"
+                      >
+                        <Plus class="w-3.5 h-3.5" />
+                        Create Invoice
+                      </button>
                     </div>
 
-                    <div class="flex justify-end pt-2">
-                      <div
-                        class="w-[380px] space-y-4 bg-gray-50/50 p-5 rounded-xl border border-border shadow-sm text-left"
+                    <div
+                      v-if="quotationInvoices.length === 0"
+                      class="border border-dashed border-border rounded-2xl p-8 text-center bg-white"
+                    >
+                      <Receipt class="w-8 h-8 mx-auto text-muted-foreground/40 mb-3" />
+                      <p class="text-sm font-semibold text-foreground mb-1">
+                        No quotation invoices yet
+                      </p>
+                      <p
+                        class="text-xs text-muted-foreground max-w-[300px] mx-auto leading-relaxed"
                       >
-                        <h4
-                          class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest"
-                        >
-                          Quotation Summary
-                        </h4>
-                        <div class="divide-y divide-border/50">
-                          <div
-                            v-for="(t, curr) in groupedTotals"
-                            :key="curr"
-                            class="py-2.5 first:pt-0 last:pb-0"
-                          >
+                        Create customer-facing invoices from this quotation's charges. Each invoice
+                        groups selected charges into a printable document.
+                      </p>
+                    </div>
+
+                    <div v-else class="space-y-3">
+                      <div
+                        v-for="qinv in quotationInvoices"
+                        :key="qinv.id"
+                        @click="openQInvDetail(qinv)"
+                        class="group p-4 rounded-xl border border-border bg-white hover:border-[#012D5A]/30 hover:shadow-md transition-all cursor-pointer"
+                      >
+                        <div class="flex items-start justify-between">
+                          <div class="flex gap-4">
                             <div
-                              v-if="
-                                t.total > 0 ||
-                                (curr === 'IDR' &&
-                                  Object.values(groupedTotals).every((x) => x.total === 0))
-                              "
-                              class="space-y-1.5"
+                              class="w-10 h-10 rounded-lg bg-blue-50 text-[#012D5A] flex items-center justify-center shrink-0 border border-blue-100"
                             >
-                              <span
-                                class="text-[10px] font-extrabold text-[#062c58] uppercase tracking-wider"
-                                >{{ curr }} Charges</span
-                              >
-                              <div class="flex justify-between text-xs text-muted-foreground">
-                                <span>Subtotal</span>
-                                <span class="font-semibold text-foreground">{{
-                                  formatCurrency(t.subTotal, curr)
-                                }}</span>
+                              <FileText class="w-5 h-5" />
+                            </div>
+                            <div>
+                              <div class="flex items-center gap-2">
+                                <span
+                                  class="font-bold text-sm text-foreground group-hover:text-[#012D5A] transition-colors"
+                                  >{{ qinv.number || "—" }}</span
+                                >
+                                <span
+                                  class="text-[9px] px-1.5 py-0.5 rounded font-black border uppercase tracking-wider bg-blue-50 text-blue-700 border-blue-200"
+                                  >Invoice</span
+                                >
                               </div>
-                              <div class="flex justify-between text-xs text-muted-foreground">
-                                <span>VAT / Tax</span>
-                                <span class="font-semibold text-foreground">{{
-                                  formatCurrency(t.taxAmount, curr)
-                                }}</span>
+                              <p class="text-xs text-muted-foreground mt-1">
+                                {{ qinv.items?.length || 0 }} charge(s)
+                              </p>
+                            </div>
+                          </div>
+                          <div class="flex items-start gap-3" @click.stop>
+                            <div class="text-right shrink-0">
+                              <p
+                                class="text-[9px] text-muted-foreground mb-0.5 uppercase tracking-widest font-bold opacity-70"
+                              >
+                                Total
+                              </p>
+                              <p class="font-black text-sm text-[#012D5A] whitespace-nowrap">
+                                {{ formatCurrency(qinv.total, "IDR") }}
+                              </p>
+                            </div>
+                            <div
+                              v-if="canManage && quotation?.status !== 'CONVERTED'"
+                              class="relative"
+                            >
+                              <button
+                                @click.stop="
+                                  showQInvActions =
+                                    showQInvActions === qinv.id ? null : (qinv.id ?? null)
+                                "
+                                class="p-1.5 rounded-lg hover:bg-muted border border-border transition-colors text-muted-foreground hover:text-foreground bg-white opacity-0 group-hover:opacity-100"
+                              >
+                                <MoreHorizontal class="w-4 h-4" />
+                              </button>
+                              <div
+                                v-if="showQInvActions === qinv.id"
+                                @click.stop
+                                class="absolute right-0 mt-2 w-44 bg-white border border-border rounded-xl shadow-2xl z-50 py-1.5 flex flex-col"
+                              >
+                                <div class="px-3 py-1.5 border-b border-border/50 mb-1">
+                                  <p
+                                    class="text-[9px] font-black uppercase tracking-widest text-muted-foreground"
+                                  >
+                                    Manage Invoice
+                                  </p>
+                                </div>
+                                <button
+                                  @click="openEditInvoiceForm(qinv)"
+                                  class="w-full text-left px-4 py-2.5 hover:bg-muted/50 flex items-center gap-3 text-xs font-bold text-foreground transition-colors"
+                                >
+                                  <Pencil class="w-4 h-4 text-primary" />
+                                  Edit Invoice
+                                </button>
+                                <button
+                                  @click="
+                                    handleDeleteInvoice(qinv.id);
+                                    showQInvActions = null;
+                                  "
+                                  class="w-full text-left px-4 py-2.5 hover:bg-red-50 flex items-center gap-3 text-xs font-bold text-red-600 transition-colors"
+                                >
+                                  <Trash2 class="w-4 h-4" />
+                                  Delete Invoice
+                                </button>
                               </div>
                               <div
-                                class="flex justify-between text-sm font-bold text-[#062c58] pt-1 border-t border-dashed border-border/60"
-                              >
-                                <span>Total Amount</span>
-                                <span class="text-base font-black">{{
-                                  formatCurrency(t.total, curr)
-                                }}</span>
-                              </div>
+                                v-if="showQInvActions === qinv.id"
+                                @click="showQInvActions = null"
+                                class="fixed inset-0 z-40"
+                              ></div>
                             </div>
                           </div>
                         </div>
@@ -868,16 +1219,106 @@ const handleGeneratePDF = async () => {
                     </div>
                   </div>
 
-                  <!-- View 2: PDF Preview -->
-                  <div v-show="showPreview">
-                    <button
-                      @click="showPreview = false"
-                      class="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors mb-6 px-1"
+                  <!-- Invoice Detail View -->
+                  <div v-else class="space-y-6">
+                    <div
+                      class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border/50 pb-6"
                     >
-                      <ArrowLeft class="w-4 h-4" />
-                      <span class="font-semibold">Back to Items</span>
-                    </button>
-                    <QuotationPreview ref="previewRef" :quotation="quotation" />
+                      <div class="flex items-start gap-4">
+                        <button
+                          @click="closeQInvDetail"
+                          class="p-2 -ml-2 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground shrink-0 mt-0.5"
+                        >
+                          <ArrowLeft class="w-5 h-5" />
+                        </button>
+                        <div class="flex flex-col gap-2 mt-1">
+                          <h1 class="text-2xl font-bold text-foreground leading-none">
+                            {{ activeQInvDetail?.number || "—" }}
+                          </h1>
+                          <p class="text-sm text-muted-foreground leading-none mb-1">
+                            {{ activeQInvDetail?.items?.length || 0 }} charge(s) ·
+                            {{ quotation?.customerName || "—" }}
+                          </p>
+                          <span
+                            class="px-2 py-0.5 rounded text-[10px] font-bold border uppercase tracking-wider bg-blue-50 text-blue-700 border-blue-200 w-fit"
+                            >Quotation Invoice</span
+                          >
+                        </div>
+                      </div>
+                      <div class="flex flex-wrap items-center justify-end gap-3 shrink-0">
+                        <button
+                          @click="handleGenerateQInvPDF"
+                          :disabled="isGeneratingQInvPDF"
+                          class="px-4 py-2 bg-[#012D5A] hover:bg-[#012D5A]/90 text-white rounded-md shadow-sm text-xs font-semibold flex items-center gap-2 transition-colors disabled:opacity-50"
+                        >
+                          <Loader2 v-if="isGeneratingQInvPDF" class="w-3.5 h-3.5 animate-spin" />
+                          <Download v-else class="w-3.5 h-3.5" />
+                          {{ isGeneratingQInvPDF ? "Generating..." : "Download PDF" }}
+                        </button>
+                        <div v-if="canManage && quotation?.status !== 'CONVERTED'" class="relative">
+                          <button
+                            @click="showQInvDetailActions = !showQInvDetailActions"
+                            class="p-2 rounded-lg hover:bg-muted border border-border transition-colors text-muted-foreground hover:text-foreground bg-white shadow-sm flex items-center justify-center w-9 h-9"
+                          >
+                            <MoreHorizontal class="w-4 h-4" />
+                          </button>
+
+                          <div
+                            v-if="showQInvDetailActions"
+                            @click="showQInvDetailActions = false"
+                            class="fixed inset-0 z-40"
+                          ></div>
+
+                          <div
+                            v-if="showQInvDetailActions"
+                            class="absolute right-0 mt-3 w-52 bg-white border border-border rounded-xl shadow-2xl z-50 animate-in fade-in zoom-in duration-200 origin-top-right py-1.5 flex flex-col"
+                          >
+                            <div
+                              class="px-3 py-2 border-b border-border/50 mb-1 flex items-center justify-between gap-2"
+                            >
+                              <p
+                                class="text-[9px] font-black uppercase tracking-widest text-muted-foreground shrink-0"
+                              >
+                                Manage Invoice
+                              </p>
+                              <span
+                                class="text-[8px] font-mono text-muted-foreground opacity-50 truncate"
+                              >
+                                #{{ activeQInvDetail?.number || "DRAFT" }}
+                              </span>
+                            </div>
+
+                            <button
+                              @click="
+                                activeQInvDetail && openEditInvoiceForm(activeQInvDetail);
+                                showQInvDetailActions = false;
+                              "
+                              class="w-full text-left px-4 py-2.5 hover:bg-muted/50 flex items-center gap-3 text-xs font-bold text-foreground transition-colors border-none bg-transparent outline-none"
+                            >
+                              <Pencil class="w-4 h-4 text-primary" />
+                              Edit Invoice Settings
+                            </button>
+
+                            <button
+                              @click="
+                                handleDeleteInvoice(activeQInvDetail?.id);
+                                showQInvDetailActions = false;
+                              "
+                              class="w-full text-left px-4 py-2.5 hover:bg-red-50 flex items-center gap-3 text-xs font-bold text-red-600 transition-colors border-none bg-transparent outline-none"
+                            >
+                              <Trash2 class="w-4 h-4" />
+                              Delete Invoice
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <QuotationInvoicePreview
+                      v-if="quotation && activeQInvDetail"
+                      ref="qinvPreviewRef"
+                      :quotation="quotation"
+                      :invoice="activeQInvDetail"
+                    />
                   </div>
                 </div>
 
@@ -891,7 +1332,14 @@ const handleGeneratePDF = async () => {
                 </div>
 
                 <!-- Tab: Usage (Invoice & Job Traceability) -->
-                <div v-if="activeTab === 'usage'" class="space-y-8 animate-fade-in">
+                <div v-else-if="activeTab === 'usage'" class="space-y-8 animate-fade-in">
+                  <div>
+                    <h3 class="text-base font-bold text-foreground">Usage & Traceability</h3>
+                    <p class="text-[11px] text-muted-foreground mt-0.5 max-w-lg">
+                      Lacak invoice yang dibuat dari quotation ini, termasuk multi-use status dan
+                      riwayat konversi ke job.
+                    </p>
+                  </div>
                   <!-- Multi-use Status -->
                   <div class="bg-white border border-border rounded-2xl p-6 shadow-sm">
                     <div class="flex items-start justify-between gap-4">
@@ -1018,6 +1466,29 @@ const handleGeneratePDF = async () => {
       </div>
     </Transition>
   </Teleport>
+
+  <!-- Quotation Invoice Form Modal -->
+  <Modal
+    v-model="showInvoiceForm"
+    :title="editingInvoice ? 'Edit Quotation Invoice' : 'Create Quotation Invoice'"
+    :description="
+      editingInvoice
+        ? 'Modify the customer-facing quotation invoice.'
+        : 'Create a new customer-facing invoice document from quotation charges.'
+    "
+    width="2xl"
+  >
+    <QuotationInvoiceForm
+      v-if="quotation"
+      :invoice="editingInvoice"
+      :is-saving="isCreatingInvoice"
+      :next-number="nextInvoiceNumber"
+      :quotation-currency="quotation.currency || 'IDR'"
+      :quotation-exchange-rate="Number(quotation.exchangeRate || 1)"
+      @submit="handleInvoiceFormSubmit"
+      @cancel="showInvoiceForm = false"
+    />
+  </Modal>
 </template>
 
 <style scoped>

@@ -16,15 +16,26 @@ import {
   Loader2,
   RefreshCw,
   AlertTriangle,
+  Receipt,
+  Wallet,
+  Eye,
 } from "lucide-vue-next";
 import Combobox from "~/components/ui/Combobox.vue";
 import DatePicker from "~/components/ui/DatePicker.vue";
 import SectionCard from "~/pages/operational/jobs/components/SectionCard.vue";
-import { useQuotations, type QuotationCharge } from "~/composables/useQuotations";
+import {
+  useQuotations,
+  type QuotationCharge,
+  type QuotationInvoice,
+  type QuotationCost,
+} from "~/composables/useQuotations";
 import { useFinanceTax, type Tax } from "~/composables/useFinanceTax";
 import { useServices } from "~/composables/useServices";
 import ServiceCreateModal from "~/pages/master/services/components/ServiceCreateModal.vue";
 import CompanyCreateModal from "~/pages/master/company/components/CompanyCreateModal.vue";
+import QuotationInvoiceForm from "~/components/operational/QuotationInvoiceForm.vue";
+import QuotationCostForm from "~/components/operational/QuotationCostForm.vue";
+import Modal from "~/components/ui/Modal.vue";
 import type { Port, ContainerType } from "~/composables/useMasterData";
 import { toast } from "vue-sonner";
 
@@ -35,7 +46,14 @@ definePageMeta({
 
 const route = useRoute();
 const router = useRouter();
-const { getQuotation, updateQuotation, currentQuotation, isLoading } = useQuotations();
+const {
+  getQuotation,
+  updateQuotation,
+  updateQuotationInvoices,
+  updateQuotationCosts,
+  currentQuotation,
+  isLoading,
+} = useQuotations();
 const { confirm } = useConfirm();
 const { fetchTaxes } = useFinanceTax();
 const { createService } = useServices();
@@ -341,6 +359,9 @@ async function loadQuotation() {
       });
     }
 
+    quotationInvoices.value = q.quotationInvoices || [];
+    quotationCosts.value = q.costs || [];
+
     isDataLoaded.value = true;
   } else {
     toast.error("Gagal memuat detail quotation: " + res.error);
@@ -388,6 +409,100 @@ function handleServiceChange(index: number, serviceId: string) {
 
 const isCompanyModalOpen = ref(false);
 const presetCompanyName = ref("");
+
+const quotationInvoices = ref<QuotationInvoice[]>([]);
+const quotationCosts = ref<QuotationCost[]>([]);
+const showInvoiceForm = ref(false);
+const showCostForm = ref(false);
+const editingInvoice = ref<QuotationInvoice | null>(null);
+const editingCost = ref<QuotationCost | null>(null);
+const invoiceFormSaving = ref(false);
+const costFormSaving = ref(false);
+
+const nextInvNumber = computed(() => {
+  const count = quotationInvoices.value.length + 1;
+  return `QINV-${new Date().toISOString().slice(2, 10).replace(/-/g, "")}-${String(count).padStart(3, "0")}`;
+});
+
+const handleInvoiceSubmit = async (payload: QuotationInvoice) => {
+  invoiceFormSaving.value = true;
+  const updated = editingInvoice.value
+    ? quotationInvoices.value.map((inv) =>
+        inv === editingInvoice.value ? { ...payload, id: editingInvoice.value?.id } : inv,
+      )
+    : [...quotationInvoices.value, payload];
+
+  try {
+    const res = await updateQuotationInvoices(quotationId, updated);
+    if (!res.success) {
+      toast.error(res.error || "Gagal menyimpan invoice.");
+      return;
+    }
+
+    quotationInvoices.value = res.data?.quotationInvoices || updated;
+    showInvoiceForm.value = false;
+    editingInvoice.value = null;
+    toast.success("Invoice saved.");
+  } finally {
+    invoiceFormSaving.value = false;
+  }
+};
+
+const handleCostSubmit = async (payload: QuotationCost) => {
+  costFormSaving.value = true;
+  const updated = editingCost.value
+    ? quotationCosts.value.map((c) =>
+        c === editingCost.value ? { ...payload, id: editingCost.value?.id } : c,
+      )
+    : [...quotationCosts.value, payload];
+
+  try {
+    const res = await updateQuotationCosts(quotationId, updated);
+    if (!res.success) {
+      toast.error(res.error || "Gagal menyimpan cost.");
+      return;
+    }
+
+    quotationCosts.value = res.data?.costs || updated;
+    showCostForm.value = false;
+    editingCost.value = null;
+    toast.success("Cost saved.");
+  } finally {
+    costFormSaving.value = false;
+  }
+};
+
+const removeInvoice = async (idx: number) => {
+  const updated = quotationInvoices.value.filter((_, index) => index !== idx);
+  const res = await updateQuotationInvoices(quotationId, updated);
+  if (res.success) {
+    quotationInvoices.value = res.data?.quotationInvoices || updated;
+    toast.success("Invoice removed.");
+  } else {
+    toast.error(res.error || "Gagal menghapus invoice.");
+  }
+};
+
+const removeCost = async (idx: number) => {
+  const updated = quotationCosts.value.filter((_, index) => index !== idx);
+  const res = await updateQuotationCosts(quotationId, updated);
+  if (res.success) {
+    quotationCosts.value = res.data?.costs || updated;
+    toast.success("Cost removed.");
+  } else {
+    toast.error(res.error || "Gagal menghapus cost.");
+  }
+};
+
+const editInvoice = (idx: number) => {
+  editingInvoice.value = quotationInvoices.value[idx] ?? null;
+  showInvoiceForm.value = true;
+};
+
+const editCost = (idx: number) => {
+  editingCost.value = quotationCosts.value[idx] ?? null;
+  showCostForm.value = true;
+};
 
 function handleCreateCompany(name: string) {
   presetCompanyName.value = name;
@@ -524,16 +639,24 @@ const groupedTotals = computed(() => {
     USD: { subTotal: 0, taxAmount: 0, total: 0 },
   };
 
+  const rate = Number(formData.exchangeRate || 1);
+  const shouldConvert = rate > 1;
+
   formData.charges.forEach((ch) => {
     if (ch.atCost) return;
     const currency = ch.currency || "IDR";
-    if (!totals[currency]) {
-      totals[currency] = { subTotal: 0, taxAmount: 0, total: 0 };
-    }
     const qty = Number(ch.quantity || 0);
     const price = Number(ch.unitPrice || 0);
     const amount = qty * price;
-    totals[currency].subTotal += amount;
+
+    if (shouldConvert && currency === "USD") {
+      totals.IDR.subTotal += amount * rate;
+    } else {
+      if (!totals[currency]) {
+        totals[currency] = { subTotal: 0, taxAmount: 0, total: 0 };
+      }
+      totals[currency].subTotal += amount;
+    }
   });
 
   // Single PPN rate from quotation-level tax
@@ -547,6 +670,8 @@ const groupedTotals = computed(() => {
     entry.taxAmount = Math.round(entry.subTotal * (taxRate / 100));
     entry.total = entry.subTotal + entry.taxAmount;
   });
+
+  // USD will show zero when all converted — template hides it via v-if t.total > 0
 
   return totals;
 });
@@ -1503,14 +1628,175 @@ function scrollTo(id: string) {
                     placeholder="Select PPN..."
                   />
                 </div>
-                <button
-                  v-if="!isLocked"
-                  type="button"
-                  @click="addChargeLine"
-                  class="inline-flex items-center gap-1.5 text-xs font-bold text-[#062c58] hover:bg-blue-50/50 px-3 py-1.5 rounded-lg border border-blue-100 transition-colors"
-                >
-                  <Plus class="w-3.5 h-3.5" /> Add Service Line
-                </button>
+                <div v-if="!isLocked" class="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    @click="showInvoiceForm = true"
+                    class="inline-flex items-center gap-1.5 text-xs font-bold text-white bg-[#062c58] hover:bg-[#062c58]/90 px-3 py-1.5 rounded-lg shadow-sm transition-colors"
+                  >
+                    <Plus class="w-3.5 h-3.5" /> Add Invoice
+                  </button>
+                  <button
+                    type="button"
+                    @click="showCostForm = true"
+                    class="inline-flex items-center gap-1.5 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 px-3 py-1.5 rounded-lg shadow-sm transition-colors"
+                  >
+                    <Plus class="w-3.5 h-3.5" /> Record Cost
+                  </button>
+                  <span class="w-px h-7 bg-border mx-1.5"></span>
+                  <button
+                    type="button"
+                    @click="addChargeLine"
+                    class="inline-flex items-center gap-1.5 text-xs font-bold text-[#062c58] hover:bg-blue-50/50 px-3 py-1.5 rounded-lg border border-blue-100 transition-colors"
+                  >
+                    <Plus class="w-3.5 h-3.5" /> Add Service Line
+                  </button>
+                </div>
+              </div>
+
+              <!-- Quotation Invoices & Costs Summary -->
+              <div
+                v-if="quotationInvoices.length > 0 || quotationCosts.length > 0"
+                class="px-6 pb-6 pt-6 border-t border-border/40 space-y-4"
+              >
+                <div v-if="quotationInvoices.length > 0">
+                  <div class="flex items-center gap-2 mb-3">
+                    <div class="p-1 rounded-md bg-green-100 text-green-700">
+                      <Receipt class="w-3.5 h-3.5" />
+                    </div>
+                    <h4 class="text-xs font-bold text-foreground uppercase tracking-wide">
+                      Invoices ({{ quotationInvoices.length }})
+                    </h4>
+                  </div>
+                  <div class="space-y-2">
+                    <div
+                      v-for="(inv, idx) in quotationInvoices"
+                      :key="idx"
+                      class="group p-3.5 rounded-xl border border-green-200 bg-green-50/30 hover:border-green-300 hover:shadow-sm transition-all flex items-center justify-between"
+                    >
+                      <div class="flex items-start gap-3">
+                        <div
+                          class="w-9 h-9 rounded-lg bg-green-100 text-green-600 flex items-center justify-center shrink-0 border border-green-200"
+                        >
+                          <Receipt class="w-4 h-4" />
+                        </div>
+                        <div>
+                          <div class="flex items-center gap-2">
+                            <span class="font-bold text-sm text-foreground">{{
+                              inv.number || "QINV-" + (idx + 1)
+                            }}</span>
+                            <span
+                              class="text-[9px] px-1.5 py-0.5 rounded font-black border uppercase tracking-wider bg-green-100 text-green-700 border-green-200"
+                              >Invoice</span
+                            >
+                          </div>
+                          <p class="text-xs text-muted-foreground mt-1">
+                            {{ inv.items?.length || 0 }} charge(s)
+                          </p>
+                        </div>
+                      </div>
+                      <div class="flex items-center gap-3">
+                        <div class="text-right">
+                          <p
+                            class="text-[9px] text-muted-foreground mb-0.5 uppercase tracking-widest font-bold opacity-70"
+                          >
+                            Total
+                          </p>
+                          <p class="font-black text-sm text-[#062c58]">
+                            {{ formatCurrency(inv.total || 0) }}
+                          </p>
+                        </div>
+                        <div
+                          v-if="!isLocked"
+                          class="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <button
+                            @click="editInvoice(idx)"
+                            class="p-1.5 rounded-lg text-muted-foreground hover:text-[#062c58] hover:bg-blue-50 transition-colors"
+                            title="View / Edit"
+                          >
+                            <Eye class="w-4 h-4" />
+                          </button>
+                          <button
+                            @click="removeInvoice(idx)"
+                            class="p-1.5 rounded-lg text-muted-foreground hover:text-red-600 hover:bg-red-50 transition-colors"
+                          >
+                            <Trash2 class="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div v-if="quotationCosts.length > 0">
+                  <div class="flex items-center gap-2 mb-3">
+                    <div class="p-1 rounded-md bg-red-100 text-red-700">
+                      <Wallet class="w-3.5 h-3.5" />
+                    </div>
+                    <h4 class="text-xs font-bold text-foreground uppercase tracking-wide">
+                      Costs ({{ quotationCosts.length }})
+                    </h4>
+                  </div>
+                  <div class="space-y-2">
+                    <div
+                      v-for="(cost, idx) in quotationCosts"
+                      :key="idx"
+                      class="group p-3.5 rounded-xl border border-red-200 bg-red-50/30 hover:border-red-300 hover:shadow-sm transition-all flex items-center justify-between"
+                    >
+                      <div class="flex items-start gap-3">
+                        <div
+                          class="w-9 h-9 rounded-lg bg-red-100 text-red-600 flex items-center justify-center shrink-0 border border-red-200"
+                        >
+                          <Wallet class="w-4 h-4" />
+                        </div>
+                        <div>
+                          <div class="flex items-center gap-2">
+                            <span class="font-bold text-sm text-foreground">{{
+                              cost.number || "VCOST-" + (idx + 1)
+                            }}</span>
+                            <span
+                              class="text-[9px] px-1.5 py-0.5 rounded font-black border uppercase tracking-wider bg-red-100 text-red-700 border-red-200"
+                              >Cost</span
+                            >
+                          </div>
+                          <p class="text-xs text-muted-foreground mt-1">
+                            {{ cost.items?.length || 0 }} item(s)
+                          </p>
+                        </div>
+                      </div>
+                      <div class="flex items-center gap-3">
+                        <div class="text-right">
+                          <p
+                            class="text-[9px] text-muted-foreground mb-0.5 uppercase tracking-widest font-bold opacity-70"
+                          >
+                            Total
+                          </p>
+                          <p class="font-black text-sm text-red-600">
+                            {{ formatCurrency(cost.amount || 0) }}
+                          </p>
+                        </div>
+                        <div
+                          v-if="!isLocked"
+                          class="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <button
+                            @click="editCost(idx)"
+                            class="p-1.5 rounded-lg text-muted-foreground hover:text-[#062c58] hover:bg-blue-50 transition-colors"
+                            title="View / Edit"
+                          >
+                            <Eye class="w-4 h-4" />
+                          </button>
+                          <button
+                            @click="removeCost(idx)"
+                            class="p-1.5 rounded-lg text-muted-foreground hover:text-red-600 hover:bg-red-50 transition-colors"
+                          >
+                            <Trash2 class="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <!-- Total summary block -->
@@ -1598,5 +1884,51 @@ function scrollTo(id: string) {
       :preset-name="presetCompanyName"
       @success="onCompanyCreateSuccess"
     />
+
+    <!-- Quotation Invoice Form Modal -->
+    <Modal
+      v-model="showInvoiceForm"
+      :title="editingInvoice ? 'Edit Quotation Invoice' : 'Create Quotation Invoice'"
+      :description="
+        editingInvoice
+          ? 'Modify the customer-facing quotation invoice.'
+          : 'Create a new customer-facing invoice document from quotation charges.'
+      "
+      width="2xl"
+    >
+      <QuotationInvoiceForm
+        v-if="showInvoiceForm"
+        :invoice="editingInvoice"
+        :is-saving="invoiceFormSaving"
+        :next-number="nextInvNumber"
+        :quotation-currency="quotationCurrency === 'MIXED' ? 'IDR' : quotationCurrency"
+        :quotation-exchange-rate="Number(formData.exchangeRate || 1)"
+        @submit="handleInvoiceSubmit"
+        @cancel="
+          showInvoiceForm = false;
+          editingInvoice = null;
+        "
+      />
+    </Modal>
+
+    <!-- Quotation Cost Form Modal -->
+    <Modal
+      v-model="showCostForm"
+      :title="editingCost ? 'Edit Vendor Cost' : 'Record Vendor Cost'"
+      :description="
+        editingCost ? 'Edit vendor cost details.' : 'Record a vendor cost for this quotation.'
+      "
+      width="2xl"
+    >
+      <QuotationCostForm
+        :cost="editingCost"
+        :is-saving="costFormSaving"
+        @submit="handleCostSubmit"
+        @cancel="
+          showCostForm = false;
+          editingCost = null;
+        "
+      />
+    </Modal>
   </div>
 </template>

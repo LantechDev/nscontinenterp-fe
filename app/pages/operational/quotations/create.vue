@@ -14,15 +14,25 @@ import {
   Loader2,
   RefreshCw,
   AlertTriangle,
+  Receipt,
+  Wallet,
+  Eye,
 } from "lucide-vue-next";
 import Combobox from "~/components/ui/Combobox.vue";
 import DatePicker from "~/components/ui/DatePicker.vue";
 import SectionCard from "~/pages/operational/jobs/components/SectionCard.vue";
-import { useQuotations } from "~/composables/useQuotations";
+import {
+  useQuotations,
+  type QuotationInvoice,
+  type QuotationCost,
+} from "~/composables/useQuotations";
 import { useFinanceTax, type Tax } from "~/composables/useFinanceTax";
 import { useServices } from "~/composables/useServices";
 import ServiceCreateModal from "~/pages/master/services/components/ServiceCreateModal.vue";
 import CompanyCreateModal from "~/pages/master/company/components/CompanyCreateModal.vue";
+import QuotationInvoiceForm from "~/components/operational/QuotationInvoiceForm.vue";
+import QuotationCostForm from "~/components/operational/QuotationCostForm.vue";
+import Modal from "~/components/ui/Modal.vue";
 import type { Port, ContainerType } from "~/composables/useMasterData";
 import { toast } from "vue-sonner";
 
@@ -31,7 +41,8 @@ definePageMeta({
   title: "Create Quotation",
 });
 
-const { createQuotation, getQuotation, isLoading } = useQuotations();
+const { createQuotation, getQuotation, updateQuotationInvoices, updateQuotationCosts, isLoading } =
+  useQuotations();
 const { fetchTaxes } = useFinanceTax();
 const { createService } = useServices();
 const router = useRouter();
@@ -374,6 +385,65 @@ function removeChargeLine(index: number) {
 const isCompanyModalOpen = ref(false);
 const presetCompanyName = ref("");
 
+// Pending invoice & cost state (saved after quotation created)
+const pendingInvoices = ref<QuotationInvoice[]>([]);
+const pendingCosts = ref<QuotationCost[]>([]);
+const showInvoiceForm = ref(false);
+const showCostForm = ref(false);
+const editingInvoice = ref<QuotationInvoice | null>(null);
+const editingCost = ref<QuotationCost | null>(null);
+const invoiceFormSaving = ref(false);
+const costFormSaving = ref(false);
+
+const nextInvNumber = computed(() => {
+  const count = pendingInvoices.value.length + 1;
+  return `QINV-${new Date().toISOString().slice(2, 10).replace(/-/g, "")}-${String(count).padStart(3, "0")}`;
+});
+
+const handleInvoiceSubmit = (payload: QuotationInvoice) => {
+  if (editingInvoice.value) {
+    pendingInvoices.value = pendingInvoices.value.map((inv) =>
+      inv === editingInvoice.value ? { ...payload } : inv,
+    );
+    editingInvoice.value = null;
+  } else {
+    pendingInvoices.value = [...pendingInvoices.value, payload];
+  }
+  showInvoiceForm.value = false;
+  toast.success("Invoice added to pending list.");
+};
+
+const handleCostSubmit = (payload: QuotationCost) => {
+  if (editingCost.value) {
+    pendingCosts.value = pendingCosts.value.map((c) =>
+      c === editingCost.value ? { ...payload } : c,
+    );
+    editingCost.value = null;
+  } else {
+    pendingCosts.value = [...pendingCosts.value, payload];
+  }
+  showCostForm.value = false;
+  toast.success("Cost added to pending list.");
+};
+
+const removePendingInvoice = (idx: number) => {
+  pendingInvoices.value.splice(idx, 1);
+};
+
+const removePendingCost = (idx: number) => {
+  pendingCosts.value.splice(idx, 1);
+};
+
+const editPendingInvoice = (idx: number) => {
+  editingInvoice.value = pendingInvoices.value[idx] ?? null;
+  showInvoiceForm.value = true;
+};
+
+const editPendingCost = (idx: number) => {
+  editingCost.value = pendingCosts.value[idx] ?? null;
+  showCostForm.value = true;
+};
+
 function handleCreateCompany(name: string) {
   presetCompanyName.value = name;
   isCompanyModalOpen.value = true;
@@ -511,16 +581,24 @@ const groupedTotals = computed(() => {
     USD: { subTotal: 0, taxAmount: 0, total: 0 },
   };
 
+  const rate = Number(formData.exchangeRate || 1);
+  const shouldConvert = rate > 1;
+
   formData.charges.forEach((ch) => {
     if (ch.atCost) return;
     const currency = ch.currency || "IDR";
-    if (!totals[currency]) {
-      totals[currency] = { subTotal: 0, taxAmount: 0, total: 0 };
-    }
     const qty = Number(ch.quantity || 0);
     const price = Number(ch.unitPrice || 0);
     const amount = qty * price;
-    totals[currency].subTotal += amount;
+
+    if (shouldConvert && currency === "USD") {
+      totals.IDR.subTotal += amount * rate;
+    } else {
+      if (!totals[currency]) {
+        totals[currency] = { subTotal: 0, taxAmount: 0, total: 0 };
+      }
+      totals[currency].subTotal += amount;
+    }
   });
 
   // Single PPN rate from quotation-level tax
@@ -534,6 +612,8 @@ const groupedTotals = computed(() => {
     entry.taxAmount = Math.round(entry.subTotal * (taxRate / 100));
     entry.total = entry.subTotal + entry.taxAmount;
   });
+
+  // USD will show zero when all converted — template hides it via v-if t.total > 0
 
   return totals;
 });
@@ -756,7 +836,24 @@ async function handleSubmit() {
   };
 
   const res = await createQuotation(payload);
-  if (res.success) {
+  if (res.success && res.data) {
+    const q = res.data;
+    if (pendingInvoices.value.length > 0) {
+      const invoiceRes = await updateQuotationInvoices(q.id, pendingInvoices.value);
+      if (!invoiceRes.success) {
+        toast.error(invoiceRes.error || "Quotation dibuat, tapi gagal menyimpan invoice.");
+        return;
+      }
+    }
+
+    if (pendingCosts.value.length > 0) {
+      const costRes = await updateQuotationCosts(q.id, pendingCosts.value);
+      if (!costRes.success) {
+        toast.error(costRes.error || "Quotation dibuat, tapi gagal menyimpan cost.");
+        return;
+      }
+    }
+
     toast.success("Quotation berhasil dibuat.");
     router.push("/operational/quotations");
   } else {
@@ -1421,13 +1518,173 @@ async function handleSubmit() {
                     placeholder="Select PPN..."
                   />
                 </div>
-                <button
-                  type="button"
-                  @click="addChargeLine"
-                  class="inline-flex items-center gap-1.5 text-xs font-bold text-[#062c58] hover:bg-blue-50/50 px-3 py-1.5 rounded-lg border border-blue-100 transition-colors"
-                >
-                  <Plus class="w-3.5 h-3.5" /> Add Service Line
-                </button>
+                <div class="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    @click="showInvoiceForm = true"
+                    class="inline-flex items-center gap-1.5 text-xs font-bold text-white bg-[#062c58] hover:bg-[#062c58]/90 px-3 py-1.5 rounded-lg shadow-sm transition-colors"
+                  >
+                    <Plus class="w-3.5 h-3.5" /> Add Invoice
+                  </button>
+                  <button
+                    type="button"
+                    @click="showCostForm = true"
+                    class="inline-flex items-center gap-1.5 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 px-3 py-1.5 rounded-lg shadow-sm transition-colors"
+                  >
+                    <Plus class="w-3.5 h-3.5" /> Record Cost
+                  </button>
+                  <span class="w-px h-7 bg-border mx-1.5"></span>
+                  <button
+                    type="button"
+                    @click="addChargeLine"
+                    class="inline-flex items-center gap-1.5 text-xs font-bold text-[#062c58] hover:bg-blue-50/50 px-3 py-1.5 rounded-lg border border-blue-100 transition-colors"
+                  >
+                    <Plus class="w-3.5 h-3.5" /> Add Service Line
+                  </button>
+                </div>
+              </div>
+
+              <!-- Pending Invoices & Costs Summary -->
+              <div
+                v-if="pendingInvoices.length > 0 || pendingCosts.length > 0"
+                class="px-6 pb-6 pt-6 border-t border-border/40 space-y-4"
+              >
+                <div v-if="pendingInvoices.length > 0">
+                  <div class="flex items-center gap-2 mb-3">
+                    <div class="p-1 rounded-md bg-green-100 text-green-700">
+                      <Receipt class="w-3.5 h-3.5" />
+                    </div>
+                    <h4 class="text-xs font-bold text-foreground uppercase tracking-wide">
+                      Pending Invoices ({{ pendingInvoices.length }})
+                    </h4>
+                  </div>
+                  <div class="space-y-2">
+                    <div
+                      v-for="(inv, idx) in pendingInvoices"
+                      :key="idx"
+                      class="group p-3.5 rounded-xl border border-green-200 bg-green-50/30 hover:border-green-300 hover:shadow-sm transition-all flex items-center justify-between"
+                    >
+                      <div class="flex items-start gap-3">
+                        <div
+                          class="w-9 h-9 rounded-lg bg-green-100 text-green-600 flex items-center justify-center shrink-0 border border-green-200"
+                        >
+                          <Receipt class="w-4 h-4" />
+                        </div>
+                        <div>
+                          <div class="flex items-center gap-2">
+                            <span class="font-bold text-sm text-foreground">{{
+                              inv.number || "QINV-" + (idx + 1)
+                            }}</span>
+                            <span
+                              class="text-[9px] px-1.5 py-0.5 rounded font-black border uppercase tracking-wider bg-green-100 text-green-700 border-green-200"
+                              >Invoice</span
+                            >
+                          </div>
+                          <p class="text-xs text-muted-foreground mt-1">
+                            {{ inv.items?.length || 0 }} charge(s)
+                          </p>
+                        </div>
+                      </div>
+                      <div class="flex items-center gap-3">
+                        <div class="text-right">
+                          <p
+                            class="text-[9px] text-muted-foreground mb-0.5 uppercase tracking-widest font-bold opacity-70"
+                          >
+                            Total
+                          </p>
+                          <p class="font-black text-sm text-[#062c58]">
+                            {{ formatCurrency(inv.total || 0) }}
+                          </p>
+                        </div>
+                        <div
+                          class="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <button
+                            @click="editPendingInvoice(idx)"
+                            class="p-1.5 rounded-lg text-muted-foreground hover:text-[#062c58] hover:bg-blue-50 transition-colors"
+                            title="View / Edit"
+                          >
+                            <Eye class="w-4 h-4" />
+                          </button>
+                          <button
+                            @click="removePendingInvoice(idx)"
+                            class="p-1.5 rounded-lg text-muted-foreground hover:text-red-600 hover:bg-red-50 transition-colors"
+                          >
+                            <Trash2 class="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div v-if="pendingCosts.length > 0">
+                  <div class="flex items-center gap-2 mb-3">
+                    <div class="p-1 rounded-md bg-red-100 text-red-700">
+                      <Wallet class="w-3.5 h-3.5" />
+                    </div>
+                    <h4 class="text-xs font-bold text-foreground uppercase tracking-wide">
+                      Pending Costs ({{ pendingCosts.length }})
+                    </h4>
+                  </div>
+                  <div class="space-y-2">
+                    <div
+                      v-for="(cost, idx) in pendingCosts"
+                      :key="idx"
+                      class="group p-3.5 rounded-xl border border-red-200 bg-red-50/30 hover:border-red-300 hover:shadow-sm transition-all flex items-center justify-between"
+                    >
+                      <div class="flex items-start gap-3">
+                        <div
+                          class="w-9 h-9 rounded-lg bg-red-100 text-red-600 flex items-center justify-center shrink-0 border border-red-200"
+                        >
+                          <Wallet class="w-4 h-4" />
+                        </div>
+                        <div>
+                          <div class="flex items-center gap-2">
+                            <span class="font-bold text-sm text-foreground">{{
+                              cost.number || "VCOST-" + (idx + 1)
+                            }}</span>
+                            <span
+                              class="text-[9px] px-1.5 py-0.5 rounded font-black border uppercase tracking-wider bg-red-100 text-red-700 border-red-200"
+                              >Cost</span
+                            >
+                          </div>
+                          <p class="text-xs text-muted-foreground mt-1">
+                            {{ cost.items?.length || 0 }} item(s)
+                          </p>
+                        </div>
+                      </div>
+                      <div class="flex items-center gap-3">
+                        <div class="text-right">
+                          <p
+                            class="text-[9px] text-muted-foreground mb-0.5 uppercase tracking-widest font-bold opacity-70"
+                          >
+                            Total
+                          </p>
+                          <p class="font-black text-sm text-red-600">
+                            {{ formatCurrency(cost.amount || 0) }}
+                          </p>
+                        </div>
+                        <div
+                          class="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <button
+                            @click="editPendingCost(idx)"
+                            class="p-1.5 rounded-lg text-muted-foreground hover:text-[#062c58] hover:bg-blue-50 transition-colors"
+                            title="View / Edit"
+                          >
+                            <Eye class="w-4 h-4" />
+                          </button>
+                          <button
+                            @click="removePendingCost(idx)"
+                            class="p-1.5 rounded-lg text-muted-foreground hover:text-red-600 hover:bg-red-50 transition-colors"
+                          >
+                            <Trash2 class="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <!-- Total summary block -->
@@ -1514,5 +1771,51 @@ async function handleSubmit() {
       :preset-name="presetCompanyName"
       @success="onCompanyCreateSuccess"
     />
+
+    <!-- Quotation Invoice Form Modal -->
+    <Modal
+      v-model="showInvoiceForm"
+      :title="editingInvoice ? 'Edit Quotation Invoice' : 'Create Quotation Invoice'"
+      :description="
+        editingInvoice
+          ? 'Modify the customer-facing quotation invoice.'
+          : 'Group charges into a customer-facing invoice document.'
+      "
+      width="2xl"
+    >
+      <QuotationInvoiceForm
+        v-if="showInvoiceForm"
+        :invoice="editingInvoice"
+        :is-saving="invoiceFormSaving"
+        :next-number="nextInvNumber"
+        :quotation-currency="quotationCurrency === 'MIXED' ? 'IDR' : quotationCurrency"
+        :quotation-exchange-rate="Number(formData.exchangeRate || 1)"
+        @submit="handleInvoiceSubmit"
+        @cancel="
+          showInvoiceForm = false;
+          editingInvoice = null;
+        "
+      />
+    </Modal>
+
+    <!-- Quotation Cost Form Modal -->
+    <Modal
+      v-model="showCostForm"
+      :title="editingCost ? 'Edit Vendor Cost' : 'Record Vendor Cost'"
+      :description="
+        editingCost ? 'Edit vendor cost details.' : 'Record a vendor cost for this quotation.'
+      "
+      width="2xl"
+    >
+      <QuotationCostForm
+        :cost="editingCost"
+        :is-saving="costFormSaving"
+        @submit="handleCostSubmit"
+        @cancel="
+          showCostForm = false;
+          editingCost = null;
+        "
+      />
+    </Modal>
   </div>
 </template>

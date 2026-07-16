@@ -32,6 +32,12 @@ interface ExpenseBootstrapData {
       totalAmount: number;
       totalPaid: number;
       totalOutstanding: number;
+      totalIncome: number;
+      totalExpense: number;
+      totalIncomePaid: number;
+      totalIncomeOutstanding: number;
+      totalExpensePaid: number;
+      totalExpenseOutstanding: number;
       count: number;
     };
   };
@@ -54,6 +60,7 @@ const {
   editingExpenseId,
   presetVendorName,
   formData,
+  useManualAccount,
   categoryOptions,
   taxOptions,
   companies,
@@ -71,6 +78,7 @@ const {
   handleCreateCategory,
   handleUpdate,
   handleDelete,
+  handleAccountSearch,
   setData,
 } = useExpensePage();
 const { canManage, requireManage } = useFeatureAccess("finance.payment");
@@ -98,6 +106,17 @@ const handleUpdateIfAllowed = () => {
   handleUpdate();
 };
 
+const handleToggleManualAccount = (checked: boolean) => {
+  useManualAccount.value = checked;
+  if (checked) {
+    formData.value.categoryId = "";
+    formData.value.expenseCategoryId = "";
+    formData.value.overrideAccountId = "";
+  } else {
+    formData.value.overrideAccountId = "";
+  }
+};
+
 const handleRowClickIfAllowed = (id: string) => {
   if (!canManage.value) return;
   handleRowClick(id);
@@ -105,24 +124,28 @@ const handleRowClickIfAllowed = (id: string) => {
 
 const statsCards = computed(() => {
   const creditTotal = expenses.value.reduce((sum, e) => sum + getOverpayment(e), 0);
+  const netFlow = (summary.value.totalIncome || 0) - (summary.value.totalExpense || 0);
   return [
     {
-      title: "Total Biaya",
-      value: formatCurrency(summary.value.totalAmount),
-      changeLabel: `Dari ${summary.value.count} biaya`,
+      title: "Uang Masuk",
+      value: formatCurrency(summary.value.totalIncome || 0),
+      changeLabel: "Total kas masuk",
       isPrimary: false,
+      color: "green" as const,
     },
     {
-      title: "Terbayar",
-      value: formatCurrency(summary.value.totalPaid),
-      changeLabel: "Dana terbayarkan",
+      title: "Uang Keluar",
+      value: formatCurrency(summary.value.totalExpense || 0),
+      changeLabel: "Total kas keluar",
       isPrimary: false,
+      color: "red" as const,
     },
     {
-      title: "Belum Terbayar",
-      value: formatCurrency(summary.value.totalOutstanding),
-      changeLabel: "Biaya outstanding",
+      title: "Saldo Bersih",
+      value: formatCurrency(netFlow),
+      changeLabel: netFlow >= 0 ? "Surplus" : "Defisit",
       isPrimary: true,
+      color: netFlow >= 0 ? ("green" as const) : ("red" as const),
     },
     {
       title: "Kelebihan Bayar",
@@ -158,6 +181,12 @@ const {
         totalAmount: number;
         totalPaid: number;
         totalOutstanding: number;
+        totalIncome: number;
+        totalExpense: number;
+        totalIncomePaid: number;
+        totalIncomeOutstanding: number;
+        totalExpensePaid: number;
+        totalExpenseOutstanding: number;
         count: number;
       };
     }>("/api/finance/expense", {
@@ -209,6 +238,12 @@ watch(
         totalAmount: 0,
         totalPaid: 0,
         totalOutstanding: 0,
+        totalIncome: 0,
+        totalExpense: 0,
+        totalIncomePaid: 0,
+        totalIncomeOutstanding: 0,
+        totalExpensePaid: 0,
+        totalExpenseOutstanding: 0,
         count: 0,
       },
     });
@@ -230,8 +265,8 @@ const isPageLoading = computed(() => isLoading.value || isBootstrapping.value);
     <!-- Page header -->
     <div class="flex items-center justify-between">
       <div>
-        <h1 class="text-2xl font-bold">Biaya Operasional</h1>
-        <p class="text-muted-foreground mt-1">Catat pengeluaran operasional</p>
+        <h1 class="text-2xl font-bold">Cash In/Out</h1>
+        <p class="text-muted-foreground mt-1">Catat penerimaan dan pengeluaran kas</p>
       </div>
 
       <div class="flex items-center gap-2">
@@ -283,12 +318,20 @@ const isPageLoading = computed(() => isLoading.value || isBootstrapping.value);
         <input
           v-model="searchQuery"
           type="text"
-          placeholder="Cari biaya..."
+          placeholder="Cari transaksi..."
           class="w-full pl-10 pr-4 py-2 text-sm border border-border rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground"
         />
       </div>
 
       <div class="flex items-center gap-3">
+        <select
+          v-model="filters.direction"
+          class="px-3 py-2 rounded-lg border border-border bg-white text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+        >
+          <option value="">Semua Tipe</option>
+          <option value="IN">Uang Masuk</option>
+          <option value="OUT">Uang Keluar</option>
+        </select>
         <select
           v-model="filters.expenseCategoryId"
           class="px-3 py-2 rounded-lg border border-border bg-white text-sm focus:outline-none focus:ring-1 focus:ring-primary"
@@ -309,7 +352,7 @@ const isPageLoading = computed(() => isLoading.value || isBootstrapping.value);
           class="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-[#012D5A] text-white hover:bg-[#012D5A]/90 rounded-lg transition-colors min-w-fit whitespace-nowrap"
         >
           <Plus class="w-4 h-4" />
-          <span>Catat Biaya</span>
+          <span>Catat Transaksi</span>
         </button>
       </div>
     </div>
@@ -338,10 +381,11 @@ const isPageLoading = computed(() => isLoading.value || isBootstrapping.value);
           <table class="w-full">
             <thead>
               <tr class="border-b border-border bg-white text-left">
-                <th class="py-3 px-4 text-sm font-medium text-foreground">No. Biaya</th>
+                <th class="py-3 px-4 text-sm font-medium text-foreground">No. Transaksi</th>
+                <th class="py-3 px-4 text-sm font-medium text-foreground">Tipe</th>
                 <th class="py-3 px-4 text-sm font-medium text-foreground">Deskripsi</th>
                 <th class="py-3 px-4 text-sm font-medium text-foreground">Kategori</th>
-                <th class="py-3 px-4 text-sm font-medium text-foreground">Vendor</th>
+                <th class="py-3 px-4 text-sm font-medium text-foreground">Vendor/Kontak</th>
                 <th class="py-3 px-4 text-sm font-medium text-foreground">Tanggal</th>
                 <th class="py-3 px-4 text-sm font-medium text-foreground">Jumlah</th>
                 <th class="py-3 px-4 text-sm font-medium text-foreground">Kelebihan</th>
@@ -357,11 +401,34 @@ const isPageLoading = computed(() => isLoading.value || isBootstrapping.value);
               >
                 <td class="py-3 px-4">
                   <div class="flex items-center gap-2">
-                    <div class="p-1.5 rounded bg-red-50 text-destructive">
+                    <div
+                      :class="
+                        cn(
+                          'p-1.5 rounded',
+                          expense.direction === 'IN'
+                            ? 'bg-emerald-50 text-emerald-600'
+                            : 'bg-red-50 text-destructive',
+                        )
+                      "
+                    >
                       <Wallet class="w-4 h-4" />
                     </div>
                     <span class="text-sm font-medium">{{ expense.number }}</span>
                   </div>
+                </td>
+                <td class="py-3 px-4 text-sm">
+                  <span
+                    :class="
+                      cn(
+                        'px-2 py-0.5 rounded text-xs font-semibold',
+                        expense.direction === 'IN'
+                          ? 'bg-emerald-100 text-emerald-800'
+                          : 'bg-red-100 text-red-800',
+                      )
+                    "
+                  >
+                    {{ expense.direction === "IN" ? "Uang Masuk" : "Uang Keluar" }}
+                  </span>
                 </td>
                 <td class="py-3 px-4 text-sm">{{ expense.description }}</td>
                 <td class="py-3 px-4 text-sm">
@@ -375,7 +442,14 @@ const isPageLoading = computed(() => isLoading.value || isBootstrapping.value);
                 <td class="py-3 px-4 text-sm text-muted-foreground">
                   {{ formatDate(expense.date) }}
                 </td>
-                <td class="py-3 px-4 text-sm font-medium text-destructive">
+                <td
+                  :class="
+                    cn(
+                      'py-3 px-4 text-sm font-medium',
+                      expense.direction === 'IN' ? 'text-emerald-600' : 'text-destructive',
+                    )
+                  "
+                >
                   {{ formatCurrency(Number(expense.amount)) }}
                 </td>
                 <td class="py-3 px-4 text-sm font-medium">
@@ -410,8 +484,8 @@ const isPageLoading = computed(() => isLoading.value || isBootstrapping.value);
                 </td>
               </tr>
               <tr v-if="expenses.length === 0">
-                <td colspan="7" class="py-12 text-center text-muted-foreground">
-                  Tidak ada biaya ditemukan.
+                <td colspan="9" class="py-12 text-center text-muted-foreground">
+                  Tidak ada transaksi ditemukan.
                 </td>
               </tr>
             </tbody>
@@ -430,7 +504,14 @@ const isPageLoading = computed(() => isLoading.value || isBootstrapping.value);
           <div class="flex items-start justify-between mb-4">
             <div class="flex items-start gap-4">
               <div
-                class="w-12 h-12 rounded-lg bg-red-50 text-destructive flex items-center justify-center shrink-0"
+                :class="
+                  cn(
+                    'w-12 h-12 rounded-lg flex items-center justify-center shrink-0',
+                    expense.direction === 'IN'
+                      ? 'bg-emerald-50 text-emerald-600'
+                      : 'bg-red-50 text-destructive',
+                  )
+                "
               >
                 <Wallet class="w-6 h-6" />
               </div>
@@ -474,12 +555,19 @@ const isPageLoading = computed(() => isLoading.value || isBootstrapping.value);
               <p class="text-sm font-medium line-clamp-2">{{ expense.description }}</p>
             </div>
             <div>
-              <p class="text-xs text-muted-foreground mb-1">Vendor</p>
+              <p class="text-xs text-muted-foreground mb-1">Vendor/Kontak</p>
               <p class="text-sm font-medium">{{ expense.vendor?.name || "N/A" }}</p>
             </div>
             <div>
               <p class="text-xs text-muted-foreground mb-1">Amount</p>
-              <p class="text-lg font-bold text-destructive">
+              <p
+                :class="
+                  cn(
+                    'text-lg font-bold',
+                    expense.direction === 'IN' ? 'text-emerald-600' : 'text-destructive',
+                  )
+                "
+              >
                 {{ formatCurrency(Number(expense.amount)) }}
               </p>
             </div>
@@ -489,13 +577,25 @@ const isPageLoading = computed(() => isLoading.value || isBootstrapping.value);
             <span class="text-xs bg-muted px-2 py-0.5 rounded-full text-muted-foreground border">
               {{ expense.expenseCategory?.name || "Uncategorized" }}
             </span>
+            <span
+              :class="
+                cn(
+                  'px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider',
+                  expense.direction === 'IN'
+                    ? 'bg-emerald-100 text-emerald-800'
+                    : 'bg-red-100 text-red-800',
+                )
+              "
+            >
+              {{ expense.direction === "IN" ? "Uang Masuk" : "Uang Keluar" }}
+            </span>
           </div>
         </div>
         <div
           v-if="expenses.length === 0"
           class="col-span-full py-12 text-center text-muted-foreground"
         >
-          Tidak ada biaya ditemukan.
+          Tidak ada transaksi ditemukan.
         </div>
       </div>
 
@@ -526,9 +626,12 @@ const isPageLoading = computed(() => isLoading.value || isBootstrapping.value);
       :jobs="jobs"
       :tax-options="taxOptions"
       :hide-job="true"
+      :use-manual-account="useManualAccount"
+      :handle-account-search="handleAccountSearch"
       @close="closeEditModal"
       @create-vendor="handleCreateVendor"
       @create-category="handleCreateCategory"
+      @toggle-manual-account="handleToggleManualAccount"
       @submit="handleUpdateIfAllowed"
     />
 

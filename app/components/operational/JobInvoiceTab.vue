@@ -24,7 +24,7 @@ import PaymentEntryForm from "../finance/PaymentEntryForm.vue";
 import Modal from "~/components/ui/Modal.vue";
 import { getOverpayment } from "~/composables/useFinanceExpense";
 import { useInvoices, type InvoiceDetail } from "~/composables/useInvoices";
-import { useQuotations, type Quotation } from "~/composables/useQuotations";
+import { useQuotations, type Quotation, type QuotationInvoice } from "~/composables/useQuotations";
 import { toast } from "vue-sonner";
 import JobFinanceHistoryModal from "./JobFinanceHistoryModal.vue";
 import type { ActivityLog } from "~/lib/activity-log-api";
@@ -128,6 +128,8 @@ const showQuotationPicker = ref(false);
 const quotationsList = ref<Quotation[]>([]);
 const isLoadingQuotations = ref(false);
 const selectedQuotation = ref<Quotation | null>(null);
+const showSourcePicker = ref(false);
+const sourcePickerQuotation = ref<Quotation | null>(null);
 const showCurrencySelectModal = ref(false);
 const mixedCurrencyQuotation = ref<Quotation | null>(null);
 const availableCurrenciesInQuotation = ref<string[]>([]);
@@ -142,6 +144,7 @@ const prefillFromQuotation = ref<{
     description: string;
     quantity: number;
     unitPrice: number;
+    currency?: string;
     taxId?: string | null;
     atCost?: boolean;
   }>;
@@ -152,6 +155,57 @@ const conversionExchangeRate = ref<number | null>(null);
 const isFetchingRate = ref(false);
 const rateFetchError = ref<string | null>(null);
 const isRateSuggested = ref(false);
+
+const showItemSelection = ref(false);
+const itemSelectionQuotation = ref<Quotation | null>(null);
+const selectedItemIndices = ref<Set<number>>(new Set());
+
+const toggleItem = (idx: number) => {
+  const next = new Set(selectedItemIndices.value);
+  if (next.has(idx)) next.delete(idx);
+  else next.add(idx);
+  selectedItemIndices.value = next;
+};
+
+const selectAllItems = () => {
+  if (!itemSelectionQuotation.value?.charges) return;
+  selectedItemIndices.value = new Set(itemSelectionQuotation.value.charges.map((_, i) => i));
+};
+
+const deselectAllItems = () => {
+  selectedItemIndices.value = new Set();
+};
+
+const openItemSelection = (q: Quotation) => {
+  itemSelectionQuotation.value = q;
+  selectedItemIndices.value = new Set((q.charges || []).map((_, i) => i));
+  showItemSelection.value = true;
+  showQuotationPicker.value = false;
+};
+
+const confirmItemSelection = () => {
+  if (!itemSelectionQuotation.value) return;
+  const q = itemSelectionQuotation.value;
+  const selectedCharges = (q.charges || []).filter((_, i) => selectedItemIndices.value.has(i));
+  if (selectedCharges.length === 0) {
+    toast.error("Pilih minimal 1 item untuk dijadikan invoice.");
+    return;
+  }
+
+  const currencies = Array.from(new Set(selectedCharges.map((ch) => ch.currency || "IDR")));
+
+  if (currencies.length > 1) {
+    mixedCurrencyQuotation.value = q;
+    availableCurrenciesInQuotation.value = currencies;
+    selectedInvoiceCurrency.value = "IDR";
+    showCurrencySelectModal.value = true;
+    showItemSelection.value = false;
+    loadExchangeRate();
+  } else {
+    const currency = currencies[0] || "IDR";
+    proceedPrefillQuotationWithSelection(q, currency, 1);
+  }
+};
 
 const loadExchangeRate = async () => {
   isFetchingRate.value = true;
@@ -399,8 +453,15 @@ const openQuotationPicker = async () => {
 
 function getQuotationTotals(q: Quotation) {
   const totals: Record<string, number> = {};
+  const rate = Number(q.exchangeRate || 1);
+  const shouldConvert = rate > 1;
+
   if (!q.charges || q.charges.length === 0) {
-    totals[q.currency || "IDR"] = Number(q.total || 0);
+    if (shouldConvert && (q.currency || "IDR") === "USD") {
+      totals.IDR = Math.round(Number(q.total || 0) * rate);
+    } else {
+      totals[q.currency || "IDR"] = Number(q.total || 0);
+    }
     return totals;
   }
 
@@ -412,7 +473,12 @@ function getQuotationTotals(q: Quotation) {
     const taxRate = Number(ch.taxRate || 0);
     const taxAmount = amount * (taxRate / 100);
     const lineTotal = amount + taxAmount;
-    totals[currency] = (totals[currency] || 0) + lineTotal;
+
+    if (shouldConvert && currency === "USD") {
+      totals.IDR = (totals.IDR || 0) + Math.round(lineTotal * rate);
+    } else {
+      totals[currency] = (totals[currency] || 0) + lineTotal;
+    }
   });
 
   if (totals.IDR !== undefined) {
@@ -421,20 +487,125 @@ function getQuotationTotals(q: Quotation) {
   return totals;
 }
 
-const selectQuotation = (q: Quotation) => {
-  const currencies = Array.from(new Set((q.charges || []).map((ch) => ch.currency || "IDR")));
+function getQuotationRevenue(q: Quotation): number {
+  if (!q.charges || q.charges.length === 0) return 0;
+  let total = 0;
+  const rate = Number(q.exchangeRate || 1);
+  q.charges.forEach((ch) => {
+    if (ch.atCost) return;
+    const amt = Number(ch.quantity || 0) * Number(ch.unitPrice || 0);
+    total += (ch.currency || "IDR") === "USD" && rate > 1 ? amt * rate : amt;
+  });
+  return total;
+}
 
-  if (currencies.length > 1) {
-    mixedCurrencyQuotation.value = q;
-    availableCurrenciesInQuotation.value = currencies;
-    selectedInvoiceCurrency.value = "IDR";
-    showCurrencySelectModal.value = true;
-    showQuotationPicker.value = false;
-    loadExchangeRate();
-  } else {
-    const currency = currencies[0] || "IDR";
-    proceedPrefillQuotation(q, currency, 1);
+function getQuotationCostTotal(q: Quotation): number {
+  const costs = q.costs || [];
+  if (costs.length > 0) {
+    return costs.reduce((sum, c) => sum + Number(c.amount || 0), 0);
   }
+  return Number(q.totalEstimatedCost || 0);
+}
+
+function hasCostData(q: Quotation): boolean {
+  return getQuotationCostTotal(q) > 0;
+}
+
+const handleQuotationClick = (q: Quotation) => {
+  const hasInvoices = (q.quotationInvoices || []).length > 0;
+  if (hasInvoices) {
+    sourcePickerQuotation.value = q;
+    showSourcePicker.value = true;
+  } else {
+    openItemSelection(q);
+  }
+};
+
+const selectQuotationInvoice = (qinv: QuotationInvoice) => {
+  if (!sourcePickerQuotation.value) return;
+  const q = sourcePickerQuotation.value;
+
+  const items = (qinv.items || []).map((item) => ({
+    serviceId: null,
+    description: item.description,
+    quantity: Number(item.quantity || 1),
+    unitPrice: Number(item.unitPrice || 0),
+    currency: item.currency || "IDR",
+    taxId: null,
+    atCost: false,
+  }));
+
+  const itemCurrencies = Array.from(new Set(items.map((item) => item.currency || "IDR")));
+
+  prefillFromQuotation.value = {
+    quotationId: q.id,
+    currency: itemCurrencies.length === 1 ? itemCurrencies[0] : "IDR",
+    exchangeRate: Number(q.exchangeRate || 1),
+    notes: qinv.notes || q.notes,
+    taxId: q.taxId || null,
+    items,
+  };
+
+  selectedQuotation.value = q;
+  showSourcePicker.value = false;
+  showQuotationPicker.value = false;
+  isEditing.value = false;
+  showForm.value = true;
+  toast.success(`Prefilled invoice from quotation invoice ${qinv.number || ""}.`);
+};
+
+const selectQuotation = (q: Quotation) => {
+  handleQuotationClick(q);
+};
+
+const proceedPrefillQuotationWithSelection = (
+  q: Quotation,
+  targetCurrency: string,
+  exchangeRate: number,
+) => {
+  const selectedCharges = (q.charges || []).filter((_, i) => selectedItemIndices.value.has(i));
+
+  const convertedItems = selectedCharges.map((ch) => {
+    const originCurrency = ch.currency || "IDR";
+    let unitPrice = Number(ch.unitPrice || 0);
+
+    if (originCurrency !== targetCurrency) {
+      if (targetCurrency === "IDR" && originCurrency === "USD") {
+        unitPrice = Math.round(unitPrice * exchangeRate);
+      } else if (targetCurrency === "USD" && originCurrency === "IDR") {
+        unitPrice = Number((unitPrice / exchangeRate).toFixed(2));
+      }
+    }
+
+    return {
+      serviceId: ch.serviceId || null,
+      description: ch.description,
+      quantity: Number(ch.quantity),
+      unitPrice: unitPrice,
+      currency: targetCurrency,
+      taxId: ch.taxId || null,
+      atCost: Boolean(ch.atCost),
+    };
+  });
+
+  prefillFromQuotation.value = {
+    quotationId: q.id,
+    currency: targetCurrency,
+    exchangeRate: targetCurrency === "IDR" ? 1 : exchangeRate,
+    notes: q.notes,
+    taxId: q.taxId || null,
+    items: convertedItems,
+  };
+
+  selectedQuotation.value = q;
+  showCurrencySelectModal.value = false;
+  showItemSelection.value = false;
+  showQuotationPicker.value = false;
+  isEditing.value = false;
+  showForm.value = true;
+  toast.success(
+    `Prefilled invoice from quotation with ${selectedCharges.length} item(s) converted to ${targetCurrency}.`,
+  );
 };
 
 const proceedPrefillQuotation = (q: Quotation, targetCurrency: string, exchangeRate: number) => {
@@ -457,6 +628,7 @@ const proceedPrefillQuotation = (q: Quotation, targetCurrency: string, exchangeR
       description: ch.description,
       quantity: Number(ch.quantity),
       unitPrice: unitPrice,
+      currency: targetCurrency,
       taxId: ch.taxId || null,
       atCost: Boolean(ch.atCost),
     };
@@ -603,11 +775,119 @@ const handlePaymentVoided = async () => {
     <!-- Quotation Picker Modal -->
     <Modal
       v-model="showQuotationPicker"
-      title="Pilih Quotation"
-      description="Pilih quotation yang ingin dijadikan invoice."
+      :title="showSourcePicker ? 'Pilih Sumber Invoice' : 'Pilih Quotation'"
+      :description="
+        showSourcePicker
+          ? 'Pilih quotation invoice atau item individual.'
+          : 'Pilih quotation yang ingin dijadikan invoice.'
+      "
       width="max-w-3xl"
+      @update:model-value="
+        (val) => {
+          if (!val) {
+            showSourcePicker = false;
+            sourcePickerQuotation = null;
+          }
+        }
+      "
     >
-      <div class="space-y-3 pt-1">
+      <!-- Source Picker View: choose between invoice or individual charges -->
+      <div v-if="showSourcePicker && sourcePickerQuotation" class="space-y-4 pt-1">
+        <button
+          @click="
+            showSourcePicker = false;
+            sourcePickerQuotation = null;
+          "
+          class="inline-flex items-center gap-1.5 text-xs font-bold text-muted-foreground hover:text-foreground hover:bg-muted/50 px-2 py-1 rounded-lg transition-colors"
+        >
+          <ArrowLeft class="w-3.5 h-3.5" />
+          Back to quotations
+        </button>
+
+        <div class="flex items-center gap-3 p-3 bg-blue-50/50 border border-blue-100 rounded-xl">
+          <FileText class="w-5 h-5 text-[#062c58]" />
+          <div>
+            <p class="text-sm font-bold text-[#062c58]">{{ sourcePickerQuotation.number }}</p>
+            <p class="text-xs text-muted-foreground">{{ sourcePickerQuotation.customerName }}</p>
+          </div>
+        </div>
+
+        <!-- Quotation Invoices -->
+        <div v-if="sourcePickerQuotation.quotationInvoices?.length">
+          <h4
+            class="text-xs font-bold text-foreground uppercase tracking-wide mb-2 flex items-center gap-2"
+          >
+            <Receipt class="w-3.5 h-3.5 text-[#062c58]" /> Quotation Invoices
+          </h4>
+          <div class="space-y-2 max-h-[280px] overflow-y-auto pr-1">
+            <div
+              v-for="qinv in sourcePickerQuotation.quotationInvoices"
+              :key="qinv.id"
+              class="w-full text-left p-4 rounded-xl border transition-all group cursor-pointer border-border hover:border-[#062c58]/40 hover:bg-blue-50/30"
+              @click="selectQuotationInvoice(qinv)"
+            >
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                  <div class="p-2 rounded-lg bg-blue-50 text-[#062c58] shrink-0">
+                    <Receipt class="w-4 h-4" />
+                  </div>
+                  <div>
+                    <p class="text-sm font-bold text-[#062c58]">{{ qinv.number || "—" }}</p>
+                    <p class="text-xs text-muted-foreground mt-0.5">
+                      {{ qinv.items?.length || 0 }} charge(s)
+                    </p>
+                  </div>
+                </div>
+                <div class="flex items-center gap-3">
+                  <p class="text-sm font-black text-[#062c58]">
+                    {{ formatCurrency(qinv.total || 0) }}
+                  </p>
+                  <ChevronRight
+                    class="w-4 h-4 text-muted-foreground group-hover:text-[#062c58] transition-colors"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="border-t border-border/50 pt-3">
+          <p class="text-[10px] text-muted-foreground mb-2 uppercase tracking-widest font-bold">
+            Atau
+          </p>
+          <button
+            @click="
+              openItemSelection(sourcePickerQuotation);
+              showSourcePicker = false;
+            "
+            class="w-full text-left p-4 rounded-xl border border-dashed border-border hover:border-[#062c58]/40 hover:bg-blue-50/20 transition-all group"
+          >
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-3">
+                <div
+                  class="p-2 rounded-lg bg-gray-50 text-muted-foreground shrink-0 group-hover:bg-blue-50 group-hover:text-[#062c58] transition-colors"
+                >
+                  <FileText class="w-4 h-4" />
+                </div>
+                <div>
+                  <p class="text-sm font-bold text-foreground group-hover:text-[#062c58]">
+                    Select Individual Charges
+                  </p>
+                  <p class="text-xs text-muted-foreground mt-0.5">
+                    {{ sourcePickerQuotation.charges?.length || 0 }} charge items available
+                  </p>
+                </div>
+              </div>
+              <ChevronRight
+                class="w-4 h-4 text-muted-foreground group-hover:text-[#062c58] transition-colors"
+              />
+            </div>
+          </button>
+        </div>
+      </div>
+
+      <!-- Quotation List View (default) -->
+      <div v-else class="space-y-3 pt-1">
         <div v-if="isLoadingQuotations" class="py-8 flex justify-center">
           <Loader2 class="w-6 h-6 animate-spin text-[#062c58]" />
         </div>
@@ -705,6 +985,33 @@ const handlePaymentVoided = async () => {
                   }}
                 </p>
               </div>
+              <div v-if="hasCostData(q)" class="mt-2 pl-11 flex items-center gap-2">
+                <span class="text-[9px] text-muted-foreground font-bold">Revenue:</span>
+                <span class="text-[9px] font-extrabold text-[#012D5A]">{{
+                  formatCurrency(getQuotationRevenue(q), "IDR")
+                }}</span>
+                <span class="text-[9px] text-muted-foreground font-bold ml-1">Cost:</span>
+                <span class="text-[9px] font-extrabold text-rose-600">{{
+                  formatCurrency(getQuotationCostTotal(q), "IDR")
+                }}</span>
+                <span
+                  v-if="getQuotationRevenue(q) > 0"
+                  class="text-[9px] px-1.5 py-0.5 rounded font-extrabold border uppercase tracking-wider"
+                  :class="
+                    getQuotationRevenue(q) >= getQuotationCostTotal(q)
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                      : 'bg-rose-50 text-rose-700 border-rose-200'
+                  "
+                >
+                  {{
+                    (
+                      ((getQuotationRevenue(q) - getQuotationCostTotal(q)) /
+                        getQuotationRevenue(q)) *
+                      100
+                    ).toFixed(1)
+                  }}%
+                </span>
+              </div>
               <div
                 v-if="!canUseQuotationForInvoice(q)"
                 class="mt-2 pl-11 flex items-center gap-1.5"
@@ -726,6 +1033,133 @@ const handlePaymentVoided = async () => {
               </div>
             </button>
           </div>
+        </div>
+      </div>
+    </Modal>
+
+    <!-- Item Selection Modal -->
+    <Modal
+      v-model="showItemSelection"
+      title="Pilih Item untuk Invoice"
+      :description="
+        itemSelectionQuotation
+          ? `Pilih charge item dari quotation ${itemSelectionQuotation.number} yang ingin dijadikan invoice.`
+          : ''
+      "
+      width="max-w-2xl"
+    >
+      <div v-if="itemSelectionQuotation" class="space-y-4 pt-2">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-bold text-muted-foreground">
+              {{ (itemSelectionQuotation.charges || []).length }} charge items
+            </span>
+            <span class="text-[10px] text-muted-foreground">
+              · {{ selectedItemIndices.size }} selected
+            </span>
+          </div>
+          <div class="flex items-center gap-1">
+            <button
+              @click="selectAllItems"
+              class="px-2 py-1 text-[10px] font-bold text-[#012D5A] hover:bg-blue-50 rounded transition-colors"
+            >
+              Select All
+            </button>
+            <button
+              @click="deselectAllItems"
+              class="px-2 py-1 text-[10px] font-bold text-muted-foreground hover:bg-muted rounded transition-colors"
+            >
+              Deselect All
+            </button>
+          </div>
+        </div>
+
+        <div
+          class="max-h-[360px] overflow-y-auto space-y-1 border border-border rounded-xl bg-white"
+        >
+          <div
+            v-for="(ch, idx) in itemSelectionQuotation.charges"
+            :key="ch.id || idx"
+            @click="toggleItem(idx)"
+            class="flex items-center gap-3 p-3 hover:bg-blue-50/30 cursor-pointer transition-colors border-b border-border/50 last:border-0"
+            :class="selectedItemIndices.has(idx) ? 'bg-blue-50/20' : ''"
+          >
+            <div
+              class="w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors"
+              :class="
+                selectedItemIndices.has(idx)
+                  ? 'bg-[#012D5A] border-[#012D5A]'
+                  : 'border-gray-300 hover:border-[#012D5A]/50'
+              "
+            >
+              <Check v-if="selectedItemIndices.has(idx)" class="w-3 h-3 text-white" />
+            </div>
+            <div class="flex-1 min-w-0">
+              <p class="text-xs font-bold text-[#012D5A] truncate">
+                {{ ch.serviceName || ch.description || "Charge Item" }}
+              </p>
+              <p class="text-[10px] text-muted-foreground mt-0.5 truncate">
+                {{ ch.description || "-" }}
+              </p>
+            </div>
+            <div class="text-right shrink-0">
+              <p class="text-xs font-semibold text-foreground whitespace-nowrap">
+                {{ ch.quantity }} x
+                {{ formatCurrency(Number(ch.unitPrice || 0), ch.currency || "IDR") }}
+              </p>
+              <p class="text-[10px] font-extrabold text-[#012D5A] mt-0.5 whitespace-nowrap">
+                {{
+                  formatCurrency(
+                    Number(ch.quantity || 0) * Number(ch.unitPrice || 0),
+                    ch.currency || "IDR",
+                  )
+                }}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div
+          v-if="itemSelectionQuotation.charges && itemSelectionQuotation.charges.length > 0"
+          class="flex items-center justify-between p-3 bg-gray-50 rounded-xl border"
+        >
+          <span class="text-xs font-bold text-muted-foreground">
+            Selected: {{ selectedItemIndices.size }} item(s)
+          </span>
+          <span class="text-xs font-extrabold text-[#012D5A]">
+            {{
+              formatCurrency(
+                (itemSelectionQuotation.charges || [])
+                  .filter((_, i) => selectedItemIndices.has(i))
+                  .reduce(
+                    (sum, ch) => sum + Number(ch.quantity || 0) * Number(ch.unitPrice || 0),
+                    0,
+                  ),
+                "IDR",
+              )
+            }}
+          </span>
+        </div>
+
+        <div class="pt-3 border-t border-border flex justify-end gap-3">
+          <button
+            type="button"
+            @click="
+              showItemSelection = false;
+              showQuotationPicker = true;
+            "
+            class="px-4 py-2 text-xs font-bold text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors border-none bg-transparent outline-none cursor-pointer"
+          >
+            Back to Picker
+          </button>
+          <button
+            type="button"
+            :disabled="selectedItemIndices.size === 0"
+            @click="confirmItemSelection"
+            class="px-5 py-2 text-xs font-black uppercase tracking-wider bg-[#062c58] hover:bg-[#062c58]/90 text-white rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed border-none shadow-md shadow-[#062c58]/10 cursor-pointer"
+          >
+            Next
+          </button>
         </div>
       </div>
     </Modal>
@@ -829,7 +1263,7 @@ const handlePaymentVoided = async () => {
             type="button"
             @click="
               showCurrencySelectModal = false;
-              showQuotationPicker = true;
+              showItemSelection = true;
             "
             class="px-4 py-2 text-xs font-bold text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors border-none bg-transparent outline-none cursor-pointer"
           >
@@ -840,7 +1274,7 @@ const handlePaymentVoided = async () => {
             :disabled="isConfirmDisabled || isFetchingRate"
             @click="
               mixedCurrencyQuotation &&
-              proceedPrefillQuotation(
+              proceedPrefillQuotationWithSelection(
                 mixedCurrencyQuotation,
                 selectedInvoiceCurrency,
                 Number(conversionExchangeRate),

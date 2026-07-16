@@ -85,7 +85,7 @@ export const NAV_ITEMS: NavItem[] = [
       { title: "Dashboard", href: "/finance/dashboard", icon: BarChart3 },
       { title: "Invoice", href: "/finance/invoice", icon: Receipt },
       { title: "Outstanding Report", href: "/finance/report/outstanding", icon: TrendingDown },
-      { title: "Biaya Operasional", href: "/finance/expenses", icon: Coins },
+      { title: "Cash In/Out", href: "/finance/expenses", icon: Coins },
       { title: "Chart of Accounts", href: "/finance/chart-of-accounts", icon: BookOpen },
       { title: "COA Mapping", href: "/finance/coa-mapping", icon: WalletCards },
     ],

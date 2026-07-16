@@ -9,6 +9,7 @@ import { useJobs, type JobWithBls } from "./useJobs";
 import { useConfirm } from "./useConfirm";
 import { useFinanceTax, type Tax } from "./useFinanceTax";
 import { useServices } from "./useServices";
+import { useChartOfAccounts, type ChartOfAccount } from "./useChartOfAccounts";
 import { toast } from "vue-sonner";
 import type { Company } from "./useMasterData";
 
@@ -48,12 +49,14 @@ export interface ExpenseFormData {
   date: string;
   categoryId: string;
   expenseCategoryId: string;
+  overrideAccountId: string;
   vendorId: string;
   jobId: string;
   taxId: string;
   notes: string;
   currency: string;
   exchangeRate: number;
+  direction?: string;
 }
 
 export type ViewMode = "list" | "grid";
@@ -74,6 +77,7 @@ export interface ExpenseData {
   vendor?: { id: string; name: string };
   job?: { id: string; jobNumber: string };
   notes?: string;
+  direction?: string;
 }
 
 // categoryOptions is now dynamically populated from the API (ServiceCategory model)
@@ -92,6 +96,7 @@ export function useExpensePage() {
   const { jobs, fetchJobs } = useJobs();
   const { fetchTaxes } = useFinanceTax();
   const { fetchCategories } = useServices();
+  const { fetchAccounts, formatAccountDisplay } = useChartOfAccounts();
   const { canView: canViewCompanies } = useFeatureAccess("master.company");
   const { canView: canViewJobs } = useFeatureAccess("operational.job");
   const { canView: canViewAccounting } = useFeatureAccess("finance.accounting");
@@ -105,6 +110,7 @@ export function useExpensePage() {
     expenseCategoryId: "",
     page: 1,
     limit: 10,
+    direction: "",
   });
 
   const expenses = ref<Expense[]>([]);
@@ -119,6 +125,12 @@ export function useExpensePage() {
     totalAmount: 0,
     totalPaid: 0,
     totalOutstanding: 0,
+    totalIncome: 0,
+    totalExpense: 0,
+    totalIncomePaid: 0,
+    totalIncomeOutstanding: 0,
+    totalExpensePaid: 0,
+    totalExpenseOutstanding: 0,
     count: 0,
   });
 
@@ -137,6 +149,7 @@ export function useExpensePage() {
   const presetVendorName = ref("");
 
   // Form state
+  const useManualAccount = ref(false);
   const formData = ref<ExpenseFormData>({
     number: "",
     description: "",
@@ -144,12 +157,14 @@ export function useExpensePage() {
     date: "",
     categoryId: "",
     expenseCategoryId: "",
+    overrideAccountId: "",
     vendorId: "",
     jobId: "",
     taxId: "",
     notes: "",
     currency: "IDR",
     exchangeRate: 1,
+    direction: "OUT",
   });
 
   const taxOptions = ref<Array<{ id: string; name: string; rate: number }>>([]);
@@ -183,6 +198,7 @@ export function useExpensePage() {
       filters.value.categoryId,
       filters.value.expenseCategoryId,
       filters.value.page,
+      filters.value.direction,
     ],
     () => {
       loadExpenses();
@@ -284,13 +300,16 @@ export function useExpensePage() {
         date: new Date().toISOString().split("T")[0] || "",
         categoryId: isJob ? defaultCategoryId : "",
         expenseCategoryId: isJob ? "" : defaultCategoryId,
+        overrideAccountId: "",
         vendorId: "",
         jobId: "",
         taxId: "",
         notes: "",
         currency: "IDR",
         exchangeRate: 1,
+        direction: "OUT",
       };
+      useManualAccount.value = false;
 
       isEditModalOpen.value = true;
       editError.value = null;
@@ -318,13 +337,16 @@ export function useExpensePage() {
         date: formatDateForInput(exp.date),
         categoryId: exp.categoryId || "",
         expenseCategoryId: exp.expenseCategoryId || "",
+        overrideAccountId: "",
         vendorId: exp.vendor?.id || exp.vendorId || "",
         jobId: exp.job?.id || exp.jobId || "",
         taxId: exp.taxId || "",
         notes: exp.notes || "",
         currency: exp.currency || "IDR",
         exchangeRate: Number(exp.exchangeRate) || 1,
+        direction: exp.direction || "OUT",
       };
+      useManualAccount.value = false;
 
       isEditModalOpen.value = true;
       editError.value = null;
@@ -396,7 +418,20 @@ export function useExpensePage() {
       editError.value = null;
 
       // Frontend Validation
-      if (formData.value.jobId) {
+      if (useManualAccount.value) {
+        if (formData.value.jobId) {
+          editError.value = "Override akun tidak dapat digunakan untuk Job Expense.";
+          isSubmitting.value = false;
+          return;
+        }
+        if (!formData.value.overrideAccountId) {
+          editError.value = "Akun COA wajib dipilih saat menggunakan akun manual.";
+          isSubmitting.value = false;
+          return;
+        }
+        formData.value.categoryId = "";
+        formData.value.expenseCategoryId = "";
+      } else if (formData.value.jobId) {
         if (!formData.value.categoryId) {
           editError.value = "Kategori Jasa wajib dipilih untuk Job Expense.";
           isSubmitting.value = false;
@@ -419,12 +454,16 @@ export function useExpensePage() {
         date: formData.value.date,
         categoryId: formData.value.categoryId || undefined,
         expenseCategoryId: formData.value.expenseCategoryId || undefined,
+        overrideAccountId: useManualAccount.value
+          ? formData.value.overrideAccountId || undefined
+          : undefined,
         vendorId: formData.value.vendorId || undefined,
         jobId: formData.value.jobId || undefined,
         taxId: formData.value.taxId || undefined,
         notes: formData.value.notes,
         currency: formData.value.currency,
         exchangeRate: formData.value.exchangeRate,
+        direction: formData.value.direction,
       };
 
       let result;
@@ -474,7 +513,21 @@ export function useExpensePage() {
 
   // Initialize
   const initialize = async () => {
-    await Promise.all([loadExpenses(), loadDropdownData()]);
+    await Promise.all([loadExpenses(), loadDropdownData(), fetchAccounts()]);
+  };
+
+  // COA account search for manual account selection
+  const handleAccountSearch = async ({ query }: { query: string }) => {
+    const result = await $fetch<ChartOfAccount[]>(
+      `/api/finance/chart-of-accounts?search=${encodeURIComponent(query)}&limit=50`,
+    );
+    return {
+      success: true,
+      data: result.map((a) => ({
+        id: a.id,
+        name: formatAccountDisplay(a),
+      })),
+    };
   };
 
   // SSR Data Injection
@@ -488,6 +541,12 @@ export function useExpensePage() {
       totalAmount: number;
       totalPaid: number;
       totalOutstanding: number;
+      totalIncome: number;
+      totalExpense: number;
+      totalIncomePaid: number;
+      totalIncomeOutstanding: number;
+      totalExpensePaid: number;
+      totalExpenseOutstanding: number;
       count: number;
     };
   }) => {
@@ -526,6 +585,7 @@ export function useExpensePage() {
     editingExpenseId,
     presetVendorName,
     formData,
+    useManualAccount,
     taxOptions,
     // Options
     categoryOptions,
@@ -550,6 +610,7 @@ export function useExpensePage() {
     handleCreateCategory,
     handleUpdate,
     handleDelete,
+    handleAccountSearch,
     initialize,
     setData,
   };

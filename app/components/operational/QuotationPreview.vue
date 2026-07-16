@@ -283,6 +283,27 @@ const formatCurrency = (amount: unknown, currency?: string): string => {
   }).format(num);
 };
 
+const formatCurrencyIDR = (amount: unknown, currency?: string): string => {
+  if (amount === undefined || amount === null) return "-";
+  const num = Number(amount);
+  const curr = currency || "IDR";
+  const rate = Number(props.quotation?.exchangeRate || 1);
+  const idrAmount = curr === "USD" && rate > 1 ? num * rate : num;
+  return new Intl.NumberFormat("id-ID", {
+    style: "decimal",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(idrAmount);
+};
+
+const exchangeRateLabel = computed(() => {
+  const rate = Number(props.quotation?.exchangeRate || 1);
+  if (rate > 1) {
+    return `1 USD = ${new Intl.NumberFormat("id-ID").format(rate)} IDR`;
+  }
+  return "";
+});
+
 const formatDate = (dateStr?: string | null) => {
   if (!dateStr) return "";
   try {
@@ -801,6 +822,17 @@ defineExpose({
                       >
                         <span>Total Amount</span>
                         <span>{{ curr }} {{ formatCurrency(t.total, curr) }}</span>
+                      </div>
+                      <div
+                        v-if="curr === 'USD' && exchangeRateLabel && t.total > 0"
+                        class="flex justify-between text-[0.55rem] mt-0.5"
+                      >
+                        <span class="font-bold text-muted-foreground uppercase"
+                          >IDR Equivalent ({{ exchangeRateLabel }})</span
+                        >
+                        <span class="font-bold text-black"
+                          >Rp {{ formatCurrencyIDR(t.total, curr) }}</span
+                        >
                       </div>
                     </div>
                   </div>
