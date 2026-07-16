@@ -300,11 +300,11 @@ watch(
         formData.term = q.term || "PREPAID";
 
         // Reset dates for a new proposal
-        const today = new Date();
-        const nextMonth = new Date();
-        nextMonth.setDate(today.getDate() + 30);
-        formData.date = formatDateString(today);
-        formData.validUntil = formatDateString(nextMonth);
+        const copyDate = new Date();
+        const copyValidUntil = new Date();
+        copyValidUntil.setDate(copyDate.getDate() + 30);
+        formData.date = formatDateString(copyDate);
+        formData.validUntil = formatDateString(copyValidUntil);
 
         formData.freeTime = q.freeTime || "";
         formData.salesName = q.salesName || "";
