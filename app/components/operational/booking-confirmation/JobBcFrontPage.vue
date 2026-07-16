@@ -39,9 +39,6 @@ const getVal = (val: unknown, fallback: unknown = "") => {
   return s;
 };
 
-const documentNumberLabel = computed(() =>
-  props.isAir ? "AIR WAYBILL NO." : props.isTrucking ? "WAYBILL NO." : "BILL OF LADING NO.",
-);
 const transportScheduleLabel = computed(() =>
   props.isAir ? "AIRLINE / FLIGHT NO." : props.isTrucking ? "TRUCK / DRIVER" : "VESSEL/VOYAGE",
 );
@@ -145,6 +142,10 @@ const exportReferenceText = computed(() =>
 );
 
 const blNumber = computed(() => getVal(props.jobData?.billsOfLading?.[0]?.blNumber, "-"));
+const carrierBookingNumber = computed(() =>
+  getVal(props.jobData?.carrierBookingNumber, getVal(props.bcData?.bookingNumber, "-")),
+);
+const mblNumber = computed(() => getVal(props.jobData?.mblNumber, blNumber.value));
 
 // BC-first routing resolvers (fall back to Job).
 const polDisplay = computed(() =>
@@ -401,17 +402,23 @@ const dateLaden = computed(() => {
           </div>
           <div class="w-1/2">
             <div class="flex border-b border-[#062c58]" style="min-height: 35px">
-              <div class="w-1/2 border-r border-[#062c58] pt-1 px-2 pb-2">
+              <div class="w-1/3 border-r border-[#062c58] pt-1 px-2 pb-2">
                 <span class="font-bold text-[0.6rem] leading-none mb-0.5 block">BOOKING NO.</span>
                 <span class="font-mono text-[10px] text-black leading-none">{{
                   getVal(bcData?.bookingNumber, "-")
                 }}</span>
               </div>
-              <div class="w-1/2 pt-1 px-2 pb-2">
-                <span class="font-bold text-[0.6rem] leading-none mb-0.5 block">{{
-                  documentNumberLabel
+              <div class="w-1/3 border-r border-[#062c58] pt-1 px-2 pb-2">
+                <span class="font-bold text-[0.52rem] leading-none mb-0.5 block"
+                  >CARRIER BOOKING NO.</span
+                >
+                <span class="font-mono text-[10px] text-black leading-none">{{
+                  carrierBookingNumber
                 }}</span>
-                <span class="font-mono text-[10px] text-black leading-none">{{ blNumber }}</span>
+              </div>
+              <div class="w-1/3 pt-1 px-2 pb-2">
+                <span class="font-bold text-[0.6rem] leading-none mb-0.5 block">MBL NO.</span>
+                <span class="font-mono text-[10px] text-black leading-none">{{ mblNumber }}</span>
               </div>
             </div>
             <div class="pt-1 px-2 pb-3">

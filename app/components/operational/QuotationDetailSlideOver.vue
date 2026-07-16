@@ -299,6 +299,19 @@ const itemsTotalRevenue = computed(() => {
   return { idrTotal, usdTotal, hasUsd: usdTotal > 0, hasRate: rate > 1 };
 });
 
+const quotationInvoiceSummary = computed(() => {
+  const total = (quotationInvoices.value || []).reduce(
+    (sum, inv) => sum + Number(inv.total || 0),
+    0,
+  );
+  const itemCount = (quotationInvoices.value || []).reduce(
+    (sum, inv) => sum + (inv.items?.length || 0),
+    0,
+  );
+
+  return { total, itemCount };
+});
+
 const invoiceSummary = computed(() => {
   let totalInvoicedIDR = 0;
   let totalInvoicedUSD = 0;
@@ -1033,22 +1046,16 @@ const handleGeneratePDF = async () => {
                         <div>
                           <span
                             class="text-[10px] font-black text-muted-foreground uppercase tracking-widest"
-                            >Quotation Total</span
+                            >Invoice Docs Total</span
                           >
                           <p class="text-lg font-black text-[#012D5A] mt-1.5">
-                            {{ formatCurrency(itemsTotalRevenue.idrTotal, "IDR") }}
+                            {{ formatCurrency(quotationInvoiceSummary.total, "IDR") }}
                           </p>
                         </div>
                         <FileText class="w-4 h-4 text-[#012D5A] opacity-60" />
                       </div>
-                      <p
-                        v-if="itemsTotalRevenue.hasUsd && itemsTotalRevenue.hasRate"
-                        class="text-[9px] text-muted-foreground font-bold mt-1"
-                      >
-                        Original USD:
-                        <span class="text-slate-500 font-extrabold">{{
-                          formatCurrency(itemsTotalRevenue.usdTotal, "USD")
-                        }}</span>
+                      <p class="text-[9px] text-muted-foreground font-bold mt-1">
+                        {{ quotationInvoiceSummary.itemCount }} invoice item(s)
                       </p>
                     </div>
                     <div

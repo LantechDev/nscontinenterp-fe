@@ -38,18 +38,7 @@ const headerTitle = computed(() => {
 
 const invoiceTitle = computed(() => {
   if (mode.value === "receipt") return "OFFICIAL RECEIPT";
-
-  const invoiceTaxes = props.invoice?.invoiceTaxes || [];
-  if (invoiceTaxes.length === 0) {
-    return "INVOICE REIMBURSEMENT";
-  }
-
-  const allZero = invoiceTaxes.every((t) => Number(t.rate) === 0);
-  if (allZero) {
-    return "INVOICE REIMBURSEMENT";
-  }
-
-  return "INVOICE";
+  return props.invoice?.isReimbursement ? "INVOICE REIMBURSEMENT" : "INVOICE";
 });
 
 // Helper for "Sum in Words" (Robust Indonesian Terbilang)

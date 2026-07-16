@@ -187,6 +187,8 @@ const formData = reactive({
   shippingMark: "",
   mainDescription: "",
   customerReference: "",
+  carrierBookingNumber: "",
+  mblNumber: "",
 
   // Containers (BL Ready)
   containers: [
@@ -373,6 +375,8 @@ function populateFormData(job: JobWithBls) {
   formData.netWeight = job.netWeight != null ? parseFloat(job.netWeight) : null;
   formData.measurement = job.measurement != null ? parseFloat(job.measurement) : null;
   formData.customerReference = job.customerReference || "";
+  formData.carrierBookingNumber = job.carrierBookingNumber || "";
+  formData.mblNumber = job.mblNumber || "";
   formData.cargoMovementId =
     job.cargoMovement?.code ||
     (typeof job.cargoMovementId === "string" ? job.cargoMovementId : "FCL_FCL");
@@ -1153,6 +1157,8 @@ async function handleSubmit() {
       vesselId: formData.vessels[0]?.vesselId || formData.vesselId || null,
       voyageNumber: formData.vessels[0]?.voyageNumber || formData.voyageNumber || null,
       etd: formData.vessels[0]?.etd || formData.etd || null,
+      carrierBookingNumber: formData.carrierBookingNumber || null,
+      mblNumber: formData.mblNumber || null,
       containers: formData.containers
         .filter((c) =>
           formData.serviceType === "TRUCKING"
@@ -1510,6 +1516,38 @@ function addVessel() {
                     jobDetails?.creatorName || "Administrator"
                   }}</span>
                 </div>
+              </div>
+
+              <div class="space-y-2">
+                <div class="h-6 flex items-center">
+                  <label
+                    class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
+                    >Carrier Booking Number</label
+                  >
+                </div>
+                <input
+                  v-model="formData.carrierBookingNumber"
+                  v-uppercase
+                  type="text"
+                  placeholder="Optional"
+                  class="input-field"
+                />
+              </div>
+
+              <div class="space-y-2">
+                <div class="h-6 flex items-center">
+                  <label
+                    class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
+                    >MBL Number</label
+                  >
+                </div>
+                <input
+                  v-model="formData.mblNumber"
+                  v-uppercase
+                  type="text"
+                  placeholder="Optional"
+                  class="input-field"
+                />
               </div>
 
               <!-- Shipper References (PO Numbers) -->
@@ -2186,14 +2224,16 @@ function addVessel() {
                     <div class="w-1.5 h-4 bg-primary rounded-full"></div>
                     {{ formData.shipmentType === "AIR" ? "Plane Schedule" : "Vessel Schedule" }}
                   </h4>
-                  <button
-                    type="button"
-                    @click="addVessel()"
-                    class="text-[11px] bg-primary/10 text-primary px-4 py-1.5 rounded-full hover:bg-primary/20 font-bold flex items-center gap-2 transition-all"
-                  >
-                    <Plus class="w-3.5 h-3.5" /> ADD
-                    {{ formData.shipmentType === "AIR" ? "PLANE" : "VESSEL" }}
-                  </button>
+                  <div class="flex items-center gap-2">
+                    <button
+                      type="button"
+                      @click="addVessel()"
+                      class="text-[11px] bg-primary/10 text-primary px-4 py-1.5 rounded-full hover:bg-primary/20 font-bold flex items-center gap-2 transition-all"
+                    >
+                      <Plus class="w-3.5 h-3.5" /> ADD
+                      {{ formData.shipmentType === "AIR" ? "PLANE" : "VESSEL" }}
+                    </button>
+                  </div>
                 </div>
 
                 <div class="grid grid-cols-1 gap-5">

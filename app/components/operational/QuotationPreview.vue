@@ -265,6 +265,19 @@ const groupedTotals = computed(() => {
   return totals;
 });
 
+const visibleGroupedTotals = computed(() => {
+  const totals = groupedTotals.value;
+  const entries = Object.entries(totals).filter(([, t]) => t.total > 0);
+
+  if (entries.length === 0) {
+    return [["IDR", totals.IDR || { subTotal: 0, taxAmount: 0, total: 0 }]] as Array<
+      [string, { subTotal: number; taxAmount: number; total: number }]
+    >;
+  }
+
+  return entries as Array<[string, { subTotal: number; taxAmount: number; total: number }]>;
+});
+
 const matchedBankAccount = computed(() =>
   props.quotation ? selectBankAccount(bankAccounts.value, props.quotation.currency) : null,
 );
@@ -780,14 +793,16 @@ defineExpose({
 
           <!-- Notes & Totals Footer Area (last page only) -->
           <div v-if="page.isLastPage" class="border-t border-[#062c58] mt-auto">
-            <div class="flex items-stretch min-h-[140px]">
+            <div class="flex items-stretch min-h-[118px]">
               <!-- Left: Remarks / Notes (full width) -->
-              <div class="w-[58%] border-r border-[#062c58] p-3 flex flex-col justify-start gap-1">
-                <span class="font-bold text-[0.6rem] block text-[#062c58] uppercase"
+              <div
+                class="w-[58%] border-r border-[#062c58] p-2 flex flex-col justify-start gap-1 min-w-0"
+              >
+                <span class="font-bold text-[0.55rem] block text-[#062c58] uppercase"
                   >REMARKS / NOTES:</span
                 >
                 <p
-                  class="text-[0.65rem] text-black leading-normal uppercase whitespace-pre-wrap flex-1"
+                  class="text-[0.52rem] text-black leading-[1.25] uppercase whitespace-pre-wrap flex-1 overflow-hidden"
                 >
                   {{ quotation?.notes || "-" }}
                 </p>
@@ -795,45 +810,50 @@ defineExpose({
 
               <!-- Right: Subtotal & Tax & Total -->
               <div class="w-[42%] flex flex-col border-l border-[#062c58] bg-[#062c58]/5">
-                <div class="flex-1 flex flex-col divide-y divide-[#062c58]/20">
-                  <div v-for="(t, curr) in groupedTotals" :key="curr" class="p-2 space-y-1">
+                <div
+                  class="flex-1 grid divide-[#062c58]/20"
+                  :class="visibleGroupedTotals.length > 1 ? 'grid-cols-2 divide-x' : 'grid-cols-1'"
+                >
+                  <div
+                    v-for="[curr, t] in visibleGroupedTotals"
+                    :key="curr"
+                    class="p-1.5 space-y-0.5 min-w-0"
+                  >
                     <div
-                      v-if="
-                        t.total > 0 ||
-                        (curr === 'IDR' && Object.values(groupedTotals).every((x) => x.total === 0))
-                      "
-                      class="space-y-0.5"
+                      class="text-[0.55rem] font-extrabold text-[#062c58] uppercase tracking-wider truncate"
                     >
-                      <div
-                        class="text-[0.6rem] font-extrabold text-[#062c58] uppercase tracking-wider"
+                      {{ curr }} Charges
+                    </div>
+                    <div class="flex justify-between gap-1 text-[0.55rem] text-black">
+                      <span class="opacity-70 font-semibold">Subtotal</span>
+                      <span class="font-bold text-right truncate">{{
+                        formatCurrency(t.subTotal, curr)
+                      }}</span>
+                    </div>
+                    <div class="flex justify-between gap-1 text-[0.55rem] text-black">
+                      <span class="opacity-70 font-semibold">VAT / Tax</span>
+                      <span class="font-bold text-right truncate">{{
+                        formatCurrency(t.taxAmount, curr)
+                      }}</span>
+                    </div>
+                    <div
+                      class="flex justify-between gap-1 text-[0.6rem] font-extrabold text-[#062c58] pt-0.5 border-t border-dashed border-[#062c58]/30"
+                    >
+                      <span>Total</span>
+                      <span class="text-right truncate"
+                        >{{ curr }} {{ formatCurrency(t.total, curr) }}</span
                       >
-                        {{ curr }} Charges
-                      </div>
-                      <div class="flex justify-between text-[0.65rem] text-black">
-                        <span class="opacity-70 font-semibold">Subtotal</span>
-                        <span class="font-bold">{{ formatCurrency(t.subTotal, curr) }}</span>
-                      </div>
-                      <div class="flex justify-between text-[0.65rem] text-black">
-                        <span class="opacity-70 font-semibold">VAT / Tax</span>
-                        <span class="font-bold">{{ formatCurrency(t.taxAmount, curr) }}</span>
-                      </div>
-                      <div
-                        class="flex justify-between text-[0.7rem] font-extrabold text-[#062c58] pt-0.5 border-t border-dashed border-[#062c58]/30"
-                      >
-                        <span>Total Amount</span>
-                        <span>{{ curr }} {{ formatCurrency(t.total, curr) }}</span>
-                      </div>
-                      <div
-                        v-if="curr === 'USD' && exchangeRateLabel && t.total > 0"
-                        class="flex justify-between text-[0.55rem] mt-0.5"
-                      >
-                        <span class="font-bold text-muted-foreground uppercase"
-                          >IDR Equivalent ({{ exchangeRateLabel }})</span
-                        >
-                        <span class="font-bold text-black"
-                          >Rp {{ formatCurrencyIDR(t.total, curr) }}</span
-                        >
-                      </div>
+                    </div>
+                    <div
+                      v-if="curr === 'USD' && exchangeRateLabel && t.total > 0"
+                      class="text-[0.48rem] mt-0.5 leading-tight"
+                    >
+                      <span class="block font-bold text-muted-foreground uppercase truncate">
+                        IDR Eq ({{ exchangeRateLabel }})
+                      </span>
+                      <span class="block font-bold text-black truncate">
+                        Rp {{ formatCurrencyIDR(t.total, curr) }}
+                      </span>
                     </div>
                   </div>
                 </div>

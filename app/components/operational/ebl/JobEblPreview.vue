@@ -90,7 +90,7 @@ const containers = computed(() => {
 });
 
 const LINE_HEIGHT = 16;
-const PAGE_1_MAX_HEIGHT = 200;
+const PAGE_1_MAX_HEIGHT = 230;
 const PAGE_2_MAX_HEIGHT = 750;
 const CHARS_PER_LINE = 32;
 
@@ -125,6 +125,25 @@ const paginatedPages = computed(() => {
     };
     currentHeight += headerHeight;
 
+    const pushCurrentPage = () => {
+      if (
+        currentContainerOnPage.renderItems?.length ||
+        currentContainerOnPage.isHeaderVisible ||
+        currentPageContent.length > 0
+      ) {
+        currentPageContent.push(currentContainerOnPage);
+      }
+      if (currentPageContent.length > 0) pages.push(currentPageContent);
+      currentPageContent = [];
+      currentHeight = 10;
+      isFirstPage = false;
+      currentContainerOnPage = {
+        ...container,
+        renderItems: [],
+        isHeaderVisible: false,
+      };
+    };
+
     (container.items || []).forEach((item: EblContainerItem) => {
       const descriptionText = (item.description || "").trim();
       const rawLines = descriptionText.split("\n");
@@ -140,30 +159,38 @@ const paginatedPages = computed(() => {
         }
       });
 
-      const itemLinesCount = processedLines.length;
-      const itemTotalHeight = itemLinesCount * LINE_HEIGHT + 12;
+      let remainingLines = [...processedLines];
+      let isFirstSegment = true;
 
-      if (currentHeight + itemTotalHeight > getMaxHeight()) {
-        currentPageContent.push(currentContainerOnPage);
-        pages.push(currentPageContent);
+      while (remainingLines.length > 0) {
+        const availableHeight = getMaxHeight() - currentHeight - 12;
+        const linesFit = Math.max(0, Math.floor(availableHeight / LINE_HEIGHT));
 
-        currentPageContent = [];
-        currentHeight = 10;
-        isFirstPage = false;
+        if (linesFit <= 0) {
+          pushCurrentPage();
+          continue;
+        }
 
-        currentContainerOnPage = {
-          ...container,
-          renderItems: [],
-          isHeaderVisible: false,
-        };
+        const chunk = remainingLines.slice(0, linesFit);
+        remainingLines = remainingLines.slice(linesFit);
+        const isFinalSegment = remainingLines.length === 0;
+
+        if (!currentContainerOnPage.renderItems) currentContainerOnPage.renderItems = [];
+        currentContainerOnPage.renderItems.push({
+          ...item,
+          qty: isFirstSegment ? item.qty : undefined,
+          grossWeight: isFirstSegment ? item.grossWeight : undefined,
+          netWeight: isFirstSegment ? item.netWeight : undefined,
+          measurementCbm: isFirstSegment ? item.measurementCbm : undefined,
+          hsCode: isFinalSegment ? item.hsCode : undefined,
+          displayLines: chunk,
+          isContinuationSegment: !isFirstSegment,
+        });
+        currentHeight += chunk.length * LINE_HEIGHT + 12;
+        isFirstSegment = false;
+
+        if (remainingLines.length > 0) pushCurrentPage();
       }
-
-      if (!currentContainerOnPage.renderItems) currentContainerOnPage.renderItems = [];
-      currentContainerOnPage.renderItems.push({
-        ...item,
-        displayLines: processedLines,
-      });
-      currentHeight += itemTotalHeight;
     });
 
     currentPageContent.push(currentContainerOnPage);

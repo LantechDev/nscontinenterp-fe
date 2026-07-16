@@ -204,6 +204,8 @@ const formData = reactive({
   tradeTypeId: "EXPORT",
   customerId: "",
   customerAddressId: "",
+  carrierBookingNumber: "",
+  mblNumber: "",
   shipperReferences: [] as string[],
 
   // Route Details
@@ -941,6 +943,8 @@ async function handleSubmit(isDraft: boolean = false) {
     isNegotiable: formData.isNegotiable,
     placeOfIssue: formData.placeOfIssue || undefined,
     dateOfIssue: formData.dateOfIssue || undefined,
+    carrierBookingNumber: formData.carrierBookingNumber || undefined,
+    mblNumber: formData.mblNumber || undefined,
     shipperReferences: formData.shipperReferences,
     showShipperReferencesOnBl: true, // Default to true for new jobs
 
@@ -1608,6 +1612,38 @@ async function populateFormFromExistingJob(jobInput: unknown) {
                     user?.name || "Administrator"
                   }}</span>
                 </div>
+              </div>
+
+              <div class="space-y-2">
+                <div class="h-6 flex items-center">
+                  <label
+                    class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
+                    >Carrier Booking Number</label
+                  >
+                </div>
+                <input
+                  v-model="formData.carrierBookingNumber"
+                  v-uppercase
+                  type="text"
+                  placeholder="Optional"
+                  class="input-field"
+                />
+              </div>
+
+              <div class="space-y-2">
+                <div class="h-6 flex items-center">
+                  <label
+                    class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
+                    >MBL Number</label
+                  >
+                </div>
+                <input
+                  v-model="formData.mblNumber"
+                  v-uppercase
+                  type="text"
+                  placeholder="Optional"
+                  class="input-field"
+                />
               </div>
 
               <!-- Shipper References (PO Numbers) -->
