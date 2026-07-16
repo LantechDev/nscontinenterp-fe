@@ -121,8 +121,15 @@ function formatCurrency(amount: number, currency: string = "IDR") {
 
 function getQuotationTotals(q: Quotation) {
   const totals: Record<string, number> = {};
+  const rate = Number(q.exchangeRate || 1);
+  const shouldConvert = rate > 1;
+
   if (!q.charges || q.charges.length === 0) {
-    totals[q.currency || "IDR"] = Number(q.total || 0);
+    if (shouldConvert && (q.currency || "IDR") === "USD") {
+      totals.IDR = Math.round(Number(q.total || 0) * rate);
+    } else {
+      totals[q.currency || "IDR"] = Number(q.total || 0);
+    }
     return totals;
   }
 
@@ -134,7 +141,12 @@ function getQuotationTotals(q: Quotation) {
     const taxRate = Number(ch.taxRate || 0);
     const taxAmount = amount * (taxRate / 100);
     const lineTotal = amount + taxAmount;
-    totals[currency] = (totals[currency] || 0) + lineTotal;
+
+    if (shouldConvert && currency === "USD") {
+      totals.IDR = (totals.IDR || 0) + Math.round(lineTotal * rate);
+    } else {
+      totals[currency] = (totals[currency] || 0) + lineTotal;
+    }
   });
 
   if (totals.IDR !== undefined) {
@@ -144,6 +156,9 @@ function getQuotationTotals(q: Quotation) {
 }
 
 function getQuotationCurrencies(q: Quotation) {
+  const rate = Number(q.exchangeRate || 1);
+  if (rate > 1) return ["IDR"];
+
   if (!q.charges || q.charges.length === 0) {
     return [q.currency || "IDR"];
   }

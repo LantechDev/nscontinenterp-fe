@@ -301,6 +301,7 @@ const handleImportCost = (cost: QuotationCost) => {
       description: it.description,
       quantity: Number(it.quantity || 1),
       unitPrice: Number(it.unitPrice || 0),
+      currency: it.currency || "IDR",
       amount: Number(it.amount || Number(it.quantity || 1) * Number(it.unitPrice || 0)),
     })),
   };

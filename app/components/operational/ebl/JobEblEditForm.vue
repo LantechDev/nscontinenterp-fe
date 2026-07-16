@@ -324,12 +324,16 @@ watch(
 
     if (f.freightPayment === "PREPAID_POL") {
       f.prepaidValue = `PREPAID AT ${polCity.toUpperCase()}`;
+      f.freightTerm = "PREPAID";
     } else if (f.freightPayment === "PREPAID_POD") {
       f.prepaidValue = `PREPAID AT ${podCity.toUpperCase()}`;
+      f.freightTerm = "PREPAID";
     } else if (f.freightPayment === "COLLECT_POL") {
       f.collectValue = `COLLECT AT ${polCity.toUpperCase()}`;
+      f.freightTerm = "COLLECT";
     } else if (f.freightPayment === "COLLECT_POD") {
       f.collectValue = `COLLECT AT ${podCity.toUpperCase()}`;
+      f.freightTerm = "COLLECT";
     }
   },
   { deep: true },

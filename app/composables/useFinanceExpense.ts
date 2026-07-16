@@ -54,6 +54,7 @@ export interface Expense {
   updatedAt?: string;
   currency?: string;
   exchangeRate?: number;
+  direction?: string;
   items?: ExpenseItem[];
   paymentAllocations?: ExpensePaymentAllocation[];
 }
@@ -78,6 +79,7 @@ export interface ExpenseFilters {
   page?: number;
   limit?: number;
   type?: "JOB" | "GENERAL";
+  direction?: string;
 }
 
 export const getOverpayment = (expense: {
@@ -111,6 +113,12 @@ export function useFinanceExpense() {
           totalAmount: number;
           totalPaid: number;
           totalOutstanding: number;
+          totalIncome: number;
+          totalExpense: number;
+          totalIncomePaid: number;
+          totalIncomeOutstanding: number;
+          totalExpensePaid: number;
+          totalExpenseOutstanding: number;
           count: number;
         };
       }>(`/api/finance/expense?${query.toString()}`);

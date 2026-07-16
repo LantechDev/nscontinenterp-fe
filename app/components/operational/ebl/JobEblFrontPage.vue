@@ -414,6 +414,48 @@ const totals = computed(() => {
   return { qty, grossWeight, netWeight, measurement };
 });
 
+const containerTypeSummary = computed(() => {
+  const counts = new Map<string, number>();
+  containers.value.forEach((cnt) => {
+    if (!cnt) return;
+    const typeCode = cnt.containerType?.code || cnt.containerType?.name || "";
+    if (typeCode) {
+      counts.set(typeCode, (counts.get(typeCode) || 0) + 1);
+    }
+  });
+  if (counts.size === 0) return "";
+  const parts = Array.from(counts.entries()).map(([code, count]) => `${count}X${code}`);
+  return `S.T.C ${parts.join(", ")}`;
+});
+
+const blGrandTotals = computed(() => {
+  let qty = 0;
+  let grossWeight = 0;
+  let netWeight = 0;
+  let measurement = 0;
+
+  containers.value.forEach((cnt) => {
+    if (!cnt) return;
+    const ct = getContainerTotals(cnt);
+    qty += ct.qty;
+    grossWeight += ct.gw;
+    netWeight += ct.nw;
+    measurement += ct.cbm;
+  });
+
+  if (qty === 0) qty = Number(props.activeBl?.totalQty) || Number(props.jobData?.quantity) || 0;
+  if (grossWeight === 0)
+    grossWeight =
+      Number(props.activeBl?.totalGrossWeight) || Number(props.jobData?.grossWeight) || 0;
+  if (netWeight === 0)
+    netWeight = Number(props.activeBl?.totalNetWeight) || Number(props.jobData?.netWeight) || 0;
+  if (measurement === 0)
+    measurement =
+      Number(props.activeBl?.totalMeasurementCbm) || Number(props.jobData?.measurement) || 0;
+
+  return { qty, grossWeight, netWeight, measurement };
+});
+
 const formatPartyDisplay = (partyInfo: EblParty | undefined) => {
   if (!partyInfo) return "";
   const name = (partyInfo.companyName || partyInfo.company?.name || "").trim();
@@ -930,6 +972,12 @@ const formatDate = (dateStr?: string | null) => {
         </div>
 
         <div class="relative z-[1] text-black font-mono pt-2">
+          <div
+            v-if="page.pageIndex === 0 && containerTypeSummary && !page.pageItems[0]?.isFallback"
+            class="flex w-full mb-2 font-bold text-[12px] text-center border-b border-[#062c58]/30 pb-1"
+          >
+            <div class="w-full">{{ containerTypeSummary }}</div>
+          </div>
           <template v-for="(cnt, cIdx) in page.pageItems" :key="cIdx">
             <div
               v-if="cnt.isHeaderVisible && !cnt.isFallback"
@@ -1068,6 +1116,31 @@ const formatDate = (dateStr?: string | null) => {
               </div>
             </div>
           </template>
+
+          <div
+            v-if="
+              page.pageIndex === paginatedPagesLength - 1 &&
+              page.pageItems.length > 0 &&
+              !page.pageItems[0]?.isFallback
+            "
+            class="flex w-full mt-4 pt-2 border-t-2 border-[#062c58] font-bold text-[12px] bg-[#062c58]/5"
+          >
+            <div class="w-[22%] pl-3 py-2 text-[11px]">TOTAL</div>
+            <div class="w-[10%] px-2 py-2 text-right text-[11px]">
+              {{ formatNumber(blGrandTotals.qty, 0) }} PKGS
+            </div>
+            <div class="w-[3%]"></div>
+            <div class="w-[40%] px-3 py-2 text-[11px]">
+              Gross Weight: {{ formatNumber(blGrandTotals.grossWeight) }} KGS
+            </div>
+            <div class="w-[12.5%] px-3 py-2 text-right text-[11px] leading-tight">
+              <div>GW {{ formatNumber(blGrandTotals.grossWeight) }} KGS</div>
+              <div>NW {{ formatNumber(blGrandTotals.netWeight) }} KGS</div>
+            </div>
+            <div class="w-[12.5%] px-3 py-2 text-right text-[11px]">
+              {{ formatNumber(blGrandTotals.measurement, 2) }} CBM
+            </div>
+          </div>
         </div>
       </div>
 

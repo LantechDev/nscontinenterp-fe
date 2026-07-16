@@ -3,74 +3,35 @@ import { ref, computed, nextTick, onMounted } from "vue";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import { toast } from "vue-sonner";
-import type { Expense } from "~/composables/useFinanceExpense";
+import type { Quotation, QuotationCost } from "~/composables/useQuotations";
 
 const props = defineProps<{
-  expense: Expense | null;
-  organizationName?: string;
+  quotation: Quotation | null;
+  cost: QuotationCost | null;
+  vendorName?: string;
 }>();
+
+const vendorLabel = computed(() => props.vendorName || props.cost?.vendorName || "No Vendor");
 
 const logoUrl = ref("/images/transparentnscontinenttebal.png");
 
 onMounted(() => {
-  if (typeof window !== "undefined") {
+  if (typeof window !== "undefined")
     logoUrl.value = window.location.origin + "/images/transparentnscontinenttebal.png";
-  }
 });
 
 const isGeneratingPDF = ref(false);
 const printContainerRef = ref<HTMLElement | null>(null);
 
-const getVal = (val: unknown, fallback: unknown = "") =>
-  val ? String(val) : fallback ? String(fallback) : "";
-
-const formatCurrency = (amount: unknown): string => {
+const formatCurrency = (amount: unknown, currency?: string): string => {
   if (amount === undefined || amount === null) return "-";
-  const num = Number(amount);
-  const currency = props.expense?.currency || "IDR";
-  return new Intl.NumberFormat(currency === "USD" ? "en-US" : "id-ID", {
+  const curr = currency || "IDR";
+  return new Intl.NumberFormat(curr === "USD" ? "en-US" : "id-ID", {
     style: "decimal",
-    minimumFractionDigits: currency === "IDR" ? 0 : 2,
-    maximumFractionDigits: currency === "IDR" ? 0 : 2,
-  }).format(num);
+    minimumFractionDigits: curr === "IDR" ? 0 : 2,
+    maximumFractionDigits: curr === "IDR" ? 0 : 2,
+  }).format(Number(amount));
 };
-
-const formatCurrencyIDR = (amount: unknown): string => {
-  if (amount === undefined || amount === null) return "-";
-  const num = Number(amount);
-  const currency = props.expense?.currency || "IDR";
-  const rate = Number(props.expense?.exchangeRate || 1);
-  const idrAmount = currency === "USD" && rate > 1 ? num * rate : num;
-  return new Intl.NumberFormat("id-ID", {
-    style: "decimal",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(idrAmount);
-};
-
-const exchangeRateLabel = computed(() => {
-  const currency = props.expense?.currency || "IDR";
-  const rate = Number(props.expense?.exchangeRate || 1);
-  if (currency === "USD" && rate > 1) {
-    return `1 USD = ${new Intl.NumberFormat("id-ID").format(rate)} IDR`;
-  }
-  return "";
-});
-
-const displayAddress = computed(() => {
-  const vendor = props.expense?.vendor;
-  if (!vendor) return "NO ADDRESS PROVIDED";
-
-  if (vendor.address) return vendor.address;
-
-  const addresses = vendor.addresses || [];
-  if (addresses.length > 0) {
-    const defaultAddr = addresses.find((a) => a.isDefault);
-    return defaultAddr?.fullAddress || addresses[0]?.fullAddress || "NO ADDRESS PROVIDED";
-  }
-
-  return "NO ADDRESS PROVIDED";
-});
 
 const formatDate = (dateStr?: string | null) => {
   if (!dateStr) return "";
@@ -87,22 +48,20 @@ const formatDate = (dateStr?: string | null) => {
   }
 };
 
-const subtotal = computed(() => {
-  if (!props.expense?.items) return Number(props.expense?.amount || 0);
-  return props.expense.items.reduce((sum, item) => sum + Number(item.amount), 0);
-});
+const costItems = computed(() => props.cost?.items || []);
 
-// Signed: positive = PPN (added), negative = PPh withholding (deducted).
-const taxAmount = computed(() => {
-  const total = Number(props.expense?.amount || 0);
-  return total - subtotal.value;
-});
-const isWithholdingTax = computed(() => taxAmount.value < 0);
+const hasUsdItem = computed(() => costItems.value.some((it) => (it.currency || "IDR") === "USD"));
+const effectiveCurrency = computed(() =>
+  hasUsdItem.value && Number(props.cost?.exchangeRate || 1) > 1
+    ? "IDR"
+    : hasUsdItem.value
+      ? "USD"
+      : "IDR",
+);
 
-type VendorInvoicePreviewItem = NonNullable<Expense["items"]>[number];
-
-interface VendorInvoicePreviewPage {
-  items: VendorInvoicePreviewItem[];
+type CostPreviewItem = (typeof costItems.value)[number];
+interface PreviewPage {
+  items: CostPreviewItem[];
   pageNumber: number;
   startIndex: number;
   isFirstPage: boolean;
@@ -110,7 +69,6 @@ interface VendorInvoicePreviewPage {
 }
 
 const FIRST_PAGE_ITEM_SLOTS = 14;
-
 const MAIN_PX = 1009;
 const FIRST_HEADER_PX = 145;
 const CONT_HEADER_PX = 34;
@@ -123,38 +81,21 @@ const ITEM_LINE_PX = 14;
 const ITEM_ROW_PADDING_PX = 14;
 const DESC_CHARS_PER_LINE = 46;
 
-const itemRowPx = (description?: string | null) => {
-  const lines = Math.max(1, Math.ceil((description || "").length / DESC_CHARS_PER_LINE));
+const itemRowPx = (desc?: string | null) => {
+  const lines = Math.max(1, Math.ceil((desc || "").length / DESC_CHARS_PER_LINE));
   return Math.max(ITEM_ROW_MIN_PX, lines * ITEM_LINE_PX + ITEM_ROW_PADDING_PX);
 };
 
-const displayItems = computed<VendorInvoicePreviewItem[]>(() => {
-  if (props.expense?.items && props.expense.items.length > 0) return props.expense.items;
-
-  return [
-    {
-      description: props.expense?.description || "-",
-      quantity: 1,
-      unitPrice: Number(props.expense?.amount || 0),
-      amount: Number(props.expense?.amount || 0),
-    },
-  ];
-});
-
-const paginatedVoucherPages = computed<VendorInvoicePreviewPage[]>(() => {
-  const items = displayItems.value;
-  const pages: Array<{ items: VendorInvoicePreviewItem[]; startIndex: number }> = [];
-
+const previewPages = computed<PreviewPage[]>(() => {
+  const items = costItems.value;
+  const pages: Array<{ items: CostPreviewItem[]; startIndex: number }> = [];
   let i = 0;
   let first = true;
-
   while (i < items.length) {
     const header = first ? FIRST_HEADER_PX : CONT_HEADER_PX;
     let budget = MAIN_PX - header - TABLE_HEADER_PX;
-
     const startIndex = i;
-    const pageItems: VendorInvoicePreviewItem[] = [];
-
+    const pageItems: CostPreviewItem[] = [];
     while (i < items.length) {
       const item = items[i];
       if (!item) break;
@@ -165,69 +106,47 @@ const paginatedVoucherPages = computed<VendorInvoicePreviewPage[]>(() => {
       i++;
       budget -= h;
     }
-
     pages.push({ items: pageItems, startIndex });
     first = false;
   }
-
-  if (pages.length === 0) {
-    pages.push({ items: [], startIndex: 0 });
-  }
-
-  return pages.map((page, index) => ({
+  if (pages.length === 0) pages.push({ items: [], startIndex: 0 });
+  return pages.map((page, idx) => ({
     ...page,
-    pageNumber: index + 1,
-    isFirstPage: index === 0,
-    isLastPage: index === pages.length - 1,
+    pageNumber: idx + 1,
+    isFirstPage: idx === 0,
+    isLastPage: idx === pages.length - 1,
   }));
 });
 
 const generatePDF = async () => {
-  if (!printContainerRef.value || !props.expense) return false;
-
+  if (!printContainerRef.value || !props.cost) return false;
   try {
     isGeneratingPDF.value = true;
     await nextTick();
-
-    const pdf = new jsPDF({
-      orientation: "portrait",
-      unit: "mm",
-      format: "a4",
-    });
-
+    const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
     const pages = printContainerRef.value.querySelectorAll(".a4-page-wrapper");
-
     for (let i = 0; i < pages.length; i++) {
       if (i > 0) pdf.addPage();
-
       const canvas = await html2canvas(pages[i] as HTMLElement, {
         scale: 3,
         useCORS: true,
         logging: false,
         backgroundColor: "#ffffff",
-        scrollY: 0,
-        scrollX: 0,
       });
-
-      const imgData = canvas.toDataURL("image/jpeg", 0.95);
-      pdf.addImage(imgData, "JPEG", 0, 0, 210, 297, undefined, "FAST");
+      pdf.addImage(canvas.toDataURL("image/jpeg", 0.95), "JPEG", 0, 0, 210, 297, undefined, "FAST");
     }
-
-    pdf.save(`AP_VOUCHER_${props.expense.number || "DRAFT"}.pdf`);
+    pdf.save(`COST_${props.cost.number || "VCOST"}.pdf`);
     return true;
   } catch (error) {
     console.error(error);
-    toast.error("Gagal membuat PDF. Cek console.");
+    toast.error("Gagal membuat PDF.");
     return false;
   } finally {
     isGeneratingPDF.value = false;
   }
 };
 
-defineExpose({
-  generatePDF,
-  isGeneratingPDF,
-});
+defineExpose({ generatePDF, isGeneratingPDF });
 </script>
 
 <template>
@@ -236,7 +155,7 @@ defineExpose({
   >
     <div class="relative group flex flex-col gap-10" ref="printContainerRef">
       <div
-        v-for="page in paginatedVoucherPages"
+        v-for="page in previewPages"
         :key="page.pageNumber"
         class="a4-page-wrapper bg-white shadow-xl shrink-0 flex flex-col text-[#062c58] border"
         style="
@@ -247,7 +166,6 @@ defineExpose({
           position: relative;
         "
       >
-        <!-- Header Section -->
         <div
           class="header-section flex justify-between items-end mb-1 relative z-[1] bg-white"
           style="height: 70px"
@@ -263,37 +181,20 @@ defineExpose({
           <div class="w-[30%] text-center pb-2 flex flex-col justify-end h-full">
             <span
               class="text-[10px] font-bold tracking-[0.2em] uppercase block leading-none text-[#062c58]"
+              >VENDOR COST</span
             >
-              INTERNAL ACCOUNTS PAYABLE
-            </span>
-            <div v-if="expense?.status" class="mt-1.5 flex justify-center">
-              <span
-                :class="[
-                  'text-[8px] font-black px-2 py-0.5 rounded border uppercase tracking-widest shadow-sm',
-                  expense.status.code === 'PAID'
-                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                    : expense.status.code === 'PARTIALLY_PAID'
-                      ? 'bg-amber-50 text-amber-700 border-amber-200'
-                      : 'bg-slate-50 text-slate-600 border-slate-200',
-                ]"
-              >
-                {{ expense.status.name }}
-              </span>
-            </div>
           </div>
           <div class="w-[35%] text-right pb-1 flex flex-col items-end justify-end h-full">
             <div class="text-[0.6rem] font-mono mb-1 text-black">
-              PAGE: {{ page.pageNumber }} OF {{ paginatedVoucherPages.length }}
+              PAGE: {{ page.pageNumber }} OF {{ previewPages.length }}
             </div>
-            <h1 class="text-xl font-bold tracking-widest uppercase leading-none">AP VOUCHER</h1>
+            <h1 class="text-xl font-bold tracking-widest uppercase leading-none">COST DETAIL</h1>
           </div>
         </div>
 
-        <!-- Main Content Bordered Container -->
         <div
           class="main-border-container border border-[#062c58] flex-1 flex flex-col text-[0.7rem] relative overflow-hidden h-full"
         >
-          <!-- Vendor & Voucher Info -->
           <div
             v-if="page.isFirstPage"
             class="flex border-b border-[#062c58]"
@@ -304,22 +205,22 @@ defineExpose({
                 >VENDOR / PAYEE:</span
               >
               <div class="font-medium text-xs text-black uppercase leading-tight">
-                {{ getVal(expense?.vendor?.name, "UNKNOWN VENDOR") }}
+                {{ vendorLabel }}
               </div>
               <div
                 class="whitespace-pre-wrap font-mono uppercase text-[0.65rem] leading-tight text-black/80 mt-1"
               >
-                {{ displayAddress }}
+                Quotation: {{ quotation?.number || "-" }}
               </div>
             </div>
             <div class="w-1/2">
               <div class="flex border-b border-[#062c58]" style="height: 50px">
                 <div class="w-1/2 border-r border-[#062c58] pt-1 px-2">
                   <span class="font-bold text-[0.6rem] leading-none mb-1 block uppercase"
-                    >VOUCHER NO.</span
+                    >COST NO.</span
                   >
                   <span class="font-mono text-[0.85rem] text-black font-medium">{{
-                    getVal(expense?.number, "DRAFT")
+                    cost?.number || "VCOST"
                   }}</span>
                 </div>
                 <div class="w-1/2 pt-1 px-2">
@@ -327,17 +228,17 @@ defineExpose({
                     >DATE</span
                   >
                   <span class="font-mono text-[0.8rem] text-black">{{
-                    formatDate(expense?.date)
+                    formatDate(cost?.date)
                   }}</span>
                 </div>
               </div>
               <div class="flex" style="height: 50px">
                 <div class="w-1/2 border-r border-[#062c58] pt-1 px-2">
                   <span class="font-bold text-[0.6rem] leading-none mb-1 block uppercase"
-                    >JOB NO.</span
+                    >QUOTATION</span
                   >
                   <span class="font-mono text-[0.75rem] text-black font-medium">{{
-                    getVal(expense?.job?.jobNumber, "-")
+                    quotation?.number || "-"
                   }}</span>
                 </div>
                 <div class="w-1/2 pt-1 px-2">
@@ -345,14 +246,13 @@ defineExpose({
                     >CURRENCY</span
                   >
                   <span class="font-mono text-[0.75rem] text-black font-bold uppercase">{{
-                    expense?.currency || "IDR"
+                    effectiveCurrency
                   }}</span>
                 </div>
               </div>
             </div>
           </div>
 
-          <!-- Description / Reference -->
           <div
             v-if="page.isFirstPage"
             class="flex border-b border-[#062c58] bg-gray-50/10"
@@ -362,9 +262,10 @@ defineExpose({
               <span class="font-bold text-[0.6rem] block leading-none mb-1 uppercase opacity-70"
                 >DESCRIPTION / REMARKS</span
               >
-              <span class="font-mono text-[0.75rem] uppercase text-black font-medium leading-tight">
-                {{ expense?.description || "-" }}
-              </span>
+              <span
+                class="font-mono text-[0.75rem] uppercase text-black font-medium leading-tight"
+                >{{ cost?.notes || costItems[0]?.description || "-" }}</span
+              >
             </div>
           </div>
 
@@ -372,10 +273,9 @@ defineExpose({
             v-if="!page.isFirstPage"
             class="border-b border-[#062c58] bg-gray-50/10 px-2 py-2 text-[0.65rem] font-bold uppercase tracking-widest"
           >
-            {{ expense?.number || "DRAFT" }} - Charges Continued
+            {{ cost?.number || "VCOST" }} - Items Continued
           </div>
 
-          <!-- Items Table Header -->
           <div
             class="flex border-b border-[#062c58] bg-[#062c58]/5 font-bold text-[0.6rem] h-[35px]"
           >
@@ -390,9 +290,7 @@ defineExpose({
             <div class="w-[20%] flex items-center justify-end px-3">TOTAL AMOUNT</div>
           </div>
 
-          <!-- Items List Container -->
           <div class="flex-1 relative">
-            <!-- Vertical Grid Lines Background -->
             <div class="absolute inset-0 flex pointer-events-none">
               <div class="w-[5%] border-r border-[#062c58]/30"></div>
               <div class="flex-1 border-r border-[#062c58]/30"></div>
@@ -400,34 +298,28 @@ defineExpose({
               <div class="w-[20%] border-r border-[#062c58]/30"></div>
               <div class="w-[20%]"></div>
             </div>
-
-            <!-- Scrollable Items Area -->
             <div class="relative z-[1] p-0 font-mono text-black">
               <div
                 v-for="(item, idx) in page.items"
-                :key="item.id || `${page.pageNumber}-${idx}`"
+                :key="idx"
                 class="flex border-b border-[#062c58]/10 min-h-[35px] items-start py-2"
               >
-                <div class="w-[5%] text-center text-[0.7rem]">
-                  {{ page.startIndex + idx + 1 }}
-                </div>
+                <div class="w-[5%] text-center text-[0.7rem]">{{ page.startIndex + idx + 1 }}</div>
                 <div class="flex-1 px-3 text-[0.7rem] font-medium uppercase leading-tight">
                   {{ item.description }}
                 </div>
                 <div class="w-[10%] text-center text-[0.7rem]">{{ item.quantity }}</div>
                 <div class="w-[20%] text-right px-3 text-[0.7rem] text-black">
-                  {{ formatCurrency(item.unitPrice) }}
+                  {{ formatCurrency(item.unitPrice, item.currency) }}
                 </div>
                 <div class="w-[20%] text-right px-3 text-[0.7rem] font-medium text-black">
-                  {{ formatCurrency(item.amount) }}
+                  {{ formatCurrency(item.amount, item.currency) }}
                 </div>
               </div>
-
-              <!-- Empty spacer rows -->
               <div
                 v-if="page.isLastPage && page.items.length < FIRST_PAGE_ITEM_SLOTS"
                 v-for="i in FIRST_PAGE_ITEM_SLOTS - page.items.length"
-                :key="`spacer-${page.pageNumber}-${i}`"
+                :key="'spacer-' + i"
                 class="flex min-h-[35px] border-b border-[#062c58]/5"
               >
                 <div class="w-[5%]"></div>
@@ -439,10 +331,8 @@ defineExpose({
             </div>
           </div>
 
-          <!-- Totals Footer Area -->
           <div v-if="page.isLastPage" class="border-t border-[#062c58] mt-auto">
             <div class="flex items-stretch min-h-[120px]">
-              <!-- Left: Approval Section -->
               <div class="w-[58%] border-r border-[#062c58] p-4">
                 <span class="font-bold text-[0.6rem] block text-[#062c58] uppercase mb-6"
                   >APPROVAL WORKFLOW:</span
@@ -468,53 +358,36 @@ defineExpose({
                   </div>
                 </div>
               </div>
-
-              <!-- Right: Subtotal & Tax & Total -->
               <div class="w-[42%] flex flex-col">
                 <div class="flex-1 flex flex-col">
                   <div class="flex border-b border-[#062c58]/20 h-[35px] items-center shrink-0">
                     <div class="w-1/2 px-3 font-bold text-[0.65rem] text-[#062c58]">
-                      SUBTOTAL ({{ expense?.currency || "IDR" }})
+                      SUBTOTAL ({{ effectiveCurrency }})
                     </div>
                     <div
                       class="flex-1 px-3 text-right font-mono text-[0.75rem] font-medium text-black"
                     >
-                      {{ formatCurrency(subtotal) }}
+                      {{ formatCurrency(cost?.subTotal, effectiveCurrency) }}
                     </div>
                   </div>
                   <div class="flex border-b border-[#062c58]/20 h-[35px] items-center shrink-0">
-                    <div class="w-1/2 px-3 font-bold text-[0.65rem] text-[#062c58]">
-                      {{ isWithholdingTax ? "PPh" : "VAT / TAX" }}
-                    </div>
+                    <div class="w-1/2 px-3 font-bold text-[0.65rem] text-[#062c58]">VAT / TAX</div>
                     <div
                       class="flex-1 px-3 text-right font-mono text-[0.75rem] font-medium text-black"
                     >
-                      {{ isWithholdingTax ? "- " : "" }}{{ formatCurrency(Math.abs(taxAmount)) }}
+                      {{ formatCurrency(cost?.taxTotal || 0, effectiveCurrency) }}
                     </div>
                   </div>
                   <div class="flex bg-[#062c58] text-white flex-1 items-center">
                     <div class="w-1/2 px-3 flex flex-col">
-                      <span class="text-[0.55rem] font-bold opacity-70">TOTAL PAYABLE</span>
-                      <span
+                      <span class="text-[0.55rem] font-bold opacity-70">TOTAL COST</span
+                      ><span
                         class="text-[0.8rem] font-black tracking-wider uppercase leading-none mt-1"
-                        >{{ expense?.currency || "IDR" }}</span
+                        >{{ effectiveCurrency }}</span
                       >
                     </div>
                     <div class="flex-1 px-3 text-right font-mono text-xl font-black">
-                      {{ formatCurrency(expense?.amount) }}
-                    </div>
-                  </div>
-                  <div
-                    v-if="exchangeRateLabel"
-                    class="flex border-t border-[#062c58]/10 h-[22px] items-center shrink-0 bg-gray-50/30"
-                  >
-                    <div class="w-1/2 px-3 font-bold text-[0.5rem] text-muted-foreground uppercase">
-                      IDR EQUIVALENT ({{ exchangeRateLabel }})
-                    </div>
-                    <div
-                      class="flex-1 px-3 text-right font-mono text-[0.6rem] font-bold text-black"
-                    >
-                      Rp {{ formatCurrencyIDR(expense?.amount) }}
+                      {{ formatCurrency(cost?.amount, effectiveCurrency) }}
                     </div>
                   </div>
                 </div>
@@ -523,21 +396,19 @@ defineExpose({
           </div>
         </div>
 
-        <!-- Authorized Signature & Footer Credits -->
         <div v-if="page.isLastPage" class="mt-4 flex justify-between items-end">
           <div class="w-2/3">
             <p
               class="text-[0.5rem] italic text-[#062c58]/60 uppercase leading-tight font-medium max-w-[400px]"
             >
-              This is an internal accounts payable voucher. No signature required unless
-              specifically requested for audit purposes. All business transacted is subject to
-              standard company policies.
+              Internal vendor cost detail for quotation profitability analysis. Not for client
+              distribution.
             </p>
           </div>
           <div class="text-right">
-            <span class="text-[0.6rem] font-black text-[#062c58] uppercase tracking-widest">
-              PRINTED ON: {{ formatDate(new Date().toISOString()) }}
-            </span>
+            <span class="text-[0.6rem] font-black text-[#062c58] uppercase tracking-widest"
+              >PRINTED: {{ formatDate(new Date().toISOString()) }}</span
+            >
           </div>
         </div>
       </div>
@@ -550,32 +421,14 @@ defineExpose({
   width: 8px;
   height: 8px;
 }
-
 .custom-scrollbar::-webkit-scrollbar-track {
   background: transparent;
 }
-
 .custom-scrollbar::-webkit-scrollbar-thumb {
   background: #062c5830;
   border-radius: 10px;
 }
-
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: #062c5850;
-}
-
-@font-face {
-  font-family: "Inter";
-  src: url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap");
-}
-
-.font-sans {
-  font-family:
-    "Inter",
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    Roboto,
-    sans-serif;
 }
 </style>

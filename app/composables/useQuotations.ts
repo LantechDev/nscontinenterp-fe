@@ -40,6 +40,31 @@ export interface QuotationCostItem {
   amount: number;
 }
 
+export interface QuotationInvoiceItem {
+  id?: string;
+  invoiceId?: string;
+  chargeId?: string | null;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  currency: "IDR" | "USD";
+  amount: number;
+}
+
+export interface QuotationInvoice {
+  id?: string;
+  quotationId?: string;
+  number?: string | null;
+  date?: string | null;
+  notes?: string | null;
+  subTotal: number;
+  taxAmount: number;
+  total: number;
+  items: QuotationInvoiceItem[];
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface QuotationCost {
   id?: string;
   quotationId?: string;
@@ -109,6 +134,9 @@ export interface Quotation {
 
   // Internal costing lines (AP side) for profit analysis
   costs?: QuotationCost[];
+
+  // Customer-facing invoice documents (AR side) — multiple quotation invoices
+  quotationInvoices?: QuotationInvoice[];
 
   // Multi-use feature (from the switch in create quotation)
   allowMultipleInvoices?: boolean;
@@ -399,6 +427,31 @@ export function useQuotations() {
     }
   }
 
+  async function updateQuotationInvoices(
+    id: string,
+    invoices: QuotationInvoice[],
+  ): Promise<ApiResponse<Quotation>> {
+    isLoading.value = true;
+    try {
+      const data = await $fetch<Quotation>(`/api/operational/quotations/${id}/invoices`, {
+        method: "PUT",
+        body: { invoices },
+      });
+      const index = quotations.value.findIndex((q) => q.id === id);
+      if (index !== -1) {
+        quotations.value[index] = data;
+      }
+      if (currentQuotation.value?.id === id) {
+        currentQuotation.value = data;
+      }
+      return { success: true, data };
+    } catch (error) {
+      return handleApiError(error);
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
   async function deleteQuotation(id: string): Promise<ApiResponse> {
     isLoading.value = true;
     try {
@@ -444,6 +497,7 @@ export function useQuotations() {
     createQuotation,
     updateQuotation,
     updateQuotationCosts,
+    updateQuotationInvoices,
     deleteQuotation,
     convertQuotationToJob,
   };
