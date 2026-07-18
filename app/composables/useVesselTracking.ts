@@ -10,6 +10,7 @@ export interface VesselTrackingLeg {
   initialVesselName: string | null;
   initialVoyageNumber: string | null;
   initialTsPortId: string | null;
+  initialTsPortName: string | null;
   initialEtd: string | null;
   initialEta: string | null;
   updatedTransportId: string | null;
@@ -17,6 +18,7 @@ export interface VesselTrackingLeg {
   updatedVesselName: string | null;
   updatedVoyageNumber: string | null;
   updatedTsPortId: string | null;
+  updatedTsPortName: string | null;
   updatedEtd: string | null;
   updatedEta: string | null;
   remarks: string | null;

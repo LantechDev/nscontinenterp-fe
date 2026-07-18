@@ -332,8 +332,8 @@ const computedCategory = computed({
             </div>
           </div>
 
-          <div v-if="!hideJob && formData.direction !== 'IN' && !useManualAccount">
-            <label class="block text-sm font-medium mb-1">Kategori</label>
+          <div v-if="(hideJob || formData.direction === 'IN') && !useManualAccount">
+            <label class="block text-sm font-medium mb-1">Kategori Biaya</label>
             <Combobox
               v-model="computedCategory"
               :options="categoryOptions"

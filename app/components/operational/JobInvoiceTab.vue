@@ -22,6 +22,7 @@ import JobInvoicePreview from "./JobInvoicePreview.vue";
 import JobPaymentTab from "./JobPaymentTab.vue";
 import PaymentEntryForm from "../finance/PaymentEntryForm.vue";
 import Modal from "~/components/ui/Modal.vue";
+import CurrencyStack from "~/components/ui/CurrencyStack.vue";
 import { getOverpayment } from "~/composables/useFinanceExpense";
 import { useInvoices, type InvoiceDetail } from "~/composables/useInvoices";
 import { useQuotations, type Quotation, type QuotationInvoice } from "~/composables/useQuotations";
@@ -551,7 +552,13 @@ const selectQuotationInvoice = (qinv: QuotationInvoice) => {
   showQuotationPicker.value = false;
   isEditing.value = false;
   showForm.value = true;
-  toast.success(`Prefilled invoice from quotation invoice ${qinv.number || ""}.`);
+  toast.success(`Prefilled invoice from additional quotation ${qinv.number || ""}.`);
+};
+
+const getQuotationInvoiceCurrency = (qinv: QuotationInvoice) => {
+  if (qinv.currency) return qinv.currency;
+  const currencies = Array.from(new Set((qinv.items || []).map((item) => item.currency || "IDR")));
+  return currencies.length === 1 ? currencies[0] || "IDR" : "IDR";
 };
 
 const selectQuotation = (q: Quotation) => {
@@ -778,7 +785,7 @@ const handlePaymentVoided = async () => {
       :title="showSourcePicker ? 'Pilih Sumber Invoice' : 'Pilih Quotation'"
       :description="
         showSourcePicker
-          ? 'Pilih quotation invoice atau item individual.'
+          ? 'Pilih additional quotation atau item individual.'
           : 'Pilih quotation yang ingin dijadikan invoice.'
       "
       width="max-w-3xl"
@@ -812,12 +819,12 @@ const handlePaymentVoided = async () => {
           </div>
         </div>
 
-        <!-- Quotation Invoices -->
+        <!-- Additional Quotations -->
         <div v-if="sourcePickerQuotation.quotationInvoices?.length">
           <h4
             class="text-xs font-bold text-foreground uppercase tracking-wide mb-2 flex items-center gap-2"
           >
-            <Receipt class="w-3.5 h-3.5 text-[#062c58]" /> Quotation Invoices
+            <Receipt class="w-3.5 h-3.5 text-[#062c58]" /> Additional Quotations
           </h4>
           <div class="space-y-2 max-h-[280px] overflow-y-auto pr-1">
             <div
@@ -840,7 +847,7 @@ const handlePaymentVoided = async () => {
                 </div>
                 <div class="flex items-center gap-3">
                   <p class="text-sm font-black text-[#062c58]">
-                    {{ formatCurrency(qinv.total || 0) }}
+                    {{ formatCurrency(qinv.total || 0, getQuotationInvoiceCurrency(qinv)) }}
                   </p>
                   <ChevronRight
                     class="w-4 h-4 text-muted-foreground group-hover:text-[#062c58] transition-colors"
@@ -1583,12 +1590,9 @@ const handlePaymentVoided = async () => {
           </div>
           <p
             v-if="invoiceSummary.hasUSD && !invoiceSummary.hasUSDWithoutRate"
-            class="text-[9px] text-muted-foreground font-bold mt-1"
+            class="text-[9px] text-muted-foreground opacity-70 font-semibold mt-1"
           >
-            Original USD:
-            <span class="text-slate-500 font-extrabold">{{
-              formatCurrency(invoiceSummary.totalBilledUSD, "USD")
-            }}</span>
+            {{ formatCurrency(invoiceSummary.totalBilledUSD, "USD") }}
           </p>
         </div>
 
@@ -1625,12 +1629,9 @@ const handlePaymentVoided = async () => {
             </p>
             <p
               v-if="invoiceSummary.hasUSD && !invoiceSummary.hasUSDWithoutRate"
-              class="text-[9px] text-muted-foreground font-bold"
+              class="text-[9px] text-muted-foreground opacity-70 font-semibold"
             >
-              Original USD:
-              <span class="text-slate-500 font-extrabold">{{
-                formatCurrency(invoiceSummary.totalPaidUSD, "USD")
-              }}</span>
+              {{ formatCurrency(invoiceSummary.totalPaidUSD, "USD") }}
             </p>
           </div>
         </div>
@@ -1667,12 +1668,9 @@ const handlePaymentVoided = async () => {
           </div>
           <p
             v-if="invoiceSummary.hasUSD && !invoiceSummary.hasUSDWithoutRate"
-            class="text-[9px] text-white/80 font-bold mt-1"
+            class="text-[9px] text-white/70 font-semibold mt-1"
           >
-            Original USD:
-            <span class="text-white font-extrabold">{{
-              formatCurrency(invoiceSummary.totalDueUSD, "USD")
-            }}</span>
+            {{ formatCurrency(invoiceSummary.totalDueUSD, "USD") }}
           </p>
         </div>
       </div>
@@ -1755,22 +1753,14 @@ const handlePaymentVoided = async () => {
               >
                 Total Amount
               </p>
-              <template v-if="invoice.currency === 'USD' && Number(invoice.exchangeRate || 1) > 1">
-                <p class="font-black text-xs text-foreground whitespace-nowrap">
-                  {{
-                    formatCurrency(Number(invoice.total || 0) * Number(invoice.exchangeRate), "IDR")
-                  }}
-                </p>
-                <p class="text-[9px] text-muted-foreground font-semibold mt-0.5 whitespace-nowrap">
-                  {{ formatCurrency(invoice.total, "USD") }} · Kurs:
-                  {{ formatCurrency(Number(invoice.exchangeRate || 1), "IDR") }}
-                </p>
-              </template>
-              <template v-else>
-                <p class="font-black text-xs text-foreground whitespace-nowrap">
-                  {{ formatCurrency(invoice.total, invoice.currency) }}
-                </p>
-              </template>
+              <CurrencyStack
+                :amount="invoice.total"
+                :currency="invoice.currency"
+                :exchange-rate="invoice.exchangeRate"
+                primary-class="font-black text-xs text-foreground whitespace-nowrap"
+                secondary-class="text-[9px] text-muted-foreground opacity-70 font-semibold whitespace-nowrap"
+                show-rate
+              />
             </div>
             <div class="text-right">
               <p
@@ -1787,19 +1777,14 @@ const handlePaymentVoided = async () => {
                 <template
                   v-if="invoice.currency === 'USD' && Number(invoice.exchangeRate || 1) > 1"
                 >
-                  <p class="font-black text-xs text-red-600 whitespace-nowrap">
-                    {{
-                      formatCurrency(
-                        Number(invoice.balanceDue) * Number(invoice.exchangeRate),
-                        "IDR",
-                      )
-                    }}
-                  </p>
-                  <p
-                    class="text-[9px] text-muted-foreground font-semibold mt-0.5 whitespace-nowrap text-right"
-                  >
-                    {{ formatCurrency(invoice.balanceDue, "USD") }}
-                  </p>
+                  <CurrencyStack
+                    :amount="invoice.balanceDue"
+                    :currency="invoice.currency"
+                    :exchange-rate="invoice.exchangeRate"
+                    primary-class="font-black text-xs text-red-600 whitespace-nowrap"
+                    secondary-class="text-[9px] text-muted-foreground opacity-70 font-semibold whitespace-nowrap"
+                    align="right"
+                  />
                 </template>
                 <template v-else>
                   <p class="font-black text-xs text-red-600 whitespace-nowrap">
@@ -1813,18 +1798,16 @@ const handlePaymentVoided = async () => {
                   <template
                     v-if="invoice.currency === 'USD' && Number(invoice.exchangeRate || 1) > 1"
                   >
-                    <p class="text-[9px] text-emerald-600 font-semibold mt-0.5 whitespace-nowrap">
-                      +{{
-                        formatCurrency(
-                          getOverpayment(invoice) * Number(invoice.exchangeRate),
-                          "IDR",
-                        )
-                      }}
-                      overpaid
-                    </p>
-                    <p class="text-[8px] text-muted-foreground mt-0.5 whitespace-nowrap text-right">
-                      +{{ formatCurrency(getOverpayment(invoice), "USD") }}
-                    </p>
+                    <CurrencyStack
+                      :amount="getOverpayment(invoice)"
+                      :currency="invoice.currency"
+                      :exchange-rate="invoice.exchangeRate"
+                      primary-class="text-[9px] text-emerald-600 font-semibold whitespace-nowrap"
+                      secondary-class="text-[8px] text-muted-foreground opacity-70 whitespace-nowrap"
+                      align="right"
+                      prefix="+"
+                      suffix="overpaid"
+                    />
                   </template>
                   <template v-else>
                     <p class="text-[9px] text-emerald-600 font-semibold mt-0.5 whitespace-nowrap">

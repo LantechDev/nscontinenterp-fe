@@ -35,28 +35,6 @@ const formatCurrency = (amount: unknown): string => {
   }).format(num);
 };
 
-const formatCurrencyIDR = (amount: unknown): string => {
-  if (amount === undefined || amount === null) return "-";
-  const num = Number(amount);
-  const currency = props.expense?.currency || "IDR";
-  const rate = Number(props.expense?.exchangeRate || 1);
-  const idrAmount = currency === "USD" && rate > 1 ? num * rate : num;
-  return new Intl.NumberFormat("id-ID", {
-    style: "decimal",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(idrAmount);
-};
-
-const exchangeRateLabel = computed(() => {
-  const currency = props.expense?.currency || "IDR";
-  const rate = Number(props.expense?.exchangeRate || 1);
-  if (currency === "USD" && rate > 1) {
-    return `1 USD = ${new Intl.NumberFormat("id-ID").format(rate)} IDR`;
-  }
-  return "";
-});
-
 const displayAddress = computed(() => {
   const vendor = props.expense?.vendor;
   if (!vendor) return "NO ADDRESS PROVIDED";
@@ -502,19 +480,6 @@ defineExpose({
                     </div>
                     <div class="flex-1 px-3 text-right font-mono text-xl font-black">
                       {{ formatCurrency(expense?.amount) }}
-                    </div>
-                  </div>
-                  <div
-                    v-if="exchangeRateLabel"
-                    class="flex border-t border-[#062c58]/10 h-[22px] items-center shrink-0 bg-gray-50/30"
-                  >
-                    <div class="w-1/2 px-3 font-bold text-[0.5rem] text-muted-foreground uppercase">
-                      IDR EQUIVALENT ({{ exchangeRateLabel }})
-                    </div>
-                    <div
-                      class="flex-1 px-3 text-right font-mono text-[0.6rem] font-bold text-black"
-                    >
-                      Rp {{ formatCurrencyIDR(expense?.amount) }}
                     </div>
                   </div>
                 </div>

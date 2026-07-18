@@ -21,6 +21,7 @@ import JobVendorInvoicePreview from "./JobVendorInvoicePreview.vue";
 import JobPaymentTab from "./JobPaymentTab.vue";
 import PaymentEntryForm from "~/components/finance/PaymentEntryForm.vue";
 import Modal from "~/components/ui/Modal.vue";
+import CurrencyStack from "~/components/ui/CurrencyStack.vue";
 import { useFinanceExpense, getOverpayment, type Expense } from "~/composables/useFinanceExpense";
 import { useQuotations, type Quotation, type QuotationCost } from "~/composables/useQuotations";
 import { toast } from "vue-sonner";
@@ -751,12 +752,9 @@ const getStatusColor = (code?: string) => {
           </div>
           <p
             v-if="expenseSummary.hasUSD && !expenseSummary.hasUSDWithoutRate"
-            class="text-[9px] text-muted-foreground font-bold mt-1"
+            class="text-[9px] text-muted-foreground opacity-70 font-semibold mt-1"
           >
-            Original USD:
-            <span class="text-slate-500 font-extrabold">{{
-              formatCurrency(expenseSummary.totalBilledUSD, "USD")
-            }}</span>
+            {{ formatCurrency(expenseSummary.totalBilledUSD, "USD") }}
           </p>
         </div>
 
@@ -793,12 +791,9 @@ const getStatusColor = (code?: string) => {
             </p>
             <p
               v-if="expenseSummary.hasUSD && !expenseSummary.hasUSDWithoutRate"
-              class="text-[9px] text-muted-foreground font-bold"
+              class="text-[9px] text-muted-foreground opacity-70 font-semibold"
             >
-              Original USD:
-              <span class="text-slate-500 font-extrabold">{{
-                formatCurrency(expenseSummary.totalPaidUSD, "USD")
-              }}</span>
+              {{ formatCurrency(expenseSummary.totalPaidUSD, "USD") }}
             </p>
           </div>
         </div>
@@ -835,12 +830,9 @@ const getStatusColor = (code?: string) => {
           </div>
           <p
             v-if="expenseSummary.hasUSD && !expenseSummary.hasUSDWithoutRate"
-            class="text-[9px] text-white/80 font-bold mt-1"
+            class="text-[9px] text-white/70 font-semibold mt-1"
           >
-            Original USD:
-            <span class="text-white font-extrabold">{{
-              formatCurrency(expenseSummary.totalDueUSD, "USD")
-            }}</span>
+            {{ formatCurrency(expenseSummary.totalDueUSD, "USD") }}
           </p>
         </div>
       </div>
@@ -928,20 +920,15 @@ const getStatusColor = (code?: string) => {
               >
                 Amount
               </p>
-              <template v-if="expense.currency === 'USD' && Number(expense.exchangeRate || 1) > 1">
-                <p class="font-black text-sm text-red-600 whitespace-nowrap">
-                  {{ formatCurrency(Number(expense.amount) * Number(expense.exchangeRate), "IDR") }}
-                </p>
-                <p class="text-[10px] text-muted-foreground font-semibold mt-0.5">
-                  {{ formatCurrency(Number(expense.amount), "USD") }} · Kurs:
-                  {{ formatCurrency(Number(expense.exchangeRate || 1), "IDR") }}
-                </p>
-              </template>
-              <template v-else>
-                <p class="font-black text-sm text-red-600 whitespace-nowrap">
-                  {{ formatCurrency(Number(expense.amount), expense.currency) }}
-                </p>
-              </template>
+              <CurrencyStack
+                :amount="expense.amount"
+                :currency="expense.currency"
+                :exchange-rate="expense.exchangeRate"
+                primary-class="font-black text-sm text-red-600 whitespace-nowrap"
+                secondary-class="text-[10px] text-muted-foreground opacity-70 font-semibold whitespace-nowrap"
+                align="right"
+                show-rate
+              />
             </div>
           </div>
 
@@ -972,19 +959,14 @@ const getStatusColor = (code?: string) => {
                   <template
                     v-if="expense.currency === 'USD' && Number(expense.exchangeRate || 1) > 1"
                   >
-                    <p class="font-black text-xs text-red-600 whitespace-nowrap">
-                      {{
-                        formatCurrency(
-                          Number(expense.balanceDue) * Number(expense.exchangeRate),
-                          "IDR",
-                        )
-                      }}
-                    </p>
-                    <p
-                      class="text-[9px] text-muted-foreground font-semibold mt-0.5 whitespace-nowrap text-right"
-                    >
-                      {{ formatCurrency(Number(expense.balanceDue), "USD") }}
-                    </p>
+                    <CurrencyStack
+                      :amount="expense.balanceDue"
+                      :currency="expense.currency"
+                      :exchange-rate="expense.exchangeRate"
+                      primary-class="font-black text-xs text-red-600 whitespace-nowrap"
+                      secondary-class="text-[9px] text-muted-foreground opacity-70 font-semibold whitespace-nowrap"
+                      align="right"
+                    />
                   </template>
                   <template v-else>
                     <p class="font-black text-xs text-red-600 whitespace-nowrap">
@@ -998,22 +980,16 @@ const getStatusColor = (code?: string) => {
                     <template
                       v-if="expense.currency === 'USD' && Number(expense.exchangeRate || 1) > 1"
                     >
-                      <p
-                        class="text-[10px] text-emerald-600 font-semibold mt-0.5 whitespace-nowrap"
-                      >
-                        +{{
-                          formatCurrency(
-                            getOverpayment(expense) * Number(expense.exchangeRate),
-                            "IDR",
-                          )
-                        }}
-                        overpaid
-                      </p>
-                      <p
-                        class="text-[9px] text-muted-foreground mt-0.5 whitespace-nowrap text-right"
-                      >
-                        +{{ formatCurrency(getOverpayment(expense), "USD") }}
-                      </p>
+                      <CurrencyStack
+                        :amount="getOverpayment(expense)"
+                        :currency="expense.currency"
+                        :exchange-rate="expense.exchangeRate"
+                        primary-class="text-[10px] text-emerald-600 font-semibold whitespace-nowrap"
+                        secondary-class="text-[9px] text-muted-foreground opacity-70 whitespace-nowrap"
+                        align="right"
+                        prefix="+"
+                        suffix="overpaid"
+                      />
                     </template>
                     <template v-else>
                       <p class="text-[10px] text-emerald-600 font-semibold mt-0.5 font-bold">

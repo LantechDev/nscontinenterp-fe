@@ -189,6 +189,7 @@ onMounted(async () => {
 const hasUSDItems = computed(() => {
   return form.value.items.some((item) => item.currency === "USD");
 });
+const isExchangeRateConfigured = computed(() => Number(form.value.exchangeRate || 1) > 1);
 
 const normalizeCurrency = (value: string | null | undefined) => (value === "USD" ? "USD" : "IDR");
 
@@ -566,52 +567,6 @@ const formatInputCurrency = (val: number | string, currency: string = form.value
             @update:model-value="setInvoiceCurrency"
           />
         </div>
-
-        <div
-          v-if="hasUSDItems"
-          class="flex items-center gap-2 animate-in slide-in-from-left-2 duration-300"
-        >
-          <span class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest"
-            >Ex. Rate</span
-          >
-          <div class="flex gap-2 items-center">
-            <div class="relative group/rate">
-              <input
-                type="text"
-                :value="formatInputCurrency(form.exchangeRate, 'IDR')"
-                v-uppercase
-                @input="
-                  (e) =>
-                    (form.exchangeRate = parseInputCurrency(
-                      (e.target as HTMLInputElement).value,
-                      'IDR',
-                    ))
-                "
-                class="w-28 px-3 py-1 text-xs font-bold text-[#012D5A] border border-border rounded-lg focus:ring-2 focus:ring-[#012D5A]/10 focus:border-[#012D5A] outline-none transition-all bg-white"
-                placeholder="16,000"
-              />
-            </div>
-            <div class="relative group/tip">
-              <button
-                type="button"
-                @click="loadExchangeRate"
-                :disabled="isFetchingRate"
-                class="h-7 px-2 inline-flex items-center gap-1 bg-white border border-blue-200 text-[#012D5A] text-[10px] font-bold rounded-lg hover:bg-blue-50 hover:border-blue-300 transition-all disabled:opacity-50"
-              >
-                <Loader2 v-if="isFetchingRate" class="w-3 h-3 animate-spin" />
-                <RefreshCw v-else class="w-3 h-3" />
-              </button>
-              <div
-                class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 bg-gray-900 text-white text-[10px] font-medium rounded-lg opacity-0 invisible group-hover/tip:opacity-100 group-hover/tip:visible transition-all duration-150 whitespace-nowrap z-50 animate-in fade-in zoom-in-95"
-              >
-                Ambil kurs terkini dari API
-                <div
-                  class="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900"
-                ></div>
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
       <button
         type="button"
@@ -812,8 +767,8 @@ const formatInputCurrency = (val: number | string, currency: string = form.value
         </div>
       </div>
 
-      <!-- Section: Tax & Notes Side-by-Side -->
-      <div class="grid grid-cols-2 gap-8 pt-4">
+      <!-- Tax -->
+      <div class="pt-4">
         <div class="space-y-2">
           <label class="text-[10px] font-black text-muted-foreground uppercase tracking-widest"
             >Tax (PPN/PPH)</label
@@ -828,18 +783,70 @@ const formatInputCurrency = (val: number | string, currency: string = form.value
             Tax will be applied to the total subtotal amount.
           </p>
         </div>
-        <div class="space-y-2">
-          <label class="text-[10px] font-black text-muted-foreground uppercase tracking-widest"
-            >Internal Notes</label
-          >
-          <textarea
-            v-model="form.notes"
-            rows="2"
-            placeholder="Add internal remarks here..."
-            class="w-full px-4 py-3 text-sm border border-border rounded-xl focus:ring-2 focus:ring-[#012D5A]/10 focus:border-[#012D5A] outline-none transition-all bg-gray-50/30 resize-none shadow-sm"
-            v-uppercase
-          ></textarea>
+      </div>
+
+      <!-- Section: Kurs (only if any USD item) -->
+      <div v-if="hasUSDItems" class="p-4 bg-blue-50/50 rounded-xl border border-blue-100 space-y-3">
+        <label class="text-[10px] font-black text-[#012D5A] uppercase tracking-widest">
+          Kurs (USD → IDR)
+        </label>
+        <div class="flex items-center gap-3">
+          <div class="flex-1 space-y-1">
+            <input
+              type="text"
+              :value="formatInputCurrency(form.exchangeRate, 'IDR')"
+              v-uppercase
+              @input="
+                (e) =>
+                  (form.exchangeRate = parseInputCurrency(
+                    (e.target as HTMLInputElement).value,
+                    'IDR',
+                  ))
+              "
+              class="w-full max-w-[200px] px-3 py-1.5 text-xs font-black text-[#012D5A] border border-[#012D5A]/15 rounded-lg focus:ring-4 focus:ring-[#012D5A]/5 focus:border-[#012D5A] outline-none transition-all bg-white"
+              placeholder="16,000"
+            />
+            <p class="text-[9px] font-bold text-blue-800/60">
+              $1 = {{ formatCurrency(Number(form.exchangeRate) || 0, "IDR") }}
+            </p>
+          </div>
+          <div class="relative group/tip">
+            <button
+              type="button"
+              @click="loadExchangeRate"
+              :disabled="isFetchingRate"
+              class="shrink-0 h-9 px-2.5 inline-flex items-center gap-1 bg-white border border-blue-200 text-[#012D5A] rounded-lg hover:bg-blue-50 hover:border-blue-300 transition-all disabled:opacity-50"
+            >
+              <Loader2 v-if="isFetchingRate" class="w-3.5 h-3.5 animate-spin" />
+              <RefreshCw v-else class="w-3.5 h-3.5" />
+            </button>
+            <div
+              class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 bg-gray-900 text-white text-[10px] font-medium rounded-lg opacity-0 invisible group-hover/tip:opacity-100 group-hover/tip:visible transition-all duration-150 whitespace-nowrap z-50"
+            >
+              Ambil kurs terkini dari API
+              <div
+                class="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900"
+              ></div>
+            </div>
+          </div>
+          <span class="text-[11px] text-blue-800/70 font-medium">
+            Dipakai untuk konversi USD → IDR di profit analysis.
+          </span>
         </div>
+      </div>
+
+      <!-- Notes -->
+      <div class="space-y-2">
+        <label class="text-[10px] font-black text-muted-foreground uppercase tracking-widest"
+          >Internal Notes</label
+        >
+        <textarea
+          v-model="form.notes"
+          rows="2"
+          placeholder="Add internal remarks here..."
+          class="w-full px-4 py-3 text-sm border border-border rounded-xl focus:ring-2 focus:ring-[#012D5A]/10 focus:border-[#012D5A] outline-none transition-all bg-gray-50/30 resize-none shadow-sm"
+          v-uppercase
+        ></textarea>
       </div>
 
       <!-- Totals Section -->
@@ -915,7 +922,7 @@ const formatInputCurrency = (val: number | string, currency: string = form.value
             }}</span>
           </div>
           <div
-            v-if="form.currency === 'USD'"
+            v-if="form.currency === 'USD' && isExchangeRateConfigured"
             class="flex justify-between border-t border-border/50 pt-2 mt-1 italic"
           >
             <span class="text-[10px] font-bold text-muted-foreground uppercase"

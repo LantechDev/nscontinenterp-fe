@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { LayoutGrid, LayoutList, Loader2, Plus, Search } from "lucide-vue-next";
+import { Download, LayoutGrid, LayoutList, Loader2, Plus, Search } from "lucide-vue-next";
 import { toast } from "vue-sonner";
 import Combobox from "~/components/ui/Combobox.vue";
 import { useCompanies, type MappedCompany } from "~/composables/useCompanies";
 import { useMasterData } from "~/composables/useMasterData";
 import type { Company } from "~/composables/useMasterData";
+import { buildStyledWorkbook, type StyledRow } from "~/lib/excel-styled";
+import { exportStyledPdf, type PdfCol } from "~/lib/pdf-export";
 import { cn } from "~/lib/utils";
 import CompanyCreateModal from "./components/CompanyCreateModal.vue";
 import CompanyDetailModal from "./components/CompanyDetailModal.vue";
@@ -18,6 +20,8 @@ definePageMeta({
 const { companies: companiesList, pagination, loadCompanies, deleteCompany } = useCompanies();
 const { fetchCompanyCategories } = useMasterData();
 const { hasAccess } = useRoleAccess();
+const { showExportOptions, triggerX, triggerY, triggerWidth, triggerHeight, openExportPopup } =
+  useExportPopup();
 const canManageCompany = computed(() => hasAccess("master.company", "manage"));
 
 const [companiesData, categoriesData] = await Promise.all([
@@ -52,6 +56,7 @@ const isFormOpen = ref(false);
 const formMode = ref<"create" | "edit">("create");
 const selectedCompanyForm = ref<MappedCompany | null>(null);
 const selectedIds = ref<Set<string>>(new Set());
+const isExporting = ref(false);
 
 const openDetailModal = (company: MappedCompany) => {
   selectedCompanyDetail.value = company;
@@ -321,6 +326,110 @@ const handleDeleteCompany = async (company: MappedCompany) => {
   }
 };
 
+const getExportRows = () => sortedCompanies.value;
+const exportDate = () => new Date().toISOString().split("T")[0];
+const exportPeriodLabel = (total: number) =>
+  `Generated: ${new Date().toLocaleDateString("id-ID")} | Total: ${total}`;
+
+const handleExportExcel = () => {
+  const rows = getExportRows();
+  if (rows.length === 0) {
+    toast.error("Tidak ada data company untuk diexport.");
+    return;
+  }
+
+  isExporting.value = true;
+  try {
+    const workbookRows: StyledRow[] = [
+      { cells: ["COMPANY MASTER REPORT", "", "", "", "", "", "", ""], style: 7 },
+      {
+        cells: [exportPeriodLabel(rows.length), "", "", "", "", "", "", ""],
+        style: 8,
+      },
+      {
+        cells: ["No. Cust", "Company", "Email", "Phone", "Role", "Type", "Status", "Total Job"],
+        style: 0,
+      },
+    ];
+
+    rows.forEach((company, index) => {
+      workbookRows.push({
+        cells: [
+          company.code,
+          company.name,
+          company.email,
+          company.phone,
+          company.type,
+          company.categoryName,
+          company.status,
+          company.totalJobs,
+        ],
+        style: index % 2 === 0 ? 5 : 6,
+      });
+    });
+
+    buildStyledWorkbook(
+      "Company",
+      workbookRows,
+      [18, 34, 32, 20, 16, 20, 14, 12],
+      `COMPANY_MASTER_${exportDate()}.xlsx`,
+    );
+    toast.success("Company exported to Excel.");
+  } catch (error) {
+    console.error("Export company Excel error:", error);
+    toast.error("Gagal mengekspor company ke Excel.");
+  } finally {
+    isExporting.value = false;
+  }
+};
+
+const handleExportPdf = async () => {
+  const rows = getExportRows();
+  if (rows.length === 0) {
+    toast.error("Tidak ada data company untuk diexport.");
+    return;
+  }
+
+  isExporting.value = true;
+  try {
+    const cols: PdfCol[] = [
+      { header: "No. Cust", width: 0.12 },
+      { header: "Company", width: 0.23 },
+      { header: "Email", width: 0.21 },
+      { header: "Phone", width: 0.12 },
+      { header: "Role", width: 0.09 },
+      { header: "Type", width: 0.11 },
+      { header: "Status", width: 0.07, align: "center" },
+      { header: "Jobs", width: 0.05, align: "right" },
+    ];
+    const pdfRows = rows.map((company) => [
+      company.code,
+      company.name,
+      company.email,
+      company.phone,
+      company.type,
+      company.categoryName,
+      company.status,
+      company.totalJobs,
+    ]);
+
+    await exportStyledPdf({
+      title: "Company Master Report",
+      period: exportPeriodLabel(rows.length),
+      cols,
+      rows: pdfRows,
+      filename: `COMPANY_MASTER_${exportDate()}.pdf`,
+      orientation: "landscape",
+    });
+    toast.success("Company exported to PDF.");
+  } catch (error) {
+    console.error("Export company PDF error:", error);
+    toast.error("Gagal mengekspor company ke PDF.");
+  } finally {
+    isExporting.value = false;
+  }
+};
+
 watch([selectedType, selectedStatus, selectedCategory], () => {
   fetchWithFilters(1);
 });
@@ -332,6 +441,16 @@ watch([selectedType, selectedStatus, selectedCategory], () => {
       <h1 class="text-2xl font-bold">Company</h1>
 
       <div class="flex items-center gap-2">
+        <button
+          type="button"
+          class="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-white border border-border text-foreground hover:bg-muted rounded-lg transition-colors disabled:opacity-60"
+          :disabled="sortedCompanies.length === 0 || isExporting"
+          @click="openExportPopup($event)"
+        >
+          <Loader2 v-if="isExporting" class="w-4 h-4 animate-spin" />
+          <Download v-else class="w-4 h-4" />
+          <span>{{ isExporting ? "Exporting..." : "Export" }}</span>
+        </button>
         <div class="flex items-center bg-white border border-border rounded-lg p-1 mr-2">
           <button
             @click="viewMode = 'list'"
@@ -470,5 +589,15 @@ watch([selectedType, selectedStatus, selectedCategory], () => {
       @success="patchRenderedCompany"
     />
     <CompanyDetailModal v-model="isDetailOpen" :company="selectedCompanyDetail" />
+    <UiExportOptionsModal
+      v-model:open="showExportOptions"
+      :trigger-x="triggerX"
+      :trigger-y="triggerY"
+      :trigger-width="triggerWidth"
+      :trigger-height="triggerHeight"
+      title="Export Company"
+      @export-pdf="handleExportPdf"
+      @export-excel="handleExportExcel"
+    />
   </div>
 </template>

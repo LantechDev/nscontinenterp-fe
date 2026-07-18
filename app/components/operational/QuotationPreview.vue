@@ -8,6 +8,7 @@ import type { Quotation } from "~/composables/useQuotations";
 import { useBankAccounts, type BankAccount } from "~/composables/useBankAccounts";
 import { useFinanceTax, type Tax } from "~/composables/useFinanceTax";
 import { useServices, type Service } from "~/composables/useServices";
+import CurrencyStack from "~/components/ui/CurrencyStack.vue";
 
 const props = defineProps<{
   quotation: Quotation | null;
@@ -840,20 +841,15 @@ defineExpose({
                       class="flex justify-between gap-1 text-[0.6rem] font-extrabold text-[#062c58] pt-0.5 border-t border-dashed border-[#062c58]/30"
                     >
                       <span>Total</span>
-                      <span class="text-right truncate"
-                        >{{ curr }} {{ formatCurrency(t.total, curr) }}</span
-                      >
-                    </div>
-                    <div
-                      v-if="curr === 'USD' && exchangeRateLabel && t.total > 0"
-                      class="text-[0.48rem] mt-0.5 leading-tight"
-                    >
-                      <span class="block font-bold text-muted-foreground uppercase truncate">
-                        IDR Eq ({{ exchangeRateLabel }})
-                      </span>
-                      <span class="block font-bold text-black truncate">
-                        Rp {{ formatCurrencyIDR(t.total, curr) }}
-                      </span>
+                      <CurrencyStack
+                        :amount="t.total"
+                        :currency="curr"
+                        :exchange-rate="quotation?.exchangeRate"
+                        primary-class="text-right font-extrabold text-[#062c58] truncate"
+                        secondary-class="text-[0.48rem] text-muted-foreground opacity-70 font-semibold truncate"
+                        align="right"
+                        show-rate
+                      />
                     </div>
                   </div>
                 </div>

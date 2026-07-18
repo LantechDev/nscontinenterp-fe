@@ -21,6 +21,7 @@ import { ExpenseEditModal } from "~/pages/finance/expenses/components";
 import { generateExpensePdf } from "~/pages/finance/expenses/utils/pdf-generator";
 import OperationalJobDetailSlideOver from "~/components/operational/JobDetailSlideOver.vue";
 import CompanyCreateModal from "~/pages/master/company/components/CompanyCreateModal.vue";
+import CurrencyStack from "~/components/ui/CurrencyStack.vue";
 
 interface ExpenseBootstrapData {
   expenses: { items: Expense[]; pagination: Pagination };
@@ -377,18 +378,13 @@ const handleInvoiceClick = (expense: Expense) => {
                     {{ formatDate(expense.date) }}
                   </td>
                   <td class="py-3 px-4 text-sm font-medium text-destructive">
-                    <div>{{ formatExpenseAmount(Number(expense.amount), expense.currency) }}</div>
-                    <div
-                      v-if="expense.currency && expense.currency !== 'IDR'"
-                      class="text-[10px] text-muted-foreground font-mono font-normal mt-0.5 whitespace-nowrap"
-                    >
-                      Rp
-                      {{
-                        (Number(expense.amount) * Number(expense.exchangeRate || 1)).toLocaleString(
-                          "id-ID",
-                        )
-                      }}
-                    </div>
+                    <CurrencyStack
+                      :amount="expense.amount"
+                      :currency="expense.currency"
+                      :exchange-rate="expense.exchangeRate"
+                      primary-class="text-sm font-bold text-destructive whitespace-nowrap"
+                      secondary-class="text-[10px] text-muted-foreground opacity-70 font-normal whitespace-nowrap"
+                    />
                   </td>
                   <td class="py-3 px-4">
                     <span
@@ -479,20 +475,13 @@ const handleInvoiceClick = (expense: Expense) => {
             </div>
             <div>
               <p class="text-xs text-muted-foreground mb-1">Amount</p>
-              <p class="text-lg font-bold text-destructive">
-                {{ formatExpenseAmount(Number(expense.amount), expense.currency) }}
-              </p>
-              <p
-                v-if="expense.currency && expense.currency !== 'IDR'"
-                class="text-xs text-muted-foreground font-mono mt-0.5"
-              >
-                Rp
-                {{
-                  (Number(expense.amount) * Number(expense.exchangeRate || 1)).toLocaleString(
-                    "id-ID",
-                  )
-                }}
-              </p>
+              <CurrencyStack
+                :amount="expense.amount"
+                :currency="expense.currency"
+                :exchange-rate="expense.exchangeRate"
+                primary-class="text-lg font-bold text-destructive"
+                secondary-class="text-xs text-muted-foreground opacity-70"
+              />
             </div>
           </div>
 

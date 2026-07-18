@@ -56,6 +56,7 @@ export interface QuotationInvoice {
   quotationId?: string;
   number?: string | null;
   date?: string | null;
+  currency?: "IDR" | "USD";
   notes?: string | null;
   subTotal: number;
   taxAmount: number;

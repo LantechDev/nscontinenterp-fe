@@ -77,6 +77,7 @@ const isBreakdownMode = computed(() => form.value.items.length > 0);
 const hasUSDItems = computed(() => {
   return form.value.items.some((item) => item.currency === "USD");
 });
+const isExchangeRateConfigured = computed(() => Number(form.value.exchangeRate || 1) > 1);
 
 const subtotal = computed(() => {
   return form.value.items.reduce((sum, item) => {
@@ -544,89 +545,6 @@ async function onCompanyCreated(company: Company) {
         </div>
       </div>
 
-      <!-- Section: Currency & Exchange Rate -->
-      <div
-        class="p-4 bg-gray-50/50 rounded-2xl border border-gray-100 flex items-center justify-between gap-6"
-      >
-        <div class="flex items-center gap-4">
-          <div class="flex flex-col gap-1">
-            <span class="text-[10px] font-black text-muted-foreground uppercase tracking-widest"
-              >Invoice Currency</span
-            >
-            <span
-              class="px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider bg-[#012D5A]/5 border border-[#012D5A]/10 text-[#012D5A] shadow-sm self-start"
-            >
-              {{ form.currency }}
-            </span>
-          </div>
-
-          <div
-            v-if="hasUSDItems"
-            class="flex flex-col gap-1 animate-in slide-in-from-left-2 duration-300"
-          >
-            <label
-              class="text-[10px] font-black text-[#012D5A] uppercase tracking-widest flex items-center gap-1.5"
-            >
-              Exchange Rate
-              <span class="text-[8px] text-[#012D5A]/50 lowercase font-medium">(to IDR)</span>
-            </label>
-            <div class="flex items-center gap-2">
-              <div class="relative group/rate">
-                <input
-                  type="text"
-                  :value="formatInputCurrency(form.exchangeRate, 'IDR')"
-                  v-uppercase
-                  @input="
-                    (e) =>
-                      (form.exchangeRate = parseInputCurrency(
-                        (e.target as HTMLInputElement).value,
-                        'IDR',
-                      ))
-                  "
-                  class="w-32 px-3 py-1.5 text-xs font-black text-[#012D5A] border border-[#012D5A]/15 rounded-lg focus:ring-4 focus:ring-[#012D5A]/5 focus:border-[#012D5A] outline-none transition-all bg-white"
-                  placeholder="16,000"
-                />
-              </div>
-              <div class="relative group/tip">
-                <button
-                  type="button"
-                  @click="loadExchangeRate"
-                  :disabled="isFetchingRate"
-                  class="shrink-0 h-8 px-2 inline-flex items-center gap-1 bg-white border border-blue-200 text-[#012D5A] rounded-lg hover:bg-blue-50 hover:border-blue-300 transition-all disabled:opacity-50"
-                >
-                  <Loader2 v-if="isFetchingRate" class="w-3 h-3 animate-spin" />
-                  <RefreshCw v-else class="w-3 h-3" />
-                </button>
-                <div
-                  class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 bg-gray-900 text-white text-[10px] font-medium rounded-lg opacity-0 invisible group-hover/tip:opacity-100 group-hover/tip:visible transition-all duration-150 whitespace-nowrap z-50 animate-in fade-in zoom-in-95"
-                >
-                  Ambil kurs terkini dari API
-                  <div
-                    class="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900"
-                  ></div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div v-if="hasUSDItems" class="text-right flex flex-col gap-0.5">
-          <span class="text-[8px] font-black text-muted-foreground uppercase tracking-[0.15em]"
-            >Live Preview</span
-          >
-          <p class="text-xs font-black text-[#012D5A]">
-            $1 =
-            {{
-              new Intl.NumberFormat("id-ID", {
-                style: "currency",
-                currency: "IDR",
-                minimumFractionDigits: 0,
-              }).format(form.exchangeRate)
-            }}
-          </p>
-        </div>
-      </div>
-
       <!-- Section: Financials -->
       <div class="space-y-4 pt-4">
         <div class="flex items-center justify-between">
@@ -767,8 +685,8 @@ async function onCompanyCreated(company: Company) {
         </div>
       </div>
 
-      <!-- Section: Additional Details (Tax & Notes Side-by-Side) -->
-      <div class="grid grid-cols-2 gap-8 pt-4">
+      <!-- Tax -->
+      <div class="pt-4">
         <div class="space-y-2">
           <label class="text-[10px] font-black text-muted-foreground uppercase tracking-widest"
             >Tax (PPN/PPH)</label
@@ -783,18 +701,70 @@ async function onCompanyCreated(company: Company) {
             Tax will be applied to the total amount of the invoice.
           </p>
         </div>
-        <div class="space-y-2">
-          <label class="text-[10px] font-black text-muted-foreground uppercase tracking-widest"
-            >Internal Notes</label
-          >
-          <textarea
-            v-model="form.notes"
-            rows="2"
-            class="w-full px-4 py-3 text-sm border border-border rounded-xl focus:ring-2 focus:ring-[#012D5A]/10 focus:border-[#012D5A] outline-none transition-all bg-gray-50/30 resize-none shadow-sm"
-            placeholder="Add internal remarks here..."
-            v-uppercase
-          ></textarea>
+      </div>
+
+      <!-- Section: Kurs (only if any USD item) -->
+      <div v-if="hasUSDItems" class="p-4 bg-blue-50/50 rounded-xl border border-blue-100 space-y-3">
+        <label class="text-[10px] font-black text-[#012D5A] uppercase tracking-widest">
+          Kurs (USD → IDR)
+        </label>
+        <div class="flex items-center gap-3">
+          <div class="flex-1 space-y-1">
+            <input
+              type="text"
+              :value="formatInputCurrency(form.exchangeRate, 'IDR')"
+              v-uppercase
+              @input="
+                (e) =>
+                  (form.exchangeRate = parseInputCurrency(
+                    (e.target as HTMLInputElement).value,
+                    'IDR',
+                  ))
+              "
+              class="w-full max-w-[200px] px-3 py-1.5 text-xs font-black text-[#012D5A] border border-[#012D5A]/15 rounded-lg focus:ring-4 focus:ring-[#012D5A]/5 focus:border-[#012D5A] outline-none transition-all bg-white"
+              placeholder="16,000"
+            />
+            <p class="text-[9px] font-bold text-blue-800/60">
+              $1 = {{ formatCurrency(Number(form.exchangeRate) || 0, "IDR") }}
+            </p>
+          </div>
+          <div class="relative group/tip">
+            <button
+              type="button"
+              @click="loadExchangeRate"
+              :disabled="isFetchingRate"
+              class="shrink-0 h-9 px-2.5 inline-flex items-center gap-1 bg-white border border-blue-200 text-[#012D5A] rounded-lg hover:bg-blue-50 hover:border-blue-300 transition-all disabled:opacity-50"
+            >
+              <Loader2 v-if="isFetchingRate" class="w-3.5 h-3.5 animate-spin" />
+              <RefreshCw v-else class="w-3.5 h-3.5" />
+            </button>
+            <div
+              class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 bg-gray-900 text-white text-[10px] font-medium rounded-lg opacity-0 invisible group-hover/tip:opacity-100 group-hover/tip:visible transition-all duration-150 whitespace-nowrap z-50"
+            >
+              Ambil kurs terkini dari API
+              <div
+                class="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900"
+              ></div>
+            </div>
+          </div>
+          <span class="text-[11px] text-blue-800/70 font-medium">
+            Dipakai untuk konversi USD → IDR di profit analysis.
+          </span>
         </div>
+      </div>
+
+      <!-- Notes -->
+      <div class="space-y-2">
+        <label class="text-[10px] font-black text-muted-foreground uppercase tracking-widest"
+          >Internal Notes</label
+        >
+        <textarea
+          v-model="form.notes"
+          rows="2"
+          class="w-full px-4 py-3 text-sm border border-border rounded-xl focus:ring-2 focus:ring-[#012D5A]/10 focus:border-[#012D5A] outline-none transition-all bg-gray-50/30 resize-none shadow-sm"
+          placeholder="Add internal remarks here..."
+          v-uppercase
+        ></textarea>
       </div>
 
       <!-- Section: Final Totals Card (Premium Redesign) -->
@@ -896,7 +866,7 @@ async function onCompanyCreated(company: Company) {
                           </span>
                         </div>
                         <p
-                          v-if="form.currency === 'USD'"
+                          v-if="form.currency === 'USD' && isExchangeRateConfigured"
                           class="text-[9px] font-bold text-muted-foreground/60 uppercase tracking-widest mt-1"
                         >
                           Equivalent to IDR
@@ -932,7 +902,7 @@ async function onCompanyCreated(company: Company) {
                           />
                         </div>
                         <p
-                          v-if="form.currency === 'USD'"
+                          v-if="form.currency === 'USD' && isExchangeRateConfigured"
                           class="text-[10px] font-bold text-muted-foreground/60 uppercase tracking-widest"
                         >
                           Approx. IDR
