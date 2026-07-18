@@ -73,6 +73,8 @@ export function usePorts() {
     limit?: number;
     status?: "all" | "active" | "inactive";
     source?: "all" | "SYSTEM" | "CUSTOM";
+    country?: string;
+    city?: string;
     paginated?: boolean;
   }): Promise<TransportLocation[]> {
     isLoading.value = true;
@@ -91,6 +93,8 @@ export function usePorts() {
             limit: params.limit || 25,
             status: params.status || "active",
             source: params.source || "all",
+            country: params.country || undefined,
+            city: params.city || undefined,
           },
         });
         ports.value = response.data;

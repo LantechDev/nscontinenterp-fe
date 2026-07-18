@@ -1,5 +1,20 @@
 <script setup lang="ts">
-import { Edit3, Loader2, MapPin, Plane, Plus, Search, Ship, Trash2 } from "lucide-vue-next";
+import {
+  CheckCircle2,
+  Database,
+  Edit3,
+  Filter,
+  Loader2,
+  MapPin,
+  PencilLine,
+  Plane,
+  Plus,
+  Search,
+  ShieldCheck,
+  Ship,
+  Trash2,
+  X,
+} from "lucide-vue-next";
 import { toast } from "vue-sonner";
 import Combobox from "~/components/ui/Combobox.vue";
 import Modal from "~/components/ui/Modal.vue";
@@ -22,6 +37,8 @@ const searchQuery = ref("");
 const selectedType = ref<"ocean" | "air">("ocean");
 const selectedStatus = ref("active");
 const selectedSource = ref("all");
+const selectedCountry = ref("");
+const selectedCity = ref("");
 const currentPage = ref(1);
 const pageSize = ref(25);
 const isModalOpen = ref(false);
@@ -65,6 +82,37 @@ const form = ref<SaveTransportLocationPayload>({
 const apiType = computed(() => selectedType.value);
 const pageTitle = computed(() => (selectedType.value === "air" ? "Airports" : "Sea Ports"));
 const isAirportForm = computed(() => form.value.type === "AIRPORT");
+const locationLabel = computed(() => (selectedType.value === "air" ? "airport" : "port"));
+const statsCards = computed(() => [
+  {
+    label: "Loaded Data",
+    value: stats.value.total,
+    helper: `Total ${locationLabel.value} sesuai filter aktif`,
+    icon: Database,
+    tone: "bg-[#012D5A]/10 text-[#012D5A]",
+  },
+  {
+    label: "Active",
+    value: stats.value.active,
+    helper: `${locationLabel.value} yang bisa dipilih di transaksi`,
+    icon: CheckCircle2,
+    tone: "bg-emerald-50 text-emerald-700",
+  },
+  {
+    label: "System Default",
+    value: stats.value.system,
+    helper: "Data bawaan dari master global",
+    icon: ShieldCheck,
+    tone: "bg-blue-50 text-blue-700",
+  },
+  {
+    label: "Custom Input",
+    value: stats.value.custom,
+    helper: "Data yang ditambahkan manual",
+    icon: PencilLine,
+    tone: "bg-amber-50 text-amber-700",
+  },
+]);
 
 const loadLocations = async () => {
   await fetchPorts({
@@ -74,18 +122,23 @@ const loadLocations = async () => {
     limit: pageSize.value,
     status: (selectedStatus.value || "active") as "all" | "active" | "inactive",
     source: (selectedSource.value || "all") as "all" | "SYSTEM" | "CUSTOM",
+    country: selectedCountry.value.trim() || undefined,
+    city: selectedCity.value.trim() || undefined,
     paginated: true,
   });
 };
 
 let searchTimer: ReturnType<typeof setTimeout> | null = null;
-watch([searchQuery, selectedType, selectedStatus, selectedSource], () => {
-  if (searchTimer) clearTimeout(searchTimer);
-  currentPage.value = 1;
-  searchTimer = setTimeout(() => {
-    loadLocations();
-  }, 250);
-});
+watch(
+  [searchQuery, selectedType, selectedStatus, selectedSource, selectedCountry, selectedCity],
+  () => {
+    if (searchTimer) clearTimeout(searchTimer);
+    currentPage.value = 1;
+    searchTimer = setTimeout(() => {
+      loadLocations();
+    }, 250);
+  },
+);
 
 watch(currentPage, loadLocations);
 
@@ -94,6 +147,43 @@ onMounted(loadLocations);
 const filteredLocations = computed(() => {
   return [...ports.value].toSorted((a, b) => a.code.localeCompare(b.code));
 });
+
+const hasActiveFilters = computed(
+  () =>
+    Boolean(searchQuery.value.trim()) ||
+    selectedType.value !== "ocean" ||
+    selectedStatus.value !== "active" ||
+    selectedSource.value !== "all" ||
+    Boolean(selectedCountry.value.trim()) ||
+    Boolean(selectedCity.value.trim()),
+);
+
+const activeFilterSummary = computed(() => {
+  const items = [
+    selectedType.value === "air" ? "Airports" : "Sea Ports",
+    selectedStatus.value !== "active"
+      ? statusOptions.find((item) => item.id === selectedStatus.value)?.name
+      : null,
+    selectedSource.value !== "all"
+      ? sourceOptions.find((item) => item.id === selectedSource.value)?.name
+      : null,
+    selectedCountry.value.trim() ? `Country: ${selectedCountry.value.trim()}` : null,
+    selectedCity.value.trim() ? `City: ${selectedCity.value.trim()}` : null,
+    searchQuery.value.trim() ? `Search: ${searchQuery.value.trim()}` : null,
+  ].filter(Boolean);
+
+  return items.join(" · ");
+});
+
+const resetFilters = () => {
+  searchQuery.value = "";
+  selectedType.value = "ocean";
+  selectedStatus.value = "active";
+  selectedSource.value = "all";
+  selectedCountry.value = "";
+  selectedCity.value = "";
+  currentPage.value = 1;
+};
 
 const normalizeLocationType = (type: "ocean" | "air"): LocationType =>
   type === "air" ? "AIRPORT" : "SEA_PORT";
@@ -250,54 +340,96 @@ const sourceDotClass = (source?: LocationSource) =>
         class="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold bg-[#012D5A] text-white hover:bg-[#012D5A]/90 rounded-lg transition-colors"
       >
         <Plus class="w-4 h-4" />
-        Add Location
+        Add Port / Airport
       </button>
     </div>
 
-    <div class="grid grid-cols-1 sm:grid-cols-4 gap-4">
-      <div class="border border-border rounded-lg bg-white p-4">
-        <div class="flex items-center justify-between">
-          <div>
-            <p class="text-sm text-muted-foreground">Loaded</p>
-            <p class="text-2xl font-bold">{{ stats.total }}</p>
+    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+      <div
+        v-for="card in statsCards"
+        :key="card.label"
+        class="border border-border rounded-lg bg-white p-4 min-h-[118px]"
+      >
+        <div class="flex items-start justify-between gap-3">
+          <div class="min-w-0 space-y-1">
+            <p class="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
+              {{ card.label }}
+            </p>
+            <p class="text-3xl font-bold text-foreground leading-tight">
+              {{ card.value.toLocaleString("id-ID") }}
+            </p>
           </div>
           <div
-            class="h-10 w-10 rounded-lg bg-[#012D5A]/10 text-[#012D5A] flex items-center justify-center"
+            class="h-10 w-10 shrink-0 rounded-lg flex items-center justify-center"
+            :class="card.tone"
           >
-            <MapPin class="w-5 h-5" />
+            <component :is="card.icon" class="w-5 h-5" />
           </div>
         </div>
-      </div>
-      <div class="border border-border rounded-lg bg-white p-4">
-        <p class="text-sm text-muted-foreground">Active</p>
-        <p class="text-2xl font-bold">{{ stats.active }}</p>
-      </div>
-      <div class="border border-border rounded-lg bg-white p-4">
-        <p class="text-sm text-muted-foreground">System</p>
-        <p class="text-2xl font-bold">{{ stats.system }}</p>
-      </div>
-      <div class="border border-border rounded-lg bg-white p-4">
-        <p class="text-sm text-muted-foreground">Custom</p>
-        <p class="text-2xl font-bold">{{ stats.custom }}</p>
+        <p class="mt-3 text-xs leading-relaxed text-muted-foreground">
+          {{ card.helper }}
+        </p>
       </div>
     </div>
 
-    <div class="flex flex-col xl:flex-row xl:items-center justify-between gap-3">
-      <div class="relative w-full lg:max-w-md">
-        <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+    <div class="border border-border rounded-lg bg-white p-4 space-y-4">
+      <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+        <div class="flex items-center gap-2">
+          <div
+            class="h-9 w-9 rounded-lg bg-[#012D5A]/10 text-[#012D5A] flex items-center justify-center"
+          >
+            <Filter class="w-4 h-4" />
+          </div>
+          <div>
+            <h2 class="text-sm font-bold text-foreground">Filter Port Database</h2>
+            <p class="text-xs text-muted-foreground">
+              {{ activeFilterSummary || "Sea Ports · Active" }}
+            </p>
+          </div>
+        </div>
+        <button
+          v-if="hasActiveFilters"
+          type="button"
+          class="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-border px-3 text-xs font-bold text-muted-foreground hover:bg-gray-50"
+          @click="resetFilters"
+        >
+          <X class="w-4 h-4" />
+          Reset Filter
+        </button>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-7 gap-3">
+        <div class="relative xl:col-span-2">
+          <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <input
+            v-model="searchQuery"
+            type="text"
+            placeholder="Search code, name, city, country..."
+            class="w-full h-10 pl-10 pr-4 text-sm border border-border rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground"
+            v-uppercase
+          />
+        </div>
+
+        <Combobox v-model="selectedType" :options="typeOptions" class="min-w-0" />
+        <Combobox v-model="selectedStatus" :options="statusOptions" class="min-w-0" />
+        <Combobox v-model="selectedSource" :options="sourceOptions" class="min-w-0" />
         <input
-          v-model="searchQuery"
+          v-model="selectedCountry"
           type="text"
-          placeholder="Search code, name, city, country..."
-          class="w-full h-10 pl-10 pr-4 text-sm border border-border rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground"
+          placeholder="Country"
+          class="w-full h-10 px-3 text-sm border border-border rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground"
+          v-uppercase
+        />
+        <input
+          v-model="selectedCity"
+          type="text"
+          placeholder="City"
+          class="w-full h-10 px-3 text-sm border border-border rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground"
           v-uppercase
         />
       </div>
 
-      <div class="grid grid-cols-1 sm:grid-cols-4 gap-3 w-full xl:w-auto">
-        <Combobox v-model="selectedType" :options="typeOptions" class="min-w-[160px]" />
-        <Combobox v-model="selectedStatus" :options="statusOptions" class="min-w-[150px]" />
-        <Combobox v-model="selectedSource" :options="sourceOptions" class="min-w-[150px]" />
+      <div class="flex justify-end">
         <Combobox
           :model-value="String(pageSize)"
           :options="[
@@ -305,7 +437,7 @@ const sourceDotClass = (source?: LocationSource) =>
             { id: '50', name: '50 / page' },
             { id: '100', name: '100 / page' },
           ]"
-          class="min-w-[130px]"
+          class="w-full sm:w-[150px]"
           @update:model-value="
             (value) => {
               pageSize = Number(value || 25);

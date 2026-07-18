@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Plus, Trash2, X, Loader2, RefreshCw, Receipt, AlertTriangle } from "lucide-vue-next";
+import { Plus, Trash2, X, Loader2, RefreshCw, Receipt } from "lucide-vue-next";
 import { useServices } from "~/composables/useServices";
 import { useFinanceTax, type Tax } from "~/composables/useFinanceTax";
 import Combobox from "~/components/ui/Combobox.vue";
@@ -37,10 +37,16 @@ interface FormItem {
   currency: string;
 }
 
+const invoiceItemCurrency = props.invoice?.items?.length
+  ? [...new Set(props.invoice.items.map((item) => item.currency || "IDR"))]
+  : [];
+const derivedInvoiceCurrency =
+  props.invoice?.currency || (invoiceItemCurrency.length === 1 ? invoiceItemCurrency[0] : null);
+
 const form = ref({
   number: props.invoice?.number || props.nextNumber || "",
   date: props.invoice?.date || new Date().toISOString().split("T")[0],
-  currency: props.quotationCurrency || "IDR",
+  currency: derivedInvoiceCurrency || props.quotationCurrency || "IDR",
   exchangeRate: Number(props.quotationExchangeRate || 1),
   taxId: "",
   notes: props.invoice?.notes || "",
@@ -64,12 +70,8 @@ const form = ref({
 });
 
 const hasUSDItems = computed(() => form.value.items.some((item) => item.currency === "USD"));
-const hasMixedCurrency = computed(() => {
-  const currencies = new Set(form.value.items.map((i) => i.currency || "IDR"));
-  return currencies.size > 1;
-});
 const isExchangeRateConfigured = computed(() => Number(form.value.exchangeRate || 1) > 1);
-const useGroupedTotals = computed(() => hasMixedCurrency.value && !isExchangeRateConfigured.value);
+const useGroupedTotals = computed(() => !isExchangeRateConfigured.value);
 
 watch(
   () => form.value.items,
@@ -247,16 +249,30 @@ const total = computed(() => {
   return form.value.currency === "IDR" ? Math.round(sum) : sum;
 });
 
-// Per-currency grouped totals (used when mixed currencies + no exchange rate)
+// Per-currency grouped totals (used when exchange rate is not configured)
 const groupedTotals = computed(() => {
-  const gt: Record<string, { subTotal: number; total: number }> = {};
+  const gt: Record<string, { subTotal: number; taxAmount: number; total: number }> = {
+    IDR: { subTotal: 0, taxAmount: 0, total: 0 },
+    USD: { subTotal: 0, taxAmount: 0, total: 0 },
+  };
   form.value.items.forEach((it) => {
     const curr = it.currency || "IDR";
-    if (!gt[curr]) gt[curr] = { subTotal: 0, total: 0 };
+    if (!gt[curr]) gt[curr] = { subTotal: 0, taxAmount: 0, total: 0 };
     const amt = (it.quantity || 0) * (it.unitPrice || 0);
     gt[curr].subTotal += amt;
-    gt[curr].total += amt;
   });
+
+  Object.keys(gt).forEach((curr) => {
+    const entry = gt[curr];
+    if (!entry) return;
+    const roundedSubTotal = curr === "IDR" ? Math.round(entry.subTotal) : entry.subTotal;
+    const rawTax = (roundedSubTotal * taxRatePercent.value) / 100;
+    const tax = ceilTaxByCurrency(rawTax, curr);
+    entry.subTotal = roundedSubTotal;
+    entry.taxAmount = tax;
+    entry.total = roundedSubTotal + (isWithholdingTax.value ? -tax : tax);
+  });
+
   return gt;
 });
 
@@ -338,6 +354,7 @@ const handleSubmit = () => {
     id: props.invoice?.id,
     number: form.value.number || null,
     date: form.value.date || null,
+    currency: form.value.currency as "IDR" | "USD",
     notes: form.value.notes || null,
     subTotal: discountedBase.value,
     taxAmount: taxAmount.value,
@@ -354,57 +371,18 @@ const handleSubmit = () => {
         <div class="flex items-center gap-2">
           <Receipt class="w-5 h-5 text-[#012D5A]" />
           <h3 class="font-bold text-foreground">
-            {{ invoice?.id ? "Edit" : "Create New" }} Quotation Invoice
+            {{ invoice?.id ? "Edit" : "Create New" }} Quotation
           </h3>
         </div>
         <div class="h-4 w-[1px] bg-border mx-1"></div>
         <div class="flex items-center gap-2">
           <span class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest"
-            >Invoice Currency</span
+            >Quotation Currency</span
           >
           <span
             class="px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider bg-[#012D5A]/5 border border-[#012D5A]/10 text-[#012D5A] shadow-sm"
             >{{ form.currency }}</span
           >
-        </div>
-        <div
-          v-if="hasUSDItems"
-          class="flex items-center gap-2 animate-in slide-in-from-left-2 duration-300"
-        >
-          <span class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest"
-            >Ex. Rate</span
-          >
-          <div class="flex gap-2 items-center">
-            <div class="relative group/rate">
-              <input
-                type="text"
-                :value="formatInputCurrency(form.exchangeRate, 'IDR')"
-                v-uppercase
-                @input="
-                  (e) =>
-                    (form.exchangeRate = parseInputCurrency(
-                      (e.target as HTMLInputElement).value,
-                      'IDR',
-                    ))
-                "
-                class="w-28 px-3 py-1 text-xs font-bold text-[#012D5A] border border-border rounded-lg focus:ring-2 focus:ring-[#012D5A]/10 focus:border-[#012D5A] outline-none transition-all bg-white"
-                placeholder="16,000"
-              />
-            </div>
-            <div class="relative group/tip">
-              <button
-                type="button"
-                @click="loadExchangeRate"
-                :disabled="isFetchingRate"
-                class="h-7 px-2 inline-flex items-center gap-1 bg-white border border-blue-200 text-[#012D5A] text-[10px] font-bold rounded-lg hover:bg-blue-50 hover:border-blue-300 transition-all disabled:opacity-50"
-              >
-                <Loader2 v-if="isFetchingRate" class="w-3 h-3 animate-spin" /><RefreshCw
-                  v-else
-                  class="w-3 h-3"
-                />
-              </button>
-            </div>
-          </div>
         </div>
       </div>
       <button
@@ -420,7 +398,7 @@ const handleSubmit = () => {
       <div class="grid grid-cols-2 gap-4">
         <div class="space-y-1.5">
           <label class="text-xs font-bold text-muted-foreground uppercase tracking-wider"
-            >Invoice No.</label
+            >Quotation No.</label
           >
           <input
             v-model="form.number"
@@ -548,8 +526,8 @@ const handleSubmit = () => {
         </div>
       </div>
 
-      <!-- Tax & Notes -->
-      <div class="grid grid-cols-2 gap-8 pt-4">
+      <!-- Tax -->
+      <div class="pt-4">
         <div class="space-y-2">
           <label class="text-[10px] font-black text-muted-foreground uppercase tracking-widest"
             >Tax (PPN/PPH)</label
@@ -564,33 +542,91 @@ const handleSubmit = () => {
             Tax will be applied to the total subtotal amount.
           </p>
         </div>
-        <div class="space-y-2">
-          <label class="text-[10px] font-black text-muted-foreground uppercase tracking-widest"
-            >Internal Notes</label
-          >
-          <textarea
-            v-model="form.notes"
-            rows="2"
-            placeholder="Add internal remarks here..."
-            class="w-full px-4 py-3 text-sm border border-border rounded-xl focus:ring-2 focus:ring-[#012D5A]/10 focus:border-[#012D5A] outline-none transition-all bg-gray-50/30 resize-none shadow-sm"
-            v-uppercase
-          ></textarea>
+      </div>
+
+      <!-- Section: Kurs (only if any USD item) -->
+      <div v-if="hasUSDItems" class="p-4 bg-blue-50/50 rounded-xl border border-blue-100 space-y-3">
+        <label class="text-[10px] font-black text-[#012D5A] uppercase tracking-widest">
+          Kurs (USD → IDR)
+        </label>
+        <div class="flex items-center gap-3">
+          <div class="flex-1 space-y-1">
+            <input
+              type="text"
+              :value="formatInputCurrency(form.exchangeRate, 'IDR')"
+              v-uppercase
+              @input="
+                (e) =>
+                  (form.exchangeRate = parseInputCurrency(
+                    (e.target as HTMLInputElement).value,
+                    'IDR',
+                  ))
+              "
+              class="w-full max-w-[200px] px-3 py-1.5 text-xs font-black text-[#012D5A] border border-[#012D5A]/15 rounded-lg focus:ring-4 focus:ring-[#012D5A]/5 focus:border-[#012D5A] outline-none transition-all bg-white"
+              placeholder="16,000"
+            />
+            <p class="text-[9px] font-bold text-blue-800/60">
+              $1 = {{ formatCurrency(Number(form.exchangeRate) || 0, "IDR") }}
+            </p>
+          </div>
+          <div class="relative group/tip">
+            <button
+              type="button"
+              @click="loadExchangeRate"
+              :disabled="isFetchingRate"
+              class="shrink-0 h-9 px-2.5 inline-flex items-center gap-1 bg-white border border-blue-200 text-[#012D5A] rounded-lg hover:bg-blue-50 hover:border-blue-300 transition-all disabled:opacity-50"
+            >
+              <Loader2 v-if="isFetchingRate" class="w-3.5 h-3.5 animate-spin" />
+              <RefreshCw v-else class="w-3.5 h-3.5" />
+            </button>
+            <div
+              class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 bg-gray-900 text-white text-[10px] font-medium rounded-lg opacity-0 invisible group-hover/tip:opacity-100 group-hover/tip:visible transition-all duration-150 whitespace-nowrap z-50"
+            >
+              Ambil kurs terkini dari API
+              <div
+                class="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900"
+              ></div>
+            </div>
+          </div>
+          <span class="text-[11px] text-blue-800/70 font-medium">
+            Dipakai untuk konversi USD → IDR di profit analysis.
+          </span>
         </div>
+      </div>
+
+      <!-- Notes -->
+      <div class="space-y-2">
+        <label class="text-[10px] font-black text-muted-foreground uppercase tracking-widest"
+          >Internal Notes</label
+        >
+        <textarea
+          v-model="form.notes"
+          rows="2"
+          placeholder="Add internal remarks here..."
+          class="w-full px-4 py-3 text-sm border border-border rounded-xl focus:ring-2 focus:ring-[#012D5A]/10 focus:border-[#012D5A] outline-none transition-all bg-gray-50/30 resize-none shadow-sm"
+          v-uppercase
+        ></textarea>
       </div>
 
       <!-- Totals / Summary -->
       <div class="flex justify-end pt-4">
-        <!-- Grouped per-currency (mixed currency + no exchange rate) -->
+        <!-- Grouped per-currency (exchange rate not configured) -->
         <div
           v-if="useGroupedTotals"
-          class="w-full md:w-[420px] space-y-4 bg-gray-50/50 p-5 rounded-xl border border-border shadow-sm"
+          class="w-full md:w-[380px] space-y-4 bg-gray-50/50 p-5 rounded-xl border border-border shadow-sm"
         >
           <h4 class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-            Invoice Summary
+            Quotation Summary
           </h4>
           <div class="divide-y divide-border/50">
-            <div v-for="(t, curr) in groupedTotals" :key="curr" class="py-2.5 first:pt-0">
-              <div v-if="t.total > 0" class="space-y-1.5">
+            <div v-for="(t, curr) in groupedTotals" :key="curr" class="py-2.5 first:pt-0 last:pb-0">
+              <div
+                v-if="
+                  t.total > 0 ||
+                  (curr === 'IDR' && Object.values(groupedTotals).every((x) => x.total === 0))
+                "
+                class="space-y-1.5"
+              >
                 <span class="text-[10px] font-extrabold text-[#062c58] uppercase tracking-wider"
                   >{{ curr }} Charges</span
                 >
@@ -600,36 +636,25 @@ const handleSubmit = () => {
                     formatCurrency(t.subTotal, curr)
                   }}</span>
                 </div>
-                <div
-                  v-if="taxRatePercent > 0"
-                  class="flex justify-between text-xs text-muted-foreground"
-                >
-                  <span>PPN ({{ taxRatePercent }}%)</span>
-                  <span class="font-semibold text-foreground">{{
-                    formatCurrency(Math.round((t.subTotal * taxRatePercent) / 100), curr)
-                  }}</span>
+                <div class="flex justify-between text-xs text-muted-foreground">
+                  <span>{{ isWithholdingTax ? "PPh" : "VAT / Tax" }}</span>
+                  <span
+                    class="font-semibold"
+                    :class="
+                      isWithholdingTax && t.taxAmount > 0 ? 'text-red-600' : 'text-foreground'
+                    "
+                    >{{ isWithholdingTax && t.taxAmount > 0 ? "- " : ""
+                    }}{{ formatCurrency(t.taxAmount, curr) }}</span
+                  >
                 </div>
                 <div
                   class="flex justify-between text-sm font-bold text-[#062c58] pt-1 border-t border-dashed border-border/60"
                 >
-                  <span>Total</span>
-                  <span class="font-black">{{
-                    formatCurrency(
-                      t.subTotal + Math.round((t.subTotal * taxRatePercent) / 100),
-                      curr,
-                    )
-                  }}</span>
+                  <span>Total Amount</span>
+                  <span class="text-base font-black">{{ formatCurrency(t.total, curr) }}</span>
                 </div>
               </div>
             </div>
-          </div>
-          <div
-            v-if="hasUSDItems && !isExchangeRateConfigured"
-            class="p-3 bg-amber-50 border border-amber-200 rounded-lg"
-          >
-            <p class="text-[10px] font-bold text-amber-800 flex items-center gap-1">
-              <AlertTriangle class="w-3 h-3" /> Isi exchange rate untuk lihat total IDR gabungan
-            </p>
           </div>
         </div>
 
@@ -736,7 +761,7 @@ const handleSubmit = () => {
         :disabled="isSaving"
       >
         <span v-if="isSaving">{{ invoice?.id ? "Updating..." : "Saving..." }}</span>
-        <span v-else>{{ invoice?.id ? "Update" : "Create" }} Invoice</span>
+        <span v-else>{{ invoice?.id ? "Update" : "Create" }} Quotation</span>
       </button>
     </div>
 

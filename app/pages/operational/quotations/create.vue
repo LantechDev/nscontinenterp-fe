@@ -400,6 +400,12 @@ const nextInvNumber = computed(() => {
   return `QINV-${new Date().toISOString().slice(2, 10).replace(/-/g, "")}-${String(count).padStart(3, "0")}`;
 });
 
+const getQuotationInvoiceCurrency = (inv: QuotationInvoice) => {
+  if (inv.currency) return inv.currency;
+  const currencies = [...new Set((inv.items || []).map((item) => item.currency || "IDR"))];
+  return currencies.length === 1 ? currencies[0]! : "IDR";
+};
+
 const handleInvoiceSubmit = (payload: QuotationInvoice) => {
   if (editingInvoice.value) {
     pendingInvoices.value = pendingInvoices.value.map((inv) =>
@@ -410,7 +416,7 @@ const handleInvoiceSubmit = (payload: QuotationInvoice) => {
     pendingInvoices.value = [...pendingInvoices.value, payload];
   }
   showInvoiceForm.value = false;
-  toast.success("Invoice added to pending list.");
+  toast.success("Quotation added to pending list.");
 };
 
 const handleCostSubmit = (payload: QuotationCost) => {
@@ -883,7 +889,7 @@ async function handleSubmit() {
             </h1>
             <div class="h-4 w-[1px] bg-border mx-1"></div>
 
-            <!-- Multi Invoice Switch (activate to allow this quotation to be converted to invoice multiple times) -->
+            <!-- Multi-use switch -->
             <div class="flex items-center gap-2 ml-2">
               <span class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest"
                 >Multi-use</span
@@ -899,7 +905,7 @@ async function handleSubmit() {
                 ]"
                 role="switch"
                 :aria-checked="formData.allowMultipleInvoices"
-                title="Aktifkan agar quotation ini bisa dijadikan invoice berkali-kali"
+                title="Aktifkan agar quotation ini bisa dipakai berkali-kali"
               >
                 <span
                   :class="[
@@ -1521,13 +1527,6 @@ async function handleSubmit() {
                 <div class="flex items-center gap-1.5">
                   <button
                     type="button"
-                    @click="showInvoiceForm = true"
-                    class="inline-flex items-center gap-1.5 text-xs font-bold text-white bg-[#062c58] hover:bg-[#062c58]/90 px-3 py-1.5 rounded-lg shadow-sm transition-colors"
-                  >
-                    <Plus class="w-3.5 h-3.5" /> Add Invoice
-                  </button>
-                  <button
-                    type="button"
                     @click="showCostForm = true"
                     class="inline-flex items-center gap-1.5 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 px-3 py-1.5 rounded-lg shadow-sm transition-colors"
                   >
@@ -1544,7 +1543,7 @@ async function handleSubmit() {
                 </div>
               </div>
 
-              <!-- Pending Invoices & Costs Summary -->
+              <!-- Pending quotation documents and costs summary -->
               <div
                 v-if="pendingInvoices.length > 0 || pendingCosts.length > 0"
                 class="px-6 pb-6 pt-6 border-t border-border/40 space-y-4"
@@ -1555,64 +1554,95 @@ async function handleSubmit() {
                       <Receipt class="w-3.5 h-3.5" />
                     </div>
                     <h4 class="text-xs font-bold text-foreground uppercase tracking-wide">
-                      Pending Invoices ({{ pendingInvoices.length }})
+                      Pending Quotations ({{ pendingInvoices.length }})
                     </h4>
                   </div>
                   <div class="space-y-2">
                     <div
                       v-for="(inv, idx) in pendingInvoices"
                       :key="idx"
-                      class="group p-3.5 rounded-xl border border-green-200 bg-green-50/30 hover:border-green-300 hover:shadow-sm transition-all flex items-center justify-between"
+                      class="group p-3.5 rounded-xl border border-green-200 bg-green-50/30 hover:border-green-300 hover:shadow-sm transition-all"
                     >
-                      <div class="flex items-start gap-3">
-                        <div
-                          class="w-9 h-9 rounded-lg bg-green-100 text-green-600 flex items-center justify-center shrink-0 border border-green-200"
-                        >
-                          <Receipt class="w-4 h-4" />
-                        </div>
-                        <div>
-                          <div class="flex items-center gap-2">
-                            <span class="font-bold text-sm text-foreground">{{
-                              inv.number || "QINV-" + (idx + 1)
-                            }}</span>
-                            <span
-                              class="text-[9px] px-1.5 py-0.5 rounded font-black border uppercase tracking-wider bg-green-100 text-green-700 border-green-200"
-                              >Invoice</span
-                            >
+                      <div class="flex items-start justify-between gap-3">
+                        <div class="flex items-start gap-3 min-w-0">
+                          <div
+                            class="w-9 h-9 rounded-lg bg-green-100 text-green-600 flex items-center justify-center shrink-0 border border-green-200"
+                          >
+                            <Receipt class="w-4 h-4" />
                           </div>
-                          <p class="text-xs text-muted-foreground mt-1">
-                            {{ inv.items?.length || 0 }} charge(s)
-                          </p>
+                          <div class="min-w-0">
+                            <div class="flex items-center gap-2">
+                              <span class="font-bold text-sm text-foreground">{{
+                                inv.number || "QINV-" + (idx + 1)
+                              }}</span>
+                              <span
+                                class="text-[9px] px-1.5 py-0.5 rounded font-black border uppercase tracking-wider bg-green-100 text-green-700 border-green-200"
+                                >Quotation</span
+                              >
+                            </div>
+                            <p class="text-xs text-muted-foreground mt-1">
+                              {{ inv.items?.length || 0 }} charge(s)
+                            </p>
+                          </div>
+                        </div>
+                        <div class="flex items-center gap-3">
+                          <div class="text-right">
+                            <p
+                              class="text-[9px] text-muted-foreground mb-0.5 uppercase tracking-widest font-bold opacity-70"
+                            >
+                              Total
+                            </p>
+                            <p class="font-black text-sm text-[#062c58]">
+                              {{ formatCurrency(inv.total || 0, getQuotationInvoiceCurrency(inv)) }}
+                            </p>
+                          </div>
+                          <div
+                            class="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <button
+                              @click="editPendingInvoice(idx)"
+                              class="p-1.5 rounded-lg text-muted-foreground hover:text-[#062c58] hover:bg-blue-50 transition-colors"
+                              title="View / Edit"
+                            >
+                              <Eye class="w-4 h-4" />
+                            </button>
+                            <button
+                              @click="removePendingInvoice(idx)"
+                              class="p-1.5 rounded-lg text-muted-foreground hover:text-red-600 hover:bg-red-50 transition-colors"
+                            >
+                              <Trash2 class="w-4 h-4" />
+                            </button>
+                          </div>
                         </div>
                       </div>
-                      <div class="flex items-center gap-3">
-                        <div class="text-right">
-                          <p
-                            class="text-[9px] text-muted-foreground mb-0.5 uppercase tracking-widest font-bold opacity-70"
-                          >
-                            Total
-                          </p>
-                          <p class="font-black text-sm text-[#062c58]">
-                            {{ formatCurrency(inv.total || 0) }}
-                          </p>
-                        </div>
+                      <div
+                        v-if="inv.items?.length"
+                        class="mt-3 ml-12 border-t border-green-200/70 pt-2 space-y-1.5"
+                      >
                         <div
-                          class="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                          v-for="(item, itemIdx) in inv.items.slice(0, 3)"
+                          :key="`${idx}-${itemIdx}-${item.description}`"
+                          class="grid grid-cols-[1fr_auto_auto] gap-3 text-[11px] items-center"
                         >
-                          <button
-                            @click="editPendingInvoice(idx)"
-                            class="p-1.5 rounded-lg text-muted-foreground hover:text-[#062c58] hover:bg-blue-50 transition-colors"
-                            title="View / Edit"
-                          >
-                            <Eye class="w-4 h-4" />
-                          </button>
-                          <button
-                            @click="removePendingInvoice(idx)"
-                            class="p-1.5 rounded-lg text-muted-foreground hover:text-red-600 hover:bg-red-50 transition-colors"
-                          >
-                            <Trash2 class="w-4 h-4" />
-                          </button>
+                          <span class="font-semibold text-foreground truncate">
+                            {{ item.description || "Untitled charge" }}
+                          </span>
+                          <span class="text-muted-foreground">x{{ item.quantity || 1 }}</span>
+                          <span class="font-bold text-[#062c58]">
+                            {{
+                              formatCurrency(
+                                item.amount || 0,
+                                item.currency || getQuotationInvoiceCurrency(inv),
+                              )
+                            }}
+                          </span>
                         </div>
+                        <p
+                          v-if="inv.items.length > 3"
+                          class="text-[10px] font-semibold text-muted-foreground"
+                        >
+                          +{{ inv.items.length - 3 }} more charge(s)
+                        </p>
                       </div>
                     </div>
                   </div>
@@ -1772,14 +1802,14 @@ async function handleSubmit() {
       @success="onCompanyCreateSuccess"
     />
 
-    <!-- Quotation Invoice Form Modal -->
+    <!-- Quotation Form Modal -->
     <Modal
       v-model="showInvoiceForm"
-      :title="editingInvoice ? 'Edit Quotation Invoice' : 'Create Quotation Invoice'"
+      :title="editingInvoice ? 'Edit Quotation' : 'Create Quotation'"
       :description="
         editingInvoice
-          ? 'Modify the customer-facing quotation invoice.'
-          : 'Group charges into a customer-facing invoice document.'
+          ? 'Modify this quotation document.'
+          : 'Group charges into an additional quotation document.'
       "
       width="2xl"
     >

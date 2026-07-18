@@ -2,6 +2,7 @@
 import { Receipt, Download, ArrowRight } from "lucide-vue-next";
 import { cn } from "~/lib/utils";
 import { getOverpayment } from "~/composables/useFinanceExpense";
+import CurrencyStack from "~/components/ui/CurrencyStack.vue";
 
 interface InvoiceData {
   id: string;
@@ -26,21 +27,6 @@ interface Props {
 }
 
 const props = defineProps<Props>();
-
-const formatInvoiceTotal = (amount: number, currency?: string) => {
-  const curr = currency || "IDR";
-  if (curr === "IDR") {
-    return props.formatCurrency(amount);
-  }
-  try {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: curr,
-    }).format(amount);
-  } catch {
-    return `${curr} ${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  }
-};
 
 const emit = defineEmits<{
   (e: "row-click", id: string): void;
@@ -161,22 +147,23 @@ const groupedInvoices = computed(() => {
                 {{ formatDate(invoice.dueDate) }}
               </td>
               <td class="py-3 px-4 text-sm font-medium">
-                <div>{{ formatInvoiceTotal(invoice.total, invoice.currency) }}</div>
-                <div
-                  v-if="invoice.currency && invoice.currency !== 'IDR'"
-                  class="text-[10px] text-muted-foreground font-mono font-normal mt-0.5 whitespace-nowrap"
-                >
-                  Rp
-                  {{
-                    (Number(invoice.total) * Number(invoice.exchangeRate || 1)).toLocaleString(
-                      "id-ID",
-                    )
-                  }}
-                </div>
+                <CurrencyStack
+                  :amount="invoice.total"
+                  :currency="invoice.currency"
+                  :exchange-rate="invoice.exchangeRate"
+                  primary-class="text-sm font-bold text-foreground whitespace-nowrap"
+                  secondary-class="text-[10px] text-muted-foreground opacity-70 font-normal whitespace-nowrap"
+                />
               </td>
               <td class="py-3 px-4 text-sm font-medium">
                 <span v-if="getOverpayment(invoice) > 0" class="text-emerald-600">
-                  {{ formatInvoiceTotal(getOverpayment(invoice), invoice.currency) }}
+                  <CurrencyStack
+                    :amount="getOverpayment(invoice)"
+                    :currency="invoice.currency"
+                    :exchange-rate="invoice.exchangeRate"
+                    primary-class="text-sm font-bold text-emerald-600 whitespace-nowrap"
+                    secondary-class="text-[10px] text-muted-foreground opacity-70 font-normal whitespace-nowrap"
+                  />
                 </span>
                 <span v-else class="text-muted-foreground">-</span>
               </td>

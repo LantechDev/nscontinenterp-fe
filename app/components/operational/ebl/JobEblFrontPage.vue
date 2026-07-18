@@ -1420,7 +1420,7 @@ const formatDate = (dateStr?: string | null) => {
       </div>
     </div>
 
-    <div class="mt-1 flex justify-between pr-2 text-[#062c58]" style="height: 45px">
+    <div class="mt-0.5 flex justify-between text-[#062c58]" style="height: 74px">
       <div class="text-[0.45rem] w-1/2 mt-0.5 italic leading-tight">
         The printed terms and conditions on this
         {{ isFcr ? "FCR" : isAir ? "Air Waybill" : isTrucking ? "Waybill" : "Bill" }} are available
@@ -1428,16 +1428,22 @@ const formatDate = (dateStr?: string | null) => {
       </div>
       <div
         v-if="page.pageIndex === paginatedPagesLength - 1"
-        class="w-[260px] flex flex-col items-end"
+        class="ebl-signature-columns w-[270px] flex items-start justify-end gap-2 mt-3"
       >
         <div
-          class="w-full text-left font-mono bg-white p-1.5"
-          style="font-size: 8.5px; line-height: 10.5px"
+          class="ebl-signature-caption flex-1 text-left font-mono bg-white pt-0"
+          style="font-size: 7.2px; line-height: 8.2px"
         >
-          <span class="font-bold">SIGNED BY: </span>PT Nova Sync Continent<br />
-          <span class="pl-14 italic" style="font-size: 7px; line-height: 8.5px"
+          PT Nova Sync Continent<br />
+          <span class="italic" style="font-size: 5.8px; line-height: 6.8px"
             >, as agent for and on behalf of NS CONTINENT</span
           >
+        </div>
+        <div
+          class="ebl-signature-box w-[150px] h-[58px] bg-white border border-[#062c58] px-2 pt-1.5 font-mono text-left"
+          style="font-size: 8px; line-height: 9px"
+        >
+          <span class="font-bold">Signed By:</span>
         </div>
       </div>
     </div>
@@ -1467,7 +1473,7 @@ const formatDate = (dateStr?: string | null) => {
 }
 
 .cargo-window-p1 {
-  height: 285px;
+  height: 256px;
   flex-shrink: 0;
   overflow: hidden;
   position: relative;

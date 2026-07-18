@@ -62,7 +62,7 @@ export const NAV_ITEMS: NavItem[] = [
       { title: "Package Unit", href: "/master/package-types", icon: Package },
       { title: "Cargo Movement", href: "/master/cargo-movements", icon: ArrowLeftRight },
       { title: "Delivery Movement", href: "/master/delivery-movements", icon: ArrowLeftRight },
-      { title: "Ports & Airports", href: "/master/ports", icon: MapPin },
+      { title: "Port Database", href: "/master/ports", icon: MapPin },
       { title: "Vessel", href: "/master/vessel", icon: Anchor },
       { title: "Plane", href: "/master/plane", icon: Plane },
       { title: "Bank Account", href: "/master/bank-account", icon: Landmark },

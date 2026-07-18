@@ -16,6 +16,14 @@ const props = defineProps<{
 }>();
 
 const invoiceItems = computed(() => props.invoice?.items || []);
+const documentCurrency = computed(() => {
+  if (props.invoice?.currency) return props.invoice.currency;
+  const itemCurrencies = [
+    ...new Set(invoiceItems.value.map((item) => item.currency || "IDR").filter(Boolean)),
+  ];
+  if (itemCurrencies.length === 1) return itemCurrencies[0] || "IDR";
+  return props.quotation?.currency || "IDR";
+});
 
 const terbilang = (n: number): string => {
   if (n === 0) return "";
@@ -135,6 +143,9 @@ const numberToEnglish = (num: number): string => {
 const amountInWords = computed(() => {
   const total = Number(props.invoice?.total || 0);
   if (!total) return "";
+  if (documentCurrency.value === "USD") {
+    return `${numberToEnglish(Math.floor(total))} Dollars`;
+  }
   const rupiahSpelling = terbilang(Math.floor(total)) + " Rupiah";
   const engSpelling = numberToEnglish(Math.floor(total)) + " Rupiahs";
   return `${rupiahSpelling} / ${engSpelling}`;
@@ -151,12 +162,12 @@ onMounted(async () => {
   if (res.success) bankAccounts.value = res.data || [];
 });
 
-const formatCurrency = (amount: unknown): string => {
+const formatCurrency = (amount: unknown, currency = documentCurrency.value): string => {
   if (amount === undefined || amount === null) return "-";
-  return new Intl.NumberFormat("id-ID", {
+  return new Intl.NumberFormat(currency === "USD" ? "en-US" : "id-ID", {
     style: "decimal",
     minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
+    maximumFractionDigits: currency === "USD" ? 2 : 0,
   }).format(Number(amount));
 };
 
@@ -253,7 +264,7 @@ const generatePDF = async () => {
       });
       pdf.addImage(canvas.toDataURL("image/jpeg", 0.95), "JPEG", 0, 0, 210, 297, undefined, "FAST");
     }
-    pdf.save(`QINVOICE_${props.invoice.number || "DRAFT"}.pdf`);
+    pdf.save(`QUOTATION_${props.invoice.number || "DRAFT"}.pdf`);
     return true;
   } catch (error) {
     console.error(error);
@@ -303,7 +314,7 @@ defineExpose({ generatePDF, isGeneratingPDF });
               PAGE: {{ page.pageNumber }} OF {{ previewPages.length }}
             </div>
             <h1 class="text-xl font-bold tracking-widest uppercase leading-none text-[#062c58]">
-              QUOTATION INVOICE
+              QUOTATION
             </h1>
           </div>
         </div>
@@ -311,7 +322,7 @@ defineExpose({ generatePDF, isGeneratingPDF });
         <div
           class="main-border-container border border-[#062c58] flex-1 flex flex-col text-[0.7rem] relative overflow-hidden h-full"
         >
-          <!-- Parties & Invoice Info -->
+          <!-- Parties & quotation info -->
           <div
             v-if="page.isFirstPage"
             class="flex border-b border-[#062c58]"
@@ -334,7 +345,7 @@ defineExpose({ generatePDF, isGeneratingPDF });
               <div class="flex border-b border-[#062c58]" style="height: 50px">
                 <div class="w-1/2 border-r border-[#062c58] pt-1 px-2">
                   <span class="font-bold text-[0.6rem] leading-none mb-1 block uppercase"
-                    >INVOICE NO.</span
+                    >QUOTATION NO.</span
                   >
                   <span class="font-mono text-[0.85rem] text-black font-medium">{{
                     invoice?.number || "DRAFT"
@@ -390,7 +401,9 @@ defineExpose({ generatePDF, isGeneratingPDF });
             </div>
             <div class="w-1/3 pt-1 px-2 pb-1">
               <span class="font-bold text-[0.6rem] block leading-none mb-1">CURRENCY</span>
-              <span class="font-mono text-[0.75rem] uppercase text-black font-medium">IDR</span>
+              <span class="font-mono text-[0.75rem] uppercase text-black font-medium">{{
+                documentCurrency
+              }}</span>
             </div>
           </div>
 
@@ -436,10 +449,12 @@ defineExpose({ generatePDF, isGeneratingPDF });
                 </div>
                 <div class="w-[6%] text-center text-[0.7rem]">{{ item.quantity }}</div>
                 <div class="w-[15%] text-right px-3 text-[0.7rem] text-black">
-                  {{ item.currency || "IDR" }} {{ formatCurrency(item.unitPrice) }}
+                  {{ item.currency || "IDR" }}
+                  {{ formatCurrency(item.unitPrice, item.currency || "IDR") }}
                 </div>
                 <div class="w-[15%] text-right px-3 text-[0.7rem] font-medium text-black">
-                  {{ item.currency || "IDR" }} {{ formatCurrency(item.amount) }}
+                  {{ item.currency || "IDR" }}
+                  {{ formatCurrency(item.amount, item.currency || "IDR") }}
                 </div>
               </div>
               <div
@@ -491,7 +506,7 @@ defineExpose({ generatePDF, isGeneratingPDF });
                       <span class="text-[0.55rem] font-bold opacity-70">TOTAL AMOUNT</span>
                       <span
                         class="text-[0.8rem] font-black tracking-wider uppercase leading-none mt-1"
-                        >IDR</span
+                        >{{ documentCurrency }}</span
                       >
                     </div>
                     <div class="flex-1 px-3 text-right font-mono text-xl font-black">
@@ -510,8 +525,8 @@ defineExpose({ generatePDF, isGeneratingPDF });
             <p
               class="text-[0.5rem] italic text-[#062c58]/60 uppercase leading-tight font-medium max-w-[400px]"
             >
-              Computer generated invoice. No signature required unless specifically requested by the
-              recipient for legal compliance.
+              Computer generated quotation. No signature required unless specifically requested by
+              the recipient for legal compliance.
             </p>
           </div>
           <div class="text-center min-w-[200px]">

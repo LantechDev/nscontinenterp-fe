@@ -40,7 +40,7 @@ const router = useRouter();
 const search = ref("");
 const linerFilter = ref<string[]>([]);
 const vesselFilter = ref<string[]>([]);
-const delayFilter = ref<"all" | "on_time" | "delayed">("all");
+const arrivalFilter = ref<"all" | "arrived" | "not_arrived">("all");
 const dateFrom = ref("");
 const dateTo = ref("");
 type ViewMode = "list" | "grid";
@@ -60,17 +60,17 @@ const linerOptions = computed(() =>
     .map((name) => ({ id: name, name })),
 );
 
-const delayFilterOptions = [
+const arrivalFilterOptions = [
   { id: "all", name: "All status" },
-  { id: "on_time", name: "On schedule" },
-  { id: "delayed", name: "Delayed" },
+  { id: "arrived", name: "Sudah sampai" },
+  { id: "not_arrived", name: "Belum sampai" },
 ];
 
-const delayFilterValue = computed({
-  get: () => delayFilter.value,
+const arrivalFilterValue = computed({
+  get: () => arrivalFilter.value,
   set: (value: string | null | undefined) => {
-    delayFilter.value =
-      value === "on_time" || value === "delayed" || value === "all" ? value : "all";
+    arrivalFilter.value =
+      value === "arrived" || value === "not_arrived" || value === "all" ? value : "all";
   },
 });
 
@@ -101,8 +101,9 @@ const filteredTrackings = computed(() =>
     ) {
       return false;
     }
-    if (delayFilter.value === "delayed" && tracking.delayDays <= 0) return false;
-    if (delayFilter.value === "on_time" && tracking.delayDays > 0) return false;
+    const arrivalStatus = getArrivalStatus(tracking);
+    if (arrivalFilter.value === "arrived" && arrivalStatus !== "arrived") return false;
+    if (arrivalFilter.value === "not_arrived" && arrivalStatus !== "not_arrived") return false;
 
     const scheduleDate = getTrackingScheduleDate(tracking);
     if (dateFrom.value && scheduleDate && scheduleDate < dateFrom.value) return false;
@@ -116,11 +117,15 @@ const stats = computed(() => {
   const data = filteredTrackings.value;
   const delayed = data.filter((item) => item.delayDays > 0).length;
   const onTime = data.filter((item) => item.delayDays === 0).length;
+  const arrived = data.filter((item) => getArrivalStatus(item) === "arrived").length;
+  const notArrived = data.filter((item) => getArrivalStatus(item) === "not_arrived").length;
   const totalDelayDays = data.reduce((sum, item) => sum + item.delayDays, 0);
   return {
     total: data.length,
     delayed,
     onTime,
+    arrived,
+    notArrived,
     totalDelayDays,
     averageDelay: data.length > 0 ? Number((totalDelayDays / data.length).toFixed(1)) : 0,
   };
@@ -179,6 +184,17 @@ const formatLegDate = (date?: string | null) => {
   });
 };
 
+const formatPortLabel = (portName?: string | null) =>
+  portName?.split(",")[0]?.trim().toUpperCase() || "";
+
+const getTodayDateKey = () => {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, "0");
+  const day = String(today.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
 const getTrackingScheduleDate = (tracking: VesselTracking) =>
   tracking.legs
     .map((leg) => leg.initialEtd || leg.updatedEtd)
@@ -188,7 +204,56 @@ const getTrackingScheduleDate = (tracking: VesselTracking) =>
 const formatTrackingScheduleDate = (tracking: VesselTracking) =>
   formatDate(getTrackingScheduleDate(tracking));
 
-const getLegDisplay = (leg: VesselTrackingLeg, mode: "initial" | "updated") => {
+const getTrackingArrivalDate = (tracking: VesselTracking) =>
+  tracking.legs
+    .toSorted((a, b) => a.sequence - b.sequence)
+    .toReversed()
+    .map((leg) => leg.updatedEta || leg.initialEta)
+    .find((date): date is string => Boolean(date)) || null;
+
+const getArrivalStatus = (tracking: VesselTracking) =>
+  getTrackingArrivalDate(tracking) && getTrackingArrivalDate(tracking)! < getTodayDateKey()
+    ? "arrived"
+    : "not_arrived";
+
+const getArrivalStatusLabel = (tracking: VesselTracking) =>
+  getArrivalStatus(tracking) === "arrived" ? "Sudah sampai" : "Belum sampai";
+
+const getLegPortName = (
+  tracking: VesselTracking,
+  leg: VesselTrackingLeg,
+  mode: "initial" | "updated",
+  side: "etd" | "eta",
+) => {
+  const sortedLegs = tracking.legs.toSorted((a, b) => a.sequence - b.sequence);
+  const legIndex = sortedLegs.findIndex((item) => item.id === leg.id);
+  const currentIndex = legIndex >= 0 ? legIndex : 0;
+  const tsPortName =
+    mode === "initial"
+      ? leg.initialTsPortName || leg.initialTsPortId
+      : leg.updatedTsPortName || leg.updatedTsPortId;
+
+  if (side === "etd") {
+    if (currentIndex === 0) return formatPortLabel(tracking.polName || tracking.pol);
+    const previousLeg = sortedLegs[currentIndex - 1];
+    const previousTsPortName =
+      mode === "initial"
+        ? previousLeg?.initialTsPortName || previousLeg?.initialTsPortId
+        : previousLeg?.updatedTsPortName || previousLeg?.updatedTsPortId;
+    return formatPortLabel(previousTsPortName);
+  }
+
+  if (currentIndex === sortedLegs.length - 1) {
+    return formatPortLabel(tracking.podName || tracking.pod);
+  }
+  return formatPortLabel(tsPortName);
+};
+
+const getLegDisplay = (
+  tracking: VesselTracking,
+  leg: VesselTrackingLeg,
+  mode: "initial" | "updated",
+) => {
   const vesselName = mode === "initial" ? leg.initialVesselName : leg.updatedVesselName;
   const voyageNumber = mode === "initial" ? leg.initialVoyageNumber : leg.updatedVoyageNumber;
   const etd = mode === "initial" ? leg.initialEtd : leg.updatedEtd;
@@ -196,6 +261,8 @@ const getLegDisplay = (leg: VesselTrackingLeg, mode: "initial" | "updated") => {
   return {
     vesselName: vesselName || "-",
     voyageNumber: voyageNumber || "",
+    etdPortName: getLegPortName(tracking, leg, mode, "etd"),
+    etaPortName: getLegPortName(tracking, leg, mode, "eta"),
     etd: formatLegDate(etd),
     eta: formatLegDate(eta),
   };
@@ -206,10 +273,10 @@ const getFilterSummary = () => {
     search.value ? `Search: ${search.value}` : "Search: All",
     linerFilter.value.length > 0 ? `Liner: ${linerFilter.value.join(", ")}` : "Liner: All",
     vesselFilter.value.length > 0 ? `Vessel: ${vesselFilter.value.join(", ")}` : "Vessel: All",
-    delayFilter.value === "delayed"
-      ? "Status: Delayed"
-      : delayFilter.value === "on_time"
-        ? "Status: On schedule"
+    arrivalFilter.value === "arrived"
+      ? "Status: Sudah sampai"
+      : arrivalFilter.value === "not_arrived"
+        ? "Status: Belum sampai"
         : "Status: All",
     dateFrom.value ? `From: ${dateFrom.value}` : "",
     dateTo.value ? `To: ${dateTo.value}` : "",
@@ -221,11 +288,15 @@ const getFilterSummary = () => {
 const getTrackingLegSummary = (tracking: VesselTracking, mode: "initial" | "updated") =>
   tracking.legs
     .map((leg) => {
-      const display = getLegDisplay(leg, mode);
+      const display = getLegDisplay(tracking, leg, mode);
       const voyage = display.voyageNumber ? ` ${display.voyageNumber}` : "";
-      return [`${display.vesselName}${voyage}`, `ETD ${display.etd}`, `ETA ${display.eta}`].join(
-        "\n",
-      );
+      const etdPort = display.etdPortName ? ` ${display.etdPortName}` : "";
+      const etaPort = display.etaPortName ? ` ${display.etaPortName}` : "";
+      return [
+        `${display.vesselName}${voyage}`,
+        `ETD${etdPort} ${display.etd}`,
+        `ETA${etaPort} ${display.eta}`,
+      ].join("\n");
     })
     .join("\n\n");
 
@@ -685,8 +756,8 @@ onMounted(async () => {
             Status
           </label>
           <Combobox
-            v-model="delayFilterValue"
-            :options="delayFilterOptions"
+            v-model="arrivalFilterValue"
+            :options="arrivalFilterOptions"
             label-key="name"
             value-key="id"
             placeholder="All status"
@@ -725,7 +796,7 @@ onMounted(async () => {
       class="border border-border rounded-xl bg-white overflow-hidden"
     >
       <div class="overflow-x-auto">
-        <table class="w-full min-w-[1320px]">
+        <table class="w-full min-w-[1180px]">
           <thead>
             <tr class="border-b border-border bg-white text-left">
               <th
@@ -811,7 +882,7 @@ onMounted(async () => {
                 </div>
               </td>
               <td class="py-3 px-4">
-                <div class="max-w-[300px] space-y-1.5">
+                <div class="w-[280px] space-y-1.5">
                   <div
                     v-for="leg in tracking.legs"
                     :key="`initial-${leg.id}`"
@@ -819,32 +890,52 @@ onMounted(async () => {
                   >
                     <div class="flex items-start justify-between gap-2">
                       <p class="text-xs font-bold text-foreground leading-snug">
-                        {{ getLegDisplay(leg, "initial").vesselName }}
+                        {{ getLegDisplay(tracking, leg, "initial").vesselName }}
                       </p>
                       <span
-                        v-if="getLegDisplay(leg, 'initial').voyageNumber"
+                        v-if="getLegDisplay(tracking, leg, 'initial').voyageNumber"
                         class="shrink-0 text-[10px] font-bold text-[#012D5A] bg-blue-50 border border-blue-100 rounded px-1.5 py-0.5"
                       >
-                        {{ getLegDisplay(leg, "initial").voyageNumber }}
+                        {{ getLegDisplay(tracking, leg, "initial").voyageNumber }}
                       </span>
                     </div>
-                    <div class="flex flex-wrap gap-1.5 mt-1.5">
-                      <span
-                        class="inline-flex items-center gap-1 rounded border border-orange-100 bg-orange-50 px-1.5 py-0.5 text-[10px] font-semibold text-orange-700"
+                    <div class="space-y-1.5 mt-2">
+                      <div
+                        class="schedule-line list-schedule border-orange-100 bg-orange-50 text-orange-700"
                       >
-                        ETD {{ getLegDisplay(leg, "initial").etd }}
-                      </span>
-                      <span
-                        class="inline-flex items-center gap-1 rounded border border-emerald-100 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700"
+                        <CalendarClock class="schedule-icon" />
+                        <span class="schedule-kind">ETD</span>
+                        <span
+                          class="schedule-port"
+                          :title="getLegDisplay(tracking, leg, 'initial').etdPortName"
+                        >
+                          {{ getLegDisplay(tracking, leg, "initial").etdPortName || "-" }}
+                        </span>
+                        <span class="schedule-date">{{
+                          getLegDisplay(tracking, leg, "initial").etd
+                        }}</span>
+                      </div>
+                      <div
+                        class="schedule-line list-schedule border-emerald-100 bg-emerald-50 text-emerald-700"
                       >
-                        ETA {{ getLegDisplay(leg, "initial").eta }}
-                      </span>
+                        <Calendar class="schedule-icon" />
+                        <span class="schedule-kind">ETA</span>
+                        <span
+                          class="schedule-port"
+                          :title="getLegDisplay(tracking, leg, 'initial').etaPortName"
+                        >
+                          {{ getLegDisplay(tracking, leg, "initial").etaPortName || "-" }}
+                        </span>
+                        <span class="schedule-date">{{
+                          getLegDisplay(tracking, leg, "initial").eta
+                        }}</span>
+                      </div>
                     </div>
                   </div>
                 </div>
               </td>
               <td class="py-3 px-4">
-                <div class="max-w-[300px] space-y-1.5">
+                <div class="w-[280px] space-y-1.5">
                   <div
                     v-for="leg in tracking.legs"
                     :key="`updated-${leg.id}`"
@@ -852,43 +943,84 @@ onMounted(async () => {
                   >
                     <div class="flex items-start justify-between gap-2">
                       <p class="text-xs font-bold text-foreground leading-snug">
-                        {{ getLegDisplay(leg, "updated").vesselName }}
+                        {{ getLegDisplay(tracking, leg, "updated").vesselName }}
                       </p>
                       <span
-                        v-if="getLegDisplay(leg, 'updated').voyageNumber"
+                        v-if="getLegDisplay(tracking, leg, 'updated').voyageNumber"
                         class="shrink-0 text-[10px] font-bold text-[#012D5A] bg-blue-50 border border-blue-100 rounded px-1.5 py-0.5"
                       >
-                        {{ getLegDisplay(leg, "updated").voyageNumber }}
+                        {{ getLegDisplay(tracking, leg, "updated").voyageNumber }}
                       </span>
                     </div>
-                    <div class="flex flex-wrap gap-1.5 mt-1.5">
-                      <span
-                        class="inline-flex items-center gap-1 rounded border border-orange-100 bg-orange-50 px-1.5 py-0.5 text-[10px] font-semibold text-orange-700"
+                    <div class="space-y-1.5 mt-2">
+                      <div
+                        class="schedule-line list-schedule border-orange-100 bg-orange-50 text-orange-700"
                       >
-                        ETD {{ getLegDisplay(leg, "updated").etd }}
-                      </span>
-                      <span
-                        class="inline-flex items-center gap-1 rounded border border-emerald-100 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700"
+                        <CalendarClock class="schedule-icon" />
+                        <span class="schedule-kind">ETD</span>
+                        <span
+                          class="schedule-port"
+                          :title="getLegDisplay(tracking, leg, 'updated').etdPortName"
+                        >
+                          {{ getLegDisplay(tracking, leg, "updated").etdPortName || "-" }}
+                        </span>
+                        <span class="schedule-date">{{
+                          getLegDisplay(tracking, leg, "updated").etd
+                        }}</span>
+                      </div>
+                      <div
+                        class="schedule-line list-schedule border-emerald-100 bg-emerald-50 text-emerald-700"
                       >
-                        ETA {{ getLegDisplay(leg, "updated").eta }}
-                      </span>
+                        <Calendar class="schedule-icon" />
+                        <span class="schedule-kind">ETA</span>
+                        <span
+                          class="schedule-port"
+                          :title="getLegDisplay(tracking, leg, 'updated').etaPortName"
+                        >
+                          {{ getLegDisplay(tracking, leg, "updated").etaPortName || "-" }}
+                        </span>
+                        <span class="schedule-date">{{
+                          getLegDisplay(tracking, leg, "updated").eta
+                        }}</span>
+                      </div>
                     </div>
                   </div>
                 </div>
               </td>
-              <td class="py-3 px-4 text-center">
-                <span
-                  :class="
-                    cn(
-                      'px-2 py-0.5 rounded border text-[10px] font-bold uppercase tracking-wider',
-                      tracking.delayDays > 0
-                        ? 'bg-red-50 text-red-700 border-red-200'
-                        : 'bg-green-50 text-green-700 border-green-200',
-                    )
-                  "
-                >
-                  {{ tracking.delayDays }} DAYS
-                </span>
+              <td class="py-3 px-4 text-center align-middle">
+                <div class="inline-flex flex-col items-center gap-1.5">
+                  <span
+                    :class="
+                      cn(
+                        'arrival-badge',
+                        getArrivalStatus(tracking) === 'arrived'
+                          ? 'bg-blue-50 text-[#012D5A] border-blue-200'
+                          : 'bg-amber-50 text-amber-700 border-amber-200',
+                      )
+                    "
+                  >
+                    <CheckCircle2
+                      v-if="getArrivalStatus(tracking) === 'arrived'"
+                      class="delay-icon"
+                    />
+                    <CalendarClock v-else class="delay-icon" />
+                    {{ getArrivalStatusLabel(tracking) }}
+                  </span>
+                  <span
+                    :class="
+                      cn(
+                        'delay-badge',
+                        tracking.delayDays > 0
+                          ? 'bg-red-50 text-red-700 border-red-200'
+                          : 'bg-green-50 text-green-700 border-green-200',
+                      )
+                    "
+                  >
+                    <AlertTriangle v-if="tracking.delayDays > 0" class="delay-icon" />
+                    <CheckCircle2 v-else class="delay-icon" />
+                    {{ tracking.delayDays }} DAYS
+                  </span>
+                </div>
               </td>
               <td class="py-3 px-4 text-right">
                 <UiActionMenu>
@@ -977,18 +1109,42 @@ onMounted(async () => {
                 class="rounded-md bg-gray-50 px-2 py-1.5"
               >
                 <p class="font-bold text-foreground leading-snug">
-                  {{ getLegDisplay(leg, "initial").vesselName }}
+                  {{ getLegDisplay(tracking, leg, "initial").vesselName }}
                   <span
-                    v-if="getLegDisplay(leg, 'initial').voyageNumber"
+                    v-if="getLegDisplay(tracking, leg, 'initial').voyageNumber"
                     class="font-mono text-[10px] text-[#012D5A]"
                   >
-                    {{ getLegDisplay(leg, "initial").voyageNumber }}
+                    {{ getLegDisplay(tracking, leg, "initial").voyageNumber }}
                   </span>
                 </p>
-                <p class="text-[10px] text-muted-foreground mt-1">
-                  ETD {{ getLegDisplay(leg, "initial").etd }} · ETA
-                  {{ getLegDisplay(leg, "initial").eta }}
-                </p>
+                <div class="space-y-1 mt-2">
+                  <div class="schedule-line border-orange-100 bg-orange-50 text-orange-700">
+                    <CalendarClock class="schedule-icon" />
+                    <span class="schedule-kind">ETD</span>
+                    <span
+                      class="schedule-port"
+                      :title="getLegDisplay(tracking, leg, 'initial').etdPortName"
+                    >
+                      {{ getLegDisplay(tracking, leg, "initial").etdPortName || "-" }}
+                    </span>
+                    <span class="schedule-date">{{
+                      getLegDisplay(tracking, leg, "initial").etd
+                    }}</span>
+                  </div>
+                  <div class="schedule-line border-emerald-100 bg-emerald-50 text-emerald-700">
+                    <Calendar class="schedule-icon" />
+                    <span class="schedule-kind">ETA</span>
+                    <span
+                      class="schedule-port"
+                      :title="getLegDisplay(tracking, leg, 'initial').etaPortName"
+                    >
+                      {{ getLegDisplay(tracking, leg, "initial").etaPortName || "-" }}
+                    </span>
+                    <span class="schedule-date">{{
+                      getLegDisplay(tracking, leg, "initial").eta
+                    }}</span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -1001,18 +1157,42 @@ onMounted(async () => {
                 class="rounded-md bg-gray-50 px-2 py-1.5"
               >
                 <p class="font-bold text-foreground leading-snug">
-                  {{ getLegDisplay(leg, "updated").vesselName }}
+                  {{ getLegDisplay(tracking, leg, "updated").vesselName }}
                   <span
-                    v-if="getLegDisplay(leg, 'updated').voyageNumber"
+                    v-if="getLegDisplay(tracking, leg, 'updated').voyageNumber"
                     class="font-mono text-[10px] text-[#012D5A]"
                   >
-                    {{ getLegDisplay(leg, "updated").voyageNumber }}
+                    {{ getLegDisplay(tracking, leg, "updated").voyageNumber }}
                   </span>
                 </p>
-                <p class="text-[10px] text-muted-foreground mt-1">
-                  ETD {{ getLegDisplay(leg, "updated").etd }} · ETA
-                  {{ getLegDisplay(leg, "updated").eta }}
-                </p>
+                <div class="space-y-1 mt-2">
+                  <div class="schedule-line border-orange-100 bg-orange-50 text-orange-700">
+                    <CalendarClock class="schedule-icon" />
+                    <span class="schedule-kind">ETD</span>
+                    <span
+                      class="schedule-port"
+                      :title="getLegDisplay(tracking, leg, 'updated').etdPortName"
+                    >
+                      {{ getLegDisplay(tracking, leg, "updated").etdPortName || "-" }}
+                    </span>
+                    <span class="schedule-date">{{
+                      getLegDisplay(tracking, leg, "updated").etd
+                    }}</span>
+                  </div>
+                  <div class="schedule-line border-emerald-100 bg-emerald-50 text-emerald-700">
+                    <Calendar class="schedule-icon" />
+                    <span class="schedule-kind">ETA</span>
+                    <span
+                      class="schedule-port"
+                      :title="getLegDisplay(tracking, leg, 'updated').etaPortName"
+                    >
+                      {{ getLegDisplay(tracking, leg, "updated").etaPortName || "-" }}
+                    </span>
+                    <span class="schedule-date">{{
+                      getLegDisplay(tracking, leg, "updated").eta
+                    }}</span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -1022,18 +1202,36 @@ onMounted(async () => {
           <span class="text-xs text-muted-foreground font-mono">{{
             tracking.carrierBlNo || tracking.containerNo || "-"
           }}</span>
-          <span
-            :class="
-              cn(
-                'px-2 py-0.5 rounded border text-[10px] font-bold uppercase tracking-wider',
-                tracking.delayDays > 0
-                  ? 'bg-red-50 text-red-700 border-red-200'
-                  : 'bg-green-50 text-green-700 border-green-200',
-              )
-            "
-          >
-            {{ tracking.delayDays }} DAYS
-          </span>
+          <div class="flex flex-col items-end gap-1.5">
+            <span
+              :class="
+                cn(
+                  'arrival-badge',
+                  getArrivalStatus(tracking) === 'arrived'
+                    ? 'bg-blue-50 text-[#012D5A] border-blue-200'
+                    : 'bg-amber-50 text-amber-700 border-amber-200',
+                )
+              "
+            >
+              <CheckCircle2 v-if="getArrivalStatus(tracking) === 'arrived'" class="delay-icon" />
+              <CalendarClock v-else class="delay-icon" />
+              {{ getArrivalStatusLabel(tracking) }}
+            </span>
+            <span
+              :class="
+                cn(
+                  'delay-badge',
+                  tracking.delayDays > 0
+                    ? 'bg-red-50 text-red-700 border-red-200'
+                    : 'bg-green-50 text-green-700 border-green-200',
+                )
+              "
+            >
+              <AlertTriangle v-if="tracking.delayDays > 0" class="delay-icon" />
+              <CheckCircle2 v-else class="delay-icon" />
+              {{ tracking.delayDays }} DAYS
+            </span>
+          </div>
         </div>
       </div>
       <div
@@ -1103,6 +1301,14 @@ onMounted(async () => {
           <div class="flex items-center justify-between">
             <span class="text-muted-foreground">Delayed</span>
             <span class="font-bold text-red-700">{{ stats.delayed }}</span>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-muted-foreground">Sudah Sampai</span>
+            <span class="font-bold text-[#012D5A]">{{ stats.arrived }}</span>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-muted-foreground">Belum Sampai</span>
+            <span class="font-bold text-amber-700">{{ stats.notArrived }}</span>
           </div>
         </div>
       </div>
@@ -1251,6 +1457,87 @@ onMounted(async () => {
 </template>
 
 <style>
+.schedule-line {
+  display: grid;
+  grid-template-columns: 0.75rem 1.75rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.25rem;
+  min-height: 1.5rem;
+  width: 100%;
+  border-width: 1px;
+  border-radius: 0.375rem;
+  padding: 0.1875rem 0.375rem;
+  font-size: 0.625rem;
+  line-height: 1rem;
+}
+
+.schedule-icon {
+  width: 0.75rem;
+  height: 0.75rem;
+  opacity: 0.8;
+}
+
+.schedule-kind {
+  font-weight: 900;
+  letter-spacing: 0;
+}
+
+.schedule-port {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 800;
+}
+
+.schedule-date {
+  white-space: nowrap;
+  font-weight: 700;
+  opacity: 0.85;
+}
+
+.list-schedule {
+  grid-template-columns: 0.75rem 1.75rem minmax(4rem, 1fr) auto;
+}
+
+.delay-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  min-width: 4.75rem;
+  white-space: nowrap;
+  border-width: 1px;
+  border-radius: 0.375rem;
+  padding: 0.1875rem 0.5rem;
+  font-size: 0.625rem;
+  line-height: 1rem;
+  font-weight: 900;
+  letter-spacing: 0;
+}
+
+.arrival-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  min-width: 6.5rem;
+  white-space: nowrap;
+  border-width: 1px;
+  border-radius: 0.375rem;
+  padding: 0.1875rem 0.5rem;
+  font-size: 0.625rem;
+  line-height: 1rem;
+  font-weight: 900;
+  letter-spacing: 0;
+}
+
+.delay-icon {
+  width: 0.75rem;
+  height: 0.75rem;
+  flex-shrink: 0;
+}
+
 .eta-date-picker > div > div.absolute {
   left: auto;
   right: 0;
