@@ -346,6 +346,8 @@ const tradeTypeLabel = computed(() => {
 
 const serviceTypeLabel = computed(() => {
   const serviceType = props.quotation?.serviceType;
+  const shipmentType = props.quotation?.shipmentType;
+  if (serviceType === "AIR" || shipmentType === "AIR") return "AIR FREIGHT";
   if (serviceType === "TRUCKING") return "TRUCKING";
   if (serviceType === "CUSTOM_CLEARANCE") return "CUSTOM CLEARANCE";
   return "FREIGHT";
@@ -359,7 +361,7 @@ const shipmentTypeLabel = computed(() => {
 });
 
 const isAirFreight = computed(
-  () => props.quotation?.serviceType === "OCEAN" && props.quotation?.shipmentType === "AIR",
+  () => props.quotation?.serviceType === "AIR" || props.quotation?.shipmentType === "AIR",
 );
 const isTrucking = computed(() => props.quotation?.serviceType === "TRUCKING");
 const isCustomClearance = computed(() => props.quotation?.serviceType === "CUSTOM_CLEARANCE");
@@ -396,19 +398,25 @@ const truckTypeValue = computed(() => {
   return props.quotation?.truckType || "-";
 });
 
-const FIRST_PAGE_ITEM_SLOTS = 13;
-
 const MAIN_PX = 1009;
 const FIRST_HEADER_PX = 250;
 const CONT_HEADER_PX = 42;
 const TABLE_HEADER_PX = 35;
-const FOOTER_PX = 145;
-const SIGNATURE_PX = 90;
-const LAST_PAGE_RESERVE_PX = FOOTER_PX + SIGNATURE_PX;
+const SUMMARY_FOOTER_BASE_PX = 132;
+const SUMMARY_FOOTER_EXTRA_CURRENCY_PX = 86;
+const SIGNATURE_PX = 110;
+const LAST_PAGE_GAP_PX = 20;
 const ITEM_ROW_MIN_PX = 35;
 const ITEM_LINE_PX = 14;
 const ITEM_ROW_PADDING_PX = 14;
 const DESC_CHARS_PER_LINE = 42;
+
+const summaryFooterPx = computed(() => {
+  const currencyCount = Math.max(1, visibleGroupedTotals.value.length);
+  return SUMMARY_FOOTER_BASE_PX + (currencyCount - 1) * SUMMARY_FOOTER_EXTRA_CURRENCY_PX;
+});
+
+const lastPageReservePx = computed(() => summaryFooterPx.value + SIGNATURE_PX + LAST_PAGE_GAP_PX);
 
 const itemRowPx = (item?: QuotationCharge | null) => {
   const descriptionLines = Math.max(
@@ -448,7 +456,7 @@ const previewPages = computed<QuotationPreviewPage[]>(() => {
       const item = items[i];
       if (!item) break;
       const h = itemRowPx(item);
-      const reserve = i === items.length - 1 ? LAST_PAGE_RESERVE_PX : 0;
+      const reserve = i === items.length - 1 ? lastPageReservePx.value : 0;
       if (budget - h - reserve < 0 && pageItems.length > 0) break;
       pageItems.push(item);
       i++;
@@ -550,8 +558,8 @@ defineExpose({
               crossorigin="anonymous"
             />
           </div>
-          <div class="w-[30%] text-center pb-1 flex flex-col justify-end h-full">
-            <h1 class="text-xl font-bold tracking-widest uppercase leading-none text-[#062c58]">
+          <div class="w-[30%] text-center pb-3 flex flex-col justify-end h-full">
+            <h1 class="text-xl font-bold tracking-widest uppercase leading-tight text-[#062c58]">
               QUOTATION
             </h1>
           </div>
@@ -564,7 +572,7 @@ defineExpose({
 
         <!-- Main Content Bordered Container -->
         <div
-          class="main-border-container border border-[#062c58] flex-1 flex flex-col text-[0.7rem] relative overflow-hidden h-full"
+          class="main-border-container border border-[#062c58] flex-1 min-h-0 flex flex-col text-[0.7rem] relative overflow-hidden"
         >
           <!-- Parties & Quotation Info Header (first page only) -->
           <template v-if="page.isFirstPage">
@@ -745,15 +753,15 @@ defineExpose({
           </div>
 
           <!-- Items List Container -->
-          <div class="flex-1 relative">
+          <div class="flex-1 min-h-0 overflow-hidden relative">
             <!-- Vertical Grid Lines Background -->
             <div class="absolute inset-0 flex pointer-events-none">
-              <div class="w-[4%] border-r border-[#062c58]/30"></div>
-              <div class="flex-1 border-r border-[#062c58]/30"></div>
-              <div class="w-[6%] border-r border-[#062c58]/30"></div>
-              <div class="w-[11%] border-r border-[#062c58]/30"></div>
-              <div class="w-[15%] border-r border-[#062c58]/30"></div>
-              <div class="w-[10%] border-r border-[#062c58]/30"></div>
+              <div class="w-[4%] border-r border-[#062c58]/45"></div>
+              <div class="flex-1 border-r border-[#062c58]/45"></div>
+              <div class="w-[6%] border-r border-[#062c58]/45"></div>
+              <div class="w-[11%] border-r border-[#062c58]/45"></div>
+              <div class="w-[15%] border-r border-[#062c58]/45"></div>
+              <div class="w-[10%] border-r border-[#062c58]/45"></div>
               <div class="w-[15%]"></div>
             </div>
 
@@ -794,34 +802,18 @@ defineExpose({
                     :amount="item.amount"
                     :currency="item.currency || 'IDR'"
                     :exchange-rate="quotation?.exchangeRate"
-                    primary-class="font-bold text-black whitespace-nowrap"
+                    primary-class="font-semibold text-black whitespace-nowrap"
                     secondary-class="text-[0.5rem] text-muted-foreground italic whitespace-nowrap"
                     align="right"
                   />
                 </div>
               </div>
-
-              <!-- Empty spacer rows to fill the last page below the items -->
-              <div
-                v-if="page.isLastPage && page.items.length < FIRST_PAGE_ITEM_SLOTS"
-                v-for="i in FIRST_PAGE_ITEM_SLOTS - page.items.length"
-                :key="'spacer-' + i"
-                class="flex min-h-[35px] border-b border-[#062c58]/5"
-              >
-                <div class="w-[4%]"></div>
-                <div class="flex-1"></div>
-                <div class="w-[6%]"></div>
-                <div class="w-[11%]"></div>
-                <div class="w-[15%]"></div>
-                <div class="w-[10%]"></div>
-                <div class="w-[15%]"></div>
-              </div>
             </div>
           </div>
 
           <!-- Notes & Totals Footer Area (last page only) -->
-          <div v-if="page.isLastPage" class="border-t border-[#062c58] mt-auto">
-            <div class="flex items-stretch min-h-[118px]">
+          <div v-if="page.isLastPage" class="border-t border-[#062c58] mt-auto shrink-0">
+            <div class="flex items-stretch" :style="{ minHeight: `${summaryFooterPx}px` }">
               <!-- Left: Remarks / Notes (full width) -->
               <div
                 class="w-[58%] border-r border-[#062c58] p-2 flex flex-col justify-start gap-1 min-w-0"
@@ -839,51 +831,37 @@ defineExpose({
               <!-- Right: Subtotal & Tax & Total -->
               <div class="w-[42%] flex flex-col border-l border-[#062c58] bg-[#062c58]/5">
                 <div
-                  class="flex-1 divide-y divide-[#062c58]/20"
+                  class="flex-1"
                   :class="
                     visibleGroupedTotals.length > 1
-                      ? 'flex flex-col justify-center'
+                      ? 'flex flex-col divide-y divide-[#062c58]/20'
                       : 'grid grid-cols-1'
                   "
                 >
-                  <div
+                  <table
                     v-for="[curr, t] in visibleGroupedTotals"
                     :key="curr"
-                    class="p-1.5 space-y-0.5 min-w-0"
+                    class="quotation-total-table"
                     :class="visibleGroupedTotals.length > 1 ? 'flex-1' : ''"
                   >
-                    <div
-                      class="text-[0.55rem] font-extrabold text-[#062c58] uppercase tracking-wider truncate"
-                    >
-                      {{ curr }} Charges
-                    </div>
-                    <div class="flex justify-between gap-1 text-[0.55rem] text-black">
-                      <span class="opacity-70 font-semibold">Subtotal</span>
-                      <span class="font-bold text-right truncate">{{
-                        formatCurrency(t.subTotal, curr)
-                      }}</span>
-                    </div>
-                    <div class="flex justify-between gap-1 text-[0.55rem] text-black">
-                      <span class="opacity-70 font-semibold">VAT / Tax</span>
-                      <span class="font-bold text-right truncate">{{
-                        formatCurrency(t.taxAmount, curr)
-                      }}</span>
-                    </div>
-                    <div
-                      class="flex justify-between gap-2 text-[0.6rem] font-extrabold text-[#062c58] pt-0.5 border-t border-dashed border-[#062c58]/30"
-                    >
-                      <span class="shrink-0">Total</span>
-                      <CurrencyStack
-                        :amount="t.total"
-                        :currency="curr"
-                        :exchange-rate="quotation?.exchangeRate"
-                        primary-class="text-right font-extrabold text-[#062c58] whitespace-nowrap"
-                        secondary-class="text-[0.48rem] text-muted-foreground opacity-70 font-semibold whitespace-nowrap"
-                        align="right"
-                        show-rate
-                      />
-                    </div>
-                  </div>
+                    <tbody>
+                      <tr>
+                        <th colspan="2" class="quotation-total-heading">{{ curr }} Charges</th>
+                      </tr>
+                      <tr>
+                        <td>Subtotal</td>
+                        <td class="amount">{{ formatCurrency(t.subTotal, curr) }}</td>
+                      </tr>
+                      <tr>
+                        <td>VAT / Tax</td>
+                        <td class="amount">{{ formatCurrency(t.taxAmount, curr) }}</td>
+                      </tr>
+                      <tr class="grand">
+                        <td>Total</td>
+                        <td class="amount">{{ curr }} {{ formatCurrency(t.total, curr) }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
                 </div>
               </div>
             </div>
@@ -891,7 +869,7 @@ defineExpose({
         </div>
 
         <!-- Authorized Signature & Footer Credits (last page only) -->
-        <div v-if="page.isLastPage" class="mt-4 flex justify-between items-end">
+        <div v-if="page.isLastPage" class="mt-4 shrink-0 flex justify-between items-end">
           <div class="w-[55%]">
             <p class="text-[0.5rem] italic text-[#062c58]/60 uppercase leading-tight font-medium">
               This quotation is a formal proposal for standard cargo services. All quotes are
@@ -957,5 +935,58 @@ defineExpose({
     "Segoe UI",
     Roboto,
     sans-serif;
+}
+
+.quotation-total-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  color: #000;
+  font-family: inherit;
+  font-size: 10px;
+  line-height: 1.45;
+  padding: 10px 8px;
+  table-layout: fixed;
+  width: 100%;
+}
+
+.quotation-total-table th,
+.quotation-total-table td {
+  border: 0;
+  height: 18px;
+  padding: 1px 0;
+  vertical-align: middle;
+}
+
+.quotation-total-heading {
+  color: #062c58;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  line-height: 16px;
+  padding-bottom: 3px !important;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.quotation-total-table td:first-child {
+  color: rgb(0 0 0 / 70%);
+  font-weight: 700;
+  width: 38%;
+}
+
+.quotation-total-table .amount {
+  font-weight: 700;
+  text-align: right;
+  white-space: nowrap;
+  width: 62%;
+}
+
+.quotation-total-table .grand td {
+  border-top: 1px dashed rgb(6 44 88 / 45%);
+  color: #062c58;
+  font-size: 11px;
+  font-weight: 800;
+  height: 24px;
+  padding-top: 7px;
 }
 </style>

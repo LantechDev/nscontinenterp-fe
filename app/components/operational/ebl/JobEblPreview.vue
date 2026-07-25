@@ -34,6 +34,9 @@ onMounted(async () => {
 
 const isGeneratingPDF = ref(false);
 const eblContainer = ref<HTMLElement | null>(null);
+const PDF_RENDER_SCALE = 2.25;
+const PDF_JPEG_QUALITY = 0.74;
+const PDF_IMAGE_COMPRESSION = "SLOW" as const;
 
 const isAir = computed(
   () =>
@@ -501,7 +504,7 @@ const generatePDF = async () => {
       if (i > 0) pdf.addPage();
 
       const canvas = await html2canvas(pageEl as HTMLElement, {
-        scale: 2,
+        scale: PDF_RENDER_SCALE,
         useCORS: true,
         logging: false,
         backgroundColor: "#ffffff",
@@ -580,8 +583,8 @@ const generatePDF = async () => {
         }
       }
 
-      const imgData = canvas.toDataURL("image/jpeg", 0.8);
-      pdf.addImage(imgData, "JPEG", 0, 0, 210, 297, undefined, "FAST");
+      const imgData = canvas.toDataURL("image/jpeg", PDF_JPEG_QUALITY);
+      pdf.addImage(imgData, "JPEG", 0, 0, 210, 297, undefined, PDF_IMAGE_COMPRESSION);
     }
 
     pdf.save(
