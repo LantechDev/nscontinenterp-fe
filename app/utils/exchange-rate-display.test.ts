@@ -14,6 +14,9 @@ const consumerFiles = [
   "app/components/operational/JobInvoiceTab.vue",
   "app/components/operational/JobVendorInvoiceTab.vue",
   "app/components/operational/QuotationPreview.vue",
+  "app/components/operational/QuotationCostingPreview.vue",
+  "app/components/operational/QuotationInvoicePreview.vue",
+  "app/components/operational/JobInvoicePreview.vue",
 ];
 
 describe("exchange-rate amount display", () => {
@@ -33,5 +36,42 @@ describe("exchange-rate amount display", () => {
       const contents = readFileSync(resolve(root, file), "utf8");
       expect(contents).toContain("CurrencyStack");
     }
+  });
+
+  it("keeps costing amount rows on the shared IDR-primary stack instead of hand-rolled USD primary markup", () => {
+    const contents = readFileSync(
+      resolve(root, "app/components/operational/QuotationCostingPreview.vue"),
+      "utf8",
+    );
+
+    expect(contents).toContain(':amount="c.amount"');
+    expect(contents).toContain(':currency="c.currency"');
+    expect(contents).toContain(':exchange-rate="c.exchangeRate"');
+    expect(contents).not.toContain("formatCurrency(c.amount, c.currency)");
+    expect(contents).not.toContain("formatCurrency(c.amount * c.exchangeRate)");
+  });
+
+  it("keeps quotation item amount rows on the shared IDR-primary stack", () => {
+    const contents = readFileSync(
+      resolve(root, "app/components/operational/QuotationPreview.vue"),
+      "utf8",
+    );
+
+    expect(contents).toContain(':amount="item.unitPrice"');
+    expect(contents).toContain(':amount="item.amount"');
+    expect(contents).toContain(':exchange-rate="quotation?.exchangeRate"');
+    expect(contents).not.toContain("formatCurrency(item.unitPrice, item.currency)");
+    expect(contents).not.toContain("formatCurrency(item.amount, item.currency)");
+  });
+
+  it("does not squeeze multi-currency quotation totals into two narrow footer columns", () => {
+    const contents = readFileSync(
+      resolve(root, "app/components/operational/QuotationPreview.vue"),
+      "utf8",
+    );
+
+    expect(contents).toContain("flex flex-col justify-center");
+    expect(contents).toContain("whitespace-nowrap");
+    expect(contents).not.toContain("grid-cols-2 divide-x");
   });
 });

@@ -1,27 +1,51 @@
 <script setup lang="ts">
-/* eslint-disable @typescript-eslint/no-explicit-any -- FCR maps loose job/BC data into eBL print shape */
+/* eslint-disable @typescript-eslint/no-explicit-any -- FCR maps loose snapshot data into eBL print shape */
 import { computed, nextTick, onMounted, ref } from "vue";
-import { Download, Loader2 } from "lucide-vue-next";
+import {
+  Download,
+  Loader2,
+  Plus,
+  Trash2,
+  FileText,
+  ArrowLeft,
+  Edit,
+  Save,
+  X,
+} from "lucide-vue-next";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import { toast } from "vue-sonner";
 import JobEblFrontPage from "./ebl/JobEblFrontPage.vue";
 import type { ActiveBlData, ActiveJobData, EblContainer, EblContainerItem } from "./ebl/types";
-import {
-  useBookingConfirmation,
-  type BookingConfirmation,
-} from "~/composables/useBookingConfirmation";
+import JobBcEditForm from "./booking-confirmation/JobBcEditForm.vue";
+import type { BookingConfirmationForm } from "./booking-confirmation/JobBcEditForm.vue";
+import { useFcr, type Fcr } from "~/composables/useFcr";
+import { buildBcDocumentEditForm, createEmptyBcDocumentForm } from "~/utils/bcDocumentForm";
 
 const props = defineProps<{
   job: any;
 }>();
 
-const { getBookingConfirmation } = useBookingConfirmation();
-const bcData = ref<BookingConfirmation | null>(null);
+const { fetchFcrs, createFcr, updateFcrDraftById, deleteFcr } = useFcr();
+const { confirm } = useConfirm();
+const bcData = ref<Fcr | null>(null);
+const bcList = ref<Fcr[]>([]);
 const isLoading = ref(false);
+const isCreating = ref(false);
+const isSaving = ref(false);
+const editMode = ref(false);
 const isGeneratingPDF = ref(false);
 const fcrContainer = ref<HTMLElement | null>(null);
 const logoUrl = ref("/images/transparentnscontinenttebal.png");
+
+const editForm = ref<BookingConfirmationForm>(createEmptyBcDocumentForm());
+
+const replaceActiveFcr = (bc: Fcr) => {
+  bcData.value = bc;
+  const idx = bcList.value.findIndex((item) => item.id === bc.id);
+  if (idx === -1) bcList.value = [bc, ...bcList.value];
+  else bcList.value[idx] = bc;
+};
 
 onMounted(async () => {
   if (typeof window !== "undefined") {
@@ -29,10 +53,176 @@ onMounted(async () => {
   }
   if (!props.job?.id) return;
   isLoading.value = true;
-  const res = await getBookingConfirmation(props.job.id);
-  if (res.success && res.data) bcData.value = res.data;
+  const res = await fetchFcrs(props.job.id);
+  if (res.success) {
+    bcList.value = res.data || [];
+    bcData.value = null;
+  }
   isLoading.value = false;
 });
+
+const selectFcrSource = (bc: Fcr) => {
+  bcData.value = bc;
+};
+
+const closeFcr = () => {
+  bcData.value = null;
+  editMode.value = false;
+};
+
+const toggleEditMode = () => {
+  if (editMode.value) {
+    editMode.value = false;
+    return;
+  }
+  if (!bcData.value) return;
+
+  editForm.value = buildBcDocumentEditForm({
+    document: bcData.value,
+    job: props.job || {},
+  });
+  editMode.value = true;
+};
+
+const buildDraftPayload = () => {
+  const f = editForm.value;
+  const parties = [
+    { partyRoleCode: "SHIPPER", companyId: f.shipperId, addressBookId: f.shipperAddressId },
+    { partyRoleCode: "CONSIGNEE", companyId: f.consigneeId, addressBookId: f.consigneeAddressId },
+    {
+      partyRoleCode: "NOTIFY_PARTY",
+      companyId: f.notifyPartyId,
+      addressBookId: f.notifyPartyAddressId,
+    },
+  ].filter((p) => p.companyId);
+
+  return {
+    bookingNumber: f.bookingNumber,
+    bookingDate: f.bookingDate,
+    serviceContractNo: f.serviceContractNo,
+    warehouseDepotName: f.warehouseDepotName,
+    warehouseDepotAddress: f.warehouseDepotAddress,
+    pickupLocation: f.pickupLocation,
+    cutoffDate: f.cutoffDate,
+    cutoffTime: f.cutoffTime,
+    remarks: f.remarks,
+    pol: f.pol || null,
+    pod: f.pod || null,
+    preCarriageBy: f.preCarriageBy || null,
+    placeOfReceipt: f.placeOfReceipt || null,
+    placeOfDelivery: f.placeOfDelivery || null,
+    finalDestination: f.finalDestination || null,
+    cargoMovementId: f.cargoMovementId || null,
+    deliveryMovementId: f.deliveryMovementId || null,
+    mainDescription: f.mainDescription || null,
+    shippingMark: f.shippingMark || null,
+    etd: f.vessels?.[0]?.etd || null,
+    eta: f.eta || null,
+    dateCargoReceived: f.dateCargoReceived || null,
+    freightPayment: f.freightPayment || null,
+    prepaidValue: f.prepaidValue || null,
+    collectValue: f.collectValue || null,
+    shipperReferences: f.shipperReferences || [],
+    showShipperReferencesOnFcr: f.showShipperReferencesOnBc,
+    parties,
+    vessels: (f.vessels || []).map((v, idx) => ({
+      vesselId: v.vesselId || null,
+      vesselName: v.vesselName || null,
+      voyageNumber: v.voyageNumber || null,
+      tsPortId: v.tsPortId || null,
+      etd: v.etd || null,
+      eta: v.eta || null,
+      sequence: v.sequence ?? idx,
+      vesselType: v.vesselType || (idx === 0 ? "feeder" : "mother"),
+    })),
+    containers: (f.containers || []).map((c) => ({
+      containerNumber: c.containerNumber || "",
+      sealNumber: c.sealNumber || null,
+      containerTypeId: c.containerTypeId || null,
+      vehicleNumber: c.vehicleNumber || null,
+      driverName: c.driverName || null,
+      driverContactNumber: c.driverContactNumber || null,
+      isHazardous: c.isHazardous || false,
+      items: (c.items || []).map((it, i) => ({
+        sequenceNo: it.sequenceNo ?? i + 1,
+        qty: Number(it.qty) || 1,
+        packageTypeCode: it.packageTypeCode || "",
+        grossWeight: it.grossWeight ?? undefined,
+        netWeight: it.netWeight ?? undefined,
+        measurementCbm: it.measurementCbm ?? undefined,
+        description: it.description || "",
+        hsCode: it.hsCode || "",
+      })),
+    })),
+  };
+};
+
+const handleSaveFcr = async () => {
+  if (!bcData.value?.id) return;
+  isSaving.value = true;
+  const res = await updateFcrDraftById(bcData.value.id, buildDraftPayload());
+  if (res.success && res.data) {
+    replaceActiveFcr(res.data);
+    editMode.value = false;
+    toast.success("FCR saved successfully.");
+  } else {
+    toast.error(res.error || "Failed to save FCR.");
+  }
+  isSaving.value = false;
+};
+
+const formatDate = (dateStr?: string | null) => {
+  if (!dateStr) return "";
+  try {
+    const d = new Date(dateStr);
+    const parts = new Intl.DateTimeFormat("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    }).formatToParts(d);
+    return `${parts.find((p) => p.type === "day")?.value} ${parts.find((p) => p.type === "month")?.value.toUpperCase()} ${parts.find((p) => p.type === "year")?.value}`;
+  } catch {
+    return dateStr;
+  }
+};
+
+const handleCreateFcr = async () => {
+  if (!props.job?.id) return;
+  isCreating.value = true;
+  const res = await createFcr(props.job.id);
+  if (res.success && res.data) {
+    bcList.value = [res.data, ...bcList.value];
+    bcData.value = res.data;
+    toast.success("Draft FCR created.");
+  } else {
+    toast.error(res.error || "Failed to create FCR.");
+  }
+  isCreating.value = false;
+};
+
+const handleDeleteFcr = async () => {
+  if (!bcData.value?.id) return;
+  if (bcData.value.status === "finalized") {
+    toast.error("Finalized document cannot be deleted.");
+    return;
+  }
+  const yes = await confirm({
+    title: "Delete FCR?",
+    message: "Hapus draft FCR ini?",
+    confirmText: "Delete",
+  });
+  if (!yes) return;
+
+  const deletingId = bcData.value.id;
+  const res = await deleteFcr(deletingId);
+  if (res.success) {
+    bcList.value = bcList.value.filter((bc) => bc.id !== deletingId);
+    bcData.value = null;
+    toast.success("FCR deleted.");
+  } else {
+    toast.error(res.error || "Failed to delete FCR.");
+  }
+};
 
 const sameAsConsigneeParty = {
   partyRole: { code: "NOTIFY_PARTY" },
@@ -163,8 +353,8 @@ const fcrJob = computed<ActiveJobData>(() => ({
 }));
 
 const fcrBl = computed<ActiveBlData>(() => ({
-  id: `fcr-${props.job?.id || "draft"}`,
-  blNumber: props.job?.jobNumber || "",
+  id: `fcr-${bcData.value?.id || props.job?.id || "draft"}`,
+  blNumber: bcData.value?.bookingNumber || props.job?.jobNumber || "",
   blType: "DRAFT",
   status: "draft",
   job: fcrJob.value,
@@ -174,7 +364,7 @@ const fcrBl = computed<ActiveBlData>(() => ({
   renderContainers: fcrContainers.value,
   vessels: bcData.value?.vessels?.length ? bcData.value.vessels : props.job?.vessels || [],
   placeOfIssue: props.job?.placeOfIssue || props.job?.polName || props.job?.pol || "",
-  dateOfIssue: new Date().toISOString(),
+  dateOfIssue: bcData.value?.bookingDate || new Date().toISOString(),
   dateCargoReceived:
     bcData.value?.dateCargoReceived || props.job?.billsOfLading?.[0]?.dateCargoReceived || "",
   mainDescription:
@@ -314,7 +504,7 @@ const generatePDF = async () => {
       pdf.addImage(canvas.toDataURL("image/jpeg", 0.85), "JPEG", 0, 0, 210, 297, undefined, "FAST");
     }
 
-    pdf.save(`FCR_${props.job.jobNumber || "JOB"}.pdf`);
+    pdf.save(`FCR_${bcData.value?.bookingNumber || props.job.jobNumber || "JOB"}.pdf`);
     toast.success("FCR exported successfully.");
   } catch (error) {
     console.error("FCR PDF generation failed:", error);
@@ -326,44 +516,193 @@ const generatePDF = async () => {
 </script>
 
 <template>
-  <div class="space-y-6 animate-fade-in pb-12 pt-4">
-    <div
-      class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border/50 pb-6 mb-6"
-    >
-      <div class="flex flex-col gap-2 mt-1">
-        <h1 class="text-2xl font-bold text-foreground leading-none">FCR</h1>
-        <p class="text-sm text-muted-foreground leading-none mb-1">
-          Forwarder certificate of receipt for this job.
-        </p>
-      </div>
-      <button
-        type="button"
-        @click="generatePDF"
-        :disabled="isGeneratingPDF || isLoading"
-        class="px-4 py-2 bg-[#012D5A] hover:bg-[#012D5A]/90 text-white rounded-md shadow-sm text-xs font-semibold flex items-center gap-2 transition-colors disabled:opacity-50"
-      >
-        <Loader2 v-if="isGeneratingPDF" class="w-3.5 h-3.5 animate-spin" />
-        <Download v-else class="w-3.5 h-3.5" />
-        {{ isGeneratingPDF ? "Generating..." : "Download PDF" }}
-      </button>
+  <div class="space-y-6 relative">
+    <div v-if="isLoading" class="flex items-center justify-center h-48">
+      <Loader2 class="w-8 h-8 animate-spin text-primary" />
     </div>
 
-    <div class="flex justify-center bg-gray-50/50 py-12 rounded-2xl overflow-auto">
-      <div ref="fcrContainer" class="relative group flex flex-col gap-10">
-        <JobEblFrontPage
-          v-for="page in renderedPages"
-          :key="page.key"
-          :page="page"
-          :jobData="fcrJob"
-          :activeBl="fcrBl"
-          :logoUrl="logoUrl"
-          :isAir="false"
-          :isTrucking="false"
-          watermarkColor="red"
-          :paginatedPagesLength="paginatedPages.length"
-          documentMode="fcr"
-        />
+    <template v-else-if="!bcData">
+      <div class="space-y-4">
+        <div class="flex items-center justify-between">
+          <div>
+            <h3 class="text-base font-bold text-foreground">FCR</h3>
+          </div>
+          <button
+            type="button"
+            @click="handleCreateFcr"
+            :disabled="isCreating"
+            class="px-3 py-1 bg-blue-600 text-white text-[10px] font-bold rounded hover:bg-blue-700 transition-colors flex items-center gap-1 disabled:opacity-50"
+          >
+            <Loader2 v-if="isCreating" class="w-3 h-3 animate-spin" />
+            <Plus v-else class="w-3 h-3" />
+            ADD FCR
+          </button>
+        </div>
+
+        <div
+          v-if="bcList.length === 0"
+          class="border border-dashed border-border rounded-xl p-10 text-center bg-gray-50/50"
+        >
+          <div
+            class="w-12 h-12 rounded-full bg-white shadow-sm flex items-center justify-center mx-auto mb-4 border border-border"
+          >
+            <FileText class="w-6 h-6 text-muted-foreground opacity-40" />
+          </div>
+          <p class="text-sm font-semibold text-foreground mb-1">No FCR available</p>
+          <p class="text-xs text-muted-foreground max-w-[240px] mx-auto leading-relaxed">
+            There are no FCR documents linked to this job yet.
+          </p>
+        </div>
+
+        <div v-else class="space-y-3">
+          <div
+            v-for="bc in bcList"
+            :key="bc.id"
+            @click="selectFcrSource(bc)"
+            class="group p-4 rounded-xl border border-border bg-white hover:border-[#012D5A]/30 hover:shadow-md transition-all cursor-pointer"
+          >
+            <div class="flex items-start justify-between mb-4">
+              <div class="space-y-1">
+                <div class="flex items-center gap-2">
+                  <span
+                    class="font-bold text-sm text-foreground group-hover:text-[#012D5A] transition-colors flex items-center gap-1.5"
+                  >
+                    {{ bc.bookingNumber || "Draft FCR" }}
+                    <ArrowLeft
+                      class="w-3 h-3 rotate-180 opacity-0 group-hover:opacity-100 transition-opacity"
+                    />
+                  </span>
+                </div>
+                <p class="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">
+                  Created on {{ formatDate(bc.createdAt) }}
+                </p>
+              </div>
+              <div class="flex items-center gap-2">
+                <span
+                  class="px-2.5 py-1 rounded-md text-[10px] font-bold border uppercase tracking-widest leading-none border-amber-200 bg-amber-50 text-amber-700"
+                >
+                  FCR
+                </span>
+              </div>
+            </div>
+
+            <div class="border-t border-border pt-4">
+              <p
+                class="text-[10px] text-muted-foreground mb-1 uppercase tracking-wider font-semibold"
+              >
+                Cargo Description
+              </p>
+              <p class="text-sm text-foreground line-clamp-2">
+                {{ bc.mainDescription || "-" }}
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
-    </div>
+    </template>
+
+    <template v-else>
+      <div
+        class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border/50 pb-6 mb-6"
+      >
+        <div class="flex items-start gap-4">
+          <button
+            @click="closeFcr"
+            class="p-2 -ml-2 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground shrink-0 mt-0.5"
+          >
+            <ArrowLeft class="w-5 h-5" />
+          </button>
+          <div class="flex flex-col gap-2 mt-1">
+            <h1 class="text-2xl font-bold text-foreground leading-none">
+              {{ bcData.bookingNumber || "FCR Details" }}
+            </h1>
+            <p class="text-sm text-muted-foreground leading-none mb-1">
+              Forwarder certificate of receipt for this job.
+            </p>
+            <div class="flex items-center gap-3">
+              <span
+                class="px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest border leading-none max-w-fit border-amber-200 bg-amber-50 text-amber-700"
+              >
+                FCR
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div v-if="!editMode" class="flex flex-wrap items-center justify-end gap-3 shrink-0">
+          <button
+            type="button"
+            @click="toggleEditMode"
+            class="px-4 py-2 text-xs font-semibold rounded-md border border-border bg-white hover:bg-gray-50 flex items-center gap-2 shadow-sm transition-colors"
+          >
+            <Edit class="w-3.5 h-3.5" />
+            Edit
+          </button>
+          <button
+            type="button"
+            @click="handleDeleteFcr"
+            class="px-4 py-2 text-xs font-semibold rounded-md border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 flex items-center gap-2 shadow-sm transition-colors"
+          >
+            <Trash2 class="w-3.5 h-3.5" />
+            Delete
+          </button>
+          <button
+            type="button"
+            @click="generatePDF"
+            :disabled="isGeneratingPDF || isLoading"
+            class="px-4 py-2 bg-[#012D5A] hover:bg-[#012D5A]/90 text-white rounded-md shadow-sm text-xs font-semibold flex items-center gap-2 transition-colors disabled:opacity-50"
+          >
+            <Loader2 v-if="isGeneratingPDF" class="w-3.5 h-3.5 animate-spin" />
+            <Download v-else class="w-3.5 h-3.5" />
+            {{ isGeneratingPDF ? "Generating..." : "Download PDF" }}
+          </button>
+        </div>
+      </div>
+
+      <div v-if="editMode" class="w-full relative">
+        <JobBcEditForm v-model="editForm" :jobData="job" />
+
+        <div
+          class="sticky bottom-0 z-20 -mx-8 mt-6 flex items-center justify-end gap-3 border-t border-border bg-white/95 px-8 py-4 backdrop-blur-sm"
+        >
+          <button
+            type="button"
+            @click="toggleEditMode"
+            :disabled="isSaving"
+            class="px-4 py-2 text-xs font-semibold rounded-md border border-border bg-white hover:bg-gray-50 flex items-center gap-2 shadow-sm transition-colors disabled:opacity-50"
+          >
+            <X class="w-3.5 h-3.5" />
+            Cancel Edit
+          </button>
+          <button
+            type="button"
+            @click="handleSaveFcr"
+            :disabled="isSaving"
+            class="px-4 py-2 bg-[#012D5A] hover:bg-[#012D5A]/90 text-white rounded-md shadow-sm text-xs font-semibold flex items-center gap-2 transition-colors disabled:opacity-50"
+          >
+            <Loader2 v-if="isSaving" class="w-3.5 h-3.5 animate-spin" />
+            <Save v-else class="w-3.5 h-3.5" />
+            {{ isSaving ? "Saving..." : "Save Changes" }}
+          </button>
+        </div>
+      </div>
+      <div v-else class="flex justify-center bg-gray-50/50 py-12 rounded-2xl overflow-auto">
+        <div ref="fcrContainer" class="relative group flex flex-col gap-10">
+          <JobEblFrontPage
+            v-for="page in renderedPages"
+            :key="page.key"
+            :page="page"
+            :jobData="fcrJob"
+            :activeBl="fcrBl"
+            :logoUrl="logoUrl"
+            :isAir="false"
+            :isTrucking="false"
+            watermarkColor="red"
+            :paginatedPagesLength="paginatedPages.length"
+            documentMode="fcr"
+          />
+        </div>
+      </div>
+    </template>
   </div>
 </template>

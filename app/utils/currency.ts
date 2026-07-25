@@ -18,3 +18,18 @@ export function roundByCurrency(amount: number, currency: string): number {
 export function ceilTaxByCurrency(amount: number, currency: string): number {
   return currency === "IDR" ? Math.ceil(amount) : Math.ceil(amount * 100) / 100;
 }
+
+export function normalizeCurrencyCode(currency: string | null | undefined): string {
+  return (currency || "IDR").toUpperCase();
+}
+
+export function formatCurrencyCode(amount: number, currency: string | null | undefined): string {
+  const currencyCode = normalizeCurrencyCode(currency);
+  const formatted = new Intl.NumberFormat(currencyCode === "IDR" ? "id-ID" : "en-US", {
+    style: "decimal",
+    minimumFractionDigits: currencyCode === "IDR" ? 0 : 2,
+    maximumFractionDigits: currencyCode === "IDR" ? 0 : 2,
+  }).format(Number.isFinite(amount) ? amount : 0);
+
+  return `${currencyCode} ${formatted}`;
+}

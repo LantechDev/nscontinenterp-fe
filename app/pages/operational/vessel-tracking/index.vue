@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   Calendar,
   CalendarClock,
+  Plus,
   CheckCircle2,
   Download,
   Edit3,
@@ -15,6 +16,7 @@ import {
   Save,
   Search,
   Ship,
+  Trash2,
 } from "lucide-vue-next";
 import { toast } from "vue-sonner";
 import DashboardStatCard from "~/components/dashboard/StatCard.vue";
@@ -31,7 +33,7 @@ definePageMeta({
 });
 
 const { trackings, fetchVesselTrackings, updateVesselTracking, isLoading } = useVesselTracking();
-const { fetchVessels, fetchPlanes } = useMasterData();
+const { fetchVessels, fetchPlanes, fetchPorts } = useMasterData();
 const { showExportOptions, triggerX, triggerY, triggerWidth, triggerHeight, openExportPopup } =
   useExportPopup();
 const route = useRoute();
@@ -48,10 +50,13 @@ const viewMode = ref<ViewMode>("list");
 const selectedTracking = ref<VesselTracking | null>(null);
 const editLegs = ref<VesselTrackingLeg[]>([]);
 const editRemarks = ref("");
+const activeUpdateIndex = ref(0);
+const deletedLegIds = ref<string[]>([]);
 const isSaving = ref(false);
 const isExporting = ref(false);
 const masterVessels = ref<Array<{ id: string; name: string }>>([]);
 const masterPlanes = ref<Array<{ id: string; name: string }>>([]);
+const masterPorts = ref<Array<{ id: string; name: string; code?: string }>>([]);
 let searchTimer: ReturnType<typeof setTimeout> | null = null;
 
 const linerOptions = computed(() =>
@@ -283,6 +288,39 @@ const getFilterSummary = () => {
   ].filter(Boolean);
 
   return parts.join(" | ");
+};
+
+const getUpdateButtonLabel = (index: number) => {
+  const number = index + 1;
+  const suffix =
+    number % 100 >= 11 && number % 100 <= 13
+      ? "th"
+      : number % 10 === 1
+        ? "st"
+        : number % 10 === 2
+          ? "nd"
+          : number % 10 === 3
+            ? "rd"
+            : "th";
+  return `${number}${suffix} Update`;
+};
+
+const portOptions = computed(() =>
+  masterPorts.value.map((port) => ({
+    ...port,
+    name: [port.name, port.code].filter(Boolean).join(" - "),
+  })),
+);
+
+const activeLeg = computed(() => editLegs.value[activeUpdateIndex.value] || null);
+
+const isNewLeg = (leg: VesselTrackingLeg) => leg.id.startsWith("new-");
+
+const getLegRouteLabel = (leg: VesselTrackingLeg) => {
+  const from = leg.updatedEtd ? formatDate(leg.updatedEtd) : "ETD -";
+  const toPort = leg.updatedTsPortName || leg.updatedTsPortId || "Port -";
+  const toDate = leg.updatedEta ? formatDate(leg.updatedEta) : "ETA -";
+  return `${from} -> ${toPort} / ${toDate}`;
 };
 
 const getTrackingLegSummary = (tracking: VesselTracking, mode: "initial" | "updated") =>
@@ -570,6 +608,8 @@ const openEdit = (tracking: VesselTracking) => {
   selectedTracking.value = tracking;
   editLegs.value = tracking.legs.map((leg) => ({ ...leg }));
   editRemarks.value = tracking.remarks || "";
+  activeUpdateIndex.value = 0;
+  deletedLegIds.value = [];
 };
 
 const getTransportOptions = (leg: VesselTrackingLeg) =>
@@ -583,10 +623,72 @@ const handleTransportChange = (leg: VesselTrackingLeg, value: string | null | un
   }
 };
 
+const handleActiveTransportChange = (value: string | null | undefined) => {
+  if (!activeLeg.value) return;
+  handleTransportChange(activeLeg.value, value);
+};
+
+const createDraftLeg = (source?: VesselTrackingLeg | null): VesselTrackingLeg => {
+  const sequence =
+    editLegs.value.reduce((max, leg) => Math.max(max, Number(leg.sequence ?? -1)), -1) + 1;
+  return {
+    id: `new-${Date.now()}-${sequence}`,
+    trackingId: selectedTracking.value?.id || "",
+    sequence,
+    vesselType: "additional",
+    initialTransportId: null,
+    initialTransportType: source?.updatedTransportType || "vessel",
+    initialVesselName: null,
+    initialVoyageNumber: null,
+    initialTsPortId: null,
+    initialTsPortName: null,
+    initialEtd: null,
+    initialEta: null,
+    updatedTransportId: null,
+    updatedTransportType: source?.updatedTransportType || "vessel",
+    updatedVesselName: null,
+    updatedVoyageNumber: null,
+    updatedTsPortId: null,
+    updatedTsPortName: null,
+    updatedEtd: source?.updatedEta || null,
+    updatedEta: null,
+    remarks: null,
+  };
+};
+
+const addUpdateLeg = () => {
+  const source = editLegs.value[activeUpdateIndex.value] || editLegs.value.at(-1) || null;
+  editLegs.value.push(createDraftLeg(source));
+  activeUpdateIndex.value = editLegs.value.length - 1;
+};
+
+const addVesselLeg = () => {
+  editLegs.value.push(createDraftLeg(null));
+  activeUpdateIndex.value = editLegs.value.length - 1;
+};
+
+const deleteEditLeg = (index: number) => {
+  if (editLegs.value.length <= 1) {
+    toast.error("Minimal harus ada 1 vessel update.");
+    return;
+  }
+  const [removed] = editLegs.value.splice(index, 1);
+  if (removed && !isNewLeg(removed)) {
+    deletedLegIds.value.push(removed.id);
+  }
+  if (activeUpdateIndex.value >= editLegs.value.length) {
+    activeUpdateIndex.value = editLegs.value.length - 1;
+  } else if (activeUpdateIndex.value > index) {
+    activeUpdateIndex.value -= 1;
+  }
+};
+
 const closeEdit = () => {
   selectedTracking.value = null;
   editLegs.value = [];
   editRemarks.value = "";
+  activeUpdateIndex.value = 0;
+  deletedLegIds.value = [];
 };
 
 const saveTracking = async () => {
@@ -595,10 +697,13 @@ const saveTracking = async () => {
   try {
     const res = await updateVesselTracking(selectedTracking.value.id, {
       remarks: editRemarks.value || null,
+      deletedLegIds: deletedLegIds.value,
       legs: editLegs.value.map((leg) => ({
         id: leg.id,
         updatedTransportId: leg.updatedTransportId,
         updatedTransportType: leg.updatedTransportType,
+        sequence: leg.sequence,
+        vesselType: leg.vesselType,
         updatedVesselName: leg.updatedVesselName,
         updatedVoyageNumber: leg.updatedVoyageNumber,
         updatedTsPortId: leg.updatedTsPortId,
@@ -626,9 +731,15 @@ watch(search, () => {
 });
 
 onMounted(async () => {
-  const [vessels, planes] = await Promise.all([fetchVessels(), fetchPlanes(), loadData()]);
+  const [vessels, planes, ports] = await Promise.all([
+    fetchVessels(),
+    fetchPlanes(),
+    fetchPorts(undefined, "ocean"),
+    loadData(),
+  ]);
   masterVessels.value = vessels;
   masterPlanes.value = planes;
+  masterPorts.value = ports.map((port) => ({ id: port.code, name: port.name, code: port.code }));
   const selectedId = typeof route.query.id === "string" ? route.query.id : "";
   if (selectedId) {
     const found = trackings.value.find((item) => item.id === selectedId);
@@ -714,7 +825,7 @@ onMounted(async () => {
             <input
               v-model="search"
               type="text"
-              placeholder="Cari job, customer, liner..."
+              placeholder="HBL NO, MBL NO, CUSTOMER, CONSIGNEE, OVERSEAS AGENT, INITIAL/UPDATED VESSEL, SUDAH SAMPAI, BELUM SAMPAI"
               class="w-full pl-10 pr-4 py-2 text-sm border border-border rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground"
             />
           </div>
@@ -796,13 +907,18 @@ onMounted(async () => {
       class="border border-border rounded-xl bg-white overflow-hidden"
     >
       <div class="overflow-x-auto">
-        <table class="w-full min-w-[1180px]">
+        <table class="w-full min-w-[1380px]">
           <thead>
             <tr class="border-b border-border bg-white text-left">
               <th
                 class="py-3 px-4 text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
               >
-                Job
+                HBL No
+              </th>
+              <th
+                class="py-3 px-4 text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
+              >
+                MBL No
               </th>
               <th
                 class="py-3 px-4 text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
@@ -812,27 +928,22 @@ onMounted(async () => {
               <th
                 class="py-3 px-4 text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
               >
-                Liner / BL
+                Consignee
               </th>
               <th
                 class="py-3 px-4 text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
               >
-                Route
+                Overseas Agent
               </th>
               <th
                 class="py-3 px-4 text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
               >
-                Initial Vessel
-              </th>
-              <th
-                class="py-3 px-4 text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
-              >
-                Updated Vessel
+                Initial / Updated Vessel
               </th>
               <th
                 class="py-3 px-4 text-[11px] font-bold text-muted-foreground uppercase tracking-widest text-center"
               >
-                Delay
+                Status
               </th>
               <th class="py-3 px-4 w-10"></th>
             </tr>
@@ -849,139 +960,139 @@ onMounted(async () => {
                     <Ship class="w-4 h-4" />
                   </div>
                   <div class="flex flex-col">
-                    <span class="text-sm font-semibold text-[#012D5A]">{{
-                      tracking.jobNumber
-                    }}</span>
-                    <span class="text-[10px] text-muted-foreground font-medium uppercase">
-                      {{ formatTrackingScheduleDate(tracking) }}
+                    <span class="text-sm font-semibold text-[#012D5A] font-mono">
+                      {{ tracking.hblNo || "-" }}
+                    </span>
+                    <span
+                      class="text-[10px] text-muted-foreground font-medium uppercase truncate max-w-[150px]"
+                    >
+                      {{ tracking.jobNumber }}
                     </span>
                   </div>
                 </div>
               </td>
               <td class="py-3 px-4">
-                <div class="text-sm text-foreground max-w-[200px] truncate">
+                <div class="flex flex-col max-w-[180px]">
+                  <span class="text-sm font-semibold text-foreground font-mono truncate">
+                    {{ tracking.carrierBlNo || "-" }}
+                  </span>
+                  <span class="text-[10px] text-muted-foreground font-medium uppercase">
+                    {{ formatTrackingScheduleDate(tracking) }}
+                  </span>
+                </div>
+              </td>
+              <td class="py-3 px-4">
+                <div class="text-sm text-foreground max-w-[190px] truncate">
                   {{ tracking.customerName || "-" }}
                 </div>
               </td>
               <td class="py-3 px-4">
-                <div class="flex flex-col max-w-[220px]">
-                  <span class="text-sm font-medium truncate">{{ tracking.linerName || "-" }}</span>
-                  <span class="text-xs text-muted-foreground font-mono truncate">
-                    {{ tracking.carrierBlNo || tracking.containerNo || "-" }}
-                  </span>
+                <div class="text-sm text-foreground max-w-[190px] truncate">
+                  {{ tracking.consigneeName || "-" }}
                 </div>
               </td>
               <td class="py-3 px-4">
-                <div class="flex flex-col max-w-[190px]">
-                  <span class="text-sm font-medium truncate">{{
-                    tracking.polName || tracking.pol || "-"
-                  }}</span>
-                  <span class="text-xs text-muted-foreground truncate">
-                    → {{ tracking.podName || tracking.pod || "-" }}
-                  </span>
+                <div class="text-sm text-foreground max-w-[190px] truncate">
+                  {{ tracking.overseasAgentName || "-" }}
                 </div>
               </td>
               <td class="py-3 px-4">
-                <div class="w-[280px] space-y-1.5">
+                <div class="w-[480px] space-y-1.5">
                   <div
                     v-for="leg in tracking.legs"
-                    :key="`initial-${leg.id}`"
-                    class="rounded-md border border-border bg-gray-50/50 px-2.5 py-2"
-                  >
-                    <div class="flex items-start justify-between gap-2">
-                      <p class="text-xs font-bold text-foreground leading-snug">
-                        {{ getLegDisplay(tracking, leg, "initial").vesselName }}
-                      </p>
-                      <span
-                        v-if="getLegDisplay(tracking, leg, 'initial').voyageNumber"
-                        class="shrink-0 text-[10px] font-bold text-[#012D5A] bg-blue-50 border border-blue-100 rounded px-1.5 py-0.5"
-                      >
-                        {{ getLegDisplay(tracking, leg, "initial").voyageNumber }}
-                      </span>
-                    </div>
-                    <div class="space-y-1.5 mt-2">
-                      <div
-                        class="schedule-line list-schedule border-orange-100 bg-orange-50 text-orange-700"
-                      >
-                        <CalendarClock class="schedule-icon" />
-                        <span class="schedule-kind">ETD</span>
-                        <span
-                          class="schedule-port"
-                          :title="getLegDisplay(tracking, leg, 'initial').etdPortName"
-                        >
-                          {{ getLegDisplay(tracking, leg, "initial").etdPortName || "-" }}
-                        </span>
-                        <span class="schedule-date">{{
-                          getLegDisplay(tracking, leg, "initial").etd
-                        }}</span>
-                      </div>
-                      <div
-                        class="schedule-line list-schedule border-emerald-100 bg-emerald-50 text-emerald-700"
-                      >
-                        <Calendar class="schedule-icon" />
-                        <span class="schedule-kind">ETA</span>
-                        <span
-                          class="schedule-port"
-                          :title="getLegDisplay(tracking, leg, 'initial').etaPortName"
-                        >
-                          {{ getLegDisplay(tracking, leg, "initial").etaPortName || "-" }}
-                        </span>
-                        <span class="schedule-date">{{
-                          getLegDisplay(tracking, leg, "initial").eta
-                        }}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </td>
-              <td class="py-3 px-4">
-                <div class="w-[280px] space-y-1.5">
-                  <div
-                    v-for="leg in tracking.legs"
-                    :key="`updated-${leg.id}`"
+                    :key="`vessel-row-${leg.id}`"
                     class="rounded-md border border-border bg-white px-2.5 py-2"
                   >
-                    <div class="flex items-start justify-between gap-2">
-                      <p class="text-xs font-bold text-foreground leading-snug">
-                        {{ getLegDisplay(tracking, leg, "updated").vesselName }}
-                      </p>
-                      <span
-                        v-if="getLegDisplay(tracking, leg, 'updated').voyageNumber"
-                        class="shrink-0 text-[10px] font-bold text-[#012D5A] bg-blue-50 border border-blue-100 rounded px-1.5 py-0.5"
-                      >
-                        {{ getLegDisplay(tracking, leg, "updated").voyageNumber }}
-                      </span>
-                    </div>
-                    <div class="space-y-1.5 mt-2">
-                      <div
-                        class="schedule-line list-schedule border-orange-100 bg-orange-50 text-orange-700"
-                      >
-                        <CalendarClock class="schedule-icon" />
-                        <span class="schedule-kind">ETD</span>
-                        <span
-                          class="schedule-port"
-                          :title="getLegDisplay(tracking, leg, 'updated').etdPortName"
-                        >
-                          {{ getLegDisplay(tracking, leg, "updated").etdPortName || "-" }}
-                        </span>
-                        <span class="schedule-date">{{
-                          getLegDisplay(tracking, leg, "updated").etd
-                        }}</span>
+                    <div class="grid grid-cols-[1fr_auto_1fr] gap-2 items-start">
+                      <div class="min-w-0">
+                        <p class="text-[10px] font-bold uppercase text-muted-foreground mb-1">
+                          Initial
+                        </p>
+                        <p class="text-xs font-bold text-foreground truncate">
+                          {{ getLegDisplay(tracking, leg, "initial").vesselName }}
+                        </p>
+                        <p class="text-[10px] text-muted-foreground truncate">
+                          {{ getLegDisplay(tracking, leg, "initial").voyageNumber || "-" }}
+                        </p>
                       </div>
-                      <div
-                        class="schedule-line list-schedule border-emerald-100 bg-emerald-50 text-emerald-700"
-                      >
-                        <Calendar class="schedule-icon" />
-                        <span class="schedule-kind">ETA</span>
-                        <span
-                          class="schedule-port"
-                          :title="getLegDisplay(tracking, leg, 'updated').etaPortName"
+                      <span class="text-muted-foreground text-xs pt-5">→</span>
+                      <div class="min-w-0">
+                        <p class="text-[10px] font-bold uppercase text-muted-foreground mb-1">
+                          Updated
+                        </p>
+                        <p class="text-xs font-bold text-foreground truncate">
+                          {{ getLegDisplay(tracking, leg, "updated").vesselName }}
+                        </p>
+                        <p class="text-[10px] text-muted-foreground truncate">
+                          {{ getLegDisplay(tracking, leg, "updated").voyageNumber || "-" }}
+                        </p>
+                      </div>
+                    </div>
+                    <div class="grid grid-cols-[1fr_auto_1fr] gap-2 mt-2">
+                      <div class="space-y-1.5 min-w-0">
+                        <div
+                          class="schedule-line compact-schedule border-orange-100 bg-orange-50 text-orange-700"
                         >
-                          {{ getLegDisplay(tracking, leg, "updated").etaPortName || "-" }}
-                        </span>
-                        <span class="schedule-date">{{
-                          getLegDisplay(tracking, leg, "updated").eta
-                        }}</span>
+                          <CalendarClock class="schedule-icon" />
+                          <span class="schedule-kind">ETD</span>
+                          <span
+                            class="schedule-port"
+                            :title="getLegDisplay(tracking, leg, 'initial').etdPortName"
+                          >
+                            {{ getLegDisplay(tracking, leg, "initial").etdPortName || "-" }}
+                          </span>
+                          <span class="schedule-date">{{
+                            getLegDisplay(tracking, leg, "initial").etd
+                          }}</span>
+                        </div>
+                        <div
+                          class="schedule-line compact-schedule border-emerald-100 bg-emerald-50 text-emerald-700"
+                        >
+                          <Calendar class="schedule-icon" />
+                          <span class="schedule-kind">ETA</span>
+                          <span
+                            class="schedule-port"
+                            :title="getLegDisplay(tracking, leg, 'initial').etaPortName"
+                          >
+                            {{ getLegDisplay(tracking, leg, "initial").etaPortName || "-" }}
+                          </span>
+                          <span class="schedule-date">{{
+                            getLegDisplay(tracking, leg, "initial").eta
+                          }}</span>
+                        </div>
+                      </div>
+                      <span class="text-muted-foreground text-xs self-center">→</span>
+                      <div class="space-y-1.5 min-w-0">
+                        <div
+                          class="schedule-line compact-schedule border-orange-100 bg-orange-50 text-orange-700"
+                        >
+                          <CalendarClock class="schedule-icon" />
+                          <span class="schedule-kind">ETD</span>
+                          <span
+                            class="schedule-port"
+                            :title="getLegDisplay(tracking, leg, 'updated').etdPortName"
+                          >
+                            {{ getLegDisplay(tracking, leg, "updated").etdPortName || "-" }}
+                          </span>
+                          <span class="schedule-date">{{
+                            getLegDisplay(tracking, leg, "updated").etd
+                          }}</span>
+                        </div>
+                        <div
+                          class="schedule-line compact-schedule border-emerald-100 bg-emerald-50 text-emerald-700"
+                        >
+                          <Calendar class="schedule-icon" />
+                          <span class="schedule-kind">ETA</span>
+                          <span
+                            class="schedule-port"
+                            :title="getLegDisplay(tracking, leg, 'updated').etaPortName"
+                          >
+                            {{ getLegDisplay(tracking, leg, "updated").etaPortName || "-" }}
+                          </span>
+                          <span class="schedule-date">{{
+                            getLegDisplay(tracking, leg, "updated").eta
+                          }}</span>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1322,55 +1433,154 @@ onMounted(async () => {
       @update:model-value="(value) => !value && closeEdit()"
     >
       <div class="space-y-4">
-        <div
-          v-for="(leg, index) in editLegs"
-          :key="leg.id"
-          class="border border-border rounded-xl bg-white overflow-visible"
-        >
-          <div class="px-4 py-3 bg-muted/30 border-b border-border flex items-center gap-2">
-            <CalendarClock class="w-4 h-4 text-[#012D5A]" />
-            <span class="text-sm font-bold">Leg {{ index + 1 }}</span>
-            <span class="text-xs text-muted-foreground uppercase">{{ leg.vesselType }}</span>
+        <div class="rounded-xl border border-border bg-white overflow-hidden">
+          <div
+            class="px-4 py-3 border-b border-border flex flex-wrap items-center justify-between gap-3"
+          >
+            <div>
+              <p class="text-sm font-bold">Update Legs</p>
+              <p class="text-xs text-muted-foreground">
+                Pilih leg yang mau diupdate atau tambah vessel baru.
+              </p>
+            </div>
+            <div class="flex items-center gap-2">
+              <button
+                type="button"
+                class="h-9 px-3 rounded-md border border-border text-xs font-bold inline-flex items-center gap-2 hover:bg-muted"
+                @click="addUpdateLeg"
+              >
+                <Plus class="w-3.5 h-3.5" />
+                Duplicate Current
+              </button>
+              <button
+                type="button"
+                class="h-9 px-3 rounded-md bg-[#012D5A] text-white text-xs font-bold inline-flex items-center gap-2 hover:bg-[#012D5A]/90"
+                @click="addVesselLeg"
+              >
+                <Plus class="w-3.5 h-3.5" />
+                Add Vessel
+              </button>
+            </div>
           </div>
-          <div class="grid grid-cols-1 lg:grid-cols-2">
-            <div class="p-4 border-b lg:border-b-0 lg:border-r border-border">
-              <p class="text-[10px] font-bold text-muted-foreground uppercase mb-3">Initial</p>
-              <div class="grid grid-cols-2 gap-3 text-sm">
+          <div class="divide-y divide-border">
+            <div
+              v-for="(leg, index) in editLegs"
+              :key="`update-switch-${leg.id}`"
+              role="button"
+              tabindex="0"
+              class="w-full px-4 py-3 text-left flex items-center gap-3 transition-colors"
+              :class="
+                cn('', activeUpdateIndex === index ? 'bg-blue-50' : 'bg-white hover:bg-muted/40')
+              "
+              @click="activeUpdateIndex = index"
+              @keydown.enter.prevent="activeUpdateIndex = index"
+              @keydown.space.prevent="activeUpdateIndex = index"
+            >
+              <span
+                :class="
+                  cn(
+                    'w-9 h-9 rounded-md border inline-flex items-center justify-center text-xs font-bold shrink-0',
+                    activeUpdateIndex === index
+                      ? 'bg-[#012D5A] text-white border-[#012D5A]'
+                      : 'bg-white text-muted-foreground border-border',
+                  )
+                "
+              >
+                {{ index + 1 }}
+              </span>
+              <span class="min-w-0 flex-1">
+                <span class="flex items-center gap-2">
+                  <span class="text-sm font-bold text-foreground">{{
+                    getUpdateButtonLabel(index)
+                  }}</span>
+                  <span class="text-[10px] font-bold uppercase text-muted-foreground">{{
+                    leg.vesselType
+                  }}</span>
+                </span>
+                <span class="block text-xs text-muted-foreground truncate">
+                  {{ leg.updatedVesselName || leg.initialVesselName || "Select vessel" }}
+                  <span v-if="leg.updatedVoyageNumber || leg.initialVoyageNumber">
+                    / {{ leg.updatedVoyageNumber || leg.initialVoyageNumber }}
+                  </span>
+                  · {{ getLegRouteLabel(leg) }}
+                </span>
+              </span>
+              <button
+                type="button"
+                class="h-8 w-8 rounded-md text-red-600 hover:bg-red-50 inline-flex items-center justify-center shrink-0"
+                title="Delete update"
+                @click.stop="deleteEditLeg(index)"
+              >
+                <Trash2 class="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+        <div v-if="activeLeg" class="border border-border rounded-xl bg-white overflow-visible">
+          <div
+            class="px-4 py-3 bg-muted/30 border-b border-border flex items-center justify-between gap-3"
+          >
+            <div class="flex items-center gap-2">
+              <CalendarClock class="w-4 h-4 text-[#012D5A]" />
+              <span class="text-sm font-bold">{{ getUpdateButtonLabel(activeUpdateIndex) }}</span>
+              <span class="text-xs text-muted-foreground uppercase">{{
+                activeLeg.vesselType
+              }}</span>
+            </div>
+            <button
+              type="button"
+              class="h-8 px-3 rounded-md text-red-600 hover:bg-red-50 text-xs font-bold inline-flex items-center gap-2"
+              @click="deleteEditLeg(activeUpdateIndex)"
+            >
+              <Trash2 class="w-3.5 h-3.5" />
+              Delete
+            </button>
+          </div>
+          <div class="p-4 space-y-4">
+            <div class="rounded-lg border border-border bg-muted/20 p-3">
+              <p class="text-[10px] font-bold text-muted-foreground uppercase mb-2">
+                Initial Reference
+              </p>
+              <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
                 <div>
                   <p class="text-[10px] font-bold text-muted-foreground uppercase">Vessel</p>
-                  <p class="font-semibold">{{ leg.initialVesselName || "-" }}</p>
+                  <p class="font-semibold">{{ activeLeg.initialVesselName || "-" }}</p>
                 </div>
                 <div>
                   <p class="text-[10px] font-bold text-muted-foreground uppercase">Voyage</p>
-                  <p class="font-mono">{{ leg.initialVoyageNumber || "-" }}</p>
+                  <p class="font-mono">{{ activeLeg.initialVoyageNumber || "-" }}</p>
                 </div>
                 <div>
                   <p class="text-[10px] font-bold text-muted-foreground uppercase">ETD</p>
-                  <p>{{ formatDate(leg.initialEtd) }}</p>
+                  <p>{{ formatDate(activeLeg.initialEtd) }}</p>
                 </div>
                 <div>
                   <p class="text-[10px] font-bold text-muted-foreground uppercase">ETA</p>
-                  <p>{{ formatDate(leg.initialEta) }}</p>
+                  <p>{{ formatDate(activeLeg.initialEta) }}</p>
                 </div>
               </div>
             </div>
-            <div class="p-4">
-              <p class="text-[10px] font-bold text-muted-foreground uppercase mb-3">Updated</p>
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <p class="text-[10px] font-bold text-muted-foreground uppercase mb-3">
+                Updated Schedule
+              </p>
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div class="space-y-1">
                   <label class="text-[10px] font-bold text-muted-foreground uppercase"
                     >Vessel</label
                   >
                   <Combobox
-                    :model-value="leg.updatedTransportId"
-                    :options="getTransportOptions(leg)"
+                    :model-value="activeLeg.updatedTransportId"
+                    :options="getTransportOptions(activeLeg)"
                     label-key="name"
                     value-key="id"
                     :placeholder="
-                      leg.updatedTransportType === 'plane' ? 'Select Plane...' : 'Select Vessel...'
+                      activeLeg.updatedTransportType === 'plane'
+                        ? 'Select Plane...'
+                        : 'Select Vessel...'
                     "
                     class="h-10"
-                    @update:model-value="(value) => handleTransportChange(leg, value)"
+                    @update:model-value="handleActiveTransportChange"
                   />
                 </div>
                 <div class="space-y-1">
@@ -1378,7 +1588,7 @@ onMounted(async () => {
                     >Voyage</label
                   >
                   <input
-                    v-model="leg.updatedVoyageNumber"
+                    v-model="activeLeg.updatedVoyageNumber"
                     v-uppercase
                     class="input-field h-10"
                     placeholder="Voyage no"
@@ -1386,20 +1596,33 @@ onMounted(async () => {
                 </div>
                 <div class="space-y-1">
                   <label class="text-[10px] font-bold text-muted-foreground uppercase">ETD</label>
-                  <DatePicker v-model="leg.updatedEtd" class="h-10" />
+                  <DatePicker v-model="activeLeg.updatedEtd" class="h-10" />
+                </div>
+                <div class="space-y-1">
+                  <label class="text-[10px] font-bold text-muted-foreground uppercase"
+                    >TS / POD</label
+                  >
+                  <Combobox
+                    v-model="activeLeg.updatedTsPortId"
+                    :options="portOptions"
+                    label-key="name"
+                    value-key="id"
+                    placeholder="Select port..."
+                    class="h-10"
+                  />
                 </div>
                 <div class="space-y-1">
                   <label class="text-[10px] font-bold text-muted-foreground uppercase">ETA</label>
                   <div class="eta-date-picker">
-                    <DatePicker v-model="leg.updatedEta" class="h-10" />
+                    <DatePicker v-model="activeLeg.updatedEta" class="h-10" />
                   </div>
                 </div>
-                <div class="space-y-1 md:col-span-2">
+                <div class="space-y-1 md:col-span-3">
                   <label class="text-[10px] font-bold text-muted-foreground uppercase"
                     >Remarks</label
                   >
                   <input
-                    v-model="leg.remarks"
+                    v-model="activeLeg.remarks"
                     v-uppercase
                     class="input-field h-10"
                     placeholder="Delay / connection note"
@@ -1498,6 +1721,11 @@ onMounted(async () => {
 
 .list-schedule {
   grid-template-columns: 0.75rem 1.75rem minmax(4rem, 1fr) auto;
+}
+
+.compact-schedule {
+  grid-template-columns: 0.75rem 1.75rem minmax(3rem, 1fr) auto;
+  min-width: 0;
 }
 
 .delay-badge {

@@ -32,6 +32,8 @@ export interface VesselTracking {
   remarks: string | null;
   startedAt: string;
   customerName: string;
+  consigneeName: string;
+  overseasAgentName: string;
   linerName: string;
   carrierBlNo: string;
   hblNo: string;
@@ -50,8 +52,11 @@ export interface VesselTracking {
 
 export interface UpdateVesselTrackingPayload {
   remarks?: string | null;
+  deletedLegIds?: string[];
   legs?: Array<{
     id: string;
+    sequence?: number | null;
+    vesselType?: string | null;
     updatedTransportId?: string | null;
     updatedTransportType?: string | null;
     updatedVesselName?: string | null;

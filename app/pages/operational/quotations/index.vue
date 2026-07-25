@@ -204,8 +204,8 @@ const hasRouteInfo = (q: Quotation) => {
 const getServiceScopeLabel = (q: Quotation) => {
   if (isTrucking(q)) return "TRUCKING";
   if (isCustomClearance(q)) return "CUSTOM CLEARANCE";
-  if (isAirFreight(q)) return "AIR FREIGHT";
-  return "OCEAN FREIGHT";
+  if (isAirFreight(q)) return "FREIGHT";
+  return "FREIGHT";
 };
 
 // Status Badges Styling

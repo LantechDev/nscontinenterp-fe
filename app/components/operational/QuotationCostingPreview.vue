@@ -3,6 +3,7 @@ import { ref, computed, nextTick, onMounted } from "vue";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import { toast } from "vue-sonner";
+import CurrencyStack from "~/components/ui/CurrencyStack.vue";
 import type { Quotation, QuotationCost, QuotationCharge } from "~/composables/useQuotations";
 
 interface CurrencyBucket {
@@ -63,6 +64,12 @@ const formatDate = (dateStr?: string | null) => {
 };
 
 const customerName = computed(() => props.quotation?.customerName || "-");
+const quotationExchangeRate = computed(() => Number(props.quotation?.exchangeRate || 1));
+const exchangeRateDisplay = computed(() =>
+  quotationExchangeRate.value > 1
+    ? `1 USD = IDR ${new Intl.NumberFormat("id-ID").format(quotationExchangeRate.value)}`
+    : "1 USD = USD 1",
+);
 const routeText = computed(() => {
   const pol = props.quotation?.polName || props.quotation?.pol || "-";
   const pod = props.quotation?.podName || props.quotation?.pod || "-";
@@ -328,7 +335,7 @@ defineExpose({ generatePDF, isGeneratingPDF });
                 </div>
               </div>
               <div class="flex" style="height: 40px">
-                <div class="w-1/2 border-r border-[#062c58] pt-1 px-2">
+                <div class="w-1/3 border-r border-[#062c58] pt-1 px-2">
                   <span class="font-bold text-[0.6rem] leading-none mb-1 block uppercase"
                     >VALID UNTIL</span
                   >
@@ -336,12 +343,20 @@ defineExpose({ generatePDF, isGeneratingPDF });
                     formatDate(quotation?.validUntil)
                   }}</span>
                 </div>
-                <div class="w-1/2 pt-1 px-2">
+                <div class="w-1/3 border-r border-[#062c58] pt-1 px-2">
                   <span class="font-bold text-[0.6rem] leading-none mb-1 block uppercase"
                     >STATUS</span
                   >
                   <span class="font-mono text-[0.7rem] text-black uppercase">{{
                     quotation?.status || "-"
+                  }}</span>
+                </div>
+                <div class="w-1/3 pt-1 px-2">
+                  <span class="font-bold text-[0.6rem] leading-none mb-1 block uppercase"
+                    >EXCHANGE RATE</span
+                  >
+                  <span class="font-mono text-[0.58rem] text-black uppercase font-bold">{{
+                    exchangeRateDisplay
                   }}</span>
                 </div>
               </div>
@@ -401,11 +416,14 @@ defineExpose({ generatePDF, isGeneratingPDF });
                       {{ ch.description || "-" }}
                     </td>
                     <td class="px-3 py-2 text-right">
-                      <div class="flex flex-col items-end">
-                        <span class="font-bold">{{
-                          formatCurrency(chargeAmount(ch), ch.currency || "IDR")
-                        }}</span>
-                      </div>
+                      <CurrencyStack
+                        :amount="chargeAmount(ch)"
+                        :currency="ch.currency || 'IDR'"
+                        :exchange-rate="quotation?.exchangeRate"
+                        primary-class="font-bold text-[#062c58] whitespace-nowrap"
+                        secondary-class="text-[0.5rem] text-muted-foreground italic whitespace-nowrap"
+                        align="right"
+                      />
                     </td>
                   </tr>
                   <tr v-if="page.revenueRows.length === 0">
@@ -442,15 +460,14 @@ defineExpose({ generatePDF, isGeneratingPDF });
                     <td class="px-3 py-2 font-bold uppercase">{{ c.vendorName || "-" }}</td>
                     <td class="px-3 py-2 truncate max-w-xs uppercase">{{ c.description }}</td>
                     <td class="px-3 py-2 text-right">
-                      <div class="flex flex-col items-end">
-                        <span class="font-bold">{{ formatCurrency(c.amount, c.currency) }}</span>
-                        <span
-                          v-if="c.currency === 'USD'"
-                          class="text-[0.5rem] text-muted-foreground italic"
-                        >
-                          {{ formatCurrency(c.amount * c.exchangeRate) }}
-                        </span>
-                      </div>
+                      <CurrencyStack
+                        :amount="c.amount"
+                        :currency="c.currency"
+                        :exchange-rate="c.exchangeRate"
+                        primary-class="font-bold text-[#062c58] whitespace-nowrap"
+                        secondary-class="text-[0.5rem] text-muted-foreground italic whitespace-nowrap"
+                        align="right"
+                      />
                     </td>
                   </tr>
                   <tr v-if="page.costRows.length === 0">

@@ -104,7 +104,7 @@ const serviceTypeLabel = computed(() => {
   const serviceType = quotation.value?.serviceType;
   if (serviceType === "TRUCKING") return "TRUCKING";
   if (serviceType === "CUSTOM_CLEARANCE") return "CUSTOM CLEARANCE";
-  return "OCEAN (FREIGHT)";
+  return "FREIGHT";
 });
 
 const shipmentTypeLabel = computed(() => {

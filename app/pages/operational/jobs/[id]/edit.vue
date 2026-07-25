@@ -962,7 +962,7 @@ const TRADE_TYPES = [
 ];
 
 const SERVICE_TYPES = [
-  { id: "OCEAN", name: "OCEAN (FREIGHT)" },
+  { id: "OCEAN", name: "FREIGHT" },
   { id: "TRUCKING", name: "TRUCKING" },
   { id: "CUSTOM_CLEARANCE", name: "CUSTOM CLEARANCE" },
 ];

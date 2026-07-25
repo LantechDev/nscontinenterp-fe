@@ -4,6 +4,7 @@ import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import { toast } from "vue-sonner";
 import { cn, toNumber } from "~/lib/utils";
+import { formatCurrencyCode, normalizeCurrencyCode } from "~/utils/currency";
 import type { ActiveJobData, ProfitInvoice, ProfitExpense, ProfitJob } from "./ebl/types";
 
 const props = defineProps<{
@@ -25,20 +26,17 @@ const getVal = (val: unknown, fallback: unknown = "") =>
   val ? String(val) : fallback ? String(fallback) : "";
 
 const formatCurrency = (val: number | string | null | undefined, currency: string = "IDR") => {
-  if (val === null || val === undefined) return `${currency} 0`;
-  const num = typeof val === "string" ? parseFloat(val) : val;
-  if (isNaN(num)) return `${currency} 0`;
-
-  return new Intl.NumberFormat(currency === "IDR" ? "id-ID" : "en-US", {
-    style: "currency",
-    currency: currency,
-    minimumFractionDigits: currency === "IDR" ? 0 : 2,
-    maximumFractionDigits: currency === "IDR" ? 0 : 2,
-  })
-    .format(num)
-    .replace("Rp", "IDR")
-    .replace("US$", "USD");
+  const num = toNumber(val);
+  return formatCurrencyCode(Number.isFinite(num) ? num : 0, currency);
 };
+
+const toBaseAmount = (
+  amount: number | string | null | undefined,
+  exchangeRate: number | string | null | undefined,
+) => (toNumber(amount) || 0) * (toNumber(exchangeRate) || 1);
+
+const hasUsdConversion = (currency?: string | null, exchangeRate?: number | string | null) =>
+  normalizeCurrencyCode(currency) === "USD" && (toNumber(exchangeRate) || 1) > 1;
 
 const formatDate = (dateStr?: string | null) => {
   if (!dateStr) return "";
@@ -72,9 +70,7 @@ const vendorInvoices = computed(() => allVendorInvoices.value.filter((exp) => !i
 const totalRevenue = computed(() => {
   if (allInvoices.value.length > 0) {
     return invoices.value.reduce((sum: number, inv: ProfitInvoice) => {
-      const amount = toNumber(inv.total) || 0;
-      const rate = toNumber(inv.exchangeRate) || 1;
-      return sum + amount * rate;
+      return sum + toBaseAmount(inv.total, inv.exchangeRate);
     }, 0);
   }
   return toNumber(props.job?.revenue) || 0;
@@ -91,9 +87,7 @@ const getItemDescriptions = (items: { description: string | null }[] | null | un
 const totalCost = computed(() => {
   if (allVendorInvoices.value.length > 0) {
     return vendorInvoices.value.reduce((sum: number, exp: ProfitExpense) => {
-      const amount = toNumber(exp.amount) || 0;
-      const rate = toNumber(exp.exchangeRate) || 1;
-      return sum + amount * rate;
+      return sum + toBaseAmount(exp.amount, exp.exchangeRate);
     }, 0);
   }
   return toNumber(props.job?.cogs || props.job?.cost) || 0;
@@ -141,11 +135,11 @@ const linesFor = (text: string | null | undefined, charsPerLine: number) =>
   Math.max(1, Math.ceil((text?.length || 0) / charsPerLine));
 
 const revenueRowPx = (inv: ProfitInvoice) =>
-  ROW_BASE_PX + Math.max(1, inv.currency === "USD" ? 2 : 1) * LINE_PX;
+  ROW_BASE_PX + Math.max(1, hasUsdConversion(inv.currency, inv.exchangeRate) ? 2 : 1) * LINE_PX;
 
 const costRowPx = (exp: ProfitExpense) => {
   const vendorLines = linesFor(exp.vendor?.name, VENDOR_CHARS_PER_LINE);
-  const amountLines = exp.currency === "USD" ? 2 : 1;
+  const amountLines = hasUsdConversion(exp.currency, exp.exchangeRate) ? 2 : 1;
   return ROW_BASE_PX + Math.max(vendorLines, amountLines) * LINE_PX;
 };
 
@@ -331,23 +325,39 @@ defineExpose({
         >
           <!-- Job Info Section (first page only) -->
           <div v-if="page.isFirst" class="flex border-b border-[#062c58]" style="min-height: 80px">
-            <div class="w-1/2 border-r border-[#062c58] pt-1 px-2 pb-2">
-              <span class="font-bold mb-1 text-[0.6rem] leading-none block uppercase"
-                >CUSTOMER:</span
-              >
-              <div class="font-medium text-xs text-black uppercase leading-tight">
-                {{ customerName }}
-              </div>
-              <div class="mt-4">
+            <div class="w-1/2 border-r border-[#062c58] flex flex-col">
+              <div class="border-b border-[#062c58] pt-1 px-2 pb-1" style="height: 40px">
                 <span class="font-bold mb-1 text-[0.6rem] leading-none block uppercase"
-                  >ROUTE:</span
+                  >CUSTOMER:</span
                 >
-                <div class="font-mono text-[0.7rem] uppercase text-black">
-                  {{ job?.polName || job?.pol || "-" }} -> {{ job?.podName || job?.pod || "-" }}
+                <div class="font-medium text-xs text-black uppercase leading-tight">
+                  {{ customerName }}
+                </div>
+              </div>
+              <div class="flex flex-1">
+                <div class="w-1/2 border-r border-[#062c58] pt-1 px-2 pb-1">
+                  <span class="font-bold text-[0.6rem] leading-none mb-1 block uppercase"
+                    >FROM / POL</span
+                  >
+                  <span
+                    class="font-mono text-[0.65rem] text-black uppercase leading-tight break-words"
+                  >
+                    {{ job?.polName || job?.pol || "-" }}
+                  </span>
+                </div>
+                <div class="w-1/2 pt-1 px-2 pb-1">
+                  <span class="font-bold text-[0.6rem] leading-none mb-1 block uppercase"
+                    >TO / POD</span
+                  >
+                  <span
+                    class="font-mono text-[0.65rem] text-black uppercase leading-tight break-words"
+                  >
+                    {{ job?.podName || job?.pod || "-" }}
+                  </span>
                 </div>
               </div>
             </div>
-            <div class="w-1/2">
+            <div class="w-1/2 flex flex-col">
               <div class="flex border-b border-[#062c58]" style="height: 40px">
                 <div class="w-1/2 border-r border-[#062c58] pt-1 px-2">
                   <span class="font-bold text-[0.6rem] leading-none mb-1 block uppercase"
@@ -366,7 +376,7 @@ defineExpose({
                   }}</span>
                 </div>
               </div>
-              <div class="flex" style="height: 40px">
+              <div class="flex flex-1">
                 <div class="w-1/2 border-r border-[#062c58] pt-1 px-2">
                   <span class="font-bold text-[0.6rem] leading-none mb-1 block uppercase"
                     >VESSEL</span
@@ -444,16 +454,9 @@ defineExpose({
                       </td>
                       <td class="px-3 py-2 text-right">
                         <div class="flex flex-col items-end">
-                          <template
-                            v-if="inv.currency === 'USD' && Number(inv.exchangeRate || 1) > 1"
-                          >
+                          <template v-if="hasUsdConversion(inv.currency, inv.exchangeRate)">
                             <span class="font-bold">
-                              {{
-                                formatCurrency(
-                                  toNumber(inv.total) * Number(inv.exchangeRate),
-                                  "IDR",
-                                )
-                              }}
+                              {{ formatCurrency(toBaseAmount(inv.total, inv.exchangeRate), "IDR") }}
                             </span>
                             <span class="text-[0.5rem] text-muted-foreground italic">
                               {{ formatCurrency(inv.total, "USD") }}
@@ -517,15 +520,10 @@ defineExpose({
                       </td>
                       <td class="px-3 py-2 text-right">
                         <div class="flex flex-col items-end">
-                          <template
-                            v-if="exp.currency === 'USD' && Number(exp.exchangeRate || 1) > 1"
-                          >
+                          <template v-if="hasUsdConversion(exp.currency, exp.exchangeRate)">
                             <span class="font-bold">
                               {{
-                                formatCurrency(
-                                  toNumber(exp.amount) * Number(exp.exchangeRate),
-                                  "IDR",
-                                )
+                                formatCurrency(toBaseAmount(exp.amount, exp.exchangeRate), "IDR")
                               }}
                             </span>
                             <span class="text-[0.5rem] text-muted-foreground italic">
@@ -557,7 +555,8 @@ defineExpose({
               <div class="w-1/2 p-3 text-[0.55rem] italic text-muted-foreground leading-tight">
                 This report is generated for internal management analysis purposes. Data shown is
                 based on recorded invoices and expenses linked to the job. Profit calculation: Total
-                Revenue - Total Cost (COGS).
+                Revenue - Total Cost (COGS), with USD amounts converted to IDR using each recorded
+                exchange rate.
               </div>
               <div class="w-1/2 flex flex-col border-l border-[#062c58]">
                 <div class="flex-1 flex border-b border-[#062c58]/10 items-center">

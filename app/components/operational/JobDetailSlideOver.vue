@@ -340,9 +340,10 @@ const getVesselName = computed(
   () => job.value?.vessel?.name || job.value?.plane?.name || job.value?.vesselId || "-",
 );
 
-const getServiceName = computed(
-  () => job.value?.service?.name || job.value?.serviceId || "Ocean Freight",
-);
+const getServiceName = computed(() => {
+  if (job.value?.serviceType === "OCEAN" || job.value?.serviceType === "AIR") return "FREIGHT";
+  return job.value?.service?.name || job.value?.serviceId || "FREIGHT";
+});
 const getVendorName = computed(() => job.value?.vendor?.name || "PT Nova Sync Continent");
 const getPol = computed(() => {
   if (job.value?.serviceType === "TRUCKING") return job.value.pickupAddress || "-";
@@ -377,12 +378,12 @@ const getServiceTypeBadge = computed(() => {
   }
   if (sType === "AIR" || shType === "AIR") {
     return {
-      name: "Air Freight",
+      name: "FREIGHT",
       class: "bg-sky-50 text-sky-700 border-sky-200",
     };
   }
   return {
-    name: "Ocean Freight",
+    name: "FREIGHT",
     class: "bg-indigo-50 text-indigo-700 border-indigo-200",
   };
 });

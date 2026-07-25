@@ -120,6 +120,20 @@ export function useBookingConfirmation() {
     }
   };
 
+  const fetchBookingConfirmations = async (jobId: string) => {
+    isLoading.value = true;
+    try {
+      const response = await $fetch(`/api/operational/jobs/${jobId}/booking-confirmations`, {
+        method: "GET",
+      });
+      return { success: true, data: response as BookingConfirmation[] };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    } finally {
+      isLoading.value = false;
+    }
+  };
+
   const createBookingConfirmation = async (jobId: string) => {
     isLoading.value = true;
     try {
@@ -170,11 +184,44 @@ export function useBookingConfirmation() {
     }
   };
 
+  const updateBookingConfirmationDraftById = async (
+    bcId: string,
+    payload: Record<string, unknown>,
+  ) => {
+    isLoading.value = true;
+    try {
+      const response = await $fetch(`/api/operational/jobs/booking-confirmations/${bcId}/draft`, {
+        method: "PATCH",
+        body: payload,
+      });
+      return { success: true, data: response as BookingConfirmation };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    } finally {
+      isLoading.value = false;
+    }
+  };
+
   const copyBookingConfirmationFromJob = async (jobId: string) => {
     isLoading.value = true;
     try {
       const response = await $fetch(
         `/api/operational/jobs/${jobId}/booking-confirmation/copy-from-job`,
+        { method: "POST" },
+      );
+      return { success: true, data: response as BookingConfirmation };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    } finally {
+      isLoading.value = false;
+    }
+  };
+
+  const copyBookingConfirmationFromJobById = async (bcId: string) => {
+    isLoading.value = true;
+    try {
+      const response = await $fetch(
+        `/api/operational/jobs/booking-confirmations/${bcId}/copy-from-job`,
         { method: "POST" },
       );
       return { success: true, data: response as BookingConfirmation };
@@ -202,6 +249,21 @@ export function useBookingConfirmation() {
     }
   };
 
+  const finalizeBookingConfirmationById = async (bcId: string) => {
+    isLoading.value = true;
+    try {
+      const response = await $fetch(
+        `/api/operational/jobs/booking-confirmations/${bcId}/finalize`,
+        { method: "POST" },
+      );
+      return { success: true, data: response as BookingConfirmation };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    } finally {
+      isLoading.value = false;
+    }
+  };
+
   const unfinalizeBookingConfirmation = async (jobId: string) => {
     isLoading.value = true;
     try {
@@ -219,14 +281,49 @@ export function useBookingConfirmation() {
     }
   };
 
+  const unfinalizeBookingConfirmationById = async (bcId: string) => {
+    isLoading.value = true;
+    try {
+      const response = await $fetch(
+        `/api/operational/jobs/booking-confirmations/${bcId}/unfinalize`,
+        { method: "POST" },
+      );
+      return { success: true, data: response as BookingConfirmation };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    } finally {
+      isLoading.value = false;
+    }
+  };
+
+  const deleteBookingConfirmation = async (bcId: string) => {
+    isLoading.value = true;
+    try {
+      await $fetch(`/api/operational/jobs/booking-confirmations/${bcId}`, {
+        method: "DELETE",
+      });
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    } finally {
+      isLoading.value = false;
+    }
+  };
+
   return {
     isLoading,
     getBookingConfirmation,
+    fetchBookingConfirmations,
     createBookingConfirmation,
     updateBookingConfirmation,
     updateBookingConfirmationDraft,
+    updateBookingConfirmationDraftById,
     copyBookingConfirmationFromJob,
+    copyBookingConfirmationFromJobById,
     finalizeBookingConfirmation,
+    finalizeBookingConfirmationById,
     unfinalizeBookingConfirmation,
+    unfinalizeBookingConfirmationById,
+    deleteBookingConfirmation,
   };
 }

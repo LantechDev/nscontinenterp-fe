@@ -3,6 +3,7 @@ import { ref, computed, nextTick, onMounted } from "vue";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import { toast } from "vue-sonner";
+import CurrencyStack from "~/components/ui/CurrencyStack.vue";
 import type { Quotation, QuotationCost } from "~/composables/useQuotations";
 
 const props = defineProps<{
@@ -51,13 +52,25 @@ const formatDate = (dateStr?: string | null) => {
 const costItems = computed(() => props.cost?.items || []);
 
 const hasUsdItem = computed(() => costItems.value.some((it) => (it.currency || "IDR") === "USD"));
+const costExchangeRate = computed(() => Number(props.cost?.exchangeRate || 1));
 const effectiveCurrency = computed(() =>
-  hasUsdItem.value && Number(props.cost?.exchangeRate || 1) > 1
-    ? "IDR"
-    : hasUsdItem.value
-      ? "USD"
-      : "IDR",
+  hasUsdItem.value && costExchangeRate.value > 1 ? "IDR" : hasUsdItem.value ? "USD" : "IDR",
 );
+const exchangeRateDisplay = computed(() =>
+  costExchangeRate.value > 1
+    ? `1 USD = IDR ${new Intl.NumberFormat("id-ID").format(costExchangeRate.value)}`
+    : "1 USD = USD 1",
+);
+
+const displayAmount = (amount: unknown, currency = effectiveCurrency.value): number => {
+  const num = Number(amount || 0);
+  return currency === "USD" && costExchangeRate.value > 1 ? num * costExchangeRate.value : num;
+};
+
+const formatDisplayCurrency = (amount: unknown, currency = effectiveCurrency.value): string => {
+  const displayCurrency = currency === "USD" && costExchangeRate.value > 1 ? "IDR" : currency;
+  return formatCurrency(displayAmount(amount, currency), displayCurrency);
+};
 
 type CostPreviewItem = (typeof costItems.value)[number];
 interface PreviewPage {
@@ -233,7 +246,7 @@ defineExpose({ generatePDF, isGeneratingPDF });
                 </div>
               </div>
               <div class="flex" style="height: 50px">
-                <div class="w-1/2 border-r border-[#062c58] pt-1 px-2">
+                <div class="w-1/3 border-r border-[#062c58] pt-1 px-2">
                   <span class="font-bold text-[0.6rem] leading-none mb-1 block uppercase"
                     >QUOTATION</span
                   >
@@ -241,12 +254,20 @@ defineExpose({ generatePDF, isGeneratingPDF });
                     quotation?.number || "-"
                   }}</span>
                 </div>
-                <div class="w-1/2 pt-1 px-2">
+                <div class="w-1/3 border-r border-[#062c58] pt-1 px-2">
                   <span class="font-bold text-[0.6rem] leading-none mb-1 block uppercase"
                     >CURRENCY</span
                   >
                   <span class="font-mono text-[0.75rem] text-black font-bold uppercase">{{
                     effectiveCurrency
+                  }}</span>
+                </div>
+                <div class="w-1/3 pt-1 px-2">
+                  <span class="font-bold text-[0.6rem] leading-none mb-1 block uppercase"
+                    >EXCHANGE RATE</span
+                  >
+                  <span class="font-mono text-[0.62rem] text-black font-bold uppercase">{{
+                    exchangeRateDisplay
                   }}</span>
                 </div>
               </div>
@@ -310,10 +331,24 @@ defineExpose({ generatePDF, isGeneratingPDF });
                 </div>
                 <div class="w-[10%] text-center text-[0.7rem]">{{ item.quantity }}</div>
                 <div class="w-[20%] text-right px-3 text-[0.7rem] text-black">
-                  {{ formatCurrency(item.unitPrice, item.currency) }}
+                  <CurrencyStack
+                    :amount="item.unitPrice"
+                    :currency="item.currency || 'IDR'"
+                    :exchange-rate="costExchangeRate"
+                    primary-class="font-medium text-black whitespace-nowrap"
+                    secondary-class="text-[0.5rem] text-muted-foreground italic whitespace-nowrap"
+                    align="right"
+                  />
                 </div>
                 <div class="w-[20%] text-right px-3 text-[0.7rem] font-medium text-black">
-                  {{ formatCurrency(item.amount, item.currency) }}
+                  <CurrencyStack
+                    :amount="item.amount"
+                    :currency="item.currency || 'IDR'"
+                    :exchange-rate="costExchangeRate"
+                    primary-class="font-bold text-black whitespace-nowrap"
+                    secondary-class="text-[0.5rem] text-muted-foreground italic whitespace-nowrap"
+                    align="right"
+                  />
                 </div>
               </div>
               <div
@@ -367,7 +402,7 @@ defineExpose({ generatePDF, isGeneratingPDF });
                     <div
                       class="flex-1 px-3 text-right font-mono text-[0.75rem] font-medium text-black"
                     >
-                      {{ formatCurrency(cost?.subTotal, effectiveCurrency) }}
+                      {{ formatDisplayCurrency(cost?.subTotal) }}
                     </div>
                   </div>
                   <div class="flex border-b border-[#062c58]/20 h-[35px] items-center shrink-0">
@@ -375,7 +410,7 @@ defineExpose({ generatePDF, isGeneratingPDF });
                     <div
                       class="flex-1 px-3 text-right font-mono text-[0.75rem] font-medium text-black"
                     >
-                      {{ formatCurrency(cost?.taxTotal || 0, effectiveCurrency) }}
+                      {{ formatDisplayCurrency(cost?.taxTotal || 0) }}
                     </div>
                   </div>
                   <div class="flex bg-[#062c58] text-white flex-1 items-center">
@@ -387,7 +422,14 @@ defineExpose({ generatePDF, isGeneratingPDF });
                       >
                     </div>
                     <div class="flex-1 px-3 text-right font-mono text-xl font-black">
-                      {{ formatCurrency(cost?.amount, effectiveCurrency) }}
+                      <CurrencyStack
+                        :amount="cost?.amount"
+                        :currency="effectiveCurrency"
+                        :exchange-rate="costExchangeRate"
+                        primary-class="text-xl font-black text-white whitespace-nowrap"
+                        secondary-class="text-[0.55rem] text-white/70 italic whitespace-nowrap"
+                        align="right"
+                      />
                     </div>
                   </div>
                 </div>

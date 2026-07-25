@@ -3,6 +3,7 @@ import { ref, computed, nextTick, onMounted } from "vue";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import { toast } from "vue-sonner";
+import CurrencyStack from "~/components/ui/CurrencyStack.vue";
 import type {
   Quotation,
   QuotationInvoice,
@@ -24,6 +25,24 @@ const documentCurrency = computed(() => {
   if (itemCurrencies.length === 1) return itemCurrencies[0] || "IDR";
   return props.quotation?.currency || "IDR";
 });
+const documentExchangeRate = computed(() => Number(props.quotation?.exchangeRate || 1));
+const documentDisplayCurrency = computed(() =>
+  documentCurrency.value === "USD" && documentExchangeRate.value > 1
+    ? "IDR"
+    : documentCurrency.value,
+);
+const exchangeRateDisplay = computed(() =>
+  documentExchangeRate.value > 1
+    ? `1 USD = IDR ${new Intl.NumberFormat("id-ID").format(documentExchangeRate.value)}`
+    : "1 USD = USD 1",
+);
+
+const displayAmount = (amount: unknown, currency = documentCurrency.value): number => {
+  const num = Number(amount || 0);
+  return currency === "USD" && documentExchangeRate.value > 1
+    ? num * documentExchangeRate.value
+    : num;
+};
 
 const terbilang = (n: number): string => {
   if (n === 0) return "";
@@ -141,9 +160,9 @@ const numberToEnglish = (num: number): string => {
 };
 
 const amountInWords = computed(() => {
-  const total = Number(props.invoice?.total || 0);
+  const total = displayAmount(props.invoice?.total);
   if (!total) return "";
-  if (documentCurrency.value === "USD") {
+  if (documentDisplayCurrency.value === "USD") {
     return `${numberToEnglish(Math.floor(total))} Dollars`;
   }
   const rupiahSpelling = terbilang(Math.floor(total)) + " Rupiah";
@@ -164,11 +183,12 @@ onMounted(async () => {
 
 const formatCurrency = (amount: unknown, currency = documentCurrency.value): string => {
   if (amount === undefined || amount === null) return "-";
-  return new Intl.NumberFormat(currency === "USD" ? "en-US" : "id-ID", {
+  const displayCurrency = currency === "USD" && documentExchangeRate.value > 1 ? "IDR" : currency;
+  return new Intl.NumberFormat(displayCurrency === "USD" ? "en-US" : "id-ID", {
     style: "decimal",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: currency === "USD" ? 2 : 0,
-  }).format(Number(amount));
+    minimumFractionDigits: displayCurrency === "USD" ? 2 : 0,
+    maximumFractionDigits: displayCurrency === "USD" ? 2 : 0,
+  }).format(displayAmount(amount, currency));
 };
 
 const formatDate = (dateStr?: string | null) => {
@@ -199,9 +219,16 @@ const ITEM_LINE_PX = 14;
 const ITEM_ROW_PADDING_PX = 14;
 const DESC_CHARS_PER_LINE = 42;
 
-const itemRowPx = (desc?: string | null) => {
-  const lines = Math.max(1, Math.ceil((desc || "").length / DESC_CHARS_PER_LINE));
-  return Math.max(ITEM_ROW_MIN_PX, lines * ITEM_LINE_PX + ITEM_ROW_PADDING_PX);
+const itemRowPx = (item?: QuotationInvoiceItem | null) => {
+  const descriptionLines = Math.max(
+    1,
+    Math.ceil((item?.description || "").length / DESC_CHARS_PER_LINE),
+  );
+  const amountLines = item?.currency === "USD" ? 2 : 1;
+  return Math.max(
+    ITEM_ROW_MIN_PX,
+    Math.max(descriptionLines, amountLines) * ITEM_LINE_PX + ITEM_ROW_PADDING_PX,
+  );
 };
 
 interface PreviewPage {
@@ -225,7 +252,7 @@ const previewPages = computed<PreviewPage[]>(() => {
     while (i < items.length) {
       const item = items[i];
       if (!item) break;
-      const h = itemRowPx(item.description);
+      const h = itemRowPx(item);
       const reserve = i === items.length - 1 ? LAST_PAGE_RESERVE_PX : 0;
       if (budget - h - reserve < 0 && pageItems.length > 0) break;
       pageItems.push(item);
@@ -387,22 +414,28 @@ defineExpose({ generatePDF, isGeneratingPDF });
             class="flex border-b border-[#062c58]"
             style="min-height: 45px"
           >
-            <div class="w-1/3 border-r border-[#062c58] pt-1 px-2 pb-1">
+            <div class="w-1/4 border-r border-[#062c58] pt-1 px-2 pb-1">
               <span class="font-bold text-[0.6rem] block leading-none mb-1">POL / ORIGIN</span>
               <span class="font-mono text-[0.7rem] uppercase text-black">{{
                 quotation?.polName || quotation?.pol || quotation?.pickupAddress || "-"
               }}</span>
             </div>
-            <div class="w-1/3 border-r border-[#062c58] pt-1 px-2 pb-1">
+            <div class="w-1/4 border-r border-[#062c58] pt-1 px-2 pb-1">
               <span class="font-bold text-[0.6rem] block leading-none mb-1">POD / DESTINATION</span>
               <span class="font-mono text-[0.7rem] uppercase text-black">{{
                 quotation?.podName || quotation?.pod || quotation?.deliveryAddress || "-"
               }}</span>
             </div>
-            <div class="w-1/3 pt-1 px-2 pb-1">
+            <div class="w-1/4 border-r border-[#062c58] pt-1 px-2 pb-1">
               <span class="font-bold text-[0.6rem] block leading-none mb-1">CURRENCY</span>
               <span class="font-mono text-[0.75rem] uppercase text-black font-medium">{{
-                documentCurrency
+                documentDisplayCurrency
+              }}</span>
+            </div>
+            <div class="w-1/4 pt-1 px-2 pb-1">
+              <span class="font-bold text-[0.6rem] block leading-none mb-1">EXCHANGE RATE</span>
+              <span class="font-mono text-[0.62rem] uppercase text-black font-bold">{{
+                exchangeRateDisplay
               }}</span>
             </div>
           </div>
@@ -449,12 +482,24 @@ defineExpose({ generatePDF, isGeneratingPDF });
                 </div>
                 <div class="w-[6%] text-center text-[0.7rem]">{{ item.quantity }}</div>
                 <div class="w-[15%] text-right px-3 text-[0.7rem] text-black">
-                  {{ item.currency || "IDR" }}
-                  {{ formatCurrency(item.unitPrice, item.currency || "IDR") }}
+                  <CurrencyStack
+                    :amount="item.unitPrice"
+                    :currency="item.currency || 'IDR'"
+                    :exchange-rate="documentExchangeRate"
+                    primary-class="font-medium text-black whitespace-nowrap"
+                    secondary-class="text-[0.5rem] text-muted-foreground italic whitespace-nowrap"
+                    align="right"
+                  />
                 </div>
                 <div class="w-[15%] text-right px-3 text-[0.7rem] font-medium text-black">
-                  {{ item.currency || "IDR" }}
-                  {{ formatCurrency(item.amount, item.currency || "IDR") }}
+                  <CurrencyStack
+                    :amount="item.amount"
+                    :currency="item.currency || 'IDR'"
+                    :exchange-rate="documentExchangeRate"
+                    primary-class="font-bold text-black whitespace-nowrap"
+                    secondary-class="text-[0.5rem] text-muted-foreground italic whitespace-nowrap"
+                    align="right"
+                  />
                 </div>
               </div>
               <div
@@ -506,11 +551,18 @@ defineExpose({ generatePDF, isGeneratingPDF });
                       <span class="text-[0.55rem] font-bold opacity-70">TOTAL AMOUNT</span>
                       <span
                         class="text-[0.8rem] font-black tracking-wider uppercase leading-none mt-1"
-                        >{{ documentCurrency }}</span
+                        >{{ documentDisplayCurrency }}</span
                       >
                     </div>
                     <div class="flex-1 px-3 text-right font-mono text-xl font-black">
-                      {{ formatCurrency(invoice?.total) }}
+                      <CurrencyStack
+                        :amount="invoice?.total"
+                        :currency="documentCurrency"
+                        :exchange-rate="documentExchangeRate"
+                        primary-class="text-xl font-black text-white whitespace-nowrap"
+                        secondary-class="text-[0.55rem] text-white/70 italic whitespace-nowrap"
+                        align="right"
+                      />
                     </div>
                   </div>
                 </div>

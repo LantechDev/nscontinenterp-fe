@@ -62,7 +62,21 @@ const filteredOptions = computed(() => {
 
   if (!searchQuery.value) return props.options;
   const lowerQuery = searchQuery.value.toLowerCase();
-  return props.options.filter((opt) => getOptionLabel(opt).toLowerCase().includes(lowerQuery));
+  return props.options.filter((opt) =>
+    [
+      getOptionLabel(opt),
+      getOptionValue(opt),
+      opt.code,
+      opt.city,
+      opt.country,
+      opt.iataCode,
+      opt.icaoCode,
+    ].some((value) =>
+      String(value || "")
+        .toLowerCase()
+        .includes(lowerQuery),
+    ),
+  );
 });
 
 const hasExactMatch = computed(() => {
