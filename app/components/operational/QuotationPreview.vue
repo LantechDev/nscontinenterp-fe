@@ -4,7 +4,7 @@ import { ref, computed, nextTick, onMounted } from "vue";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import { toast } from "vue-sonner";
-import type { Quotation } from "~/composables/useQuotations";
+import type { Quotation, QuotationCharge } from "~/composables/useQuotations";
 import { useBankAccounts, type BankAccount } from "~/composables/useBankAccounts";
 import { useFinanceTax, type Tax } from "~/composables/useFinanceTax";
 import { useServices, type Service } from "~/composables/useServices";
@@ -239,15 +239,19 @@ const groupedTotals = computed(() => {
 
   if (!props.quotation?.charges) return totals;
 
+  const exchangeRate = Number(props.quotation.exchangeRate || 1);
+
   props.quotation.charges.forEach((ch) => {
     if (ch.atCost) return;
-    const currency = ch.currency || "IDR";
+    const sourceCurrency = ch.currency || "IDR";
+    const shouldConvertToIDR = sourceCurrency === "USD" && exchangeRate > 1;
+    const currency = shouldConvertToIDR ? "IDR" : sourceCurrency;
     if (!totals[currency]) {
       totals[currency] = { subTotal: 0, taxAmount: 0, total: 0 };
     }
     const qty = Number(ch.quantity || 0);
     const price = Number(ch.unitPrice || 0);
-    const amount = qty * price;
+    const amount = qty * price * (shouldConvertToIDR ? exchangeRate : 1);
     totals[currency].subTotal += amount;
   });
 
@@ -313,9 +317,9 @@ const formatCurrencyIDR = (amount: unknown, currency?: string): string => {
 const exchangeRateLabel = computed(() => {
   const rate = Number(props.quotation?.exchangeRate || 1);
   if (rate > 1) {
-    return `1 USD = ${new Intl.NumberFormat("id-ID").format(rate)} IDR`;
+    return `1 USD = IDR ${new Intl.NumberFormat("id-ID").format(rate)}`;
   }
-  return "";
+  return "1 USD = USD 1";
 });
 
 const formatDate = (dateStr?: string | null) => {
@@ -344,7 +348,7 @@ const serviceTypeLabel = computed(() => {
   const serviceType = props.quotation?.serviceType;
   if (serviceType === "TRUCKING") return "TRUCKING";
   if (serviceType === "CUSTOM_CLEARANCE") return "CUSTOM CLEARANCE";
-  return "OCEAN (FREIGHT)";
+  return "FREIGHT";
 });
 
 const shipmentTypeLabel = computed(() => {
@@ -406,13 +410,20 @@ const ITEM_LINE_PX = 14;
 const ITEM_ROW_PADDING_PX = 14;
 const DESC_CHARS_PER_LINE = 42;
 
-const itemRowPx = (description?: string | null) => {
-  const lines = Math.max(1, Math.ceil((description || "").length / DESC_CHARS_PER_LINE));
-  return Math.max(ITEM_ROW_MIN_PX, lines * ITEM_LINE_PX + ITEM_ROW_PADDING_PX);
+const itemRowPx = (item?: QuotationCharge | null) => {
+  const descriptionLines = Math.max(
+    1,
+    Math.ceil((item?.description || "").length / DESC_CHARS_PER_LINE),
+  );
+  const amountLines = item?.currency === "USD" ? 2 : 1;
+  return Math.max(
+    ITEM_ROW_MIN_PX,
+    Math.max(descriptionLines, amountLines) * ITEM_LINE_PX + ITEM_ROW_PADDING_PX,
+  );
 };
 
 interface QuotationPreviewPage {
-  items: any[];
+  items: QuotationCharge[];
   startIndex: number;
   pageNumber: number;
   isFirstPage: boolean;
@@ -421,7 +432,7 @@ interface QuotationPreviewPage {
 
 const previewPages = computed<QuotationPreviewPage[]>(() => {
   const items = props.quotation?.charges || [];
-  const pages: Array<{ items: any[]; startIndex: number }> = [];
+  const pages: Array<{ items: QuotationCharge[]; startIndex: number }> = [];
 
   let i = 0;
   let first = true;
@@ -431,12 +442,12 @@ const previewPages = computed<QuotationPreviewPage[]>(() => {
     let budget = MAIN_PX - header - TABLE_HEADER_PX;
 
     const startIndex = i;
-    const pageItems: any[] = [];
+    const pageItems: QuotationCharge[] = [];
 
     while (i < items.length) {
       const item = items[i];
       if (!item) break;
-      const h = itemRowPx(item.description);
+      const h = itemRowPx(item);
       const reserve = i === items.length - 1 ? LAST_PAGE_RESERVE_PX : 0;
       if (budget - h - reserve < 0 && pageItems.length > 0) break;
       pageItems.push(item);
@@ -609,7 +620,7 @@ defineExpose({
 
             <!-- Secondary Sales Operational Info -->
             <div class="flex border-b border-[#062c58]" style="min-height: 45px">
-              <div class="w-1/3 border-r border-[#062c58] pt-2 px-3 pb-1">
+              <div class="w-1/4 border-r border-[#062c58] pt-2 px-3 pb-1">
                 <span class="font-bold text-[0.6rem] block leading-none mb-1"
                   >SALES REPRESENTATIVE</span
                 >
@@ -617,16 +628,22 @@ defineExpose({
                   {{ quotation?.salesName || "-" }}
                 </span>
               </div>
-              <div class="w-1/3 border-r border-[#062c58] pt-2 px-3 pb-1">
+              <div class="w-1/4 border-r border-[#062c58] pt-2 px-3 pb-1">
                 <span class="font-bold text-[0.6rem] block leading-none mb-1">CUSTOMER PIC</span>
                 <span class="font-mono text-[0.75rem] uppercase text-black">
                   {{ quotation?.picName || "-" }}
                 </span>
               </div>
-              <div class="w-1/3 pt-2 px-3 pb-1">
+              <div class="w-1/4 border-r border-[#062c58] pt-2 px-3 pb-1">
                 <span class="font-bold text-[0.6rem] block leading-none mb-1">FREE TIME</span>
                 <span class="font-mono text-[0.75rem] uppercase text-black">
                   {{ quotation?.freeTime || "-" }}
+                </span>
+              </div>
+              <div class="w-1/4 pt-2 px-3 pb-1">
+                <span class="font-bold text-[0.6rem] block leading-none mb-1">EXCHANGE RATE</span>
+                <span class="font-mono text-[0.65rem] uppercase text-black font-bold">
+                  {{ exchangeRateLabel }}
                 </span>
               </div>
             </div>
@@ -757,20 +774,30 @@ defineExpose({
                 </div>
                 <div class="w-[15%] text-right px-3 text-[0.7rem] text-black">
                   <template v-if="item.atCost">AT COST</template>
-                  <template v-else
-                    >{{ item.currency || "IDR" }}
-                    {{ formatCurrency(item.unitPrice, item.currency) }}</template
-                  >
+                  <CurrencyStack
+                    v-else
+                    :amount="item.unitPrice"
+                    :currency="item.currency || 'IDR'"
+                    :exchange-rate="quotation?.exchangeRate"
+                    primary-class="font-medium text-black whitespace-nowrap"
+                    secondary-class="text-[0.5rem] text-muted-foreground italic whitespace-nowrap"
+                    align="right"
+                  />
                 </div>
                 <div class="w-[10%] text-center text-[0.7rem] text-[#062c58]/80">
                   {{ getTaxRateLabel(item.taxId) }}
                 </div>
                 <div class="w-[15%] text-right px-3 text-[0.7rem] font-medium text-black">
                   <template v-if="item.atCost">AT COST</template>
-                  <template v-else
-                    >{{ item.currency || "IDR" }}
-                    {{ formatCurrency(item.amount, item.currency) }}</template
-                  >
+                  <CurrencyStack
+                    v-else
+                    :amount="item.amount"
+                    :currency="item.currency || 'IDR'"
+                    :exchange-rate="quotation?.exchangeRate"
+                    primary-class="font-bold text-black whitespace-nowrap"
+                    secondary-class="text-[0.5rem] text-muted-foreground italic whitespace-nowrap"
+                    align="right"
+                  />
                 </div>
               </div>
 
@@ -812,13 +839,18 @@ defineExpose({
               <!-- Right: Subtotal & Tax & Total -->
               <div class="w-[42%] flex flex-col border-l border-[#062c58] bg-[#062c58]/5">
                 <div
-                  class="flex-1 grid divide-[#062c58]/20"
-                  :class="visibleGroupedTotals.length > 1 ? 'grid-cols-2 divide-x' : 'grid-cols-1'"
+                  class="flex-1 divide-y divide-[#062c58]/20"
+                  :class="
+                    visibleGroupedTotals.length > 1
+                      ? 'flex flex-col justify-center'
+                      : 'grid grid-cols-1'
+                  "
                 >
                   <div
                     v-for="[curr, t] in visibleGroupedTotals"
                     :key="curr"
                     class="p-1.5 space-y-0.5 min-w-0"
+                    :class="visibleGroupedTotals.length > 1 ? 'flex-1' : ''"
                   >
                     <div
                       class="text-[0.55rem] font-extrabold text-[#062c58] uppercase tracking-wider truncate"
@@ -838,15 +870,15 @@ defineExpose({
                       }}</span>
                     </div>
                     <div
-                      class="flex justify-between gap-1 text-[0.6rem] font-extrabold text-[#062c58] pt-0.5 border-t border-dashed border-[#062c58]/30"
+                      class="flex justify-between gap-2 text-[0.6rem] font-extrabold text-[#062c58] pt-0.5 border-t border-dashed border-[#062c58]/30"
                     >
-                      <span>Total</span>
+                      <span class="shrink-0">Total</span>
                       <CurrencyStack
                         :amount="t.total"
                         :currency="curr"
                         :exchange-rate="quotation?.exchangeRate"
-                        primary-class="text-right font-extrabold text-[#062c58] truncate"
-                        secondary-class="text-[0.48rem] text-muted-foreground opacity-70 font-semibold truncate"
+                        primary-class="text-right font-extrabold text-[#062c58] whitespace-nowrap"
+                        secondary-class="text-[0.48rem] text-muted-foreground opacity-70 font-semibold whitespace-nowrap"
                         align="right"
                         show-rate
                       />

@@ -176,7 +176,7 @@ const TRADE_TYPES = [
 ];
 
 const SERVICE_TYPES = [
-  { id: "OCEAN", name: "OCEAN (FREIGHT)" },
+  { id: "OCEAN", name: "FREIGHT" },
   { id: "TRUCKING", name: "TRUCKING" },
   { id: "CUSTOM_CLEARANCE", name: "CUSTOM CLEARANCE" },
 ];
@@ -1161,6 +1161,7 @@ function scrollTo(id: string) {
                     :placeholder="
                       isAir ? 'Search or select origin airport...' : 'Search or select POL...'
                     "
+                    :filter-local="false"
                     @search="handleSearchPol"
                   />
                 </div>
@@ -1186,6 +1187,7 @@ function scrollTo(id: string) {
                     :placeholder="
                       isAir ? 'Search or select destination airport...' : 'Search or select POD...'
                     "
+                    :filter-local="false"
                     @search="handleSearchPod"
                   />
                 </div>
@@ -1637,14 +1639,6 @@ function scrollTo(id: string) {
                 <div v-if="!isLocked" class="flex items-center gap-1.5">
                   <button
                     type="button"
-                    @click="showCostForm = true"
-                    class="inline-flex items-center gap-1.5 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 px-3 py-1.5 rounded-lg shadow-sm transition-colors"
-                  >
-                    <Plus class="w-3.5 h-3.5" /> Record Cost
-                  </button>
-                  <span class="w-px h-7 bg-border mx-1.5"></span>
-                  <button
-                    type="button"
                     @click="addChargeLine"
                     class="inline-flex items-center gap-1.5 text-xs font-bold text-[#062c58] hover:bg-blue-50/50 px-3 py-1.5 rounded-lg border border-blue-100 transition-colors"
                   >
@@ -1944,10 +1938,8 @@ function scrollTo(id: string) {
     <!-- Quotation Cost Form Modal -->
     <Modal
       v-model="showCostForm"
-      :title="editingCost ? 'Edit Vendor Cost' : 'Record Vendor Cost'"
-      :description="
-        editingCost ? 'Edit vendor cost details.' : 'Record a vendor cost for this quotation.'
-      "
+      :title="editingCost ? 'Edit Cost' : 'Record Cost'"
+      :description="editingCost ? 'Edit cost details.' : 'Record a cost for this quotation.'"
       width="2xl"
     >
       <QuotationCostForm

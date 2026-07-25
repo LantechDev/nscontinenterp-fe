@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { formatCurrencyCode, normalizeCurrencyCode } from "~/utils/currency";
+
 const props = withDefaults(
   defineProps<{
     amount: number | string | null | undefined;
@@ -23,7 +25,7 @@ const props = withDefaults(
   },
 );
 
-const sourceCurrency = computed(() => props.currency || "IDR");
+const sourceCurrency = computed(() => normalizeCurrencyCode(props.currency));
 const numericAmount = computed(() => Number(props.amount || 0));
 const numericRate = computed(() => Number(props.exchangeRate || 1));
 const hasUsdConversion = computed(() => sourceCurrency.value === "USD" && numericRate.value > 1);
@@ -32,26 +34,17 @@ const convertedAmount = computed(() =>
 );
 const primaryCurrency = computed(() => (hasUsdConversion.value ? "IDR" : sourceCurrency.value));
 const secondaryCurrency = computed(() => (hasUsdConversion.value ? "USD" : ""));
-
-function formatMoney(amount: number, currency: string) {
-  return new Intl.NumberFormat(currency === "IDR" ? "id-ID" : "en-US", {
-    style: "currency",
-    currency,
-    minimumFractionDigits: currency === "IDR" ? 0 : 2,
-    maximumFractionDigits: currency === "IDR" ? 0 : 2,
-  }).format(amount);
-}
 </script>
 
 <template>
   <div :class="['leading-tight', align === 'right' ? 'text-right' : 'text-left']">
     <div :class="primaryClass">
-      {{ prefix }}{{ formatMoney(convertedAmount, primaryCurrency)
+      {{ prefix }}{{ formatCurrencyCode(convertedAmount, primaryCurrency)
       }}<span v-if="suffix"> {{ suffix }}</span>
     </div>
     <div v-if="secondaryCurrency" :class="['mt-0.5 font-mono', secondaryClass]">
-      {{ prefix }}{{ formatMoney(numericAmount, secondaryCurrency) }}
-      <span v-if="showRate"> · Kurs: {{ formatMoney(numericRate, "IDR") }}</span>
+      {{ prefix }}{{ formatCurrencyCode(numericAmount, secondaryCurrency) }}
+      <span v-if="showRate"> · Kurs: {{ formatCurrencyCode(numericRate, "IDR") }}</span>
     </div>
   </div>
 </template>

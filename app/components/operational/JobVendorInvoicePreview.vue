@@ -3,6 +3,7 @@ import { ref, computed, nextTick, onMounted } from "vue";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import { toast } from "vue-sonner";
+import CurrencyStack from "~/components/ui/CurrencyStack.vue";
 import type { Expense } from "~/composables/useFinanceExpense";
 
 const props = defineProps<{
@@ -24,15 +25,31 @@ const printContainerRef = ref<HTMLElement | null>(null);
 const getVal = (val: unknown, fallback: unknown = "") =>
   val ? String(val) : fallback ? String(fallback) : "";
 
+const expenseCurrency = computed(() => props.expense?.currency || "IDR");
+const expenseExchangeRate = computed(() => Number(props.expense?.exchangeRate || 1));
+const isUsdWithExchangeRate = computed(
+  () => expenseCurrency.value === "USD" && expenseExchangeRate.value > 1,
+);
+const displayCurrency = computed(() =>
+  isUsdWithExchangeRate.value ? "IDR" : expenseCurrency.value,
+);
+const exchangeRateDisplay = computed(() =>
+  isUsdWithExchangeRate.value
+    ? `1 USD = IDR ${new Intl.NumberFormat("id-ID").format(expenseExchangeRate.value)}`
+    : "-",
+);
+const displayAmount = (amount: unknown, currency = expenseCurrency.value): number => {
+  const num = Number(amount || 0);
+  return currency === "USD" && isUsdWithExchangeRate.value ? num * expenseExchangeRate.value : num;
+};
+
 const formatCurrency = (amount: unknown): string => {
   if (amount === undefined || amount === null) return "-";
-  const num = Number(amount);
-  const currency = props.expense?.currency || "IDR";
-  return new Intl.NumberFormat(currency === "USD" ? "en-US" : "id-ID", {
+  return new Intl.NumberFormat(displayCurrency.value === "USD" ? "en-US" : "id-ID", {
     style: "decimal",
-    minimumFractionDigits: currency === "IDR" ? 0 : 2,
-    maximumFractionDigits: currency === "IDR" ? 0 : 2,
-  }).format(num);
+    minimumFractionDigits: displayCurrency.value === "USD" ? 2 : 0,
+    maximumFractionDigits: displayCurrency.value === "USD" ? 2 : 0,
+  }).format(displayAmount(amount));
 };
 
 const displayAddress = computed(() => {
@@ -310,7 +327,7 @@ defineExpose({
                 </div>
               </div>
               <div class="flex" style="height: 50px">
-                <div class="w-1/2 border-r border-[#062c58] pt-1 px-2">
+                <div class="w-1/3 border-r border-[#062c58] pt-1 px-2">
                   <span class="font-bold text-[0.6rem] leading-none mb-1 block uppercase"
                     >JOB NO.</span
                   >
@@ -318,12 +335,20 @@ defineExpose({
                     getVal(expense?.job?.jobNumber, "-")
                   }}</span>
                 </div>
-                <div class="w-1/2 pt-1 px-2">
+                <div class="w-1/3 border-r border-[#062c58] pt-1 px-2">
                   <span class="font-bold text-[0.6rem] leading-none mb-1 block uppercase"
                     >CURRENCY</span
                   >
                   <span class="font-mono text-[0.75rem] text-black font-bold uppercase">{{
-                    expense?.currency || "IDR"
+                    displayCurrency
+                  }}</span>
+                </div>
+                <div class="w-1/3 pt-1 px-2">
+                  <span class="font-bold text-[0.6rem] leading-none mb-1 block uppercase"
+                    >EXCHANGE RATE</span
+                  >
+                  <span class="font-mono text-[0.62rem] text-black font-bold uppercase">{{
+                    exchangeRateDisplay
                   }}</span>
                 </div>
               </div>
@@ -394,10 +419,24 @@ defineExpose({
                 </div>
                 <div class="w-[10%] text-center text-[0.7rem]">{{ item.quantity }}</div>
                 <div class="w-[20%] text-right px-3 text-[0.7rem] text-black">
-                  {{ formatCurrency(item.unitPrice) }}
+                  <CurrencyStack
+                    :amount="item.unitPrice"
+                    :currency="item.currency || expense?.currency || 'IDR'"
+                    :exchange-rate="expenseExchangeRate"
+                    primary-class="font-medium text-black whitespace-nowrap"
+                    secondary-class="text-[0.5rem] text-muted-foreground italic whitespace-nowrap"
+                    align="right"
+                  />
                 </div>
                 <div class="w-[20%] text-right px-3 text-[0.7rem] font-medium text-black">
-                  {{ formatCurrency(item.amount) }}
+                  <CurrencyStack
+                    :amount="item.amount"
+                    :currency="item.currency || expense?.currency || 'IDR'"
+                    :exchange-rate="expenseExchangeRate"
+                    primary-class="font-bold text-black whitespace-nowrap"
+                    secondary-class="text-[0.5rem] text-muted-foreground italic whitespace-nowrap"
+                    align="right"
+                  />
                 </div>
               </div>
 
@@ -452,7 +491,7 @@ defineExpose({
                 <div class="flex-1 flex flex-col">
                   <div class="flex border-b border-[#062c58]/20 h-[35px] items-center shrink-0">
                     <div class="w-1/2 px-3 font-bold text-[0.65rem] text-[#062c58]">
-                      SUBTOTAL ({{ expense?.currency || "IDR" }})
+                      SUBTOTAL ({{ displayCurrency }})
                     </div>
                     <div
                       class="flex-1 px-3 text-right font-mono text-[0.75rem] font-medium text-black"
@@ -475,11 +514,18 @@ defineExpose({
                       <span class="text-[0.55rem] font-bold opacity-70">TOTAL PAYABLE</span>
                       <span
                         class="text-[0.8rem] font-black tracking-wider uppercase leading-none mt-1"
-                        >{{ expense?.currency || "IDR" }}</span
+                        >{{ displayCurrency }}</span
                       >
                     </div>
                     <div class="flex-1 px-3 text-right font-mono text-xl font-black">
-                      {{ formatCurrency(expense?.amount) }}
+                      <CurrencyStack
+                        :amount="expense?.amount"
+                        :currency="expense?.currency || 'IDR'"
+                        :exchange-rate="expenseExchangeRate"
+                        primary-class="text-xl font-black text-white whitespace-nowrap"
+                        secondary-class="text-[0.55rem] text-white/70 italic whitespace-nowrap"
+                        align="right"
+                      />
                     </div>
                   </div>
                 </div>

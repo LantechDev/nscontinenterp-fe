@@ -3,6 +3,7 @@ import { ref, computed, nextTick, onMounted } from "vue";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import { toast } from "vue-sonner";
+import CurrencyStack from "~/components/ui/CurrencyStack.vue";
 import type { InvoiceDetail } from "~/composables/useInvoices";
 import { useBankAccounts, type BankAccount } from "~/composables/useBankAccounts";
 import { useServices, type Service } from "~/composables/useServices";
@@ -16,6 +17,24 @@ const props = defineProps<{
 }>();
 
 const mode = computed(() => props.mode || "invoice");
+const invoiceCurrency = computed(() => props.invoice?.currency || "IDR");
+const invoiceExchangeRate = computed(() => Number(props.invoice?.exchangeRate || 1));
+const isUsdWithExchangeRate = computed(
+  () => invoiceCurrency.value === "USD" && invoiceExchangeRate.value > 1,
+);
+const invoiceDisplayCurrency = computed(() =>
+  isUsdWithExchangeRate.value ? "IDR" : invoiceCurrency.value,
+);
+const exchangeRateDisplay = computed(() =>
+  isUsdWithExchangeRate.value
+    ? `1 USD = IDR ${new Intl.NumberFormat("id-ID").format(invoiceExchangeRate.value)}`
+    : "-",
+);
+
+const displayAmount = (amount: unknown, currency = invoiceCurrency.value): number => {
+  const num = Number(amount || 0);
+  return currency === "USD" && isUsdWithExchangeRate.value ? num * invoiceExchangeRate.value : num;
+};
 
 // Tax line in the totals: PPh is a withholding tax shown as a deduction; PPN is added.
 const firstTax = computed(() => props.invoice?.invoiceTaxes?.[0] || null);
@@ -335,12 +354,11 @@ const allContainerTypes = computed(() => {
 
 const formatCurrency = (amount: unknown): string => {
   if (amount === undefined || amount === null) return "-";
-  const num = Number(amount);
-  return new Intl.NumberFormat(props.invoice?.currency === "USD" ? "en-US" : "id-ID", {
+  return new Intl.NumberFormat(invoiceDisplayCurrency.value === "USD" ? "en-US" : "id-ID", {
     style: "decimal",
-    minimumFractionDigits: props.invoice?.currency === "IDR" ? 0 : 2,
-    maximumFractionDigits: props.invoice?.currency === "IDR" ? 0 : 2,
-  }).format(num);
+    minimumFractionDigits: invoiceDisplayCurrency.value === "USD" ? 2 : 0,
+    maximumFractionDigits: invoiceDisplayCurrency.value === "USD" ? 2 : 0,
+  }).format(displayAmount(amount));
 };
 
 const formatDate = (dateStr?: string | null) => {
@@ -382,9 +400,17 @@ const ITEM_LINE_PX = 14;
 const ITEM_ROW_PADDING_PX = 14;
 const DESC_CHARS_PER_LINE = 42;
 
-const itemRowPx = (description?: string | null) => {
-  const lines = Math.max(1, Math.ceil((description || "").length / DESC_CHARS_PER_LINE));
-  return Math.max(ITEM_ROW_MIN_PX, lines * ITEM_LINE_PX + ITEM_ROW_PADDING_PX);
+const itemRowPx = (item?: InvoicePreviewItem | null) => {
+  const descriptionLines = Math.max(
+    1,
+    Math.ceil((item?.description || "").length / DESC_CHARS_PER_LINE),
+  );
+  const itemCurrency = item?.currency || props.invoice?.currency || "IDR";
+  const amountLines = itemCurrency === "USD" ? 2 : 1;
+  return Math.max(
+    ITEM_ROW_MIN_PX,
+    Math.max(descriptionLines, amountLines) * ITEM_LINE_PX + ITEM_ROW_PADDING_PX,
+  );
 };
 
 const paginatedInvoicePages = computed<InvoicePreviewPage[]>(() => {
@@ -404,7 +430,7 @@ const paginatedInvoicePages = computed<InvoicePreviewPage[]>(() => {
     while (i < items.length) {
       const item = items[i];
       if (!item) break;
-      const h = itemRowPx(item.description);
+      const h = itemRowPx(item);
       const reserve = i === items.length - 1 ? LAST_PAGE_RESERVE_PX : 0;
       if (budget - h - reserve < 0 && pageItems.length > 0) break;
       pageItems.push(item);
@@ -815,7 +841,13 @@ defineExpose({
             <div class="w-[15%] border-r border-[#062c58] pt-1 px-2">
               <span class="font-bold text-[0.6rem] block leading-none mb-1">CURRENCY</span>
               <span class="font-mono text-[0.75rem] uppercase text-black font-medium">{{
-                invoice?.currency || "IDR"
+                invoiceDisplayCurrency
+              }}</span>
+            </div>
+            <div class="w-[22%] border-r border-[#062c58] pt-1 px-2">
+              <span class="font-bold text-[0.6rem] block leading-none mb-1">EXCHANGE RATE</span>
+              <span class="font-mono text-[0.62rem] uppercase text-black font-bold">{{
+                exchangeRateDisplay
               }}</span>
             </div>
             <div class="flex-1 pt-1 px-2">
@@ -923,13 +955,27 @@ defineExpose({
                   {{ item.service?.id ? serviceUnitMap.get(item.service.id) || "-" : "-" }}
                 </div>
                 <div class="w-[15%] text-right px-3 text-[0.7rem] text-black">
-                  {{ formatCurrency(item.unitPrice) }}
+                  <CurrencyStack
+                    :amount="item.unitPrice"
+                    :currency="item.currency || invoice?.currency || 'IDR'"
+                    :exchange-rate="invoice?.exchangeRate"
+                    primary-class="font-medium text-black whitespace-nowrap"
+                    secondary-class="text-[0.5rem] text-muted-foreground italic whitespace-nowrap"
+                    align="right"
+                  />
                 </div>
                 <div class="w-[10%] text-center text-[0.7rem] text-[#062c58]/80">
                   {{ item.tax?.rate ? Number(item.tax.rate) + "%" : "-" }}
                 </div>
                 <div class="w-[15%] text-right px-3 text-[0.7rem] font-medium text-black">
-                  {{ formatCurrency(item.amount) }}
+                  <CurrencyStack
+                    :amount="item.amount"
+                    :currency="item.currency || invoice?.currency || 'IDR'"
+                    :exchange-rate="invoice?.exchangeRate"
+                    primary-class="font-bold text-black whitespace-nowrap"
+                    secondary-class="text-[0.5rem] text-muted-foreground italic whitespace-nowrap"
+                    align="right"
+                  />
                 </div>
               </div>
 
@@ -999,7 +1045,7 @@ defineExpose({
                 <div class="flex-1 flex flex-col">
                   <div class="flex border-b border-[#062c58]/20 h-[35px] items-center shrink-0">
                     <div class="w-1/2 px-3 font-bold text-[0.65rem] text-[#062c58]">
-                      SUBTOTAL ({{ invoice?.currency || "IDR" }})
+                      SUBTOTAL ({{ invoiceDisplayCurrency }})
                     </div>
                     <div
                       class="flex-1 px-3 text-right font-mono text-[0.75rem] font-medium text-black"
@@ -1039,11 +1085,18 @@ defineExpose({
                       <span class="text-[0.55rem] font-bold opacity-70">TOTAL AMOUNT DUE</span>
                       <span
                         class="text-[0.8rem] font-black tracking-wider uppercase leading-none mt-1"
-                        >{{ invoice?.currency || "IDR" }}</span
+                        >{{ invoiceDisplayCurrency }}</span
                       >
                     </div>
                     <div class="flex-1 px-3 text-right font-mono text-xl font-black">
-                      {{ formatCurrency(invoice?.total) }}
+                      <CurrencyStack
+                        :amount="invoice?.total"
+                        :currency="invoice?.currency || 'IDR'"
+                        :exchange-rate="invoice?.exchangeRate"
+                        primary-class="text-xl font-black text-white whitespace-nowrap"
+                        secondary-class="text-[0.55rem] text-white/70 italic whitespace-nowrap"
+                        align="right"
+                      />
                     </div>
                   </div>
                 </div>

@@ -494,136 +494,131 @@ const getStatusColor = (code?: string) => {
 
     <!-- Detail View -->
     <div v-if="showDetail && activeExpense" class="animate-fade-in flex flex-col gap-6">
-      <div class="flex items-center justify-between border-b border-border/50 pb-4">
-        <div class="flex items-center gap-4">
+      <div class="flex items-start justify-between gap-4 border-b border-border/50 pb-4">
+        <div class="flex min-w-0 items-start gap-3">
           <button
             @click="closeDetail"
-            class="p-2 -ml-2 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground shrink-0"
+            class="mt-1 p-2 -ml-2 rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-foreground shrink-0"
           >
             <ArrowLeft class="w-5 h-5" />
           </button>
-          <div>
-            <h2 class="text-xl font-bold flex items-center gap-2">
+          <div class="min-w-0">
+            <h2 class="text-xl font-bold leading-tight text-foreground">
               Vendor Invoice {{ activeExpense.number }}
-              <span
-                v-if="activeExpense.number?.toUpperCase().startsWith('VCOST-')"
-                class="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-bold bg-blue-50 text-blue-700 border border-blue-100 uppercase tracking-wider shrink-0"
-              >
-                From Quotation
-              </span>
             </h2>
             <p class="text-sm text-muted-foreground mt-0.5 uppercase tracking-wider font-bold">
               {{ activeExpense.vendor?.name }} • {{ formatDate(activeExpense.date) }}
             </p>
+            <div class="mt-2 flex flex-wrap items-center gap-2">
+              <span
+                v-if="activeExpense.number?.toUpperCase().startsWith('VCOST-')"
+                class="inline-flex h-6 items-center rounded-md border border-blue-200 bg-blue-50 px-2 text-[10px] font-bold uppercase tracking-wider text-blue-700"
+              >
+                From Quotation
+              </span>
+              <span
+                :class="[
+                  'inline-flex h-6 items-center rounded-md border px-2 text-[10px] font-bold uppercase tracking-wider',
+                  getStatusColor(activeExpenseStatusCode),
+                ]"
+              >
+                {{ getExpenseStatusName(activeExpense) }}
+              </span>
+            </div>
           </div>
         </div>
 
-        <div class="flex items-center gap-4">
-          <span
-            :class="[
-              'px-3 py-1.5 rounded-md text-[10px] font-bold border uppercase tracking-widest shadow-sm shadow-black/5',
-              getStatusColor(activeExpenseStatusCode),
-            ]"
+        <div class="flex shrink-0 items-center gap-2">
+          <!-- Record Payment (Primary Action) -->
+          <button
+            v-if="
+              canManage &&
+              !['PAID', 'VOIDED', 'VOID'].includes(activeExpenseStatusCode) &&
+              !isCompleted
+            "
+            @click="showPaymentForm = true"
+            class="inline-flex h-10 items-center gap-2 rounded-md bg-emerald-600 px-3.5 text-[11px] font-black uppercase tracking-wider text-white shadow-sm transition-colors hover:bg-emerald-700"
           >
-            {{ getExpenseStatusName(activeExpense) }}
-          </span>
+            <Wallet class="w-4 h-4" />
+            Record Payment
+          </button>
 
-          <div class="h-8 w-px bg-border/40 mx-1"></div>
+          <!-- Download PDF (Secondary Action) -->
+          <button
+            @click="handlePrint"
+            :disabled="isGeneratingPDF"
+            class="inline-flex h-10 items-center gap-2 rounded-md bg-[#062c58] px-3.5 text-[11px] font-black uppercase tracking-wider text-white shadow-sm transition-colors hover:bg-[#062c58]/90 disabled:opacity-50"
+          >
+            <Loader2 v-if="isGeneratingPDF" class="w-4 h-4 animate-spin" />
+            <Download v-else class="w-4 h-4" />
+            {{ isGeneratingPDF ? "Generating" : "Download PDF" }}
+          </button>
 
-          <div class="flex items-center gap-3">
-            <!-- Record Payment (Primary Action) -->
+          <!-- More Actions Dropdown -->
+          <div class="relative">
             <button
-              v-if="
-                canManage &&
-                !['PAID', 'VOIDED', 'VOID'].includes(activeExpenseStatusCode) &&
-                !isCompleted
-              "
-              @click="showPaymentForm = true"
-              class="inline-flex items-center px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg shadow-md hover:shadow-emerald-200/50 text-[11px] font-black uppercase tracking-wider gap-2 transition-all hover:-translate-y-0.5 active:translate-y-0"
+              @click="showMoreActions = !showMoreActions"
+              class="flex h-10 w-10 items-center justify-center rounded-md border border-border bg-white text-muted-foreground shadow-sm transition-colors hover:bg-muted hover:text-foreground"
             >
-              <Wallet class="w-4 h-4" />
-              Record Payment
+              <MoreHorizontal class="w-4 h-4" />
             </button>
 
-            <!-- Download PDF (Secondary Action) -->
-            <button
-              @click="handlePrint"
-              :disabled="isGeneratingPDF"
-              class="inline-flex items-center px-4 py-2 bg-[#062c58] hover:bg-[#062c58]/90 text-white rounded-lg shadow-md hover:shadow-blue-200/50 text-[11px] font-black uppercase tracking-wider gap-2 transition-all hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50"
-            >
-              <Loader2 v-if="isGeneratingPDF" class="w-4 h-4 animate-spin" />
-              <Download v-else class="w-4 h-4" />
-              {{ isGeneratingPDF ? "Generating" : "Download PDF" }}
-            </button>
+            <div
+              v-if="showMoreActions"
+              @click="showMoreActions = false"
+              class="fixed inset-0 z-40"
+            ></div>
 
-            <!-- More Actions Dropdown -->
-            <div class="relative ml-1">
-              <button
-                @click="showMoreActions = !showMoreActions"
-                class="p-2.5 rounded-lg hover:bg-muted border border-border transition-colors text-muted-foreground hover:text-foreground bg-white shadow-sm flex items-center justify-center"
+            <div
+              v-if="showMoreActions"
+              class="absolute right-0 mt-3 w-52 bg-white border border-border rounded-xl shadow-2xl z-50 animate-in fade-in zoom-in duration-200 origin-top-right py-1.5 flex flex-col"
+            >
+              <div
+                class="px-3 py-2 border-b border-border/50 mb-1 flex items-center justify-between gap-2"
               >
-                <MoreHorizontal class="w-4 h-4" />
+                <p
+                  class="text-[9px] font-black uppercase tracking-widest text-muted-foreground shrink-0"
+                >
+                  Manage Invoice
+                </p>
+              </div>
+
+              <button
+                v-if="canManage && !isCompleted"
+                @click="
+                  openEditForm();
+                  showMoreActions = false;
+                "
+                class="w-full text-left px-4 py-2.5 hover:bg-muted/50 flex items-center gap-3 text-xs font-bold text-foreground transition-colors border-none bg-transparent outline-none"
+              >
+                <Pencil class="w-4 h-4 text-primary" />
+                Edit Details
               </button>
 
-              <div
-                v-if="showMoreActions"
-                @click="showMoreActions = false"
-                class="fixed inset-0 z-40"
-              ></div>
-
-              <div
-                v-if="showMoreActions"
-                class="absolute right-0 mt-3 w-52 bg-white border border-border rounded-xl shadow-2xl z-50 animate-in fade-in zoom-in duration-200 origin-top-right py-1.5 flex flex-col"
+              <button
+                v-if="
+                  canManage && !['VOIDED', 'VOID'].includes(activeExpenseStatusCode) && !isCompleted
+                "
+                @click="
+                  showVoidConfirm = true;
+                  showMoreActions = false;
+                "
+                class="w-full text-left px-4 py-2.5 hover:bg-red-50 flex items-center gap-3 text-xs font-bold text-red-600 transition-colors border-none bg-transparent outline-none"
               >
-                <div
-                  class="px-3 py-2 border-b border-border/50 mb-1 flex items-center justify-between gap-2"
-                >
-                  <p
-                    class="text-[9px] font-black uppercase tracking-widest text-muted-foreground shrink-0"
-                  >
-                    Manage Invoice
-                  </p>
-                </div>
+                <Ban class="w-4 h-4" />
+                Void Vendor Invoice
+              </button>
 
-                <button
-                  v-if="canManage && !isCompleted"
-                  @click="
-                    openEditForm();
-                    showMoreActions = false;
-                  "
-                  class="w-full text-left px-4 py-2.5 hover:bg-muted/50 flex items-center gap-3 text-xs font-bold text-foreground transition-colors border-none bg-transparent outline-none"
-                >
-                  <Pencil class="w-4 h-4 text-primary" />
-                  Edit Details
-                </button>
-
-                <button
-                  v-if="
-                    canManage &&
-                    !['VOIDED', 'VOID'].includes(activeExpenseStatusCode) &&
-                    !isCompleted
-                  "
-                  @click="
-                    showVoidConfirm = true;
-                    showMoreActions = false;
-                  "
-                  class="w-full text-left px-4 py-2.5 hover:bg-red-50 flex items-center gap-3 text-xs font-bold text-red-600 transition-colors border-none bg-transparent outline-none"
-                >
-                  <Ban class="w-4 h-4" />
-                  Void Vendor Invoice
-                </button>
-
-                <button
-                  @click="
-                    fetchExpenseHistory(activeExpense.id);
-                    showMoreActions = false;
-                  "
-                  class="w-full text-left px-4 py-2.5 hover:bg-muted/50 flex items-center gap-3 text-xs font-bold text-foreground transition-colors border-none bg-transparent outline-none"
-                >
-                  <History class="w-4 h-4 text-muted-foreground" />
-                  View History Logs
-                </button>
-              </div>
+              <button
+                @click="
+                  fetchExpenseHistory(activeExpense.id);
+                  showMoreActions = false;
+                "
+                class="w-full text-left px-4 py-2.5 hover:bg-muted/50 flex items-center gap-3 text-xs font-bold text-foreground transition-colors border-none bg-transparent outline-none"
+              >
+                <History class="w-4 h-4 text-muted-foreground" />
+                View History Logs
+              </button>
             </div>
           </div>
         </div>

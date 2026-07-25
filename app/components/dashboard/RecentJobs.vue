@@ -29,8 +29,8 @@ const getServiceLabel = (job: Job) => {
   if (job.serviceLabel) return job.serviceLabel;
   if (job.serviceType === "TRUCKING") return "Trucking";
   if (job.serviceType === "CUSTOM_CLEARANCE") return "Custom Clearance";
-  if (job.serviceType === "AIR" || job.shipmentType === "AIR") return "Air Freight";
-  return "Ocean Freight";
+  if (job.serviceType === "AIR" || job.shipmentType === "AIR") return "FREIGHT";
+  return "FREIGHT";
 };
 
 const getServiceClass = (job: Job) => {

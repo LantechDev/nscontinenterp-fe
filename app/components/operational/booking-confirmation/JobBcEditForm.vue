@@ -88,6 +88,10 @@ export interface BookingConfirmationForm {
   // Routing / movement
   pol?: string;
   pod?: string;
+  preCarriageBy?: string;
+  placeOfReceipt?: string;
+  placeOfDelivery?: string;
+  finalDestination?: string;
   cargoMovementId?: string;
   deliveryMovementId?: string;
   eta?: string;
@@ -143,6 +147,19 @@ const isAir = computed(
   () => props.jobData?.shipmentType === "AIR" || props.jobData?.serviceType === "AIR",
 );
 const isTrucking = computed(() => props.jobData?.serviceType === "TRUCKING");
+
+const requiredFieldLabels: Partial<Record<keyof BookingConfirmationForm, string>> = {
+  bookingNumber: "Booking Number",
+  warehouseDepotName: "Warehouse/Depot Name",
+};
+
+const isRequiredMissing = (key: keyof typeof requiredFieldLabels) => {
+  const value = editForm.value[key];
+  return value === null || value === undefined || String(value).trim() === "";
+};
+
+const requiredInputClass = (key: keyof typeof requiredFieldLabels) =>
+  isRequiredMissing(key) ? "border-red-300 bg-red-50/40 focus:border-red-500" : "";
 
 onMounted(async () => {
   const [c, ct, pt, cargoMoves, deliveryMoves, v, p] = await Promise.all([
@@ -431,8 +448,12 @@ const removeShipperRef = (index: number) => {
             v-uppercase
             type="text"
             class="input-field h-10"
+            :class="requiredInputClass('bookingNumber')"
             placeholder="Enter Booking Number"
           />
+          <p v-if="isRequiredMissing('bookingNumber')" class="text-[11px] font-medium text-red-600">
+            {{ requiredFieldLabels.bookingNumber }} is required.
+          </p>
         </div>
         <div class="space-y-2">
           <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
@@ -461,8 +482,15 @@ const removeShipperRef = (index: number) => {
             v-uppercase
             type="text"
             class="input-field h-10"
+            :class="requiredInputClass('warehouseDepotName')"
             placeholder="Warehouse/Depot Name"
           />
+          <p
+            v-if="isRequiredMissing('warehouseDepotName')"
+            class="text-[11px] font-medium text-red-600"
+          >
+            {{ requiredFieldLabels.warehouseDepotName }} is required.
+          </p>
         </div>
         <div class="space-y-2 md:col-span-2">
           <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
@@ -819,6 +847,54 @@ const removeShipperRef = (index: number) => {
           </div>
 
           <div class="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4">
+            <div class="space-y-2">
+              <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
+                >Pre-Carriage By</label
+              >
+              <input
+                v-model.trim="editForm.preCarriageBy"
+                v-uppercase
+                type="text"
+                class="input-field"
+                placeholder="Enter pre-carriage..."
+              />
+            </div>
+            <div class="space-y-2">
+              <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
+                >Place of Receipt</label
+              >
+              <input
+                v-model.trim="editForm.placeOfReceipt"
+                v-uppercase
+                type="text"
+                class="input-field"
+                placeholder="Enter place of receipt..."
+              />
+            </div>
+            <div class="space-y-2">
+              <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
+                >Place of Delivery</label
+              >
+              <input
+                v-model.trim="editForm.placeOfDelivery"
+                v-uppercase
+                type="text"
+                class="input-field"
+                placeholder="Enter place of delivery..."
+              />
+            </div>
+            <div class="space-y-2">
+              <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
+                >Final Destination</label
+              >
+              <input
+                v-model.trim="editForm.finalDestination"
+                v-uppercase
+                type="text"
+                class="input-field"
+                placeholder="Enter final destination..."
+              />
+            </div>
             <div class="space-y-2">
               <label class="text-xs font-semibold text-muted-foreground tracking-wider uppercase"
                 >Final ETA</label
