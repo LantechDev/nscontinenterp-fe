@@ -171,7 +171,7 @@ function formatDate(dateStr: string): string {
   return date.toLocaleDateString("id-ID", { year: "numeric", month: "short", day: "numeric" });
 }
 
-const isAirFreight = (q: Quotation) => q.serviceType === "OCEAN" && q.shipmentType === "AIR";
+const isAirFreight = (q: Quotation) => q.serviceType === "AIR" || q.shipmentType === "AIR";
 const isTrucking = (q: Quotation) => q.serviceType === "TRUCKING";
 const isCustomClearance = (q: Quotation) => q.serviceType === "CUSTOM_CLEARANCE";
 
@@ -204,7 +204,7 @@ const hasRouteInfo = (q: Quotation) => {
 const getServiceScopeLabel = (q: Quotation) => {
   if (isTrucking(q)) return "TRUCKING";
   if (isCustomClearance(q)) return "CUSTOM CLEARANCE";
-  if (isAirFreight(q)) return "FREIGHT";
+  if (isAirFreight(q)) return "AIR FREIGHT";
   return "FREIGHT";
 };
 

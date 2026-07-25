@@ -1252,7 +1252,7 @@ const formatDate = (dateStr?: string | null) => {
         class="bl-footer flex flex-col relative z-[1] bg-white"
         :class="[page.pageIndex < paginatedPagesLength - 1 ? 'bl-footer-continued' : '']"
       >
-        <div class="flex border-b border-[#062c58] text-[#062c58]" style="min-height: 20px">
+        <div class="flex shrink-0 border-b border-[#062c58] text-[#062c58]" style="height: 20px">
           <div class="px-3 w-1/4 font-bold flex items-start pt-1 text-[0.55rem] leading-none">
             {{ isFcr ? "Cargo Receipt Value US $" : "Declared Cargo Value US $" }}
           </div>
@@ -1264,20 +1264,20 @@ const formatDate = (dateStr?: string | null) => {
           </div>
         </div>
         <div
-          class="flex border-b border-[#062c58] text-[0.5rem] font-bold"
-          style="min-height: 45px"
+          class="flex shrink-0 overflow-hidden border-b border-[#062c58] text-[0.5rem] font-bold"
+          style="height: 45px"
         >
-          <div class="w-[20%] border-r border-[#062c58] pt-1 px-2 pb-2">
+          <div class="w-[20%] border-r border-[#062c58] px-2 py-0.5">
             <span class="text-[0.5rem] leading-none text-[#062c58] font-bold uppercase block"
               >FREIGHT &amp; CHARGES PAYABLE AT / BY:</span
             >
             <span
               v-if="freightTermLabel"
-              class="uppercase font-mono text-[0.6rem] text-black font-bold mt-1 block leading-none"
+              class="uppercase font-mono text-[0.56rem] text-black font-bold mt-0.5 block leading-none"
               >{{ freightTermLabel }}</span
             >
             <span
-              class="uppercase font-mono text-[0.55rem] text-black leading-tight font-normal mt-0.5 block break-words"
+              class="uppercase font-mono text-[0.5rem] text-black leading-none font-normal mt-0.5 block break-words"
               :title="freightPayableAtRaw"
               >{{ freightPayableAt || "-" }}</span
             >
@@ -1312,7 +1312,7 @@ const formatDate = (dateStr?: string | null) => {
             </template>
           </div>
         </div>
-        <div class="flex flex-1" style="min-height: 110px">
+        <div class="flex min-h-0 flex-1 overflow-hidden">
           <div class="w-[71%] border-r border-[#062c58] flex flex-col">
             <div
               class="flex border-b border-[#062c58] text-[0.55rem] text-center font-bold"
@@ -1374,22 +1374,16 @@ const formatDate = (dateStr?: string | null) => {
               </div>
             </div>
           </div>
-          <div class="w-[29%] flex flex-col text-[0.5rem]">
-            <div class="border-b border-[#062c58] px-2 pt-0.5 pb-2" style="min-height: 35px">
-              <span
-                class="text-[#062c58] text-[0.38rem] tracking-tighter uppercase opacity-80 font-bold leading-none block"
-                >DATE CARGO RECEIVED</span
-              >
-              <span class="font-mono text-[0.65rem] text-black uppercase leading-none mt-1 block">{{
+          <div class="w-[29%] flex min-h-0 flex-col text-[0.5rem]">
+            <div class="ebl-issue-field ebl-issue-field-compact border-b border-[#062c58]">
+              <span class="ebl-issue-label">DATE CARGO RECEIVED</span>
+              <span class="ebl-issue-value font-mono">{{
                 formatDate(activeBl?.dateCargoReceived)
               }}</span>
             </div>
-            <div class="border-b border-[#062c58] px-2 pt-0.5 pb-2" style="min-height: 35px">
-              <span
-                class="text-[#062c58] text-[0.38rem] tracking-tighter opacity-80 uppercase font-bold leading-none block"
-                >{{ loadedDateLabel }}</span
-              >
-              <span class="font-mono text-[0.65rem] text-black uppercase leading-none mt-1 block">{{
+            <div class="ebl-issue-field ebl-issue-field-tall border-b border-[#062c58]">
+              <span class="ebl-issue-label">{{ loadedDateLabel }}</span>
+              <span class="ebl-issue-value font-mono">{{
                 isTrucking
                   ? jobData?.pickupDate
                     ? `${formatDate(jobData.pickupDate)} ${jobData.pickupTime || ""}`.trim()
@@ -1397,21 +1391,13 @@ const formatDate = (dateStr?: string | null) => {
                   : formatDate(jobData?.etd)
               }}</span>
             </div>
-            <div class="border-b border-[#062c58] px-2 pt-0.5 pb-2" style="min-height: 35px">
-              <span
-                class="text-[#062c58] text-[0.38rem] tracking-tighter opacity-80 uppercase font-bold leading-none block"
-                >{{ issuePlaceLabel }}</span
-              >
-              <span class="font-mono text-[0.65rem] text-black uppercase leading-none mt-1 block">{{
-                getVal(activeBl?.placeOfIssue)
-              }}</span>
+            <div class="ebl-issue-field ebl-issue-field-compact border-b border-[#062c58]">
+              <span class="ebl-issue-label">{{ issuePlaceLabel }}</span>
+              <span class="ebl-issue-value font-mono">{{ getVal(activeBl?.placeOfIssue) }}</span>
             </div>
-            <div class="px-2 pt-1 pb-2" style="min-height: 35px">
-              <span
-                class="text-[#062c58] text-[0.38rem] tracking-tighter uppercase opacity-80 font-bold leading-none block"
-                >DATED</span
-              >
-              <span class="font-mono text-[0.65rem] text-black uppercase leading-none mt-1 block">{{
+            <div class="ebl-issue-field ebl-issue-field-fill">
+              <span class="ebl-issue-label">DATED</span>
+              <span class="ebl-issue-value font-mono">{{
                 formatDate(activeBl?.dateOfIssue) || formatDate(new Date().toISOString())
               }}</span>
             </div>
@@ -1532,6 +1518,47 @@ const formatDate = (dateStr?: string | null) => {
     monospace;
   white-space: pre-wrap;
   word-break: break-all;
+}
+
+.ebl-issue-field {
+  flex: 0 0 auto;
+  min-height: 0;
+  padding: 2px 8px;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.ebl-issue-field-compact {
+  height: 28px;
+}
+
+.ebl-issue-field-tall {
+  height: 40px;
+}
+
+.ebl-issue-field-fill {
+  flex: 1 1 auto;
+  min-height: 30px;
+}
+
+.ebl-issue-label {
+  display: block;
+  color: #062c58;
+  font-size: 0.38rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 6px;
+  opacity: 0.8;
+  text-transform: uppercase;
+}
+
+.ebl-issue-value {
+  display: block;
+  margin-top: 2px;
+  color: #000;
+  font-size: 0.56rem;
+  line-height: 8.8px;
+  text-transform: uppercase;
 }
 
 .watermark-container {

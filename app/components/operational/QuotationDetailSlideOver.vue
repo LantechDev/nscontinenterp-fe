@@ -102,6 +102,8 @@ const tradeTypeLabel = computed(() => {
 
 const serviceTypeLabel = computed(() => {
   const serviceType = quotation.value?.serviceType;
+  const shipmentType = quotation.value?.shipmentType;
+  if (serviceType === "AIR" || shipmentType === "AIR") return "AIR FREIGHT";
   if (serviceType === "TRUCKING") return "TRUCKING";
   if (serviceType === "CUSTOM_CLEARANCE") return "CUSTOM CLEARANCE";
   return "FREIGHT";
@@ -116,7 +118,7 @@ const shipmentTypeLabel = computed(() => {
 
 const isOceanService = computed(() => quotation.value?.serviceType === "OCEAN");
 const isAirFreight = computed(
-  () => quotation.value?.serviceType === "OCEAN" && quotation.value?.shipmentType === "AIR",
+  () => quotation.value?.serviceType === "AIR" || quotation.value?.shipmentType === "AIR",
 );
 const isTrucking = computed(() => quotation.value?.serviceType === "TRUCKING");
 const isCustomClearance = computed(() => quotation.value?.serviceType === "CUSTOM_CLEARANCE");
