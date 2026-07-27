@@ -383,15 +383,8 @@ const handleSubmit = async () => {
     return;
   }
 
-  // Validate that exchangeRate is provided if any item is USD and overall billing is IDR
-  if (
-    hasUSDItems.value &&
-    form.value.currency === "IDR" &&
-    Number(form.value.exchangeRate || 0) <= 1
-  ) {
-    toast.error(
-      "Exchange rate must be greater than 1 when USD items are present on an IDR invoice",
-    );
+  if (hasUSDItems.value && Number(form.value.exchangeRate || 0) <= 1) {
+    toast.error("Exchange rate must be greater than 1 when USD invoice amounts are present");
     return;
   }
 

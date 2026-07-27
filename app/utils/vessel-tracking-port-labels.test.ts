@@ -27,4 +27,20 @@ describe("vessel tracking port labels", () => {
     expect(page).toContain('{{ getLegDisplay(tracking, leg, "initial").etdPortName || "-" }}');
     expect(page).toContain('{{ getLegDisplay(tracking, leg, "updated").etaPortName || "-" }}');
   });
+
+  it("uses schedule-style port controls in the update modal", () => {
+    const page = readFileSync(
+      join(root, "app/pages/operational/vessel-tracking/index.vue"),
+      "utf8",
+    );
+
+    expect(page).toContain("handleSearchTrackingPort");
+    expect(page).toContain("getTrackingPortLabels(activeUpdateIndex.value)");
+    expect(page).toContain("portLabels.left");
+    expect(page).toContain("portLabels.right");
+    expect(page).toContain(':filter-local="false"');
+    expect(page).toContain('@search="handleSearchTrackingPort"');
+    expect(page).toContain("ensureSelectedPortOption");
+    expect(page).not.toContain('[port.name, port.code].filter(Boolean).join(" - ")');
+  });
 });
