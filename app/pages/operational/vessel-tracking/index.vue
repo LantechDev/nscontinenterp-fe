@@ -59,6 +59,8 @@ const masterPlanes = ref<Array<{ id: string; name: string }>>([]);
 const masterPorts = ref<Array<{ id: string; name: string; code?: string }>>([]);
 let searchTimer: ReturnType<typeof setTimeout> | null = null;
 
+type TrackingPortOption = { id: string; name: string; code?: string };
+
 const linerOptions = computed(() =>
   Array.from(new Set(trackings.value.map((item) => item.linerName).filter(Boolean)))
     .toSorted((a, b) => a.localeCompare(b))
@@ -308,13 +310,89 @@ const getUpdateButtonLabel = (index: number) => {
 const portOptions = computed(() =>
   masterPorts.value.map((port) => ({
     ...port,
-    name: [port.name, port.code].filter(Boolean).join(" - "),
+    name: port.name || port.id,
   })),
 );
 
 const activeLeg = computed(() => editLegs.value[activeUpdateIndex.value] || null);
+const portLabels = computed(() => getTrackingPortLabels(activeUpdateIndex.value));
 
 const isNewLeg = (leg: VesselTrackingLeg) => leg.id.startsWith("new-");
+
+const normalizePortOption = (port: {
+  code?: string | null;
+  id?: string | null;
+  name?: string | null;
+}) => {
+  const id = port.code || port.id || "";
+  return {
+    id,
+    code: port.code || id,
+    name: port.name || id,
+  };
+};
+
+const upsertPortOptions = (ports: TrackingPortOption[]) => {
+  const byId = new Map(masterPorts.value.map((port) => [port.id, port]));
+  ports.forEach((port) => {
+    if (port.id) byId.set(port.id, port);
+  });
+  masterPorts.value = Array.from(byId.values()).toSorted((a, b) =>
+    (a.name || a.id).localeCompare(b.name || b.id),
+  );
+};
+
+const ensureSelectedPortOption = (id?: string | null, name?: string | null) => {
+  if (!id || masterPorts.value.some((port) => port.id === id)) return;
+  upsertPortOptions([{ id, code: id, name: name || id }]);
+};
+
+const ensureTrackingPorts = (tracking: VesselTracking) => {
+  ensureSelectedPortOption(tracking.pol, tracking.polName);
+  ensureSelectedPortOption(tracking.pod, tracking.podName);
+  tracking.legs.forEach((leg) => {
+    ensureSelectedPortOption(leg.initialTsPortId, leg.initialTsPortName);
+    ensureSelectedPortOption(leg.updatedTsPortId, leg.updatedTsPortName);
+  });
+};
+
+const handleSearchTrackingPort = async (query: string) => {
+  const results = await fetchPorts(query || undefined, "ocean");
+  upsertPortOptions(results.map(normalizePortOption));
+};
+
+const handleActivePortChange = (value: string | null | undefined) => {
+  if (!activeLeg.value) return;
+  activeLeg.value.updatedTsPortId = value || null;
+  const selected = portOptions.value.find((port) => port.id === value);
+  activeLeg.value.updatedTsPortName = selected?.name || selected?.code || null;
+};
+
+const getTrackingPortLabels = (index: number) => {
+  const leg = editLegs.value[index];
+  const vesselType = leg?.vesselType?.toLowerCase() || "";
+
+  if (vesselType === "additional") {
+    return { left: "T/S PORT", right: "POD", editableSide: "left" as const };
+  }
+
+  if (vesselType === "mother") {
+    return { left: "T/S PORT", right: "", editableSide: "left" as const };
+  }
+
+  return { left: "POL", right: "T/S PORT", editableSide: "right" as const };
+};
+
+const getReadonlyRoutePortValue = (label: string) => {
+  if (!selectedTracking.value) return "-";
+  if (label === "POL") {
+    return selectedTracking.value.polName || selectedTracking.value.pol || "-";
+  }
+  if (label === "POD") {
+    return selectedTracking.value.podName || selectedTracking.value.pod || "-";
+  }
+  return activeLeg.value?.updatedTsPortName || activeLeg.value?.updatedTsPortId || "-";
+};
 
 const getLegRouteLabel = (leg: VesselTrackingLeg) => {
   const from = leg.updatedEtd ? formatDate(leg.updatedEtd) : "ETD -";
@@ -606,6 +684,7 @@ const handleExportExcel = () => {
 
 const openEdit = (tracking: VesselTracking) => {
   selectedTracking.value = tracking;
+  ensureTrackingPorts(tracking);
   editLegs.value = tracking.legs.map((leg) => ({ ...leg }));
   editRemarks.value = tracking.remarks || "";
   activeUpdateIndex.value = 0;
@@ -739,7 +818,7 @@ onMounted(async () => {
   ]);
   masterVessels.value = vessels;
   masterPlanes.value = planes;
-  masterPorts.value = ports.map((port) => ({ id: port.code, name: port.name, code: port.code }));
+  upsertPortOptions(ports.map(normalizePortOption));
   const selectedId = typeof route.query.id === "string" ? route.query.id : "";
   if (selectedId) {
     const found = trackings.value.find((item) => item.id === selectedId);
@@ -1598,18 +1677,45 @@ onMounted(async () => {
                   <label class="text-[10px] font-bold text-muted-foreground uppercase">ETD</label>
                   <DatePicker v-model="activeLeg.updatedEtd" class="h-10" />
                 </div>
-                <div class="space-y-1">
-                  <label class="text-[10px] font-bold text-muted-foreground uppercase"
-                    >TS / POD</label
-                  >
+                <div v-if="portLabels.left" class="space-y-1">
+                  <label class="text-[10px] font-bold text-muted-foreground uppercase">
+                    {{ portLabels.left }}
+                  </label>
                   <Combobox
-                    v-model="activeLeg.updatedTsPortId"
+                    v-if="portLabels.editableSide === 'left'"
+                    :model-value="activeLeg.updatedTsPortId"
                     :options="portOptions"
                     label-key="name"
                     value-key="id"
-                    placeholder="Select port..."
+                    placeholder="Select T/S Port..."
                     class="h-10"
+                    :filter-local="false"
+                    @search="handleSearchTrackingPort"
+                    @update:model-value="handleActivePortChange"
                   />
+                  <div v-else class="input-field h-10 flex items-center bg-muted/30 text-sm">
+                    {{ getReadonlyRoutePortValue(portLabels.left) }}
+                  </div>
+                </div>
+                <div v-if="portLabels.right" class="space-y-1">
+                  <label class="text-[10px] font-bold text-muted-foreground uppercase">
+                    {{ portLabels.right }}
+                  </label>
+                  <Combobox
+                    v-if="portLabels.editableSide === 'right'"
+                    :model-value="activeLeg.updatedTsPortId"
+                    :options="portOptions"
+                    label-key="name"
+                    value-key="id"
+                    placeholder="Select T/S Port..."
+                    class="h-10"
+                    :filter-local="false"
+                    @search="handleSearchTrackingPort"
+                    @update:model-value="handleActivePortChange"
+                  />
+                  <div v-else class="input-field h-10 flex items-center bg-muted/30 text-sm">
+                    {{ getReadonlyRoutePortValue(portLabels.right) }}
+                  </div>
                 </div>
                 <div class="space-y-1">
                   <label class="text-[10px] font-bold text-muted-foreground uppercase">ETA</label>

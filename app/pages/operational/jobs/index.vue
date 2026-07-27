@@ -56,6 +56,8 @@ onUnmounted(() => {});
 const searchQuery = ref("");
 type ViewMode = "list" | "grid";
 const viewMode = ref<ViewMode>("list");
+const jobSkeletonRows = Array.from({ length: 6 }, (_, index) => index);
+const jobSkeletonCards = Array.from({ length: 6 }, (_, index) => index);
 
 const filteredJobs = computed(() => {
   const q = searchQuery.value.trim().toLowerCase();
@@ -361,7 +363,136 @@ watch(
     </div>
 
     <!-- Loading State -->
-    <div v-if="isLoading" class="p-8 text-center text-muted-foreground">Loading jobs...</div>
+    <div
+      v-if="isLoading && viewMode === 'list'"
+      class="border border-border rounded-xl bg-white overflow-hidden"
+    >
+      <div class="overflow-x-auto">
+        <table class="w-full">
+          <thead>
+            <tr class="border-b border-border bg-white text-left">
+              <th
+                class="py-3 px-4 text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
+              >
+                No. Job
+              </th>
+              <th
+                class="py-3 px-4 text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
+              >
+                Customer
+              </th>
+              <th
+                class="py-3 px-4 text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
+              >
+                Shipper References
+              </th>
+              <th
+                class="py-3 px-4 text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
+              >
+                Route
+              </th>
+              <th
+                class="py-3 px-4 text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
+              >
+                Schedule
+              </th>
+              <th
+                class="py-3 px-4 text-[11px] font-bold text-muted-foreground uppercase tracking-widest text-center"
+              >
+                Status
+              </th>
+              <th class="py-3 px-4 w-10"></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="row in jobSkeletonRows"
+              :key="row"
+              class="border-b border-border last:border-0 animate-pulse"
+            >
+              <td class="py-3 px-4">
+                <div class="flex items-center gap-2">
+                  <div class="w-7 h-7 rounded bg-blue-50" />
+                  <div class="space-y-2">
+                    <div class="h-3 w-24 rounded bg-muted" />
+                    <div class="h-2 w-14 rounded bg-muted" />
+                  </div>
+                </div>
+              </td>
+              <td class="py-3 px-4">
+                <div class="h-3 w-36 rounded bg-muted" />
+              </td>
+              <td class="py-3 px-4">
+                <div class="flex gap-1">
+                  <div class="h-5 w-16 rounded bg-muted" />
+                  <div class="h-5 w-20 rounded bg-muted" />
+                </div>
+              </td>
+              <td class="py-3 px-4">
+                <div class="space-y-2">
+                  <div class="h-3 w-32 rounded bg-muted" />
+                  <div class="h-3 w-24 rounded bg-muted" />
+                </div>
+              </td>
+              <td class="py-3 px-4">
+                <div class="space-y-2">
+                  <div class="h-5 w-24 rounded-md bg-muted" />
+                  <div class="h-5 w-20 rounded-md bg-muted" />
+                </div>
+              </td>
+              <td class="py-3 px-4">
+                <div class="mx-auto h-5 w-20 rounded bg-muted" />
+              </td>
+              <td class="py-3 px-4">
+                <div class="ml-auto h-7 w-16 rounded bg-muted" />
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div v-else-if="isLoading" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div
+        v-for="card in jobSkeletonCards"
+        :key="card"
+        class="border border-border rounded-xl bg-white p-5 animate-pulse"
+      >
+        <div class="flex items-start justify-between mb-4">
+          <div class="flex items-start gap-4">
+            <div class="w-12 h-12 rounded-lg bg-blue-50" />
+            <div class="space-y-2 pt-1">
+              <div class="h-4 w-28 rounded bg-muted" />
+              <div class="h-3 w-36 rounded bg-muted" />
+            </div>
+          </div>
+          <div class="flex gap-1">
+            <div class="h-7 w-7 rounded bg-muted" />
+            <div class="h-7 w-7 rounded bg-muted" />
+          </div>
+        </div>
+
+        <div class="space-y-3 mb-4">
+          <div class="h-3 w-44 rounded bg-muted" />
+          <div class="space-y-2 pt-1">
+            <div class="h-3 w-52 rounded bg-muted" />
+            <div class="h-3 w-40 rounded bg-muted" />
+          </div>
+          <div class="flex gap-2 pt-1">
+            <div class="h-5 w-24 rounded bg-muted" />
+            <div class="h-5 w-20 rounded bg-muted" />
+          </div>
+          <div class="flex gap-1">
+            <div class="h-5 w-16 rounded bg-muted" />
+            <div class="h-5 w-20 rounded bg-muted" />
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between pt-4 border-t border-border">
+          <div class="h-5 w-20 rounded bg-muted" />
+          <div class="h-5 w-28 rounded bg-muted" />
+        </div>
+      </div>
+    </div>
 
     <!-- List View -->
     <div

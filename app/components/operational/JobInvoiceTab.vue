@@ -29,6 +29,7 @@ import { useQuotations, type Quotation, type QuotationInvoice } from "~/composab
 import { toast } from "vue-sonner";
 import JobFinanceHistoryModal from "./JobFinanceHistoryModal.vue";
 import type { ActivityLog } from "~/lib/activity-log-api";
+import { resolveSingleCurrencyPrefillExchangeRate } from "~/utils/jobInvoiceExchangeRate";
 
 const props = defineProps<{
   jobId: string;
@@ -204,7 +205,19 @@ const confirmItemSelection = () => {
     loadExchangeRate();
   } else {
     const currency = currencies[0] || "IDR";
-    proceedPrefillQuotationWithSelection(q, currency, 1);
+    const exchangeRate = resolveSingleCurrencyPrefillExchangeRate(currency, q.exchangeRate);
+
+    if (exchangeRate === null) {
+      mixedCurrencyQuotation.value = q;
+      availableCurrenciesInQuotation.value = currencies;
+      selectedInvoiceCurrency.value = "USD";
+      showCurrencySelectModal.value = true;
+      showItemSelection.value = false;
+      loadExchangeRate();
+      return;
+    }
+
+    proceedPrefillQuotationWithSelection(q, currency, exchangeRate);
   }
 };
 
