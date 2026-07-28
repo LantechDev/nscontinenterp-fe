@@ -75,7 +75,7 @@ const {
   pending: isBootstrapping,
   error: bootstrapError,
   refresh: refreshBootstrap,
-} = await useAsyncData<TaxListResponse>(
+} = useAsyncData<TaxListResponse>(
   "tax-list",
   async () => {
     return await $fetch<TaxListResponse>("/api/finance/tax");
@@ -212,9 +212,7 @@ const taxStats = computed(() => {
       </div>
     </div>
 
-    <div v-if="isPageLoading" class="flex justify-center py-12">
-      <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-    </div>
+    <UiLoadingSkeleton v-if="isPageLoading" variant="table" :columns="5" />
 
     <template v-else>
       <!-- List View -->

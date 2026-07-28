@@ -164,12 +164,34 @@ onMounted(() => {
       </div>
     </div>
 
-    <div v-if="isLoading" class="flex items-center justify-center py-12">
-      <div class="flex items-center gap-2">
-        <div
-          class="w-6 h-6 border-2 border-[#012D5A] border-t-transparent rounded-full animate-spin"
-        ></div>
-        <span class="text-muted-foreground">Loading cash flow...</span>
+    <div v-if="isLoading" class="space-y-4">
+      <div
+        v-for="group in 3"
+        :key="group"
+        class="border border-border rounded-xl bg-white overflow-hidden"
+      >
+        <div class="flex items-center justify-between p-5 animate-pulse">
+          <div class="flex items-center gap-3">
+            <div class="w-4 h-4 rounded bg-muted" />
+            <div class="h-4 w-40 rounded bg-muted" />
+            <div class="h-5 w-20 rounded bg-muted" />
+          </div>
+          <div class="h-4 w-28 rounded bg-muted" />
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full">
+            <thead>
+              <tr class="border-b border-t border-border bg-gray-50/50">
+                <th class="py-3 px-4 text-left text-sm font-medium text-gray-500">Account Code</th>
+                <th class="py-3 px-4 text-left text-sm font-medium text-gray-500">Account Name</th>
+                <th class="py-3 px-4 text-right text-sm font-medium text-gray-500">Cash In</th>
+                <th class="py-3 px-4 text-right text-sm font-medium text-gray-500">Cash Out</th>
+                <th class="py-3 px-4 text-right text-sm font-medium text-gray-500">Net</th>
+              </tr>
+            </thead>
+            <UiLoadingSkeleton variant="table-rows" :columns="5" :rows="3" />
+          </table>
+        </div>
       </div>
     </div>
 

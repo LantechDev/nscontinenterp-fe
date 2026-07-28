@@ -57,7 +57,7 @@ const {
   data: dashboardData,
   pending: loading,
   refresh: refreshDashboard,
-} = await useAsyncData<DashboardData>(
+} = useAsyncData<DashboardData>(
   "dashboard-data",
   async () => {
     const query = `?${new URLSearchParams(periodParams.value).toString()}`;
@@ -67,7 +67,7 @@ const {
 );
 
 // Fetch pending approvals (lazy - doesn't block navigation)
-const { refresh: refreshPendingApprovals } = await useAsyncData<PendingApprovalBl[]>(
+const { refresh: refreshPendingApprovals } = useAsyncData<PendingApprovalBl[]>(
   "pending-approvals",
   async () => {
     if (!canApproveJobs.value) return [];
@@ -621,16 +621,7 @@ onClickOutside(periodDropdownRef as Ref<HTMLElement>, () => {
     </div>
 
     <!-- Loading state -->
-    <div v-if="loading" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-      <div
-        v-for="i in 4"
-        :key="i"
-        class="card-stat p-4 rounded-xl border border-border animate-pulse"
-      >
-        <div class="h-4 bg-muted rounded w-1/2 mb-3"></div>
-        <div class="h-8 bg-muted rounded w-3/4"></div>
-      </div>
-    </div>
+    <UiLoadingSkeleton v-if="loading" variant="stats" :cards="4" />
 
     <!-- Stats grid -->
     <div

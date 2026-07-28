@@ -16,7 +16,7 @@ const {
   pending: isTaxesLoading,
   error: taxesError,
   refresh: refreshTaxes,
-} = await useAsyncData<{ items: Tax[] }>(
+} = useAsyncData<{ items: Tax[] }>(
   "invoice-create-taxes",
   async () => await $fetch<{ items: Tax[] }>("/api/finance/tax?isActive=true&limit=100"),
   { server: false },
@@ -87,11 +87,9 @@ const handleJobSearch = async (options: { query: string; page?: number; limit?: 
       </div>
     </div>
 
-    <div v-if="isTaxesLoading" class="flex justify-center py-6">
-      <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
-    </div>
+    <UiLoadingSkeleton v-if="isTaxesLoading" variant="form" />
 
-    <form class="card-elevated p-6 space-y-6">
+    <form v-else class="card-elevated p-6 space-y-6">
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div class="space-y-2">
           <label class="text-sm font-medium">Customer</label>

@@ -197,12 +197,8 @@ defineExpose({
 
 <template>
   <div class="space-y-6">
-    <div
-      v-if="isLoading && invoices.length === 0"
-      class="py-12 flex flex-col items-center justify-center space-y-3"
-    >
-      <Loader2 class="w-8 h-8 animate-spin text-primary opacity-60" />
-      <p class="text-sm text-muted-foreground">Loading payment history...</p>
+    <div v-if="isLoading" class="py-2">
+      <UiLoadingSkeleton variant="table" :columns="5" />
     </div>
 
     <div v-else-if="error" class="p-6 text-center bg-red-50 rounded-xl border border-red-100">

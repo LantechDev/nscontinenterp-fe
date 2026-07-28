@@ -34,7 +34,7 @@ const isUserInactive = (user: AuthUser) => {
   return user.isActive === false || banned;
 };
 
-const { data: rawUser, error: fetchError } = await useAsyncData<DisplayUser>(
+const { data: rawUser, error: fetchError } = useAsyncData<DisplayUser>(
   `user-${userId}`,
   async () => {
     const result = await fetchUserById(userId);
@@ -82,7 +82,7 @@ const errorMessage = computed(() => fetchError.value?.message || "");
           <ArrowLeft class="w-5 h-5" />
         </NuxtLink>
         <div>
-          <h1 class="page-title">{{ user?.name || "Loading..." }}</h1>
+          <h1 class="page-title">{{ user?.name || "User Detail" }}</h1>
           <p class="text-muted-foreground mt-1">Detail user</p>
         </div>
       </div>
@@ -97,7 +97,7 @@ const errorMessage = computed(() => fetchError.value?.message || "");
       </NuxtLink>
     </div>
 
-    <div v-if="isLoading" class="p-8 text-center text-muted-foreground">Loading...</div>
+    <UiLoadingSkeleton v-if="isLoading" variant="form" />
 
     <div
       v-else-if="errorMessage"

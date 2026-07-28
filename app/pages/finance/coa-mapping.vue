@@ -308,11 +308,7 @@ onMounted(loadData);
     </div>
 
     <div class="border border-border rounded-xl bg-white overflow-hidden shadow-sm">
-      <div v-if="isLoading" class="flex items-center justify-center py-16">
-        <Loader2 class="w-8 h-8 animate-spin text-[#012D5A]" />
-      </div>
-
-      <div v-else-if="mappingMode === 'expense'" class="overflow-x-auto">
+      <div v-if="mappingMode === 'expense'" class="overflow-x-auto">
         <table class="w-full">
           <thead>
             <tr class="border-b border-border bg-muted/30 text-left">
@@ -322,7 +318,8 @@ onMounted(loadData);
               <th class="py-3 px-4 text-sm font-medium text-foreground text-right">Action</th>
             </tr>
           </thead>
-          <tbody>
+          <UiLoadingSkeleton v-if="isLoading" variant="table-rows" :columns="4" />
+          <tbody v-else>
             <tr
               v-for="category in filteredExpenseCategories"
               :key="category.id"
@@ -389,7 +386,8 @@ onMounted(loadData);
               <th class="py-3 px-4 text-sm font-medium text-foreground text-right">Action</th>
             </tr>
           </thead>
-          <tbody>
+          <UiLoadingSkeleton v-if="isLoading" variant="table-rows" :columns="5" />
+          <tbody v-else>
             <tr
               v-for="category in filteredServiceCategories"
               :key="category.id"

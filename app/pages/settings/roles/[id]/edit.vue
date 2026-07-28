@@ -16,7 +16,11 @@ const { updateRole, getRoleById } = useRoles();
 const isLoading = ref(false);
 
 // Fetch role data
-const { data: roleData, error: fetchError } = await useAsyncData<Role>(
+const {
+  data: roleData,
+  error: fetchError,
+  pending: isRoleFetching,
+} = useAsyncData<Role>(
   `role-${roleId}`,
   async () => {
     const result = await getRoleById(roleId);
@@ -28,7 +32,7 @@ const { data: roleData, error: fetchError } = await useAsyncData<Role>(
   { server: false },
 );
 
-const isFetching = computed(() => !roleData.value && !fetchError.value);
+const isFetching = computed(() => isRoleFetching.value || (!roleData.value && !fetchError.value));
 
 const formSchema = z.object({
   name: z.string().min(1, "Nama Role wajib diisi"),
@@ -185,10 +189,7 @@ const handleSubmit = async () => {
       </div>
     </div>
 
-    <div v-if="isFetching" class="p-12 text-center">
-      <Loader2 class="w-8 h-8 mx-auto animate-spin text-muted-foreground" />
-      <p class="mt-2 text-muted-foreground">Loading role data...</p>
-    </div>
+    <UiLoadingSkeleton v-if="isFetching" variant="form" />
 
     <div v-else>
       <div

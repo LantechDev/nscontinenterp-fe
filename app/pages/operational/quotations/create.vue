@@ -69,7 +69,7 @@ const {
   data: masterData,
   pending: isLoadingMaster,
   refresh,
-} = await useAsyncData(
+} = useAsyncData(
   "quotation-create-master",
   async () => {
     const [comps, servs, taxesRes, initialPorts, cTypes] = await Promise.all([
@@ -978,9 +978,7 @@ async function handleSubmit() {
       <!-- Main Form Content -->
       <main id="main-scroll-container" class="flex-1 w-full min-w-0">
         <div class="max-w-6xl mx-auto space-y-6 pb-20">
-          <div v-if="isLoadingMaster" class="text-center text-muted-foreground py-12">
-            Loading selectors & configuration...
-          </div>
+          <UiLoadingSkeleton v-if="isLoadingMaster" variant="form" />
           <div v-else class="space-y-6">
             <!-- Billing Info section card -->
             <SectionCard id="header-info" title="Header & Customer Information" :icon="Building2">

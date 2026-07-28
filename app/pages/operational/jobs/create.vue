@@ -52,7 +52,7 @@ const {
   data: masterData,
   pending: isLoadingMasterData,
   refresh,
-} = await useAsyncData<{
+} = useAsyncData<{
   companies: Company[];
   containerTypes: ContainerType[];
   vessels: Vessel[];
@@ -1478,7 +1478,9 @@ async function populateFormFromExistingJob(jobInput: unknown) {
       </header>
     </div>
 
-    <div class="flex gap-8 relative items-start">
+    <UiLoadingSkeleton v-if="isLoadingMasterData" variant="job-form" />
+
+    <div v-else class="flex gap-8 relative items-start">
       <!-- Sidebar Navigation -->
       <aside class="w-60 shrink-0 hidden lg:block sticky top-36 h-fit">
         <nav class="space-y-2">

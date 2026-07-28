@@ -58,7 +58,7 @@ interface EblItem {
 
 const { ebls, fetchEbls, isLoading } = useEbls();
 
-const { pending } = await useAsyncData("ebls-list", () => fetchEbls(), { server: false });
+const { pending } = useAsyncData("ebls-list", () => fetchEbls(), { server: false });
 
 const { finalizeBl, rejectBl } = useJobs();
 const { confirm } = useConfirm();
@@ -333,12 +333,47 @@ const filteredEbls = computed(() => {
     </div>
 
     <!-- Loading State -->
-    <div v-if="isLoading" class="flex flex-col items-center justify-center py-20 gap-4">
-      <div
-        class="w-8 h-8 border-4 border-[#012D5A] border-t-transparent rounded-full animate-spin"
-      ></div>
-      <p class="text-muted-foreground animate-pulse text-sm">Memuat data eBL...</p>
+    <div
+      v-if="isLoading && viewMode === 'list'"
+      class="border border-border rounded-xl bg-white overflow-hidden shadow-sm"
+    >
+      <div class="overflow-x-auto">
+        <table class="w-full">
+          <thead>
+            <tr class="border-b border-border bg-gray-50/50 text-left">
+              <th
+                class="py-3 px-4 text-[11px] font-bold text-muted-foreground uppercase tracking-widest pl-10"
+              >
+                No. eBL
+              </th>
+              <th
+                class="py-3 px-4 text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
+              >
+                Shipper
+              </th>
+              <th
+                class="py-3 px-4 text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
+              >
+                Route
+              </th>
+              <th
+                class="py-3 px-4 text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
+              >
+                Date
+              </th>
+              <th
+                class="py-3 px-4 text-[11px] font-bold text-muted-foreground uppercase tracking-widest text-center"
+              >
+                Status
+              </th>
+              <th class="py-3 px-4 w-10"></th>
+            </tr>
+          </thead>
+          <UiLoadingSkeleton variant="table-rows" :columns="6" />
+        </table>
+      </div>
     </div>
+    <UiLoadingSkeleton v-else-if="isLoading" variant="cards" />
 
     <!-- List View -->
     <div

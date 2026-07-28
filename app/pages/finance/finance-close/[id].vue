@@ -118,14 +118,7 @@ onMounted(() => {
     </div>
 
     <!-- Loading State -->
-    <div v-if="isLoading" class="flex items-center justify-center py-20">
-      <div class="flex items-center gap-2">
-        <div
-          class="w-6 h-6 border-2 border-[#012D5A] border-t-transparent rounded-full animate-spin"
-        ></div>
-        <span class="text-muted-foreground">Loading period details...</span>
-      </div>
-    </div>
+    <UiLoadingSkeleton v-if="isLoading" variant="form" />
 
     <!-- Error State -->
     <div

@@ -241,9 +241,7 @@ const visibleConditions = computed(() => {
       </div>
     </div>
 
-    <div v-if="isPageLoading" class="flex justify-center py-12">
-      <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-[#012D5A]"></div>
-    </div>
+    <UiLoadingSkeleton v-if="isPageLoading" variant="table" :columns="5" />
 
     <template v-else>
       <!-- List View -->

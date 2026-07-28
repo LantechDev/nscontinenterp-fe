@@ -38,7 +38,7 @@ const {
   data: rolesData,
   pending: isBootstrapping,
   error: bootstrapError,
-} = await useAsyncData<{
+} = useAsyncData<{
   roles: Role[];
   user: UserResponseData;
 }>(
@@ -212,10 +212,7 @@ const handleDelete = async () => {
       </button>
     </div>
 
-    <div v-if="isFetching" class="p-12 text-center">
-      <Loader2 class="w-8 h-8 mx-auto animate-spin text-muted-foreground" />
-      <p class="mt-2 text-muted-foreground">Loading user data...</p>
-    </div>
+    <UiLoadingSkeleton v-if="isFetching" variant="form" />
 
     <div v-else>
       <div

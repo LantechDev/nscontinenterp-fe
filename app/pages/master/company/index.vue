@@ -24,22 +24,22 @@ const { showExportOptions, triggerX, triggerY, triggerWidth, triggerHeight, open
   useExportPopup();
 const canManageCompany = computed(() => hasAccess("master.company", "manage"));
 
-const [companiesData, categoriesData] = await Promise.all([
-  useAsyncData(
-    "companies-list",
-    () =>
-      loadCompanies({
-        page: 1,
-        limit: 50,
-        type: "ALL",
-        status: "ALL",
-      }),
-    { server: false },
-  ),
-  useAsyncData("company-categories", () => fetchCompanyCategories(), { server: false }),
-]);
+const companiesData = useAsyncData(
+  "companies-list",
+  () =>
+    loadCompanies({
+      page: 1,
+      limit: 50,
+      type: "ALL",
+      status: "ALL",
+    }),
+  { server: false },
+);
+const categoriesData = useAsyncData("company-categories", () => fetchCompanyCategories(), {
+  server: false,
+});
 
-const pending = computed(() => companiesData.pending.value);
+const pending = computed(() => companiesData.pending.value || categoriesData.pending.value);
 const refresh = companiesData.refresh;
 
 const route = useRoute();
@@ -64,10 +64,22 @@ const openDetailModal = (company: MappedCompany) => {
 };
 
 const searchQuery = ref("");
-const selectedType = ref<string>("all");
-const selectedStatus = ref<string>("all");
 const selectedCategory = ref<string>("all");
+const selectedCountry = ref<string>("all");
+const selectedCity = ref<string>("all");
 const pageSize = ref(50);
+
+const allWhenEmpty = (source: Ref<string>) =>
+  computed({
+    get: () => source.value,
+    set: (value: string | null | undefined) => {
+      source.value = value || "all";
+    },
+  });
+
+const selectedCategoryModel = allWhenEmpty(selectedCategory);
+const selectedCountryModel = allWhenEmpty(selectedCountry);
+const selectedCityModel = allWhenEmpty(selectedCity);
 
 const sortField = ref<string>("name");
 const sortDirection = ref<"asc" | "desc">("asc");
@@ -79,7 +91,9 @@ const sortedCompanies = computed(() => {
     email: c.email || "-",
     phone: c.phone || "-",
     address: c.addresses?.[0]?.fullAddress || "-",
-    type: c.isVendor && c.isCustomer ? "Both" : c.isVendor ? "Vendor" : "Customer",
+    country: c.addresses?.[0]?.country || "-",
+    city: c.addresses?.[0]?.city || "-",
+    type: c.category?.name || "-",
     categoryName: c.category?.name || "-",
     status: c.isActive ? "Active" : "Inactive",
     totalJobs: c.totalJobs ?? 0,
@@ -95,11 +109,14 @@ const sortedCompanies = computed(() => {
       case "code":
         comparison = a.code.localeCompare(b.code);
         break;
-      case "type":
-        comparison = a.type.localeCompare(b.type);
-        break;
       case "category":
         comparison = a.categoryName.localeCompare(b.categoryName);
+        break;
+      case "country":
+        comparison = a.country.localeCompare(b.country);
+        break;
+      case "city":
+        comparison = a.city.localeCompare(b.city);
         break;
       case "status":
         comparison = a.status.localeCompare(b.status);
@@ -131,56 +148,44 @@ const currentPage = computed({
   },
 });
 
-const toQueryType = () => {
-  switch (selectedType.value) {
-    case "customer":
-      return "CUSTOMER";
-    case "vendor":
-      return "VENDOR";
-    case "both":
-      return "BOTH";
-    default:
-      return "ALL";
-  }
-};
-
-const typeOptions = [
-  { id: "all", name: "All Roles" },
-  { id: "customer", name: "Customer" },
-  { id: "vendor", name: "Vendor" },
-  { id: "both", name: "Customer & Vendor" },
-];
-
-const statusOptions = [
-  { id: "all", name: "All Status" },
-  { id: "active", name: "Active" },
-  { id: "inactive", name: "Inactive" },
-];
-
 const categoryOptions = computed(() => [
   { id: "all", name: "All Types" },
   ...(categoriesData.data.value?.map((c) => ({ id: c.id, name: c.name })) ?? []),
 ]);
 
+const uniqueAddressOptions = (field: "country" | "city") => {
+  const values = new Set<string>();
+  companiesList.value.forEach((company) => {
+    const value = company.addresses?.[0]?.[field]?.trim();
+    if (value) values.add(value);
+  });
+  return Array.from(values)
+    .toSorted((a, b) => a.localeCompare(b))
+    .map((value) => ({ id: value, name: value }));
+};
+
+const countryOptions = computed(() => [
+  { id: "all", name: "All Countries" },
+  ...uniqueAddressOptions("country"),
+]);
+const cityOptions = computed(() => [
+  { id: "all", name: "All Cities" },
+  ...uniqueAddressOptions("city"),
+]);
+
 const filteredCompanies = computed(() => {
   let result = companiesList.value;
 
-  if (selectedType.value !== "all") {
-    result = result.filter((c) => {
-      if (selectedType.value === "customer") return c.isCustomer;
-      if (selectedType.value === "vendor") return c.isVendor;
-      if (selectedType.value === "both") return c.isCustomer && c.isVendor;
-      return true;
-    });
-  }
-
-  if (selectedStatus.value !== "all") {
-    const isActiveFilter = selectedStatus.value === "active";
-    result = result.filter((c) => c.isActive === isActiveFilter);
-  }
-
   if (selectedCategory.value !== "all") {
     result = result.filter((c) => c.categoryId === selectedCategory.value);
+  }
+
+  if (selectedCountry.value !== "all") {
+    result = result.filter((c) => c.addresses?.[0]?.country === selectedCountry.value);
+  }
+
+  if (selectedCity.value !== "all") {
+    result = result.filter((c) => c.addresses?.[0]?.city === selectedCity.value);
   }
 
   if (searchQuery.value) {
@@ -206,22 +211,11 @@ const companyStats = computed(() => {
   };
 });
 
-const toQueryStatus = () => {
-  switch (selectedStatus.value) {
-    case "active":
-      return "ACTIVE";
-    case "inactive":
-      return "INACTIVE";
-    default:
-      return "ALL";
-  }
-};
-
 const fetchWithFilters = async (page = 1) => {
   await loadCompanies({
     search: searchQuery.value || undefined,
-    type: toQueryType(),
-    status: toQueryStatus(),
+    type: "ALL",
+    status: "ALL",
     page,
     limit: pageSize.value,
   });
@@ -341,13 +335,23 @@ const handleExportExcel = () => {
   isExporting.value = true;
   try {
     const workbookRows: StyledRow[] = [
-      { cells: ["COMPANY MASTER REPORT", "", "", "", "", "", "", ""], style: 7 },
+      { cells: ["COMPANY MASTER REPORT", "", "", "", "", "", "", "", ""], style: 7 },
       {
-        cells: [exportPeriodLabel(rows.length), "", "", "", "", "", "", ""],
+        cells: [exportPeriodLabel(rows.length), "", "", "", "", "", "", "", ""],
         style: 8,
       },
       {
-        cells: ["No. Cust", "Company", "Email", "Phone", "Role", "Type", "Status", "Total Job"],
+        cells: [
+          "No. Cust",
+          "Company",
+          "Email",
+          "Phone",
+          "Type",
+          "Country",
+          "City",
+          "Status",
+          "Total Job",
+        ],
         style: 0,
       },
     ];
@@ -360,7 +364,8 @@ const handleExportExcel = () => {
           company.email,
           company.phone,
           company.type,
-          company.categoryName,
+          company.country,
+          company.city,
           company.status,
           company.totalJobs,
         ],
@@ -371,7 +376,7 @@ const handleExportExcel = () => {
     buildStyledWorkbook(
       "Company",
       workbookRows,
-      [18, 34, 32, 20, 16, 20, 14, 12],
+      [18, 34, 32, 20, 18, 18, 18, 14, 12],
       `COMPANY_MASTER_${exportDate()}.xlsx`,
     );
     toast.success("Company exported to Excel.");
@@ -393,14 +398,15 @@ const handleExportPdf = async () => {
   isExporting.value = true;
   try {
     const cols: PdfCol[] = [
-      { header: "No. Cust", width: 0.12 },
-      { header: "Company", width: 0.23 },
-      { header: "Email", width: 0.21 },
-      { header: "Phone", width: 0.12 },
-      { header: "Role", width: 0.09 },
-      { header: "Type", width: 0.11 },
+      { header: "No. Cust", width: 0.11 },
+      { header: "Company", width: 0.2 },
+      { header: "Email", width: 0.18 },
+      { header: "Phone", width: 0.1 },
+      { header: "Type", width: 0.12 },
+      { header: "Country", width: 0.1 },
+      { header: "City", width: 0.1 },
       { header: "Status", width: 0.07, align: "center" },
-      { header: "Jobs", width: 0.05, align: "right" },
+      { header: "Jobs", width: 0.02, align: "right" },
     ];
     const pdfRows = rows.map((company) => [
       company.code,
@@ -408,7 +414,8 @@ const handleExportPdf = async () => {
       company.email,
       company.phone,
       company.type,
-      company.categoryName,
+      company.country,
+      company.city,
       company.status,
       company.totalJobs,
     ]);
@@ -430,7 +437,7 @@ const handleExportPdf = async () => {
   }
 };
 
-watch([selectedType, selectedStatus, selectedCategory], () => {
+watch([selectedCategory, selectedCountry, selectedCity], () => {
   fetchWithFilters(1);
 });
 </script>
@@ -514,21 +521,21 @@ watch([selectedType, selectedStatus, selectedCategory], () => {
 
       <div class="flex items-center gap-3">
         <Combobox
-          v-model="selectedType"
-          :options="typeOptions"
-          placeholder="Filter by role..."
-          class="min-w-[160px]"
-        />
-        <Combobox
-          v-model="selectedStatus"
-          :options="statusOptions"
-          placeholder="Filter by status..."
-          class="min-w-[160px]"
-        />
-        <Combobox
-          v-model="selectedCategory"
+          v-model="selectedCategoryModel"
           :options="categoryOptions"
-          placeholder="Filter by type..."
+          placeholder="Type"
+          class="min-w-[180px]"
+        />
+        <Combobox
+          v-model="selectedCountryModel"
+          :options="countryOptions"
+          placeholder="Country"
+          class="min-w-[180px]"
+        />
+        <Combobox
+          v-model="selectedCityModel"
+          :options="cityOptions"
+          placeholder="City"
           class="min-w-[180px]"
         />
         <button
@@ -542,9 +549,12 @@ watch([selectedType, selectedStatus, selectedCategory], () => {
       </div>
     </div>
 
-    <div v-if="pending" class="flex items-center justify-center py-12">
-      <Loader2 class="w-8 h-8 animate-spin text-[#012D5A]" />
-    </div>
+    <UiLoadingSkeleton
+      v-if="pending && viewMode === 'list'"
+      variant="table"
+      :columns="canManageCompany ? 10 : 9"
+    />
+    <UiLoadingSkeleton v-else-if="pending" variant="cards" />
 
     <CompanyList
       v-else-if="viewMode === 'list'"

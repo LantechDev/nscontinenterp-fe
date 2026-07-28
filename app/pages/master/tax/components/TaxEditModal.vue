@@ -73,9 +73,7 @@ const treatmentValue = computed({
             {{ editError }}
           </div>
 
-          <div v-if="!formData.name && !editError" class="flex justify-center py-8">
-            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-[#012D5A]"></div>
-          </div>
+          <UiLoadingSkeleton v-if="!formData.name && !editError" variant="form" />
 
           <div v-else class="space-y-4">
             <div>

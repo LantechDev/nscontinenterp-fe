@@ -517,9 +517,7 @@ const generatePDF = async () => {
 
 <template>
   <div class="space-y-6 relative">
-    <div v-if="isLoading" class="flex items-center justify-center h-48">
-      <Loader2 class="w-8 h-8 animate-spin text-primary" />
-    </div>
+    <UiLoadingSkeleton v-if="isLoading" variant="form" />
 
     <template v-else-if="!bcData">
       <div class="space-y-4">

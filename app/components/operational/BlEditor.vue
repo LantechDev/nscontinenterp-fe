@@ -374,8 +374,8 @@ async function handleSave() {
         </section>
       </div>
 
-      <div v-else class="flex-1 flex items-center justify-center">
-        <Loader2 class="w-8 h-8 animate-spin text-primary" />
+      <div v-else class="flex-1 p-6">
+        <UiLoadingSkeleton variant="form" />
       </div>
 
       <!-- Footer -->

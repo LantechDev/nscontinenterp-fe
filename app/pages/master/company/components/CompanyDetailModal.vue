@@ -138,14 +138,7 @@ onUnmounted(() => {
           :style="addressMode !== 'view' ? 'max-width: 600px;' : 'max-width: calc(100vw - 320px);'"
         >
           <!-- Loading State -->
-          <div v-if="isLoading" class="flex items-center justify-center h-full">
-            <div class="flex flex-col items-center gap-3">
-              <div
-                class="h-10 w-10 animate-spin rounded-full border-4 border-[#012D5A] border-t-transparent"
-              ></div>
-              <p class="text-sm text-gray-500">Loading company details...</p>
-            </div>
-          </div>
+          <UiLoadingSkeleton v-if="isLoading" variant="form" />
 
           <div
             v-else-if="companyDetails"

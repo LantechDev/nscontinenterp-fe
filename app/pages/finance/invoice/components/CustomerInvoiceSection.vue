@@ -62,7 +62,7 @@ const {
   pending: isBootstrapping,
   error: bootstrapError,
   refresh: refreshBootstrap,
-} = await useAsyncData<InvoiceListApiResponse>(
+} = useAsyncData<InvoiceListApiResponse>(
   "invoice-list",
   async () => await $fetch<InvoiceListApiResponse>("/api/finance/invoice"),
   { server: false },
@@ -349,9 +349,29 @@ const handleExportPdf = async () => {
     </div>
 
     <!-- Loading state -->
-    <div v-if="loading" class="flex items-center justify-center py-12">
-      <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-[#012D5A]"></div>
-    </div>
+    <template v-if="loading && viewMode === 'list'">
+      <div class="border border-border rounded-xl bg-white overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full">
+            <thead>
+              <tr class="border-b border-border bg-white text-left">
+                <th class="py-3 px-4 text-sm font-medium text-foreground">No. Invoice</th>
+                <th class="py-3 px-4 text-sm font-medium text-foreground">Job No.</th>
+                <th class="py-3 px-4 text-sm font-medium text-foreground">Customer</th>
+                <th class="py-3 px-4 text-sm font-medium text-foreground">Tanggal</th>
+                <th class="py-3 px-4 text-sm font-medium text-foreground">Jatuh Tempo</th>
+                <th class="py-3 px-4 text-sm font-medium text-foreground">Total</th>
+                <th class="py-3 px-4 text-sm font-medium text-foreground">Kelebihan</th>
+                <th class="py-3 px-4 text-sm font-medium text-foreground">Status</th>
+                <th class="py-3 px-4 w-10"></th>
+              </tr>
+            </thead>
+            <UiLoadingSkeleton variant="table-rows" :columns="9" />
+          </table>
+        </div>
+      </div>
+    </template>
+    <UiLoadingSkeleton v-else-if="loading" variant="cards" />
 
     <!-- Error state -->
     <div v-else-if="error" class="text-center py-12">
@@ -396,7 +416,10 @@ const handleExportPdf = async () => {
     />
 
     <!-- Pagination -->
-    <div class="flex items-center justify-between text-sm text-muted-foreground">
+    <div
+      v-if="!loading && !error"
+      class="flex items-center justify-between text-sm text-muted-foreground"
+    >
       <p>{{ filteredInvoices.length }} data found.</p>
       <UiPagination
         v-model:page="currentPage"

@@ -218,7 +218,8 @@ const customerOptions = computed(() => {
             <th class="py-3 px-4 text-right text-sm font-medium text-gray-500">Total</th>
           </tr>
         </thead>
-        <tbody>
+        <UiLoadingSkeleton v-if="isLoading" variant="table-rows" :columns="5" />
+        <tbody v-else>
           <tr v-if="!transactions.length && !isLoading">
             <td colspan="5" class="py-8 text-center text-muted-foreground">No data available</td>
           </tr>

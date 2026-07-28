@@ -359,24 +359,14 @@ const stats = computed(() => {
               <th class="py-3 px-4 w-10"></th>
             </tr>
           </thead>
-          <tbody>
-            <tr v-if="isLoading">
-              <td colspan="7" class="py-12 text-center">
-                <div class="flex flex-col items-center gap-2">
-                  <div
-                    class="w-8 h-8 border-4 border-[#012D5A] border-t-transparent rounded-full animate-spin"
-                  ></div>
-                  <p class="text-sm text-muted-foreground font-medium">Memuat data...</p>
-                </div>
-              </td>
-            </tr>
-            <tr v-else-if="closingJobs.length === 0" class="border-b border-border last:border-0">
+          <UiLoadingSkeleton v-if="isLoading" variant="table-rows" :columns="7" />
+          <tbody v-else>
+            <tr v-if="closingJobs.length === 0" class="border-b border-border last:border-0">
               <td colspan="7" class="py-12 text-center">
                 <p class="text-sm text-muted-foreground font-medium">Tidak ada data ditemukan</p>
               </td>
             </tr>
             <tr
-              v-else
               v-for="job in closingJobs"
               :key="job.id"
               class="border-b border-border last:border-0 hover:bg-muted/30 transition-colors cursor-pointer"
@@ -431,20 +421,7 @@ const stats = computed(() => {
 
     <!-- Grid View -->
     <div v-else>
-      <div v-if="isLoading" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        <div
-          v-for="i in 6"
-          :key="i"
-          class="border border-border rounded-xl bg-white p-5 animate-pulse"
-        >
-          <div class="h-4 bg-muted rounded w-3/4 mb-4"></div>
-          <div class="h-4 bg-muted rounded w-1/2 mb-6"></div>
-          <div class="space-y-3">
-            <div class="h-3 bg-muted rounded w-full"></div>
-            <div class="h-3 bg-muted rounded w-full"></div>
-          </div>
-        </div>
-      </div>
+      <UiLoadingSkeleton v-if="isLoading" variant="cards" :cards="6" />
       <div
         v-else-if="closingJobs.length === 0"
         class="border border-border rounded-xl bg-white p-12 text-center"

@@ -197,11 +197,7 @@ onMounted(() => fetchAccounts());
     </div>
 
     <div class="border border-border rounded-xl bg-white overflow-hidden shadow-sm">
-      <div v-if="isLoading && accounts.length === 0" class="flex items-center justify-center py-16">
-        <Loader2 class="w-8 h-8 animate-spin text-[#012D5A]" />
-      </div>
-
-      <div v-else class="overflow-x-auto">
+      <div class="overflow-x-auto">
         <table class="w-full">
           <thead>
             <tr class="border-b border-border bg-muted/30 text-left">
@@ -215,7 +211,12 @@ onMounted(() => fetchAccounts());
               </th>
             </tr>
           </thead>
-          <tbody>
+          <UiLoadingSkeleton
+            v-if="isLoading && accounts.length === 0"
+            variant="table-rows"
+            :columns="canManage ? 6 : 5"
+          />
+          <tbody v-else>
             <tr
               v-for="account in filteredAccounts"
               :key="account.id"

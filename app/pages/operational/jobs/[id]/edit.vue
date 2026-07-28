@@ -49,7 +49,7 @@ const {
   data: jobData,
   pending: loading,
   error,
-} = await useAsyncData<JobWithBls>(
+} = useAsyncData<JobWithBls>(
   `job-${jobId}`,
   async () => {
     const res = await getJob(jobId);
@@ -1369,12 +1369,7 @@ function addVessel() {
       </header>
     </div>
 
-    <div v-if="isJobLoading" class="flex flex-col items-center justify-center py-20 gap-4">
-      <div
-        class="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin"
-      ></div>
-      <p class="text-muted-foreground animate-pulse">Loading job details...</p>
-    </div>
+    <UiLoadingSkeleton v-if="isJobLoading" variant="job-form" />
 
     <div v-else class="flex gap-8 relative px-0">
       <!-- Sidebar Navigation -->

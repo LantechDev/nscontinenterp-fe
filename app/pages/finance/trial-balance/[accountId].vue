@@ -171,12 +171,33 @@ onMounted(() => {
     </div>
 
     <!-- Loading State -->
-    <div v-if="isLoading" class="flex items-center justify-center py-12">
-      <div class="flex items-center gap-2">
-        <div
-          class="w-6 h-6 border-2 border-[#012D5A] border-t-transparent rounded-full animate-spin"
-        ></div>
-        <span class="text-muted-foreground">Loading account details...</span>
+    <div v-if="isLoading" class="space-y-6">
+      <UiLoadingSkeleton variant="stats" :cards="4" />
+      <div class="border border-border rounded-xl bg-white overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full">
+            <thead>
+              <tr class="border-b border-border bg-gray-50">
+                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
+                  Date
+                </th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
+                  Journal No
+                </th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">
+                  Description
+                </th>
+                <th class="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">
+                  Debit
+                </th>
+                <th class="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">
+                  Credit
+                </th>
+              </tr>
+            </thead>
+            <UiLoadingSkeleton variant="table-rows" :columns="5" />
+          </table>
+        </div>
       </div>
     </div>
 

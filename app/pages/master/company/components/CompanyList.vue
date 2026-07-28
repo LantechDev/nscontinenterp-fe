@@ -76,20 +76,33 @@ defineEmits<{
                 />
               </div>
             </th>
-            <th class="py-3 px-4 text-sm font-medium text-foreground">Total Job</th>
             <th
               class="py-3 px-4 text-sm font-medium text-foreground cursor-pointer hover:bg-muted/50"
-              @click="$emit('update:sort', 'type')"
+              @click="$emit('update:sort', 'country')"
             >
               <div class="flex items-center gap-1">
-                Role
+                Country
                 <ChevronDown
-                  v-if="sortField === 'type'"
+                  v-if="sortField === 'country'"
                   class="w-4 h-4"
                   :class="{ 'rotate-180': sortDirection === 'desc' }"
                 />
               </div>
             </th>
+            <th
+              class="py-3 px-4 text-sm font-medium text-foreground cursor-pointer hover:bg-muted/50"
+              @click="$emit('update:sort', 'city')"
+            >
+              <div class="flex items-center gap-1">
+                City
+                <ChevronDown
+                  v-if="sortField === 'city'"
+                  class="w-4 h-4"
+                  :class="{ 'rotate-180': sortDirection === 'desc' }"
+                />
+              </div>
+            </th>
+            <th class="py-3 px-4 text-sm font-medium text-foreground">Total Job</th>
             <th
               class="py-3 px-4 text-sm font-medium text-foreground cursor-pointer hover:bg-muted/50"
               @click="$emit('update:sort', 'status')"
@@ -125,23 +138,9 @@ defineEmits<{
             <td class="py-3 px-4 text-sm font-normal text-muted-foreground italic">
               {{ company.categoryName }}
             </td>
+            <td class="py-3 px-4 text-sm">{{ company.country }}</td>
+            <td class="py-3 px-4 text-sm">{{ company.city }}</td>
             <td class="py-3 px-4 text-sm">{{ company.totalJobs }}</td>
-            <td class="py-3 px-4">
-              <span
-                :class="
-                  cn(
-                    'px-2 py-1 rounded text-xs font-medium',
-                    company.type === 'Both'
-                      ? 'bg-gray-900 text-white'
-                      : company.type === 'Vendor'
-                        ? 'bg-blue-50 text-blue-700'
-                        : 'bg-gray-100 text-gray-700',
-                  )
-                "
-              >
-                {{ company.type }}
-              </span>
-            </td>
             <td class="py-3 px-4">
               <span
                 :class="
@@ -183,7 +182,7 @@ defineEmits<{
             </td>
           </tr>
           <tr v-if="companies.length === 0">
-            <td :colspan="canManage ? 9 : 8" class="py-8 text-center text-muted-foreground">
+            <td :colspan="canManage ? 10 : 9" class="py-8 text-center text-muted-foreground">
               No companies found
             </td>
           </tr>

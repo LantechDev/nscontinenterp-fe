@@ -1295,22 +1295,10 @@ function handleTaxReportExportExcel() {
       </div> -->
 
       <ClientOnly>
-        <!-- Loading Overlay - using v-show inside the container -->
-        <div
-          v-show="isLoading"
-          class="absolute inset-0 bg-white/80 z-20 flex items-center justify-center backdrop-blur-[1px]"
-        >
-          <div class="flex items-center gap-2">
-            <div
-              class="w-4 h-4 border-2 border-[#012D5A] border-t-transparent rounded-full animate-spin"
-            ></div>
-            <span class="text-sm text-muted-foreground">Loading...</span>
-          </div>
-        </div>
-
         <!-- ==================== TAB COMPONENTS ==================== -->
         <OverviewTab
           v-if="activeTab === 'Overview'"
+          :is-loading="isLoading"
           :stats-cards="overviewStatsCards"
           :financial-chart-options="financialChartOptions"
           :financial-chart-series="financialChartSeries"
