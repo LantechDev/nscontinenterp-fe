@@ -19,7 +19,7 @@ const {
   data: taxData,
   pending: loading,
   error,
-} = await useAsyncData<Tax>(`tax-${taxId}`, async () => await fetchTaxById(taxId), {
+} = useAsyncData<Tax>(`tax-${taxId}`, async () => await fetchTaxById(taxId), {
   server: false,
 });
 
@@ -158,9 +158,7 @@ function handleDownloadPdf() {
 
 <template>
   <div class="space-y-6 animate-fade-in p-6">
-    <div v-if="isLoading && !tax" class="flex justify-center py-12">
-      <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-    </div>
+    <UiLoadingSkeleton v-if="isLoading && !tax" variant="form" />
 
     <template v-else-if="tax">
       <div class="page-header">

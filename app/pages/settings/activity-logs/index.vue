@@ -90,9 +90,7 @@ const filters = ref({
 });
 
 // Initial fetch with useAsyncData
-const { data: initialData, pending: isLoading } = await useAsyncData<
-  PaginatedResponse<ActivityLog>
->(
+const { data: initialData, pending: isLoading } = useAsyncData<PaginatedResponse<ActivityLog>>(
   "activity-logs-initial",
   async () => {
     return await getActivityLogs({
@@ -307,7 +305,7 @@ watch(
 
     <!-- Activity Logs Table -->
     <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-      <div v-if="isLoading" class="p-8 text-center text-gray-500">Loading activity logs...</div>
+      <UiLoadingSkeleton v-if="isLoading" variant="table" :columns="5" />
 
       <div v-else-if="logs.length === 0" class="p-8 text-center text-gray-500">
         No activity logs found

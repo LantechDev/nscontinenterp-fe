@@ -15,8 +15,6 @@ onMounted(() => {
 
 <template>
   <div class="min-h-screen flex items-center justify-center bg-background">
-    <div class="animate-pulse">
-      <p class="text-muted-foreground">Memuat...</p>
-    </div>
+    <UiLoadingSkeleton variant="inline" />
   </div>
 </template>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ArrowLeft, Edit, Package, Loader2 } from "lucide-vue-next";
+import { ArrowLeft, Edit, Package } from "lucide-vue-next";
 import { cn } from "~/lib/utils";
 import { ServiceCreateModal } from "./components";
 import type { Service } from "~/composables/useServices";
@@ -18,7 +18,7 @@ const {
   data: serviceData,
   pending,
   refresh,
-} = await useAsyncData<Service>(
+} = useAsyncData<Service>(
   `service-${id}`,
   async () => {
     const result = await $fetch<Service>(`/api/master/services/${id}`);
@@ -79,9 +79,7 @@ const handleUpdateService = async (formData: ServiceFormData) => {
 
 <template>
   <div class="space-y-6 animate-fade-in p-6">
-    <div v-if="isLoading" class="flex items-center justify-center py-20">
-      <Loader2 class="w-8 h-8 animate-spin text-primary" />
-    </div>
+    <UiLoadingSkeleton v-if="isLoading" variant="form" />
 
     <template v-else-if="service">
       <div class="page-header">

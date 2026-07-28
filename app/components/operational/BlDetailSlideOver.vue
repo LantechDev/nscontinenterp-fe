@@ -126,8 +126,8 @@ const auditTrail = [
         </button>
       </div>
 
-      <div v-if="loadingBl" class="flex-1 flex items-center justify-center">
-        <Loader2 class="w-8 h-8 animate-spin text-primary" />
+      <div v-if="loadingBl" class="flex-1 p-6">
+        <UiLoadingSkeleton variant="form" />
       </div>
 
       <div v-else-if="bl" class="flex-1 overflow-y-auto flex flex-col">

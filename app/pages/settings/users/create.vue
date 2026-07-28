@@ -18,13 +18,9 @@ const {
   pending: isRolesLoading,
   error: rolesError,
   refresh: refreshRoles,
-} = await useAsyncData<Role[]>(
-  "roles-create",
-  async () => await $fetch<Role[]>("/api/admin/roles"),
-  {
-    server: false,
-  },
-);
+} = useAsyncData<Role[]>("roles-create", async () => await $fetch<Role[]>("/api/admin/roles"), {
+  server: false,
+});
 
 const formSchema = z
   .object({
@@ -114,11 +110,9 @@ const handleSubmit = async () => {
       </div>
     </div>
 
-    <div v-if="isRolesLoading" class="flex justify-center py-6">
-      <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
-    </div>
+    <UiLoadingSkeleton v-if="isRolesLoading" variant="form" />
 
-    <form @submit.prevent="handleSubmit" class="card-elevated p-6 space-y-6">
+    <form v-else @submit.prevent="handleSubmit" class="card-elevated p-6 space-y-6">
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div class="space-y-2">
           <label class="text-sm font-medium">Nama</label>

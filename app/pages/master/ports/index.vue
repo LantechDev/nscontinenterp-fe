@@ -456,21 +456,9 @@ const sourceDotClass = (source?: LocationSource) =>
           <Plane v-else class="w-4 h-4 text-[#012D5A]" />
           <h2 class="text-sm font-bold text-foreground">{{ pageTitle }}</h2>
         </div>
-        <Loader2 v-if="isLoading" class="w-4 h-4 animate-spin text-muted-foreground" />
       </div>
 
       <div class="relative overflow-x-auto">
-        <div
-          v-if="isLoading && filteredLocations.length > 0"
-          class="absolute inset-0 z-10 bg-white/65 backdrop-blur-[1px] flex items-start justify-center pt-20"
-        >
-          <div
-            class="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-white border border-border shadow-sm text-sm font-bold text-[#012D5A]"
-          >
-            <Loader2 class="w-4 h-4 animate-spin" />
-            Loading locations...
-          </div>
-        </div>
         <table class="w-full text-sm">
           <thead class="bg-gray-50 border-b border-border">
             <tr class="text-left text-xs font-bold uppercase tracking-wider text-muted-foreground">
@@ -484,14 +472,8 @@ const sourceDotClass = (source?: LocationSource) =>
               <th class="px-4 py-3 text-right">Actions</th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-border/60">
-            <template v-if="isLoading && filteredLocations.length === 0">
-              <tr v-for="row in 8" :key="`loading-${row}`">
-                <td class="px-4 py-4" colspan="8">
-                  <div class="h-5 rounded bg-gray-100 animate-pulse"></div>
-                </td>
-              </tr>
-            </template>
+          <UiLoadingSkeleton v-if="isLoading" variant="table-rows" :rows="8" :columns="8" />
+          <tbody v-else class="divide-y divide-border/60">
             <tr
               v-for="location in filteredLocations"
               :key="`${location.type}-${location.code}`"

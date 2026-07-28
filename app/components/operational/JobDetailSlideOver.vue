@@ -660,8 +660,8 @@ watch(
             </div>
           </div>
 
-          <div v-if="isLoading" class="flex-1 flex items-center justify-center">
-            <Loader2 class="w-8 h-8 animate-spin text-primary" />
+          <div v-if="isLoading" class="flex-1 p-6">
+            <UiLoadingSkeleton variant="form" />
           </div>
 
           <div v-else-if="job" class="flex-1 flex flex-col min-h-0">

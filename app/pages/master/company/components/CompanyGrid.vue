@@ -71,11 +71,6 @@ defineEmits<{
 
       <div class="flex items-center justify-between pt-4 border-t border-border">
         <div class="flex items-center gap-2">
-          <!-- Role (Customer/Vendor) -->
-          <span class="px-2 py-1 rounded bg-gray-100 text-gray-700 text-xs font-medium">{{
-            company.type
-          }}</span>
-          <!-- Type (Dynamic Category) -->
           <span
             v-if="company.categoryName !== '-'"
             class="px-2 py-1 rounded bg-blue-50 text-blue-700 text-xs font-medium italic"
@@ -97,6 +92,11 @@ defineEmits<{
           <span class="font-bold text-sm text-foreground">{{ company.totalJobs }}</span>
           <span class="text-xs text-muted-foreground ml-1">Total Job</span>
         </div>
+      </div>
+      <div class="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
+        <span>{{ company.country }}</span>
+        <span>/</span>
+        <span>{{ company.city }}</span>
       </div>
     </div>
     <div v-if="companies.length === 0" class="col-span-2 py-8 text-center text-muted-foreground">

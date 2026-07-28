@@ -463,7 +463,18 @@ const expenseTypeOptions = [
 
 <template>
   <div class="space-y-4 px-6">
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div v-if="isLoading" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div
+        v-for="card in 2"
+        :key="card"
+        class="border border-border rounded-xl bg-white p-4 animate-pulse"
+      >
+        <div class="h-3 w-32 rounded bg-muted mb-4" />
+        <div class="h-7 w-36 rounded bg-muted mb-3" />
+        <div class="h-3 w-20 rounded bg-muted" />
+      </div>
+    </div>
+    <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-4">
       <FinanceStatCard
         v-for="(card, index) in statsCards"
         :key="index"
@@ -625,7 +636,8 @@ const expenseTypeOptions = [
               <th class="py-3 px-4 text-center text-sm font-medium text-gray-500">Aksi</th>
             </tr>
           </thead>
-          <tbody>
+          <UiLoadingSkeleton v-if="isLoading" variant="table-rows" :columns="9" />
+          <tbody v-else>
             <tr v-if="!filteredItems.length && !isLoading">
               <td colspan="9" class="py-8 text-center text-muted-foreground">No data available</td>
             </tr>

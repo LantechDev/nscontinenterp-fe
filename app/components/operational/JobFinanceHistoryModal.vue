@@ -33,12 +33,8 @@ const emit = defineEmits<{
     width="max-w-xl"
   >
     <div class="space-y-4 pt-2">
-      <div
-        v-if="isLoading"
-        class="flex flex-col items-center justify-center py-8 gap-2 text-muted-foreground"
-      >
-        <Loader2 class="w-8 h-8 animate-spin text-primary" />
-        <span class="text-xs">Loading history...</span>
+      <div v-if="isLoading" class="py-4">
+        <UiLoadingSkeleton variant="table" :columns="3" />
       </div>
       <div
         v-else-if="historyLogs.length === 0"

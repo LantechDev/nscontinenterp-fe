@@ -832,12 +832,8 @@ const getStatusColor = (code?: string) => {
         </div>
       </div>
 
-      <div
-        v-if="isLoading && expenses.length === 0"
-        class="py-12 flex flex-col items-center justify-center space-y-3"
-      >
-        <Loader2 class="w-8 h-8 animate-spin text-[#012D5A] opacity-60" />
-        <p class="text-sm text-muted-foreground">Loading vendor invoices...</p>
+      <div v-if="isLoading" class="py-2">
+        <UiLoadingSkeleton variant="table" :columns="6" />
       </div>
 
       <div v-else-if="error" class="p-6 text-center bg-red-50 rounded-xl border border-red-100">
@@ -1261,9 +1257,7 @@ const getStatusColor = (code?: string) => {
       width="max-w-4xl"
     >
       <div class="space-y-3 pt-1">
-        <div v-if="isLoadingQuotations" class="py-8 flex justify-center">
-          <Loader2 class="w-6 h-6 animate-spin text-[#062c58]" />
-        </div>
+        <UiLoadingSkeleton v-if="isLoadingQuotations" variant="cards" :cards="3" />
         <div v-else-if="quotationsList.length === 0" class="py-8 text-center">
           <FileText class="w-8 h-8 text-muted-foreground/30 mx-auto mb-3" />
           <p class="text-sm font-semibold text-muted-foreground">

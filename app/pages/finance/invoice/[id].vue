@@ -25,7 +25,7 @@ const {
   pending: loading,
   error,
   refresh,
-} = await useAsyncData<InvoiceDetail>(
+} = useAsyncData<InvoiceDetail>(
   `invoice-${invoiceId}`,
   async () => {
     const result = await fetchInvoiceById(invoiceId);
@@ -325,9 +325,7 @@ watch(selectedTaxId, () => {
 
 <template>
   <!-- Loading State -->
-  <div v-if="loading" class="flex items-center justify-center py-20">
-    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-[#012D5A]"></div>
-  </div>
+  <UiLoadingSkeleton v-if="loading" variant="form" />
 
   <!-- Error State -->
   <div v-else-if="error" class="text-center py-12">

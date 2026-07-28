@@ -82,7 +82,7 @@ const {
   data: masterData,
   pending: isLoadingMaster,
   refresh,
-} = await useAsyncData(
+} = useAsyncData(
   "quotation-edit-master",
   async () => {
     const [comps, servs, taxesRes, initialPorts, cTypes] = await Promise.all([
@@ -1035,12 +1035,7 @@ function scrollTo(id: string) {
       <!-- Main Form Content -->
       <main id="main-scroll-container" class="flex-1 w-full min-w-0">
         <div class="max-w-6xl mx-auto space-y-6 pb-20">
-          <div
-            v-if="isLoadingMaster || !isDataLoaded"
-            class="text-center text-muted-foreground py-12"
-          >
-            Loading quotation details...
-          </div>
+          <UiLoadingSkeleton v-if="isLoadingMaster || !isDataLoaded" variant="form" />
           <div v-else class="space-y-6">
             <!-- Billing Info section card -->
             <SectionCard id="header-info" title="Header & Customer Information" :icon="Building2">

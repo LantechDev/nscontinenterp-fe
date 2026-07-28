@@ -157,9 +157,7 @@ const formatDate = (d?: string) => {
       </button>
     </div>
 
-    <div v-if="isLoading" class="flex items-center justify-center py-12">
-      <Loader2 class="w-8 h-8 animate-spin text-[#012D5A]" />
-    </div>
+    <UiLoadingSkeleton v-if="isLoading" variant="table" :columns="4" />
 
     <div v-else class="border border-border rounded-xl bg-white overflow-x-auto">
       <table class="w-full min-w-[480px]">

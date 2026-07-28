@@ -977,9 +977,7 @@ onMounted(async () => {
       </div>
     </div>
 
-    <div v-if="isLoading && trackings.length === 0" class="p-8 text-center text-muted-foreground">
-      Loading vessel tracking...
-    </div>
+    <UiLoadingSkeleton v-if="isLoading" variant="table" :columns="7" />
 
     <div
       v-else-if="viewMode === 'list'"

@@ -459,22 +459,33 @@ onMounted(() => {
             />
           </div>
 
+          <!-- Loading State -->
+          <div v-else-if="isLoading" class="overflow-x-auto">
+            <table class="w-full">
+              <thead>
+                <tr class="border-b border-border bg-gray-50/50">
+                  <th class="py-3 px-4 text-left text-sm font-medium text-gray-500">Inv Date</th>
+                  <th class="py-3 px-4 text-left text-sm font-medium text-gray-500">Invoice No.</th>
+                  <th class="py-3 px-4 text-left text-sm font-medium text-gray-500">Customer</th>
+                  <th class="py-3 px-4 text-right text-sm font-medium text-gray-500">Total</th>
+                  <th class="py-3 px-4 text-right text-sm font-medium text-gray-500">
+                    Outstanding
+                  </th>
+                  <th class="py-3 px-4 text-center text-sm font-medium text-gray-500">Status</th>
+                </tr>
+              </thead>
+              <UiLoadingSkeleton variant="table-rows" :columns="6" />
+            </table>
+          </div>
+
           <!-- Empty State -->
-          <div v-else-if="!isLoading" class="flex flex-col items-center justify-center py-24 px-6">
+          <div v-else class="flex flex-col items-center justify-center py-24 px-6">
             <div class="w-16 h-16 rounded-full bg-gray-50 flex items-center justify-center mb-4">
               <Search class="w-8 h-8 text-gray-300" />
             </div>
             <h3 class="text-lg font-semibold text-gray-900 mb-1">Generate Report</h3>
             <p class="text-muted-foreground text-center max-w-sm text-sm">
               Select filters above and click generate to analyze outstanding payments.
-            </p>
-          </div>
-
-          <!-- Loading State -->
-          <div v-if="isLoading" class="flex flex-col items-center justify-center py-24">
-            <Loader2 class="w-10 h-10 animate-spin text-[#012D5A] opacity-20 mb-4" />
-            <p class="text-sm font-medium text-muted-foreground animate-pulse">
-              Calculating balances...
             </p>
           </div>
         </div>

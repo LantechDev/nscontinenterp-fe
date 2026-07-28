@@ -171,7 +171,7 @@ const {
   pending: isBootstrapping,
   error: bootstrapError,
   refresh: refreshBootstrap,
-} = await useAsyncData<ExpenseBootstrapData>(
+} = useAsyncData<ExpenseBootstrapData>(
   "expense-list",
   async () => {
     const expensesResp = await $fetch<{
@@ -367,9 +367,29 @@ const isPageLoading = computed(() => isLoading.value || isBootstrapping.value);
       </div>
     </div>
 
-    <div v-if="isPageLoading" class="flex justify-center py-12">
-      <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-    </div>
+    <template v-if="isPageLoading && viewMode === 'list'">
+      <div class="border border-border rounded-xl bg-white overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full">
+            <thead>
+              <tr class="border-b border-border bg-white text-left">
+                <th class="py-3 px-4 text-sm font-medium text-foreground">No. Transaksi</th>
+                <th class="py-3 px-4 text-sm font-medium text-foreground">Tipe</th>
+                <th class="py-3 px-4 text-sm font-medium text-foreground">Deskripsi</th>
+                <th class="py-3 px-4 text-sm font-medium text-foreground">Kategori</th>
+                <th class="py-3 px-4 text-sm font-medium text-foreground">Vendor/Kontak</th>
+                <th class="py-3 px-4 text-sm font-medium text-foreground">Tanggal</th>
+                <th class="py-3 px-4 text-sm font-medium text-foreground">Jumlah</th>
+                <th class="py-3 px-4 text-sm font-medium text-foreground">Kelebihan</th>
+                <th class="py-3 px-4 w-10"></th>
+              </tr>
+            </thead>
+            <UiLoadingSkeleton variant="table-rows" :columns="9" />
+          </table>
+        </div>
+      </div>
+    </template>
+    <UiLoadingSkeleton v-else-if="isPageLoading" variant="cards" />
 
     <template v-else>
       <!-- List View -->

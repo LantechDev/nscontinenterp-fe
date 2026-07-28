@@ -289,9 +289,8 @@ const formatDate = (dateStr?: string) => {
       </div>
     </div>
 
-    <div v-if="isLoading" class="flex items-center justify-center py-12">
-      <Loader2 class="w-8 h-8 animate-spin text-[#012D5A]" />
-    </div>
+    <UiLoadingSkeleton v-if="isLoading && viewMode === 'list'" variant="table" :columns="5" />
+    <UiLoadingSkeleton v-else-if="isLoading" variant="cards" />
 
     <div
       v-else-if="viewMode === 'list'"

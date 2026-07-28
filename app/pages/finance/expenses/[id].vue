@@ -40,11 +40,9 @@ const {
   pending: loading,
   error,
   refresh,
-} = await useAsyncData<Expense>(
-  `expense-${expenseId}`,
-  async () => await fetchExpenseById(expenseId),
-  { server: false },
-);
+} = useAsyncData<Expense>(`expense-${expenseId}`, async () => await fetchExpenseById(expenseId), {
+  server: false,
+});
 
 const expense = computed(() => expenseData.value);
 const isLoading = computed(() => loading.value);
@@ -153,9 +151,7 @@ onMounted(() => {
 <template>
   <div class="space-y-6 animate-fade-in p-6">
     <!-- Loading State -->
-    <div v-if="isLoading && !expense" class="flex items-center justify-center py-20">
-      <Loader2 class="w-8 h-8 animate-spin text-primary" />
-    </div>
+    <UiLoadingSkeleton v-if="isLoading && !expense" variant="form" />
 
     <!-- Error State -->
     <div

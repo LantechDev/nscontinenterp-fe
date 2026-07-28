@@ -25,7 +25,7 @@ const searchQuery = ref("");
 const isDeleting = ref(false);
 const errorRoot = ref("");
 
-const { pending } = await useAsyncData("roles-list", () => fetchRoles(), { server: false });
+const { pending } = useAsyncData("roles-list", () => fetchRoles(), { server: false });
 
 // Pagination
 const currentPage = ref(1);
@@ -133,20 +133,14 @@ const handleDelete = async (role: Role) => {
               <th v-if="canManage" class="py-3 px-4 w-28">Action</th>
             </tr>
           </thead>
-          <tbody>
-            <tr v-if="isLoading">
-              <td :colspan="canManage ? 5 : 4" class="text-center p-8 text-muted-foreground">
-                <Loader2 class="w-6 h-6 mx-auto animate-spin mb-2" />
-                Loading roles...
-              </td>
-            </tr>
-            <tr v-else-if="filteredRoles.length === 0">
+          <UiLoadingSkeleton v-if="isLoading" variant="table-rows" :columns="canManage ? 5 : 4" />
+          <tbody v-else>
+            <tr v-if="filteredRoles.length === 0">
               <td :colspan="canManage ? 5 : 4" class="text-center p-8 text-muted-foreground">
                 No roles found.
               </td>
             </tr>
             <tr
-              v-else
               v-for="role in filteredRoles"
               :key="role.id"
               class="border-b border-border last:border-0 hover:bg-muted/30 transition-colors"

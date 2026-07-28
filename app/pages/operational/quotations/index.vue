@@ -133,7 +133,11 @@ function getQuotationTotals(q: Quotation) {
     return totals;
   }
 
-  q.charges.forEach((ch) => {
+  const billableCharges = q.charges.filter((ch) => !ch.atCost);
+  const hasIdrCharge = billableCharges.some((ch) => (ch.currency || "IDR") !== "USD");
+  const isFullUsd = billableCharges.length > 0 && !hasIdrCharge;
+
+  billableCharges.forEach((ch) => {
     const currency = ch.currency || "IDR";
     const qty = Number(ch.quantity || 0);
     const price = Number(ch.unitPrice || 0);
@@ -142,7 +146,7 @@ function getQuotationTotals(q: Quotation) {
     const taxAmount = amount * (taxRate / 100);
     const lineTotal = amount + taxAmount;
 
-    if (shouldConvert && currency === "USD") {
+    if (shouldConvert && currency === "USD" && !isFullUsd) {
       totals.IDR = (totals.IDR || 0) + Math.round(lineTotal * rate);
     } else {
       totals[currency] = (totals[currency] || 0) + lineTotal;
@@ -157,12 +161,14 @@ function getQuotationTotals(q: Quotation) {
 
 function getQuotationCurrencies(q: Quotation) {
   const rate = Number(q.exchangeRate || 1);
-  if (rate > 1) return ["IDR"];
-
   if (!q.charges || q.charges.length === 0) {
     return [q.currency || "IDR"];
   }
-  return Array.from(new Set(q.charges.map((ch) => ch.currency || "IDR")));
+  const currencies = Array.from(
+    new Set(q.charges.filter((ch) => !ch.atCost).map((ch) => ch.currency || "IDR")),
+  );
+  if (rate > 1 && currencies.some((currency) => currency !== "USD")) return ["IDR"];
+  return currencies;
 }
 
 function formatDate(dateStr: string): string {
@@ -327,19 +333,6 @@ watch(
     <!-- Scrollable Content -->
     <div class="flex-1 overflow-y-auto relative pt-6 pb-10 space-y-6 bg-slate-50/50">
       <ClientOnly>
-        <!-- Loading Overlay -->
-        <div
-          v-show="isLoading"
-          class="absolute inset-0 bg-white/80 z-20 flex items-center justify-center backdrop-blur-[1px]"
-        >
-          <div class="flex items-center gap-2">
-            <div
-              class="w-4 h-4 border-2 border-[#062c58] border-t-transparent rounded-full animate-spin"
-            ></div>
-            <span class="text-sm font-medium text-muted-foreground">Loading...</span>
-          </div>
-        </div>
-
         <!-- KPI Summary Row matching finance/dashboard.vue font weights -->
         <div class="grid grid-cols-1 md:grid-cols-4 gap-4 px-6">
           <div
@@ -466,8 +459,9 @@ watch(
                     <th class="py-3 px-4 w-10"></th>
                   </tr>
                 </thead>
-                <tbody>
-                  <tr v-if="!quotations.length && !isLoading">
+                <UiLoadingSkeleton v-if="isLoading" variant="table-rows" :columns="8" />
+                <tbody v-else>
+                  <tr v-if="!quotations.length">
                     <td
                       colspan="8"
                       class="py-12 text-center text-xs font-medium text-muted-foreground"

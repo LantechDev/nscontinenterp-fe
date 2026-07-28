@@ -174,9 +174,7 @@ const handleDeleteUser = async (userId: string, userName: string) => {
       </div>
     </div>
 
-    <div v-else-if="pending" class="flex justify-center py-6">
-      <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
-    </div>
+    <UiLoadingSkeleton v-else-if="pending" variant="table" :columns="5" />
 
     <div class="bg-white rounded-lg border border-border overflow-hidden">
       <table class="w-full">

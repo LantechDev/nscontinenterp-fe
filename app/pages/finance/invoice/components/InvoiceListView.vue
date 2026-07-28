@@ -81,7 +81,7 @@ const groupedInvoices = computed(() => {
           <template v-for="group in groupedInvoices" :key="group.jobKey">
             <!-- Job Header Row -->
             <tr class="bg-gray-50 border-b border-border">
-              <td colspan="8" class="py-2.5 px-4">
+              <td colspan="9" class="py-2.5 px-4">
                 <div class="flex items-center gap-2">
                   <span
                     class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest"

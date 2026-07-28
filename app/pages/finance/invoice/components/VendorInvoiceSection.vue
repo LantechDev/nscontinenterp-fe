@@ -107,7 +107,7 @@ const {
   pending: isBootstrapping,
   error: bootstrapError,
   refresh: refreshBootstrap,
-} = await useAsyncData<ExpenseBootstrapData>(
+} = useAsyncData<ExpenseBootstrapData>(
   "expense-list",
   async () => {
     const expensesResp = await $fetch<{ items: Expense[]; pagination: Pagination }>(
@@ -288,9 +288,27 @@ const handleInvoiceClick = (expense: Expense) => {
       </div>
     </div>
 
-    <div v-if="isPageLoading" class="flex justify-center py-12">
-      <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-    </div>
+    <template v-if="isPageLoading && viewMode === 'list'">
+      <div class="border border-border rounded-xl bg-white overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full">
+            <thead>
+              <tr class="border-b border-border bg-white text-left">
+                <th class="py-3 px-4 text-sm font-medium text-foreground">No. Invoice Vendor</th>
+                <th class="py-3 px-4 text-sm font-medium text-foreground">Job No.</th>
+                <th class="py-3 px-4 text-sm font-medium text-foreground">Vendor</th>
+                <th class="py-3 px-4 text-sm font-medium text-foreground">Tanggal</th>
+                <th class="py-3 px-4 text-sm font-medium text-foreground">Jumlah</th>
+                <th class="py-3 px-4 text-sm font-medium text-foreground">Status</th>
+                <th class="py-3 px-4 w-10"></th>
+              </tr>
+            </thead>
+            <UiLoadingSkeleton variant="table-rows" :columns="7" />
+          </table>
+        </div>
+      </div>
+    </template>
+    <UiLoadingSkeleton v-else-if="isPageLoading" variant="cards" />
 
     <template v-else>
       <!-- List View -->

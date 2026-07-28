@@ -299,6 +299,29 @@ const itemsTotalRevenue = computed(() => {
   return { idrTotal, usdTotal, hasUsd: usdTotal > 0, hasRate: rate > 1 };
 });
 
+const itemsTotalDisplay = computed(() => {
+  const totals = itemsTotalRevenue.value;
+  const hasIdr = totals.idrTotal > 0;
+
+  if (totals.hasUsd && !hasIdr) {
+    return {
+      primaryAmount: totals.usdTotal,
+      primaryCurrency: "USD",
+      secondaryAmount: 0,
+      secondaryCurrency: "IDR",
+      showSecondary: false,
+    };
+  }
+
+  return {
+    primaryAmount: totals.idrTotal,
+    primaryCurrency: "IDR",
+    secondaryAmount: totals.usdTotal,
+    secondaryCurrency: "USD",
+    showSecondary: totals.hasUsd && totals.usdTotal > 0,
+  };
+});
+
 const invoiceSummary = computed(() => {
   let totalInvoicedIDR = 0;
   let totalInvoicedUSD = 0;
@@ -528,8 +551,8 @@ const handleGeneratePDF = async () => {
           </div>
 
           <!-- Loading Indicator -->
-          <div v-if="isLoading" class="flex-1 flex items-center justify-center">
-            <Loader2 class="w-8 h-8 animate-spin text-[#012D5A]" />
+          <div v-if="isLoading" class="flex-1 p-6">
+            <UiLoadingSkeleton variant="form" />
           </div>
 
           <!-- Main Layout -->
@@ -940,13 +963,23 @@ const handleGeneratePDF = async () => {
                         >
                         <div class="text-right">
                           <p class="font-black text-sm text-[#012D5A]">
-                            {{ formatCurrency(itemsTotalRevenue.idrTotal, "IDR") }}
+                            {{
+                              formatCurrency(
+                                itemsTotalDisplay.primaryAmount,
+                                itemsTotalDisplay.primaryCurrency,
+                              )
+                            }}
                           </p>
                           <p
-                            v-if="itemsTotalRevenue.hasUsd && itemsTotalRevenue.hasRate"
+                            v-if="itemsTotalDisplay.showSecondary"
                             class="text-[9px] text-muted-foreground font-bold"
                           >
-                            {{ formatCurrency(itemsTotalRevenue.usdTotal, "USD") }}
+                            {{
+                              formatCurrency(
+                                itemsTotalDisplay.secondaryAmount,
+                                itemsTotalDisplay.secondaryCurrency,
+                              )
+                            }}
                           </p>
                         </div>
                         <ChevronRight

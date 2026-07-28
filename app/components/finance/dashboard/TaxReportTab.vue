@@ -123,7 +123,18 @@ watch(isJobDetailOpen, (isOpen) => {
 <template>
   <div class="space-y-4 px-6 pb-6">
     <!-- Stat Cards -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div v-if="isLoading" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div
+        v-for="card in 3"
+        :key="card"
+        class="border border-border rounded-xl bg-white p-4 animate-pulse"
+      >
+        <div class="h-3 w-32 rounded bg-muted mb-4" />
+        <div class="h-7 w-36 rounded bg-muted mb-3" />
+        <div class="h-3 w-20 rounded bg-muted" />
+      </div>
+    </div>
+    <div v-else class="grid grid-cols-1 md:grid-cols-3 gap-4">
       <FinanceStatCard
         v-for="(card, index) in statsCards"
         :key="index"
@@ -189,20 +200,11 @@ watch(isJobDetailOpen, (isOpen) => {
               <th class="py-3 px-4 text-center text-sm font-medium text-gray-500 w-12"></th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-gray-100">
+          <UiLoadingSkeleton v-if="isLoading" variant="table-rows" :columns="8" />
+          <tbody v-else class="divide-y divide-gray-100">
             <tr v-if="!filteredTaxReportData.length && !isLoading">
               <td colspan="8" class="py-12 text-center text-muted-foreground italic">
                 Tidak ada data pajak untuk periode ini
-              </td>
-            </tr>
-            <tr v-if="isLoading" class="animate-pulse">
-              <td colspan="8" class="py-8 text-center text-muted-foreground">
-                <div class="flex items-center justify-center gap-2">
-                  <div
-                    class="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin"
-                  ></div>
-                  Memuat data...
-                </div>
               </td>
             </tr>
             <tr

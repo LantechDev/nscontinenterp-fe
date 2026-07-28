@@ -100,6 +100,8 @@ export type MappedCompany = Company & {
   address: string;
   type: string;
   categoryName: string;
+  country: string;
+  city: string;
   status: string;
   totalJobs: number;
 };

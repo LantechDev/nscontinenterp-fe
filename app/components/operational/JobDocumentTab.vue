@@ -258,9 +258,7 @@ const closePreview = () => {
       </div>
     </div>
 
-    <div v-if="isLoading" class="flex justify-center p-8">
-      <Loader2 class="w-6 h-6 animate-spin text-[#012D5A]" />
-    </div>
+    <UiLoadingSkeleton v-if="isLoading" variant="table" :columns="4" :rows="3" />
     <div v-else-if="uploadedDocuments.length > 0 || isUploading" class="space-y-4 mt-8">
       <div class="flex items-center justify-between">
         <h4 class="text-sm font-bold text-foreground uppercase tracking-wider">
@@ -398,12 +396,11 @@ const closePreview = () => {
             >
               <div
                 v-if="isPdfLoading"
-                class="absolute inset-0 flex flex-col items-center justify-center bg-white/80 gap-3 z-10"
+                class="absolute inset-0 flex items-center justify-center bg-white/80 z-10"
               >
-                <Loader2 class="w-8 h-8 animate-spin text-[#012D5A]" />
-                <p class="text-sm font-semibold text-[#012D5A] animate-pulse">
-                  Loading PDF preview...
-                </p>
+                <div class="w-72 rounded-lg bg-white border border-border shadow-sm p-3">
+                  <UiLoadingSkeleton variant="inline" />
+                </div>
               </div>
               <iframe
                 v-if="pdfBlobUrl || !isPdfLoading"
@@ -438,7 +435,9 @@ const closePreview = () => {
                 v-if="isTextLoading"
                 class="absolute inset-0 flex items-center justify-center bg-white/80 z-10"
               >
-                <Loader2 class="w-8 h-8 animate-spin text-[#012D5A]" />
+                <div class="w-72 rounded-lg bg-white border border-border shadow-sm p-3">
+                  <UiLoadingSkeleton variant="inline" />
+                </div>
               </div>
               <pre
                 class="w-full h-full flex-1 overflow-auto text-left text-sm font-mono whitespace-pre-wrap break-words border border-border rounded-lg shadow-sm bg-white p-4"

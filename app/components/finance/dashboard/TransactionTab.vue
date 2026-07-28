@@ -140,7 +140,18 @@ const mappedTypeOptions = computed(() => {
 <template>
   <div class="space-y-4 px-6">
     <!-- Stat Cards -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div v-if="isLoading" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div
+        v-for="card in 4"
+        :key="card"
+        class="border border-border rounded-xl bg-white p-4 animate-pulse"
+      >
+        <div class="h-3 w-28 rounded bg-muted mb-4" />
+        <div class="h-7 w-32 rounded bg-muted mb-3" />
+        <div class="h-3 w-20 rounded bg-muted" />
+      </div>
+    </div>
+    <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
       <FinanceStatCard
         v-for="(card, index) in statsCards"
         :key="index"
@@ -266,7 +277,8 @@ const mappedTypeOptions = computed(() => {
               <th class="py-3 px-4 text-right text-sm font-medium text-gray-500">Total</th>
             </tr>
           </thead>
-          <tbody>
+          <UiLoadingSkeleton v-if="isLoading" variant="table-rows" :columns="6" />
+          <tbody v-else>
             <tr v-if="!transactions.length && !isLoading">
               <td colspan="6" class="py-8 text-center text-muted-foreground">No data available</td>
             </tr>
