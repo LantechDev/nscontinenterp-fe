@@ -277,6 +277,10 @@ export function useRoleAccess() {
       return hasAccess("finance.invoice");
     }
 
+    if (path.startsWith("/finance/report")) {
+      return hasAccess("finance.report");
+    }
+
     if (
       path.startsWith("/finance/chart-of-accounts") ||
       path.startsWith("/finance/coa-mapping") ||
