@@ -18,6 +18,55 @@ export interface CurrencyTotal {
   total: number;
 }
 
+export interface ProfitCurrencyBucket {
+  revenue: number;
+  cost: number;
+  profit: number;
+  margin: number;
+}
+
+export interface ProfitSummary {
+  byCurrency: Record<string, ProfitCurrencyBucket>;
+  combined: { revenueIDR: number; costIDR: number; profitIDR: number; marginIDR: number };
+}
+
+export interface ProfitCharge {
+  atCost?: boolean | null;
+  currency?: string | null;
+  quantity?: string | number | null;
+  unitPrice?: string | number | null;
+}
+
+export interface ProfitCostItem {
+  currency?: string | null;
+  amount?: string | number | null;
+  quantity?: string | number | null;
+  unitPrice?: string | number | null;
+}
+
+export interface ProfitCost {
+  exchangeRate?: string | number | null;
+  items?: ProfitCostItem[] | null;
+}
+
+export interface ProfitQuotation {
+  exchangeRate?: string | number | null;
+  charges?: ProfitCharge[] | null;
+}
+
+function emptyProfitBucket(): ProfitCurrencyBucket {
+  return { revenue: 0, cost: 0, profit: 0, margin: 0 };
+}
+
+function ensureProfitBucket(summary: ProfitSummary, currency: string) {
+  if (!summary.byCurrency[currency]) summary.byCurrency[currency] = emptyProfitBucket();
+  return summary.byCurrency[currency]!;
+}
+
+function numeric(value: string | number | null | undefined) {
+  return Number(value || 0);
+}
+
 /** Items that are actually persisted: a non-blank description AND a positive unit price. */
 export function filterValidCostItems<T extends CostItem>(items: T[]): T[] {
   return items.filter((it) => Boolean(it.description?.trim()) && Number(it.unitPrice) > 0);
@@ -54,4 +103,62 @@ export function combineCostToIDR(
   const subTotal = (g.IDR?.subTotal || 0) + (g.USD?.subTotal || 0) * r;
   const tax = (g.IDR?.tax || 0) + (g.USD?.tax || 0) * r;
   return { subTotal, tax, total: subTotal + tax };
+}
+
+export function calculateQuotationProfitSummary(
+  quotation: ProfitQuotation,
+  costs: ProfitCost[],
+): ProfitSummary {
+  const summary: ProfitSummary = {
+    byCurrency: {
+      IDR: emptyProfitBucket(),
+      USD: emptyProfitBucket(),
+    },
+    combined: { revenueIDR: 0, costIDR: 0, profitIDR: 0, marginIDR: 0 },
+  };
+
+  const quotationRate = Number(quotation.exchangeRate || 1);
+  const isQuotationRateConfigured = quotationRate > 1;
+
+  (quotation.charges || []).forEach((charge) => {
+    if (charge.atCost) return;
+    const currency = charge.currency || "IDR";
+    const amount = numeric(charge.quantity) * numeric(charge.unitPrice);
+    const targetCurrency = currency === "USD" && isQuotationRateConfigured ? "IDR" : currency;
+    const targetAmount =
+      currency === "USD" && isQuotationRateConfigured ? amount * quotationRate : amount;
+
+    ensureProfitBucket(summary, targetCurrency).revenue += targetAmount;
+    summary.combined.revenueIDR += currency === "USD" ? amount * quotationRate : amount;
+  });
+
+  costs.forEach((cost) => {
+    const rate = Number(cost.exchangeRate || 1);
+    const isCostRateConfigured = rate > 1;
+
+    (cost.items || []).forEach((item) => {
+      const currency = item.currency || "IDR";
+      const amount = Number(item.amount || numeric(item.quantity) * numeric(item.unitPrice));
+      const shouldConvertToIDR =
+        currency === "USD" && (isQuotationRateConfigured || isCostRateConfigured);
+      const targetCurrency = shouldConvertToIDR ? "IDR" : currency;
+      const targetAmount = shouldConvertToIDR ? amount * rate : amount;
+
+      ensureProfitBucket(summary, targetCurrency).cost += targetAmount;
+      summary.combined.costIDR += currency === "USD" ? amount * rate : amount;
+    });
+  });
+
+  Object.values(summary.byCurrency).forEach((bucket) => {
+    bucket.profit = bucket.revenue - bucket.cost;
+    bucket.margin = bucket.revenue > 0 ? (bucket.profit / bucket.revenue) * 100 : 0;
+  });
+
+  summary.combined.profitIDR = summary.combined.revenueIDR - summary.combined.costIDR;
+  summary.combined.marginIDR =
+    summary.combined.revenueIDR > 0
+      ? (summary.combined.profitIDR / summary.combined.revenueIDR) * 100
+      : 0;
+
+  return summary;
 }

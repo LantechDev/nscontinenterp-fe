@@ -24,6 +24,8 @@ describe("vessel tracking port labels", () => {
     expect(page).toContain("schedule-date");
     expect(page).toContain("delay-badge");
     expect(page).toContain("delay-icon");
+    expect(page).toContain("hasInitialLegDisplay");
+    expect(page).toContain('v-if="hasInitialLegDisplay(leg)"');
     expect(page).toContain('{{ getLegDisplay(tracking, leg, "initial").etdPortName || "-" }}');
     expect(page).toContain('{{ getLegDisplay(tracking, leg, "updated").etaPortName || "-" }}');
   });

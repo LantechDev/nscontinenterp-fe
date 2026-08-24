@@ -1,6 +1,15 @@
 // @ts-ignore
 import { describe, expect, it } from "bun:test";
-import { combineCostToIDR, filterValidCostItems, groupCostTotals } from "./quotationCost";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import {
+  calculateQuotationProfitSummary,
+  combineCostToIDR,
+  filterValidCostItems,
+  groupCostTotals,
+} from "./quotationCost";
+
+const root = process.cwd();
 
 // #5 — the persisted cost header must be computed from the items actually saved
 // (valid items) so a priced line with a blank description can't inflate the total.
@@ -46,5 +55,54 @@ describe("quotation cost totals", () => {
       0,
     );
     expect(totals.IDR!.subTotal).toBe(1000); // 999.9 -> rounded
+  });
+
+  it("calculates quotation profit summary with USD conversion rules", () => {
+    const summary = calculateQuotationProfitSummary(
+      {
+        exchangeRate: 15000,
+        charges: [
+          { currency: "USD", quantity: 2, unitPrice: 100 },
+          { currency: "IDR", quantity: 1, unitPrice: 500000 },
+          { currency: "IDR", quantity: 1, unitPrice: 999999, atCost: true },
+        ],
+      },
+      [
+        {
+          exchangeRate: 14000,
+          items: [
+            { currency: "USD", quantity: 1, unitPrice: 50, amount: 50 },
+            { currency: "IDR", quantity: 1, unitPrice: 100000, amount: 100000 },
+          ],
+        },
+      ],
+    );
+
+    expect(summary.combined).toEqual({
+      revenueIDR: 3500000,
+      costIDR: 800000,
+      profitIDR: 2700000,
+      marginIDR: (2700000 / 3500000) * 100,
+    });
+    expect(summary.byCurrency.IDR).toMatchObject({
+      revenue: 3500000,
+      cost: 800000,
+      profit: 2700000,
+    });
+    expect(summary.byCurrency.USD).toMatchObject({ revenue: 0, cost: 0, profit: 0 });
+  });
+
+  it("keeps quotation cost form on shared currency and cost helpers", () => {
+    const contents = readFileSync(
+      join(root, "app/components/operational/QuotationCostForm.vue"),
+      "utf8",
+    );
+
+    expect(contents).toContain("formatCurrencyAmount(");
+    expect(contents).toContain("formatCurrencyInput(");
+    expect(contents).toContain("parseCurrencyInput(");
+    expect(contents).toContain("groupCostTotals(");
+    expect(contents).toContain("combineCostToIDR(");
+    expect(contents).not.toContain("new Intl.NumberFormat");
   });
 });

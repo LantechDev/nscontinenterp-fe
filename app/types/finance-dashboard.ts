@@ -74,6 +74,8 @@ export interface TransactionItem {
   type: string;
   total: number;
   isIncome: boolean;
+  pnlIncomeTotal?: number;
+  pnlOutcomeTotal?: number;
   paymentMethod?: string;
   // Reference info for identifying auto-created transactions
   referenceType?: string | null;

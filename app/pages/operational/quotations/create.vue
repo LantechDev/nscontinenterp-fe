@@ -34,6 +34,8 @@ import QuotationInvoiceForm from "~/components/operational/QuotationInvoiceForm.
 import QuotationCostForm from "~/components/operational/QuotationCostForm.vue";
 import Modal from "~/components/ui/Modal.vue";
 import type { Port, ContainerType } from "~/composables/useMasterData";
+import { formatCurrencyAmount, formatCurrencyInput, parseCurrencyInput } from "~/utils/currency";
+import { getQuotationFormGroupedTotals } from "~/utils/quotation-display";
 import { toast } from "vue-sonner";
 
 definePageMeta({
@@ -577,52 +579,9 @@ watch(
 );
 
 // Mathematical Calculations matching Nuxt ERP Invoice standard
-const groupedTotals = computed(() => {
-  const totals: {
-    IDR: { subTotal: number; taxAmount: number; total: number };
-    USD: { subTotal: number; taxAmount: number; total: number };
-    [key: string]: { subTotal: number; taxAmount: number; total: number };
-  } = {
-    IDR: { subTotal: 0, taxAmount: 0, total: 0 },
-    USD: { subTotal: 0, taxAmount: 0, total: 0 },
-  };
-
-  const rate = Number(formData.exchangeRate || 1);
-  const shouldConvert = rate > 1;
-
-  formData.charges.forEach((ch) => {
-    if (ch.atCost) return;
-    const currency = ch.currency || "IDR";
-    const qty = Number(ch.quantity || 0);
-    const price = Number(ch.unitPrice || 0);
-    const amount = qty * price;
-
-    if (shouldConvert && currency === "USD") {
-      totals.IDR.subTotal += amount * rate;
-    } else {
-      if (!totals[currency]) {
-        totals[currency] = { subTotal: 0, taxAmount: 0, total: 0 };
-      }
-      totals[currency].subTotal += amount;
-    }
-  });
-
-  // Single PPN rate from quotation-level tax
-  const selectedTax = masterData.value?.taxes.find((t) => t.id === formData.taxId);
-  const taxRate = selectedTax && selectedTax.id ? selectedTax.rate : 0;
-
-  Object.keys(totals).forEach((curr) => {
-    const entry = totals[curr];
-    if (!entry) return;
-    entry.subTotal = Math.round(entry.subTotal);
-    entry.taxAmount = Math.round(entry.subTotal * (taxRate / 100));
-    entry.total = entry.subTotal + entry.taxAmount;
-  });
-
-  // USD will show zero when all converted — template hides it via v-if t.total > 0
-
-  return totals;
-});
+const groupedTotals = computed(() =>
+  getQuotationFormGroupedTotals(formData, masterData.value?.taxes || []),
+);
 
 const hasUSDCharges = computed(() => formData.charges.some((ch) => ch.currency === "USD"));
 
@@ -652,46 +611,14 @@ async function loadExchangeRate() {
 // Currencies selector options
 const CURRENCIES = ["IDR", "USD"];
 
-const formatCurrency = (amount: number, currency: string = "IDR") => {
-  return new Intl.NumberFormat(currency === "IDR" ? "id-ID" : "en-US", {
-    style: "currency",
-    currency: currency,
-    minimumFractionDigits: currency === "IDR" ? 0 : 2,
-    maximumFractionDigits: currency === "IDR" ? 0 : 2,
-  }).format(amount);
-};
+const formatCurrency = (amount: number, currency: string = "IDR") =>
+  formatCurrencyAmount(amount, currency);
 
-const parseInputCurrency = (val: string, currency: string = formData.currency) => {
-  if (!val) return 0;
-  if (currency === "IDR") {
-    const numeric = Number(val.replace(/[^0-9-]/g, ""));
-    return isNaN(numeric) ? 0 : numeric;
-  }
-  let normalized = val;
-  const hasComma = val.includes(",");
-  const hasDot = val.includes(".");
-  if (hasComma && !hasDot) {
-    normalized = val.replace(",", ".");
-  } else if (hasComma && hasDot) {
-    if (val.lastIndexOf(",") > val.lastIndexOf(".")) {
-      normalized = val.replace(/\./g, "").replace(",", ".");
-    } else {
-      normalized = val.replace(/,/g, "");
-    }
-  }
-  const numeric = Number(normalized.replace(/[^0-9.-]+/g, ""));
-  return isNaN(numeric) ? 0 : numeric;
-};
+const parseInputCurrency = (val: string, currency: string = formData.currency) =>
+  parseCurrencyInput(val, currency);
 
-const formatInputCurrency = (val: number | string, currency: string = formData.currency) => {
-  if (val === undefined || val === null || val === "") return "";
-  const numericVal = typeof val === "string" ? parseInputCurrency(val, currency) : val;
-  if (isNaN(numericVal)) return "";
-  return new Intl.NumberFormat(currency === "IDR" ? "id-ID" : "en-US", {
-    maximumFractionDigits: currency === "IDR" ? 0 : 2,
-    minimumFractionDigits: 0,
-  }).format(numericVal);
-};
+const formatInputCurrency = (val: number | string, currency: string = formData.currency) =>
+  formatCurrencyInput(val, currency);
 
 // Scroll Spy & Navigation for Quotation Creation
 const SECTIONS = computed(() => [

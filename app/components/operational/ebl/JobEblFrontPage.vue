@@ -391,31 +391,33 @@ const cargoFigure = (
 const figureText = (val: number | null | undefined, unit: string, decimals = 3) =>
   val === null || val === undefined ? "-" : `${formatNumber(val, decimals)} ${unit}`;
 
-// Package unit shown next to a container's total quantity (e.g. "PKGS").
+const pluralPackageUnit = (unit?: string | null) => {
+  const normalized = (unit || "").trim().toUpperCase();
+  if (!normalized) return "PACKAGES";
+  if (["CTN", "CTNS", "CARTON", "CARTONS"].includes(normalized)) return "CARTONS";
+  if (["PKG", "PKGS", "PACKAGE", "PACKAGES", "PACK", "PACKS"].includes(normalized)) {
+    return "PACKAGES";
+  }
+  if (normalized.endsWith("S")) return normalized;
+  return `${normalized}S`;
+};
+
+// Package unit shown next to a container's total quantity (e.g. "PACKAGES").
 const containerPackageUnit = (cnt: EblContainer) => {
   const items = Array.isArray(cnt.items) ? cnt.items : [];
   const codes = Array.from(
     new Set(items.map((it) => (it.packageTypeCode || "").trim()).filter(Boolean)),
   );
-  return codes.length === 1 ? codes[0] : "PKGS";
+  return codes.length === 1 ? pluralPackageUnit(codes[0]) : "PACKAGES";
 };
 
-// "<qty> <unit>" for the container header row, or "-" when there's no quantity.
-const containerQtyText = (cnt: EblContainer) => {
+const containerQtyNumberText = (cnt: EblContainer) => {
   const qty = cargoFigure(cnt, "qty", ["totalQty", "quantity"]);
-  return qty === null ? "-" : `${formatNumber(qty, 0)} ${containerPackageUnit(cnt)}`;
+  return qty === null ? "-" : formatNumber(qty, 0);
 };
 
-// A container with a single line item shows its qty/weights/measurement once, in the
-// header row, so the per-item row omits those columns to avoid duplication. With
-// multiple items each row keeps its own figures.
-const isSingleDetail = (cnt: EblContainer) =>
-  (Array.isArray(cnt.items) ? cnt.items.length : (cnt.renderItems?.length ?? 0)) === 1;
-const showItemFigures = (cnt: EblContainer) => !isSingleDetail(cnt) || !cnt.isHeaderVisible;
-const showRenderedItemFigures = (
-  cnt: EblContainer,
-  item: EblContainerItem & { isContinuationSegment?: boolean },
-) => showItemFigures(cnt) && !item.isContinuationSegment;
+const containerQtyUnitText = (cnt: EblContainer) =>
+  containerQtyNumberText(cnt) === "-" ? "" : containerPackageUnit(cnt);
 
 const findPartyByRole = (roleCodes: string[]) => {
   const normalizedRoles = roleCodes.map((role) => role.replace(/[\s-]/g, "_").toUpperCase());
@@ -1097,8 +1099,11 @@ const formatDate = (dateStr?: string | null) => {
                   ><span v-if="cnt.sealNumber" class="ml-1">/ {{ cnt.sealNumber }}</span>
                 </template>
               </div>
-              <div class="w-[10%] px-2 text-right text-[11px]">
-                {{ containerQtyText(cnt) }}
+              <div class="w-[10%] px-1.5 text-right text-[10px] leading-tight">
+                <div class="font-bold whitespace-nowrap">{{ containerQtyNumberText(cnt) }}</div>
+                <div v-if="containerQtyUnitText(cnt)" class="text-[9px] whitespace-nowrap">
+                  {{ containerQtyUnitText(cnt) }}
+                </div>
               </div>
               <div class="w-[3%] flex items-center justify-center text-[10px] leading-none">
                 {{ cnt.isHazardous ? "X" : "" }}
@@ -1151,15 +1156,7 @@ const formatDate = (dateStr?: string | null) => {
               <div class="w-[22%] pl-3 text-[9px] uppercase leading-tight">
                 {{ page.pageIndex === 0 && cIdx === 0 && iIdx === 0 ? jobData?.shippingMark : "" }}
               </div>
-              <div class="w-[10%] px-2 text-right text-[11px]">
-                <template v-if="showRenderedItemFigures(cnt, item)">
-                  {{
-                    item.qty === null || item.qty === undefined
-                      ? "-"
-                      : `${formatNumber(item.qty, 0)} ${item.packageTypeCode || "PKGS"}`
-                  }}
-                </template>
-              </div>
+              <div class="w-[10%] px-2 text-right text-[11px]"></div>
               <div class="w-[3%] flex items-center justify-center text-[10px] leading-none">
                 {{ cnt.isHazardous ? "X" : "" }}
               </div>
@@ -1175,17 +1172,8 @@ const formatDate = (dateStr?: string | null) => {
                   (HS CODE: {{ item.hsCode }})
                 </div>
               </div>
-              <div class="w-[12.5%] px-3 text-right text-[11px] leading-tight">
-                <template v-if="showRenderedItemFigures(cnt, item)">
-                  <div>GW {{ figureText(item.grossWeight, "KGS") }}</div>
-                  <div>NW {{ figureText(item.netWeight, "KGS") }}</div>
-                </template>
-              </div>
-              <div class="w-[12.5%] px-3 text-right text-[11px]">
-                <template v-if="showRenderedItemFigures(cnt, item)">
-                  {{ figureText(item.measurementCbm, "CBM", 2) }}
-                </template>
-              </div>
+              <div class="w-[12.5%] px-3 text-right text-[11px] leading-tight"></div>
+              <div class="w-[12.5%] px-3 text-right text-[11px]"></div>
             </div>
 
             <div class="mb-1.5"></div>

@@ -275,6 +275,16 @@ const getLegDisplay = (
   };
 };
 
+const hasInitialLegDisplay = (leg: VesselTrackingLeg) =>
+  Boolean(
+    leg.initialTransportId ||
+    leg.initialVesselName ||
+    leg.initialVoyageNumber ||
+    leg.initialTsPortId ||
+    leg.initialEtd ||
+    leg.initialEta,
+  );
+
 const getFilterSummary = () => {
   const parts = [
     search.value ? `Search: ${search.value}` : "Search: All",
@@ -1080,8 +1090,15 @@ onMounted(async () => {
                     :key="`vessel-row-${leg.id}`"
                     class="rounded-md border border-border bg-white px-2.5 py-2"
                   >
-                    <div class="grid grid-cols-[1fr_auto_1fr] gap-2 items-start">
-                      <div class="min-w-0">
+                    <div
+                      :class="
+                        cn(
+                          'grid gap-2 items-start',
+                          hasInitialLegDisplay(leg) ? 'grid-cols-[1fr_auto_1fr]' : 'grid-cols-1',
+                        )
+                      "
+                    >
+                      <div v-if="hasInitialLegDisplay(leg)" class="min-w-0">
                         <p class="text-[10px] font-bold uppercase text-muted-foreground mb-1">
                           Initial
                         </p>
@@ -1092,7 +1109,11 @@ onMounted(async () => {
                           {{ getLegDisplay(tracking, leg, "initial").voyageNumber || "-" }}
                         </p>
                       </div>
-                      <span class="text-muted-foreground text-xs pt-5">→</span>
+                      <span
+                        v-if="hasInitialLegDisplay(leg)"
+                        class="text-muted-foreground text-xs pt-5"
+                        >→</span
+                      >
                       <div class="min-w-0">
                         <p class="text-[10px] font-bold uppercase text-muted-foreground mb-1">
                           Updated
@@ -1105,8 +1126,15 @@ onMounted(async () => {
                         </p>
                       </div>
                     </div>
-                    <div class="grid grid-cols-[1fr_auto_1fr] gap-2 mt-2">
-                      <div class="space-y-1.5 min-w-0">
+                    <div
+                      :class="
+                        cn(
+                          'grid gap-2 mt-2',
+                          hasInitialLegDisplay(leg) ? 'grid-cols-[1fr_auto_1fr]' : 'grid-cols-1',
+                        )
+                      "
+                    >
+                      <div v-if="hasInitialLegDisplay(leg)" class="space-y-1.5 min-w-0">
                         <div
                           class="schedule-line compact-schedule border-orange-100 bg-orange-50 text-orange-700"
                         >
@@ -1138,7 +1166,11 @@ onMounted(async () => {
                           }}</span>
                         </div>
                       </div>
-                      <span class="text-muted-foreground text-xs self-center">→</span>
+                      <span
+                        v-if="hasInitialLegDisplay(leg)"
+                        class="text-muted-foreground text-xs self-center"
+                        >→</span
+                      >
                       <div class="space-y-1.5 min-w-0">
                         <div
                           class="schedule-line compact-schedule border-orange-100 bg-orange-50 text-orange-700"
@@ -1291,49 +1323,47 @@ onMounted(async () => {
           <div class="rounded-lg border border-border p-3">
             <p class="font-bold text-muted-foreground uppercase mb-2">Initial</p>
             <div class="space-y-2">
-              <div
-                v-for="leg in tracking.legs"
-                :key="`card-initial-${leg.id}`"
-                class="rounded-md bg-gray-50 px-2 py-1.5"
-              >
-                <p class="font-bold text-foreground leading-snug">
-                  {{ getLegDisplay(tracking, leg, "initial").vesselName }}
-                  <span
-                    v-if="getLegDisplay(tracking, leg, 'initial').voyageNumber"
-                    class="font-mono text-[10px] text-[#012D5A]"
-                  >
-                    {{ getLegDisplay(tracking, leg, "initial").voyageNumber }}
-                  </span>
-                </p>
-                <div class="space-y-1 mt-2">
-                  <div class="schedule-line border-orange-100 bg-orange-50 text-orange-700">
-                    <CalendarClock class="schedule-icon" />
-                    <span class="schedule-kind">ETD</span>
+              <template v-for="leg in tracking.legs" :key="`card-initial-${leg.id}`">
+                <div v-if="hasInitialLegDisplay(leg)" class="rounded-md bg-gray-50 px-2 py-1.5">
+                  <p class="font-bold text-foreground leading-snug">
+                    {{ getLegDisplay(tracking, leg, "initial").vesselName }}
                     <span
-                      class="schedule-port"
-                      :title="getLegDisplay(tracking, leg, 'initial').etdPortName"
+                      v-if="getLegDisplay(tracking, leg, 'initial').voyageNumber"
+                      class="font-mono text-[10px] text-[#012D5A]"
                     >
-                      {{ getLegDisplay(tracking, leg, "initial").etdPortName || "-" }}
+                      {{ getLegDisplay(tracking, leg, "initial").voyageNumber }}
                     </span>
-                    <span class="schedule-date">{{
-                      getLegDisplay(tracking, leg, "initial").etd
-                    }}</span>
-                  </div>
-                  <div class="schedule-line border-emerald-100 bg-emerald-50 text-emerald-700">
-                    <Calendar class="schedule-icon" />
-                    <span class="schedule-kind">ETA</span>
-                    <span
-                      class="schedule-port"
-                      :title="getLegDisplay(tracking, leg, 'initial').etaPortName"
-                    >
-                      {{ getLegDisplay(tracking, leg, "initial").etaPortName || "-" }}
-                    </span>
-                    <span class="schedule-date">{{
-                      getLegDisplay(tracking, leg, "initial").eta
-                    }}</span>
+                  </p>
+                  <div class="space-y-1 mt-2">
+                    <div class="schedule-line border-orange-100 bg-orange-50 text-orange-700">
+                      <CalendarClock class="schedule-icon" />
+                      <span class="schedule-kind">ETD</span>
+                      <span
+                        class="schedule-port"
+                        :title="getLegDisplay(tracking, leg, 'initial').etdPortName"
+                      >
+                        {{ getLegDisplay(tracking, leg, "initial").etdPortName || "-" }}
+                      </span>
+                      <span class="schedule-date">{{
+                        getLegDisplay(tracking, leg, "initial").etd
+                      }}</span>
+                    </div>
+                    <div class="schedule-line border-emerald-100 bg-emerald-50 text-emerald-700">
+                      <Calendar class="schedule-icon" />
+                      <span class="schedule-kind">ETA</span>
+                      <span
+                        class="schedule-port"
+                        :title="getLegDisplay(tracking, leg, 'initial').etaPortName"
+                      >
+                        {{ getLegDisplay(tracking, leg, "initial").etaPortName || "-" }}
+                      </span>
+                      <span class="schedule-date">{{
+                        getLegDisplay(tracking, leg, "initial").eta
+                      }}</span>
+                    </div>
                   </div>
                 </div>
-              </div>
+              </template>
             </div>
           </div>
           <div class="rounded-lg border border-border p-3">
@@ -1618,7 +1648,10 @@ onMounted(async () => {
               <p class="text-[10px] font-bold text-muted-foreground uppercase mb-2">
                 Initial Reference
               </p>
-              <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+              <div
+                v-if="hasInitialLegDisplay(activeLeg)"
+                class="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm"
+              >
                 <div>
                   <p class="text-[10px] font-bold text-muted-foreground uppercase">Vessel</p>
                   <p class="font-semibold">{{ activeLeg.initialVesselName || "-" }}</p>
@@ -1636,6 +1669,9 @@ onMounted(async () => {
                   <p>{{ formatDate(activeLeg.initialEta) }}</p>
                 </div>
               </div>
+              <p v-else class="text-sm text-muted-foreground">
+                Update-only leg. Tidak ada initial schedule dari Job.
+              </p>
             </div>
             <div>
               <p class="text-[10px] font-bold text-muted-foreground uppercase mb-3">

@@ -226,6 +226,35 @@ const getContainerTotals = (cnt: any) => {
   return { gw, nw, cbm, qty };
 };
 
+const pluralPackageUnit = (unit?: string | null) => {
+  const normalized = (unit || "").trim().toUpperCase();
+  if (!normalized) return "PACKAGES";
+  if (["CTN", "CTNS", "CARTON", "CARTONS"].includes(normalized)) return "CARTONS";
+  if (["PKG", "PKGS", "PACKAGE", "PACKAGES", "PACK", "PACKS"].includes(normalized)) {
+    return "PACKAGES";
+  }
+  if (normalized.endsWith("S")) return normalized;
+  return `${normalized}S`;
+};
+
+const containerPackageUnit = (cnt: any) => {
+  const items = Array.isArray(cnt.items) ? cnt.items : [];
+  const codes = Array.from(
+    new Set<string>(
+      items.map((it: any) => String(it.packageTypeCode || "").trim()).filter(Boolean),
+    ),
+  );
+  return codes.length === 1 ? pluralPackageUnit(codes[0]) : "PACKAGES";
+};
+
+const containerQtyNumberText = (cnt: any) => {
+  const qty = getContainerTotals(cnt).qty;
+  return qty ? formatNumber(qty, 0) : "-";
+};
+
+const containerQtyUnitText = (cnt: any) =>
+  containerQtyNumberText(cnt) === "-" ? "" : containerPackageUnit(cnt);
+
 const findPartyByRole = (roleCodes: string[]) => {
   const normalizedRoles = roleCodes.map((role) => role.replace(/[\s-]/g, "_").toUpperCase());
   const parties = props.bcData?.parties?.length
@@ -637,8 +666,11 @@ const dateLaden = computed(() => {
                   }}<span v-if="cnt.sealNumber" class="ml-1">/{{ cnt.sealNumber }}</span>
                 </template>
               </div>
-              <div class="w-[10%] px-2 text-right text-[11px]">
-                {{ formatNumber(getContainerTotals(cnt).qty, 0) }}
+              <div class="w-[10%] px-1.5 text-right text-[10px] leading-tight">
+                <div class="font-bold whitespace-nowrap">{{ containerQtyNumberText(cnt) }}</div>
+                <div v-if="containerQtyUnitText(cnt)" class="text-[9px] whitespace-nowrap">
+                  {{ containerQtyUnitText(cnt) }}
+                </div>
               </div>
               <div class="w-[3%] flex items-center justify-center text-[10px] leading-none">
                 {{ cnt.isHazardous ? "X" : "" }}
@@ -662,7 +694,7 @@ const dateLaden = computed(() => {
               <div class="w-[22%] pl-3 text-[9px] uppercase leading-tight">
                 {{ page.pageIndex === 0 && cIdx === 0 && iIdx === 0 ? shippingMarkDisplay : "" }}
               </div>
-              <div class="w-[10%] px-2 text-right text-[11px]">{{ formatNumber(item.qty, 0) }}</div>
+              <div class="w-[10%] px-2 text-right text-[11px]"></div>
               <div class="w-[3%] flex items-center justify-center text-[10px] leading-none">
                 {{ cnt.isHazardous ? "X" : "" }}
               </div>
@@ -681,12 +713,8 @@ const dateLaden = computed(() => {
                   (HS CODE: {{ item.hsCode }})
                 </div>
               </div>
-              <div class="w-[12.5%] px-3 text-right text-[11px]">
-                {{ formatNumber(item.grossWeight, 0) }}
-              </div>
-              <div class="w-[12.5%] px-3 text-right text-[11px]">
-                {{ formatNumber(item.measurementCbm, 2) }}
-              </div>
+              <div class="w-[12.5%] px-3 text-right text-[11px]"></div>
+              <div class="w-[12.5%] px-3 text-right text-[11px]"></div>
             </div>
 
             <div class="mb-4"></div>

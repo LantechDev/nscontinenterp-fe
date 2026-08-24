@@ -21,6 +21,15 @@ import {
 } from "lucide-vue-next";
 import { cn } from "~/lib/utils";
 import { useQuotations, type Quotation } from "~/composables/useQuotations";
+import { formatCurrencyAmount } from "~/utils/currency";
+import {
+  formatQuotationDate,
+  getQuotationCurrencies,
+  getQuotationRouteDisplay,
+  getQuotationServiceLabels,
+  getQuotationStatusBadgeClass,
+  getQuotationTotals,
+} from "~/utils/quotation-display";
 import { toast } from "vue-sonner";
 
 definePageMeta({
@@ -109,121 +118,14 @@ const stats = computed(() => {
   };
 });
 
-// Format helpers
-function formatCurrency(amount: number, currency: string = "IDR") {
-  return new Intl.NumberFormat(currency === "IDR" ? "id-ID" : "en-US", {
-    style: "currency",
-    currency: currency,
-    minimumFractionDigits: currency === "IDR" ? 0 : 2,
-    maximumFractionDigits: currency === "IDR" ? 0 : 2,
-  }).format(amount);
-}
-
-function getQuotationTotals(q: Quotation) {
-  const totals: Record<string, number> = {};
-  const rate = Number(q.exchangeRate || 1);
-  const shouldConvert = rate > 1;
-
-  if (!q.charges || q.charges.length === 0) {
-    if (shouldConvert && (q.currency || "IDR") === "USD") {
-      totals.IDR = Math.round(Number(q.total || 0) * rate);
-    } else {
-      totals[q.currency || "IDR"] = Number(q.total || 0);
-    }
-    return totals;
-  }
-
-  const billableCharges = q.charges.filter((ch) => !ch.atCost);
-  const hasIdrCharge = billableCharges.some((ch) => (ch.currency || "IDR") !== "USD");
-  const isFullUsd = billableCharges.length > 0 && !hasIdrCharge;
-
-  billableCharges.forEach((ch) => {
-    const currency = ch.currency || "IDR";
-    const qty = Number(ch.quantity || 0);
-    const price = Number(ch.unitPrice || 0);
-    const amount = qty * price;
-    const taxRate = Number(ch.taxRate || 0);
-    const taxAmount = amount * (taxRate / 100);
-    const lineTotal = amount + taxAmount;
-
-    if (shouldConvert && currency === "USD" && !isFullUsd) {
-      totals.IDR = (totals.IDR || 0) + Math.round(lineTotal * rate);
-    } else {
-      totals[currency] = (totals[currency] || 0) + lineTotal;
-    }
-  });
-
-  if (totals.IDR !== undefined) {
-    totals.IDR = Math.round(totals.IDR);
-  }
-  return totals;
-}
-
-function getQuotationCurrencies(q: Quotation) {
-  const rate = Number(q.exchangeRate || 1);
-  if (!q.charges || q.charges.length === 0) {
-    return [q.currency || "IDR"];
-  }
-  const currencies = Array.from(
-    new Set(q.charges.filter((ch) => !ch.atCost).map((ch) => ch.currency || "IDR")),
-  );
-  if (rate > 1 && currencies.some((currency) => currency !== "USD")) return ["IDR"];
-  return currencies;
-}
-
-function formatDate(dateStr: string): string {
-  if (!dateStr) return "-";
-  const date = new Date(dateStr);
-  return date.toLocaleDateString("id-ID", { year: "numeric", month: "short", day: "numeric" });
-}
-
-const isAirFreight = (q: Quotation) => q.serviceType === "AIR" || q.shipmentType === "AIR";
-const isTrucking = (q: Quotation) => q.serviceType === "TRUCKING";
-const isCustomClearance = (q: Quotation) => q.serviceType === "CUSTOM_CLEARANCE";
-
-const getRouteOriginLabel = (q: Quotation) => {
-  if (isTrucking(q)) return "Pickup";
-  if (isCustomClearance(q)) return "Clearance Origin";
-  return isAirFreight(q) ? "Origin Airport" : "POL";
-};
-
-const getRouteDestinationLabel = (q: Quotation) => {
-  if (isTrucking(q)) return "Delivery";
-  if (isCustomClearance(q)) return "Clearance Destination";
-  return isAirFreight(q) ? "Destination Airport" : "POD";
-};
-
-const getRouteOrigin = (q: Quotation) => {
-  if (isTrucking(q)) return q.pickupAddress || "-";
-  return q.polName || q.pol || "-";
-};
-
-const getRouteDestination = (q: Quotation) => {
-  if (isTrucking(q)) return q.deliveryAddress || "-";
-  return q.podName || q.pod || "-";
-};
+const getIndexRouteDisplay = (q: Quotation) => getQuotationRouteDisplay(q, { labelCase: "short" });
 
 const hasRouteInfo = (q: Quotation) => {
   return Boolean(q.pol || q.pod || q.pickupAddress || q.deliveryAddress);
 };
 
-const getServiceScopeLabel = (q: Quotation) => {
-  if (isTrucking(q)) return "TRUCKING";
-  if (isCustomClearance(q)) return "CUSTOM CLEARANCE";
-  if (isAirFreight(q)) return "AIR FREIGHT";
-  return "FREIGHT";
-};
-
-// Status Badges Styling
-const getStatusClass = (status: string) => {
-  const s = status.toUpperCase();
-  if (s === "CONVERTED") return "bg-emerald-50 text-emerald-700 border-emerald-200";
-  if (s === "CONFIRMED") return "bg-blue-50 text-blue-700 border-blue-200";
-  if (s === "DRAFT") return "bg-gray-100 text-gray-700 border-gray-300";
-  if (s === "SENT") return "bg-amber-50 text-amber-700 border-amber-200";
-  if (s === "CANCELLED") return "bg-rose-50 text-rose-700 border-rose-200";
-  if (s === "EXPIRED") return "bg-indigo-50 text-indigo-700 border-indigo-200";
-  return "bg-gray-50 text-gray-600 border-gray-200";
+const getIndexServiceScopeLabel = (q: Quotation) => {
+  return getQuotationServiceLabels(q).serviceTypeLabel;
 };
 
 // Actions
@@ -511,27 +413,27 @@ watch(
                           <span
                             class="inline-flex items-center rounded border border-blue-100 bg-blue-50 px-1.5 py-0.5 text-[9px] font-bold text-[#062c58] uppercase tracking-wider"
                           >
-                            {{ getServiceScopeLabel(q) }}
+                            {{ getIndexServiceScopeLabel(q) }}
                           </span>
                         </div>
                         <div class="flex items-center gap-2 text-sm">
                           <span
                             class="text-foreground truncate font-medium"
-                            :title="getRouteOrigin(q)"
+                            :title="getIndexRouteDisplay(q).originValue"
                           >
                             <span class="text-[10px] text-muted-foreground font-bold mr-1">
-                              {{ getRouteOriginLabel(q) }}:
+                              {{ getIndexRouteDisplay(q).originLabel }}:
                             </span>
-                            {{ getRouteOrigin(q) }}
+                            {{ getIndexRouteDisplay(q).originValue }}
                           </span>
                         </div>
                         <div class="flex items-center gap-2 text-xs text-muted-foreground">
                           <ArrowRight class="w-3 h-3" />
-                          <span class="truncate" :title="getRouteDestination(q)">
+                          <span class="truncate" :title="getIndexRouteDisplay(q).destinationValue">
                             <span class="text-[10px] font-bold mr-1">
-                              {{ getRouteDestinationLabel(q) }}:
+                              {{ getIndexRouteDisplay(q).destinationLabel }}:
                             </span>
-                            {{ getRouteDestination(q) }}
+                            {{ getIndexRouteDisplay(q).destinationValue }}
                           </span>
                         </div>
                       </div>
@@ -544,7 +446,7 @@ watch(
                         class="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-blue-50/50 border border-blue-100 text-[#1d4ed8] text-[11px] font-semibold w-fit"
                       >
                         <Calendar class="w-3 h-3 opacity-70" />
-                        {{ formatDate(q.date) }}
+                        {{ formatQuotationDate(q.date, "index") }}
                       </div>
                     </td>
 
@@ -554,7 +456,7 @@ watch(
                         class="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-orange-50/50 border border-orange-100 text-[#c2410c] text-[11px] font-semibold w-fit"
                       >
                         <Calendar class="w-3 h-3 opacity-70" />
-                        {{ formatDate(q.validUntil) }}
+                        {{ formatQuotationDate(q.validUntil, "index") }}
                       </div>
                     </td>
 
@@ -565,7 +467,7 @@ watch(
                         :key="curr"
                         class="whitespace-nowrap font-bold"
                       >
-                        {{ formatCurrency(amount, curr) }}
+                        {{ formatCurrencyAmount(amount, curr) }}
                       </div>
                     </td>
 
@@ -576,7 +478,7 @@ watch(
                           :class="
                             cn(
                               'px-2 py-0.5 rounded border text-[10px] font-bold uppercase tracking-wider',
-                              getStatusClass(q.status),
+                              getQuotationStatusBadgeClass(q.status, 'subtle'),
                             )
                           "
                         >

@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { ref, computed, nextTick, onMounted } from "vue";
-import jsPDF from "jspdf";
-import html2canvas from "html2canvas";
+import { ref, computed, onMounted } from "vue";
 import { toast } from "vue-sonner";
 import CurrencyStack from "~/components/ui/CurrencyStack.vue";
 import type { Quotation, QuotationCost } from "~/composables/useQuotations";
+import { formatCurrencyDecimal, formatExchangeRateLabel } from "~/utils/currency";
+import { paginatePdfRows, type PdfRowPage } from "~/utils/pdfPagination";
+import { renderA4Pdf } from "~/utils/pdfRender";
+import { formatQuotationDate } from "~/utils/quotation-display";
 
 const props = defineProps<{
   quotation: Quotation | null;
@@ -24,31 +26,6 @@ onMounted(() => {
 const isGeneratingPDF = ref(false);
 const printContainerRef = ref<HTMLElement | null>(null);
 
-const formatCurrency = (amount: unknown, currency?: string): string => {
-  if (amount === undefined || amount === null) return "-";
-  const curr = currency || "IDR";
-  return new Intl.NumberFormat(curr === "USD" ? "en-US" : "id-ID", {
-    style: "decimal",
-    minimumFractionDigits: curr === "IDR" ? 0 : 2,
-    maximumFractionDigits: curr === "IDR" ? 0 : 2,
-  }).format(Number(amount));
-};
-
-const formatDate = (dateStr?: string | null) => {
-  if (!dateStr) return "";
-  try {
-    const d = new Date(dateStr);
-    const parts = new Intl.DateTimeFormat("en-GB", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    }).formatToParts(d);
-    return `${parts.find((p) => p.type === "day")?.value} ${parts.find((p) => p.type === "month")?.value.toUpperCase()} ${parts.find((p) => p.type === "year")?.value}`;
-  } catch {
-    return dateStr;
-  }
-};
-
 const costItems = computed(() => props.cost?.items || []);
 
 const hasUsdItem = computed(() => costItems.value.some((it) => (it.currency || "IDR") === "USD"));
@@ -57,9 +34,10 @@ const effectiveCurrency = computed(() =>
   hasUsdItem.value && costExchangeRate.value > 1 ? "IDR" : hasUsdItem.value ? "USD" : "IDR",
 );
 const exchangeRateDisplay = computed(() =>
-  costExchangeRate.value > 1
-    ? `1 USD = IDR ${new Intl.NumberFormat("id-ID").format(costExchangeRate.value)}`
-    : "1 USD = USD 1",
+  formatExchangeRateLabel(costExchangeRate.value, {
+    idrPosition: "prefix",
+    defaultLabel: "1 USD = USD 1",
+  }),
 );
 
 const displayAmount = (amount: unknown, currency = effectiveCurrency.value): number => {
@@ -69,17 +47,10 @@ const displayAmount = (amount: unknown, currency = effectiveCurrency.value): num
 
 const formatDisplayCurrency = (amount: unknown, currency = effectiveCurrency.value): string => {
   const displayCurrency = currency === "USD" && costExchangeRate.value > 1 ? "IDR" : currency;
-  return formatCurrency(displayAmount(amount, currency), displayCurrency);
+  return formatCurrencyDecimal(displayAmount(amount, currency), displayCurrency);
 };
 
-type CostPreviewItem = (typeof costItems.value)[number];
-interface PreviewPage {
-  items: CostPreviewItem[];
-  pageNumber: number;
-  startIndex: number;
-  isFirstPage: boolean;
-  isLastPage: boolean;
-}
+type CostPreviewItem = NonNullable<QuotationCost["items"]>[number];
 
 const FIRST_PAGE_ITEM_SLOTS = 14;
 const MAIN_PX = 1009;
@@ -99,57 +70,25 @@ const itemRowPx = (desc?: string | null) => {
   return Math.max(ITEM_ROW_MIN_PX, lines * ITEM_LINE_PX + ITEM_ROW_PADDING_PX);
 };
 
-const previewPages = computed<PreviewPage[]>(() => {
-  const items = costItems.value;
-  const pages: Array<{ items: CostPreviewItem[]; startIndex: number }> = [];
-  let i = 0;
-  let first = true;
-  while (i < items.length) {
-    const header = first ? FIRST_HEADER_PX : CONT_HEADER_PX;
-    let budget = MAIN_PX - header - TABLE_HEADER_PX;
-    const startIndex = i;
-    const pageItems: CostPreviewItem[] = [];
-    while (i < items.length) {
-      const item = items[i];
-      if (!item) break;
-      const h = itemRowPx(item.description);
-      const reserve = i === items.length - 1 ? LAST_PAGE_RESERVE_PX : 0;
-      if (budget - h - reserve < 0 && pageItems.length > 0) break;
-      pageItems.push(item);
-      i++;
-      budget -= h;
-    }
-    pages.push({ items: pageItems, startIndex });
-    first = false;
-  }
-  if (pages.length === 0) pages.push({ items: [], startIndex: 0 });
-  return pages.map((page, idx) => ({
-    ...page,
-    pageNumber: idx + 1,
-    isFirstPage: idx === 0,
-    isLastPage: idx === pages.length - 1,
-  }));
-});
+const previewPages = computed<PdfRowPage<CostPreviewItem>[]>(() =>
+  paginatePdfRows({
+    items: costItems.value,
+    mainHeightPx: MAIN_PX,
+    firstHeaderPx: FIRST_HEADER_PX,
+    continuationHeaderPx: CONT_HEADER_PX,
+    tableHeaderPx: TABLE_HEADER_PX,
+    lastPageReservePx: LAST_PAGE_RESERVE_PX,
+    getRowHeightPx: (item) => itemRowPx(item.description),
+  }),
+);
 
 const generatePDF = async () => {
   if (!printContainerRef.value || !props.cost) return false;
   try {
     isGeneratingPDF.value = true;
-    await nextTick();
-    const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-    const pages = printContainerRef.value.querySelectorAll(".a4-page-wrapper");
-    for (let i = 0; i < pages.length; i++) {
-      if (i > 0) pdf.addPage();
-      const canvas = await html2canvas(pages[i] as HTMLElement, {
-        scale: 3,
-        useCORS: true,
-        logging: false,
-        backgroundColor: "#ffffff",
-      });
-      pdf.addImage(canvas.toDataURL("image/jpeg", 0.95), "JPEG", 0, 0, 210, 297, undefined, "FAST");
-    }
-    pdf.save(`COST_${props.cost.number || "VCOST"}.pdf`);
-    return true;
+    return await renderA4Pdf(printContainerRef.value, {
+      filename: `COST_${props.cost.number || "VCOST"}.pdf`,
+    });
   } catch (error) {
     console.error(error);
     toast.error("Gagal membuat PDF.");
@@ -241,7 +180,7 @@ defineExpose({ generatePDF, isGeneratingPDF });
                     >DATE</span
                   >
                   <span class="font-mono text-[0.8rem] text-black">{{
-                    formatDate(cost?.date)
+                    formatQuotationDate(cost?.date, "pdf")
                   }}</span>
                 </div>
               </div>
@@ -449,7 +388,7 @@ defineExpose({ generatePDF, isGeneratingPDF });
           </div>
           <div class="text-right">
             <span class="text-[0.6rem] font-black text-[#062c58] uppercase tracking-widest"
-              >PRINTED: {{ formatDate(new Date().toISOString()) }}</span
+              >PRINTED: {{ formatQuotationDate(new Date().toISOString(), "pdf") }}</span
             >
           </div>
         </div>

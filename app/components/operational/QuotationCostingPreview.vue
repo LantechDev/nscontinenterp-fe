@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { ref, computed, nextTick, onMounted } from "vue";
-import jsPDF from "jspdf";
-import html2canvas from "html2canvas";
+import { ref, computed, onMounted } from "vue";
 import { toast } from "vue-sonner";
 import CurrencyStack from "~/components/ui/CurrencyStack.vue";
 import type { Quotation, QuotationCost, QuotationCharge } from "~/composables/useQuotations";
+import { formatCurrencyCode, formatExchangeRateLabel } from "~/utils/currency";
+import { renderA4Pdf } from "~/utils/pdfRender";
+import { formatQuotationDate } from "~/utils/quotation-display";
 
 interface CurrencyBucket {
   revenue: number;
@@ -40,35 +41,16 @@ const toNumber = (v: unknown) => {
 
 const formatCurrency = (val: number | string | null | undefined, currency = "IDR") => {
   if (val === null || val === undefined) return `${currency} 0`;
-  const num = toNumber(val);
-  return new Intl.NumberFormat(currency === "IDR" ? "id-ID" : "en-US", {
-    style: "currency",
-    currency,
-    minimumFractionDigits: currency === "IDR" ? 0 : 2,
-    maximumFractionDigits: currency === "IDR" ? 0 : 2,
-  })
-    .format(num)
-    .replace("Rp", "IDR")
-    .replace("US$", "USD");
-};
-
-const formatDate = (dateStr?: string | null) => {
-  if (!dateStr) return "";
-  try {
-    return new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", year: "numeric" })
-      .format(new Date(dateStr))
-      .toUpperCase();
-  } catch {
-    return dateStr || "";
-  }
+  return formatCurrencyCode(toNumber(val), currency);
 };
 
 const customerName = computed(() => props.quotation?.customerName || "-");
 const quotationExchangeRate = computed(() => Number(props.quotation?.exchangeRate || 1));
 const exchangeRateDisplay = computed(() =>
-  quotationExchangeRate.value > 1
-    ? `1 USD = IDR ${new Intl.NumberFormat("id-ID").format(quotationExchangeRate.value)}`
-    : "1 USD = USD 1",
+  formatExchangeRateLabel(quotationExchangeRate.value, {
+    idrPosition: "prefix",
+    defaultLabel: "1 USD = USD 1",
+  }),
 );
 const routeText = computed(() => {
   const pol = props.quotation?.polName || props.quotation?.pol || "-";
@@ -215,24 +197,10 @@ const generatePDF = async () => {
   if (!printContainerRef.value || !props.quotation) return false;
   try {
     isGeneratingPDF.value = true;
-    await nextTick();
-    const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-    const pages = printContainerRef.value.querySelectorAll(".a4-page-wrapper");
-    for (let i = 0; i < pages.length; i++) {
-      if (i > 0) pdf.addPage();
-      const canvas = await html2canvas(pages[i] as HTMLElement, {
-        scale: 3,
-        useCORS: true,
-        logging: false,
-        backgroundColor: "#ffffff",
-        scrollY: 0,
-        scrollX: 0,
-      });
-      const imgData = canvas.toDataURL("image/jpeg", 0.95);
-      pdf.addImage(imgData, "JPEG", 0, 0, 210, 297, undefined, "FAST");
-    }
-    pdf.save(`COSTING_PROFIT_${props.quotation.number || "DRAFT"}.pdf`);
-    return true;
+    return await renderA4Pdf(printContainerRef.value, {
+      filename: `COSTING_PROFIT_${props.quotation.number || "DRAFT"}.pdf`,
+      resetScroll: true,
+    });
   } catch (error) {
     console.error(error);
     toast.error("Gagal membuat PDF. Cek console.");
@@ -330,7 +298,7 @@ defineExpose({ generatePDF, isGeneratingPDF });
                     >DATE</span
                   >
                   <span class="font-mono text-[0.8rem] text-black">{{
-                    formatDate(quotation?.date)
+                    formatQuotationDate(quotation?.date, "pdf")
                   }}</span>
                 </div>
               </div>
@@ -340,7 +308,7 @@ defineExpose({ generatePDF, isGeneratingPDF });
                     >VALID UNTIL</span
                   >
                   <span class="font-mono text-[0.7rem] text-black uppercase">{{
-                    formatDate(quotation?.validUntil)
+                    formatQuotationDate(quotation?.validUntil, "pdf")
                   }}</span>
                 </div>
                 <div class="w-1/3 border-r border-[#062c58] pt-1 px-2">

@@ -1,6 +1,12 @@
 // @ts-ignore
 import { describe, expect, it } from "bun:test";
-import { ceilTaxByCurrency, formatCurrencyCode, roundByCurrency } from "./currency";
+import {
+  ceilTaxByCurrency,
+  formatCurrencyCode,
+  formatCurrencyInput,
+  parseCurrencyInput,
+  roundByCurrency,
+} from "./currency";
 
 // #9 — shared currency-rounding rules (previously copy-pasted across four components).
 describe("roundByCurrency", () => {
@@ -34,5 +40,24 @@ describe("formatCurrencyCode", () => {
 
   it("formats IDR amounts with the IDR code and whole rupiah", () => {
     expect(formatCurrencyCode(9396131, "IDR")).toBe("IDR 9.396.131");
+  });
+});
+
+describe("currency input helpers", () => {
+  it("parses IDR input as whole-number rupiah", () => {
+    expect(parseCurrencyInput("16.250.500", "IDR")).toBe(16250500);
+    expect(parseCurrencyInput("Rp 1,250", "IDR")).toBe(1250);
+  });
+
+  it("parses USD input with either comma or dot decimals", () => {
+    expect(parseCurrencyInput("1,25", "USD")).toBe(1.25);
+    expect(parseCurrencyInput("1,234.56", "USD")).toBe(1234.56);
+    expect(parseCurrencyInput("1.234,56", "USD")).toBe(1234.56);
+  });
+
+  it("formats currency inputs without currency symbols", () => {
+    expect(formatCurrencyInput(16250500, "IDR")).toBe("16.250.500");
+    expect(formatCurrencyInput(1234.56, "USD")).toBe("1,234.56");
+    expect(formatCurrencyInput("", "USD")).toBe("");
   });
 });

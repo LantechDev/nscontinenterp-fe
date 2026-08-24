@@ -70,7 +70,8 @@ describe("exchange-rate amount display", () => {
       "utf8",
     );
 
-    expect(contents).toContain("flex flex-col justify-center");
+    expect(contents).toContain("flex flex-col divide-y");
+    expect(contents).toContain("quotation-total-table");
     expect(contents).toContain("whitespace-nowrap");
     expect(contents).not.toContain("grid-cols-2 divide-x");
   });
