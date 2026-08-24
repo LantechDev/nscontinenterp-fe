@@ -54,6 +54,13 @@ export const permissionFeatures: PermissionFeature[] = [
     levels: ["none", "view", "manage", "approve"],
   },
   {
+    key: "operational.vesselTracking",
+    group: "Operational",
+    label: "Vessel Tracking",
+    description: "Shipment vessel tracking and arrival updates",
+    levels: ["none", "view", "manage"],
+  },
+  {
     key: "operational.ebl",
     group: "Operational",
     label: "eBL",
