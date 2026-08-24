@@ -33,6 +33,7 @@ definePageMeta({
 });
 
 const { trackings, fetchVesselTrackings, updateVesselTracking, isLoading } = useVesselTracking();
+const { canManage, requireManage } = useFeatureAccess("operational.vesselTracking");
 const { fetchVessels, fetchPlanes, fetchPorts } = useMasterData();
 const { showExportOptions, triggerX, triggerY, triggerWidth, triggerHeight, openExportPopup } =
   useExportPopup();
@@ -693,6 +694,7 @@ const handleExportExcel = () => {
 };
 
 const openEdit = (tracking: VesselTracking) => {
+  if (!requireManage("You only have view access for vessel tracking.")) return;
   selectedTracking.value = tracking;
   ensureTrackingPorts(tracking);
   editLegs.value = tracking.legs.map((leg) => ({ ...leg }));
@@ -746,17 +748,20 @@ const createDraftLeg = (source?: VesselTrackingLeg | null): VesselTrackingLeg =>
 };
 
 const addUpdateLeg = () => {
+  if (!canManage.value) return;
   const source = editLegs.value[activeUpdateIndex.value] || editLegs.value.at(-1) || null;
   editLegs.value.push(createDraftLeg(source));
   activeUpdateIndex.value = editLegs.value.length - 1;
 };
 
 const addVesselLeg = () => {
+  if (!canManage.value) return;
   editLegs.value.push(createDraftLeg(null));
   activeUpdateIndex.value = editLegs.value.length - 1;
 };
 
 const deleteEditLeg = (index: number) => {
+  if (!canManage.value) return;
   if (editLegs.value.length <= 1) {
     toast.error("Minimal harus ada 1 vessel update.");
     return;
@@ -782,6 +787,7 @@ const closeEdit = () => {
 
 const saveTracking = async () => {
   if (!selectedTracking.value) return;
+  if (!requireManage("You only have view access for vessel tracking.")) return;
   isSaving.value = true;
   try {
     const res = await updateVesselTracking(selectedTracking.value.id, {
@@ -830,7 +836,7 @@ onMounted(async () => {
   masterPlanes.value = planes;
   upsertPortOptions(ports.map(normalizePortOption));
   const selectedId = typeof route.query.id === "string" ? route.query.id : "";
-  if (selectedId) {
+  if (selectedId && canManage.value) {
     const found = trackings.value.find((item) => item.id === selectedId);
     if (found) openEdit(found);
     await router.replace({ path: route.path, query: {} });
@@ -987,7 +993,7 @@ onMounted(async () => {
       </div>
     </div>
 
-    <UiLoadingSkeleton v-if="isLoading" variant="table" :columns="7" />
+    <UiLoadingSkeleton v-if="isLoading" variant="table" :columns="canManage ? 8 : 7" />
 
     <div
       v-else-if="viewMode === 'list'"
@@ -1032,7 +1038,7 @@ onMounted(async () => {
               >
                 Status
               </th>
-              <th class="py-3 px-4 w-10"></th>
+              <th v-if="canManage" class="py-3 px-4 w-10"></th>
             </tr>
           </thead>
           <tbody>
@@ -1242,7 +1248,7 @@ onMounted(async () => {
                   </span>
                 </div>
               </td>
-              <td class="py-3 px-4 text-right">
+              <td v-if="canManage" class="py-3 px-4 text-right">
                 <UiActionMenu>
                   <template #trigger>
                     <button
@@ -1264,7 +1270,7 @@ onMounted(async () => {
               </td>
             </tr>
             <tr v-if="filteredTrackings.length === 0">
-              <td colspan="8" class="p-8 text-center text-muted-foreground">
+              <td :colspan="canManage ? 8 : 7" class="p-8 text-center text-muted-foreground">
                 Belum ada vessel tracking sesuai filter.
               </td>
             </tr>
@@ -1294,6 +1300,7 @@ onMounted(async () => {
             </div>
           </div>
           <button
+            v-if="canManage"
             class="p-1.5 text-muted-foreground hover:text-[#012D5A] hover:bg-blue-50 rounded transition-colors"
             @click="openEdit(tracking)"
             title="Update Tracking"
