@@ -16,7 +16,7 @@ import { useRouter, useRoute } from "#app";
 const router = useRouter();
 const route = useRoute();
 const { notifications, fetchNotifications } = useDashboard();
-const { canAccessPath, ensureRolesLoaded } = useRoleAccess();
+const { canAccessPath, ensureRolesLoaded, hasAccess } = useRoleAccess();
 const isSidebarCollapsed = useState("dashboard-sidebar-collapsed", () => false);
 
 // Check route meta to show/hide header
@@ -68,6 +68,7 @@ const isSearching = ref(false);
 const showDropdown = ref(false);
 const hasSearched = ref(false);
 const activeIndex = ref(0);
+const canSearchJobs = computed(() => hasAccess("operational.job"));
 
 // Rank results: entries whose title/subtitle START WITH the query come first
 const rankResults = (results: SearchResult[], query: string): SearchResult[] => {
@@ -195,7 +196,9 @@ const performSearch = async (query: string) => {
     const [companiesRes, jobsRes, invoicesRes, quotationsRes, servicesRes, vesselsRes] =
       await Promise.allSettled([
         $fetch<unknown>(`/api/master/companies`, { query: { search: q, limit: 5, type: "ALL" } }),
-        $fetch<unknown>(`/api/operational/jobs`, { query: { search: q, limit: 5 } }),
+        canSearchJobs.value
+          ? $fetch<unknown>(`/api/operational/jobs`, { query: { search: q, limit: 5 } })
+          : Promise.resolve([]),
         $fetch<unknown>(`/api/finance/invoice`, { query: { search: q, limit: 5 } }),
         $fetch<unknown>(`/api/operational/quotations`, { query: { search: q, limit: 5 } }),
         $fetch<unknown>(`/api/master/services`, { query: { search: q } }),
