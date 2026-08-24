@@ -38,6 +38,16 @@ import {
   type QuotationInvoiceItem,
 } from "~/composables/useQuotations";
 import { useFinanceTax } from "~/composables/useFinanceTax";
+import { formatCurrencyAmount, formatExchangeRateLabel } from "~/utils/currency";
+import {
+  formatQuotationDate,
+  getQuotationItemsTotalDisplay,
+  getQuotationLineTaxGroupedTotals,
+  getQuotationRouteDisplay,
+  getQuotationServiceFlags,
+  getQuotationServiceLabels,
+  getQuotationStatusBadgeClass,
+} from "~/utils/quotation-display";
 import { toast } from "vue-sonner";
 import Modal from "~/components/ui/Modal.vue";
 import QuotationPreview from "./QuotationPreview.vue";
@@ -90,119 +100,29 @@ const relatedInvoices = computed(() => quotation.value?.invoices || []);
 
 const quotationInvoices = computed(() => quotation.value?.quotationInvoices || []);
 
-const getPol = computed(() => quotation.value?.polName || quotation.value?.pol || "-");
-const getPod = computed(() => quotation.value?.podName || quotation.value?.pod || "-");
-
-const tradeTypeLabel = computed(() => {
-  const tradeType = quotation.value?.tradeTypeId;
-  if (tradeType === "IMPORT") return "Import";
-  if (tradeType === "DOMESTIC") return "Domestic";
-  return "Export";
-});
-
-const serviceTypeLabel = computed(() => {
-  const serviceType = quotation.value?.serviceType;
-  const shipmentType = quotation.value?.shipmentType;
-  if (serviceType === "AIR" || shipmentType === "AIR") return "AIR FREIGHT";
-  if (serviceType === "TRUCKING") return "TRUCKING";
-  if (serviceType === "CUSTOM_CLEARANCE") return "CUSTOM CLEARANCE";
-  return "FREIGHT";
-});
-
-const shipmentTypeLabel = computed(() => {
-  const shipmentType = quotation.value?.shipmentType;
-  if (shipmentType === "AIR") return "Air Freight";
-  if (shipmentType === "OCEAN") return "Ocean Freight";
-  return "-";
-});
-
-const isOceanService = computed(() => quotation.value?.serviceType === "OCEAN");
-const isAirFreight = computed(
-  () => quotation.value?.serviceType === "AIR" || quotation.value?.shipmentType === "AIR",
+const serviceLabels = computed(() => getQuotationServiceLabels(quotation.value || {}));
+const serviceFlags = computed(() => getQuotationServiceFlags(quotation.value || {}));
+const routeDisplay = computed(() =>
+  getQuotationRouteDisplay(quotation.value || {}, { labelCase: "title" }),
 );
-const isTrucking = computed(() => quotation.value?.serviceType === "TRUCKING");
-const isCustomClearance = computed(() => quotation.value?.serviceType === "CUSTOM_CLEARANCE");
 
-const originLabel = computed(() => {
-  if (isTrucking.value) return "Pickup Address";
-  if (isCustomClearance.value) return "Clearance Origin / Port";
-  return isAirFreight.value ? "Origin Airport" : "Port of Loading (POL)";
-});
+const tradeTypeLabel = computed(() => serviceLabels.value.tradeTypeLabel);
+const serviceTypeLabel = computed(() => serviceLabels.value.serviceTypeLabel);
+const shipmentTypeLabel = computed(() => serviceLabels.value.shipmentTypeLabel);
+const isOceanService = computed(() => serviceFlags.value.isOceanService);
+const isAirFreight = computed(() => serviceFlags.value.isAirFreight);
+const isTrucking = computed(() => serviceFlags.value.isTrucking);
+const isCustomClearance = computed(() => serviceFlags.value.isCustomClearance);
+const originLabel = computed(() => routeDisplay.value.originLabel);
+const destinationLabel = computed(() => routeDisplay.value.destinationLabel);
+const originValue = computed(() => routeDisplay.value.originValue);
+const destinationValue = computed(() => routeDisplay.value.destinationValue);
+const containerTypeValue = computed(() => routeDisplay.value.containerTypeValue);
+const truckTypeValue = computed(() => routeDisplay.value.truckTypeValue);
 
-const destinationLabel = computed(() => {
-  if (isTrucking.value) return "Delivery Address";
-  if (isCustomClearance.value) return "Clearance Destination / Port";
-  return isAirFreight.value ? "Destination Airport" : "Port of Discharge (POD)";
-});
-
-const originValue = computed(() => {
-  if (isTrucking.value) return quotation.value?.pickupAddress || "-";
-  return getPol.value;
-});
-
-const destinationValue = computed(() => {
-  if (isTrucking.value) return quotation.value?.deliveryAddress || "-";
-  return getPod.value;
-});
-
-const containerTypeValue = computed(() => {
-  if (isCustomClearance.value) return "-";
-  return quotation.value?.containerTypeName || quotation.value?.containerTypeId || "-";
-});
-
-const truckTypeValue = computed(() => {
-  if (!isTrucking.value) return "-";
-  return quotation.value?.truckType || "-";
-});
-
-const groupedTotals = computed(() => {
-  const totals: {
-    IDR: { subTotal: number; taxAmount: number; total: number };
-    USD: { subTotal: number; taxAmount: number; total: number };
-    [key: string]: { subTotal: number; taxAmount: number; total: number };
-  } = {
-    IDR: { subTotal: 0, taxAmount: 0, total: 0 },
-    USD: { subTotal: 0, taxAmount: 0, total: 0 },
-  };
-
-  if (!quotation.value?.charges) return totals;
-
-  const rate = Number(quotation.value?.exchangeRate || 1);
-  const shouldConvert = rate > 1;
-
-  quotation.value.charges.forEach((ch) => {
-    const currency = ch.currency || "IDR";
-    const qty = Number(ch.quantity || 0);
-    const price = Number(ch.unitPrice || 0);
-    const amount = qty * price;
-    const tr = getTaxRate(ch.taxId);
-    const taxValue = amount * (tr / 100);
-
-    if (shouldConvert && currency === "USD") {
-      const idrAmount = amount * rate;
-      const idrTax = taxValue * rate;
-      totals.IDR.subTotal += idrAmount;
-      totals.IDR.taxAmount += idrTax;
-    } else {
-      if (!totals[currency]) {
-        totals[currency] = { subTotal: 0, taxAmount: 0, total: 0 };
-      }
-      totals[currency].subTotal += amount;
-      totals[currency].taxAmount += taxValue;
-    }
-  });
-
-  totals.IDR.subTotal = roundByCurrency(totals.IDR.subTotal, "IDR");
-  totals.IDR.taxAmount = ceilTaxByCurrency(totals.IDR.taxAmount, "IDR");
-  totals.IDR.total = totals.IDR.subTotal + totals.IDR.taxAmount;
-
-  totals.USD.taxAmount = ceilTaxByCurrency(totals.USD.taxAmount, "USD");
-  totals.USD.total = totals.USD.subTotal + totals.USD.taxAmount;
-
-  // USD will show zero when all converted — template hides it via v-if t.total > 0
-
-  return totals;
-});
+const groupedTotals = computed(() =>
+  getQuotationLineTaxGroupedTotals(quotation.value || {}, taxesList.value),
+);
 
 watch(
   () => props.modelValue,
@@ -225,102 +145,14 @@ watch(
   { immediate: true },
 );
 
-// Helpers
-const formatDate = (dateString?: string | null) => {
-  if (!dateString) return "-";
-  try {
-    return new Intl.DateTimeFormat("en-GB", {
-      day: "numeric",
-      month: "long",
-      year: "numeric",
-    }).format(new Date(dateString));
-  } catch (e) {
-    return dateString;
-  }
-};
-
-const formatDateTime = (dateString?: string | null) => {
-  if (!dateString) return "-";
-  try {
-    return new Intl.DateTimeFormat("en-GB", {
-      day: "numeric",
-      month: "long",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    }).format(new Date(dateString));
-  } catch (e) {
-    return dateString;
-  }
-};
-
-const formatCurrency = (amount: number, currency: string = "IDR") => {
-  return new Intl.NumberFormat(currency === "IDR" ? "id-ID" : "en-US", {
-    style: "currency",
-    currency: currency,
-    minimumFractionDigits: currency === "IDR" ? 0 : 2,
-    maximumFractionDigits: currency === "IDR" ? 0 : 2,
-  }).format(amount);
-};
-
-const formatCurrencyIDR = (amount: number, currency: string = "IDR") => {
-  const rate = Number(quotation.value?.exchangeRate || 1);
-  const idrAmount = currency === "USD" && rate > 1 ? amount * rate : amount;
-  return new Intl.NumberFormat("id-ID", {
-    style: "currency",
-    currency: "IDR",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(idrAmount);
-};
-
 const exchangeRateLabel = computed(() => {
-  const rate = Number(quotation.value?.exchangeRate || 1);
-  if (rate > 1) {
-    return `1 USD = ${new Intl.NumberFormat("id-ID").format(rate)} IDR`;
-  }
-  return "";
-});
-
-const itemsTotalRevenue = computed(() => {
-  let idrTotal = 0;
-  let usdTotal = 0;
-  const rate = Number(quotation.value?.exchangeRate || 1);
-  (quotation.value?.charges || []).forEach((ch) => {
-    if (ch.atCost) return;
-    const amt = Number(ch.quantity || 0) * Number(ch.unitPrice || 0);
-    if ((ch.currency || "IDR") === "USD") {
-      usdTotal += amt;
-      if (rate > 1) idrTotal += amt * rate;
-    } else {
-      idrTotal += amt;
-    }
+  return formatExchangeRateLabel(quotation.value?.exchangeRate, {
+    idrPosition: "suffix",
+    defaultLabel: "",
   });
-  return { idrTotal, usdTotal, hasUsd: usdTotal > 0, hasRate: rate > 1 };
 });
 
-const itemsTotalDisplay = computed(() => {
-  const totals = itemsTotalRevenue.value;
-  const hasIdr = totals.idrTotal > 0;
-
-  if (totals.hasUsd && !hasIdr) {
-    return {
-      primaryAmount: totals.usdTotal,
-      primaryCurrency: "USD",
-      secondaryAmount: 0,
-      secondaryCurrency: "IDR",
-      showSecondary: false,
-    };
-  }
-
-  return {
-    primaryAmount: totals.idrTotal,
-    primaryCurrency: "IDR",
-    secondaryAmount: totals.usdTotal,
-    secondaryCurrency: "USD",
-    showSecondary: totals.hasUsd && totals.usdTotal > 0,
-  };
-});
+const itemsTotalDisplay = computed(() => getQuotationItemsTotalDisplay(quotation.value || {}));
 
 const invoiceSummary = computed(() => {
   let totalInvoicedIDR = 0;
@@ -339,18 +171,6 @@ const invoiceSummary = computed(() => {
   });
   return { totalInvoicedIDR, totalInvoicedUSD, hasUSD, hasRate: rate > 1 };
 });
-
-const getStatusBadgeClass = (status?: string) => {
-  if (!status) return "bg-gray-50 text-gray-600 border-gray-200";
-  const s = status.toUpperCase();
-  if (s === "CONVERTED") return "bg-emerald-100 text-emerald-800 border-emerald-200";
-  if (s === "CONFIRMED") return "bg-blue-100 text-blue-800 border-blue-200";
-  if (s === "DRAFT") return "bg-gray-100 text-gray-800 border-gray-300";
-  if (s === "SENT") return "bg-amber-100 text-[#8a5d00] border-amber-200";
-  if (s === "CANCELLED") return "bg-rose-100 text-rose-800 border-rose-200";
-  if (s === "EXPIRED") return "bg-indigo-100 text-indigo-800 border-indigo-200";
-  return "bg-gray-50 text-gray-600 border-gray-200";
-};
 
 // Conversions
 
@@ -379,17 +199,6 @@ const handleUpdateStatus = async (newStatus: string) => {
   } else {
     toast.error(res.error || "Gagal mengubah status.");
   }
-};
-
-const getTaxRate = (taxId?: string | null) => {
-  if (!taxId) {
-    const fallbackId = quotation.value?.taxId;
-    if (!fallbackId) return 0;
-    const fallbackTax = taxesList.value.find((t) => t.id === fallbackId);
-    return fallbackTax ? fallbackTax.rate : 0;
-  }
-  const tax = taxesList.value.find((t) => t.id === taxId);
-  return tax ? tax.rate : 0;
 };
 
 const showInvoiceForm = ref(false);
@@ -569,17 +378,21 @@ const handleGeneratePDF = async () => {
                   <div class="flex items-center gap-2 text-muted-foreground">
                     <Calendar class="w-4 h-4" /> Quotation Date
                   </div>
-                  <div class="font-medium">{{ formatDate(quotation.date) }}</div>
+                  <div class="font-medium">{{ formatQuotationDate(quotation.date, "long") }}</div>
 
                   <div class="flex items-center gap-2 text-muted-foreground">
                     <CalendarClock class="w-4 h-4" /> Valid Until
                   </div>
-                  <div class="font-medium">{{ formatDate(quotation.validUntil) }}</div>
+                  <div class="font-medium">
+                    {{ formatQuotationDate(quotation.validUntil, "long") }}
+                  </div>
 
                   <div class="flex items-center gap-2 text-muted-foreground">
                     <Clock class="w-4 h-4" /> Created Time
                   </div>
-                  <div class="font-medium">{{ formatDateTime(quotation.createdAt) }}</div>
+                  <div class="font-medium">
+                    {{ formatQuotationDate(quotation.createdAt, "datetime") }}
+                  </div>
 
                   <div class="flex items-center gap-2 text-muted-foreground">
                     <Settings class="w-4 h-4" /> Status
@@ -589,7 +402,7 @@ const handleGeneratePDF = async () => {
                       :class="
                         cn(
                           'inline-flex items-center px-3 py-1 rounded-md text-xs font-bold leading-none border uppercase tracking-wider',
-                          getStatusBadgeClass(quotation.status),
+                          getQuotationStatusBadgeClass(quotation.status, 'soft'),
                         )
                       "
                     >
@@ -759,7 +572,7 @@ const handleGeneratePDF = async () => {
                           <div class="min-w-0">
                             <p class="text-xs text-muted-foreground mb-0.5">Pickup Date</p>
                             <p class="font-bold text-sm text-foreground truncate">
-                              {{ formatDate(quotation.pickupDate) }}
+                              {{ formatQuotationDate(quotation.pickupDate, "long") }}
                             </p>
                           </div>
                         </div>
@@ -773,7 +586,7 @@ const handleGeneratePDF = async () => {
                           <div class="min-w-0">
                             <p class="text-xs text-muted-foreground mb-0.5">Delivery Date</p>
                             <p class="font-bold text-sm text-foreground truncate">
-                              {{ formatDate(quotation.deliveryDate) }}
+                              {{ formatQuotationDate(quotation.deliveryDate, "long") }}
                             </p>
                           </div>
                         </div>
@@ -958,13 +771,13 @@ const handleGeneratePDF = async () => {
                       <div class="flex items-center gap-3">
                         <span
                           class="px-2 py-0.5 rounded text-[10px] font-bold border uppercase tracking-wider"
-                          :class="getStatusBadgeClass(quotation.status)"
+                          :class="getQuotationStatusBadgeClass(quotation.status, 'soft')"
                           >{{ quotation.status }}</span
                         >
                         <div class="text-right">
                           <p class="font-black text-sm text-[#012D5A]">
                             {{
-                              formatCurrency(
+                              formatCurrencyAmount(
                                 itemsTotalDisplay.primaryAmount,
                                 itemsTotalDisplay.primaryCurrency,
                               )
@@ -975,7 +788,7 @@ const handleGeneratePDF = async () => {
                             class="text-[9px] text-muted-foreground font-bold"
                           >
                             {{
-                              formatCurrency(
+                              formatCurrencyAmount(
                                 itemsTotalDisplay.secondaryAmount,
                                 itemsTotalDisplay.secondaryCurrency,
                               )
@@ -1006,12 +819,13 @@ const handleGeneratePDF = async () => {
                             {{ quotation.number }}
                           </h1>
                           <p class="text-sm text-muted-foreground leading-none mb-1">
-                            {{ quotation.customerName || "—" }} · {{ formatDate(quotation.date) }}
+                            {{ quotation.customerName || "—" }} ·
+                            {{ formatQuotationDate(quotation.date, "long") }}
                           </p>
                           <div class="flex items-center gap-3">
                             <span
                               class="px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest border leading-none max-w-fit"
-                              :class="getStatusBadgeClass(quotation.status)"
+                              :class="getQuotationStatusBadgeClass(quotation.status, 'soft')"
                               >{{ quotation.status }}</span
                             >
                           </div>
@@ -1099,7 +913,9 @@ const handleGeneratePDF = async () => {
                         <div class="flex items-center gap-3 shrink-0">
                           <div class="text-right">
                             <p class="font-black text-sm text-[#012D5A]">
-                              {{ formatCurrency(qinv.total, getQuotationInvoiceCurrency(qinv)) }}
+                              {{
+                                formatCurrencyAmount(qinv.total, getQuotationInvoiceCurrency(qinv))
+                              }}
                             </p>
                             <p class="text-[9px] text-muted-foreground font-bold uppercase">
                               Quotation
@@ -1146,7 +962,7 @@ const handleGeneratePDF = async () => {
                           </h1>
                           <p class="text-sm text-muted-foreground leading-none mb-1">
                             {{ quotation.customerName || "—" }} ·
-                            {{ formatDate(previewInvoice.date || quotation.date) }}
+                            {{ formatQuotationDate(previewInvoice.date || quotation.date, "long") }}
                           </p>
                         </div>
                       </div>
@@ -1280,16 +1096,16 @@ const handleGeneratePDF = async () => {
                               <span v-else class="text-muted-foreground italic text-xs">—</span>
                             </td>
                             <td class="py-4 px-4 text-xs text-muted-foreground">
-                              {{ inv.createdAt ? formatDate(inv.createdAt) : "—" }}
+                              {{ inv.createdAt ? formatQuotationDate(inv.createdAt, "long") : "—" }}
                             </td>
                             <td class="py-4 px-4 text-right font-semibold text-foreground">
-                              {{ formatCurrency(inv.total || 0, inv.currency) }}
+                              {{ formatCurrencyAmount(inv.total || 0, inv.currency) }}
                             </td>
                             <td class="py-4 px-6">
                               <div class="flex justify-center">
                                 <span
                                   class="px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded border"
-                                  :class="getStatusBadgeClass(inv.status)"
+                                  :class="getQuotationStatusBadgeClass(inv.status, 'soft')"
                                 >
                                   {{ inv.status || "—" }}
                                 </span>

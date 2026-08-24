@@ -8,7 +8,14 @@ import ServiceCreateModal from "~/pages/master/services/components/ServiceCreate
 import DatePicker from "~/components/ui/DatePicker.vue";
 import { toast } from "vue-sonner";
 import type { QuotationInvoice } from "~/composables/useQuotations";
-import { buildInvoiceItems } from "~/utils/quotationInvoice";
+import {
+  buildInvoiceItems,
+  calculateInvoiceTotal,
+  groupInvoiceTotals,
+  isWithholdingInvoiceTax,
+} from "~/utils/quotationInvoice";
+import { formatCurrencyAmount, formatCurrencyInput, parseCurrencyInput } from "~/utils/currency";
+import { buildTaxSelectOptions } from "~/utils/taxOptions";
 
 const props = defineProps<{
   invoice?: QuotationInvoice | null;
@@ -106,11 +113,7 @@ onMounted(async () => {
   ]);
   if (taxesRes?.items) {
     taxList.value = taxesRes.items;
-    const hasNonPpnRow = taxList.value.some((t) => Number(t.rate) === 0);
-    taxOptions.value = [
-      ...(hasNonPpnRow ? [] : [{ id: "", name: "NON PPN" }]),
-      ...taxList.value.map((t: Tax) => ({ id: t.id, name: `${t.name} (${Number(t.rate)}%)` })),
-    ];
+    taxOptions.value = buildTaxSelectOptions(taxList.value);
     if (!props.invoice?.id) {
       const defaultTax = taxList.value.find((t) => t.isDefault);
       if (defaultTax) form.value.taxId = defaultTax.id;
@@ -197,20 +200,6 @@ async function submitServiceForm(formData: {
   }
 }
 
-const subTotal = computed(() => {
-  const sum = form.value.items.reduce((acc, item) => {
-    const itemAmount = Number(item.quantity || 0) * Number(item.unitPrice || 0);
-    const itemCurrency = item.currency || "IDR";
-    const invoiceCurrency = form.value.currency;
-    const rate = Number(form.value.exchangeRate || 1);
-    if (itemCurrency === "USD" && invoiceCurrency === "IDR") return acc + itemAmount * rate;
-    else if (itemCurrency === "IDR" && invoiceCurrency === "USD")
-      return acc + (rate > 0 ? itemAmount / rate : 0);
-    return acc + itemAmount;
-  }, 0);
-  return form.value.currency === "IDR" ? Math.round(sum) : sum;
-});
-
 const selectedTax = computed(() => taxList.value.find((t) => t.id === form.value.taxId));
 
 const showDiscount = ref(false);
@@ -225,56 +214,28 @@ const removeDiscount = () => {
   showDiscount.value = false;
 };
 
-const discountAmount = computed(() => {
-  const val = Number(form.value.discountValue) || 0;
-  if (!form.value.discountType || val <= 0) return 0;
-  let raw = form.value.discountType === "PERCENTAGE" ? (subTotal.value * val) / 100 : val;
-  raw = Math.max(0, Math.min(raw, subTotal.value));
-  return form.value.currency === "IDR" ? Math.round(raw) : raw;
-});
-
-const discountedBase = computed(() => subTotal.value - discountAmount.value);
-const isWithholdingTax = computed(
-  () => selectedTax.value?.isDeduction ?? (selectedTax.value?.type || "").toLowerCase() === "pph",
+const invoiceTotals = computed(() =>
+  calculateInvoiceTotal({
+    items: form.value.items,
+    invoiceCurrency: form.value.currency as "IDR" | "USD",
+    exchangeRate: Number(form.value.exchangeRate || 1),
+    discountType: form.value.discountType,
+    discountValue: Number(form.value.discountValue || 0),
+    tax: selectedTax.value,
+  }),
 );
-const taxAmount = computed(() => {
-  const rate = selectedTax.value ? Number(selectedTax.value.rate) : 0;
-  const dpp = selectedTax.value ? Number(selectedTax.value.dppBasePercent ?? 100) : 100;
-  const sum = (discountedBase.value * (dpp / 100) * rate) / 100;
-  return ceilTaxByCurrency(sum, form.value.currency);
-});
-const signedTax = computed(() => (isWithholdingTax.value ? -taxAmount.value : taxAmount.value));
-const total = computed(() => {
-  const sum = discountedBase.value + signedTax.value;
-  return form.value.currency === "IDR" ? Math.round(sum) : sum;
-});
+
+const subTotal = computed(() => invoiceTotals.value.subTotal);
+const discountAmount = computed(() => invoiceTotals.value.discountAmount);
+const discountedBase = computed(() => invoiceTotals.value.discountedBase);
+const taxAmount = computed(() => invoiceTotals.value.taxAmount);
+const total = computed(() => invoiceTotals.value.total);
+const isWithholdingTax = computed(() => isWithholdingInvoiceTax(selectedTax.value));
 
 // Per-currency grouped totals (used when exchange rate is not configured)
-const groupedTotals = computed(() => {
-  const gt: Record<string, { subTotal: number; taxAmount: number; total: number }> = {
-    IDR: { subTotal: 0, taxAmount: 0, total: 0 },
-    USD: { subTotal: 0, taxAmount: 0, total: 0 },
-  };
-  form.value.items.forEach((it) => {
-    const curr = it.currency || "IDR";
-    if (!gt[curr]) gt[curr] = { subTotal: 0, taxAmount: 0, total: 0 };
-    const amt = (it.quantity || 0) * (it.unitPrice || 0);
-    gt[curr].subTotal += amt;
-  });
-
-  Object.keys(gt).forEach((curr) => {
-    const entry = gt[curr];
-    if (!entry) return;
-    const roundedSubTotal = curr === "IDR" ? Math.round(entry.subTotal) : entry.subTotal;
-    const rawTax = (roundedSubTotal * taxRatePercent.value) / 100;
-    const tax = ceilTaxByCurrency(rawTax, curr);
-    entry.subTotal = roundedSubTotal;
-    entry.taxAmount = tax;
-    entry.total = roundedSubTotal + (isWithholdingTax.value ? -tax : tax);
-  });
-
-  return gt;
-});
+const groupedTotals = computed(() =>
+  groupInvoiceTotals(form.value.items, taxRatePercent.value, isWithholdingTax.value),
+);
 
 const taxRatePercent = computed(() => (selectedTax.value ? Number(selectedTax.value.rate) : 0));
 
@@ -297,41 +258,13 @@ async function loadExchangeRate() {
 }
 
 const formatCurrency = (amount: number, currency: string = form.value.currency) =>
-  new Intl.NumberFormat(currency === "USD" ? "en-US" : "id-ID", {
-    style: "currency",
-    currency,
-    minimumFractionDigits: currency === "IDR" ? 0 : 2,
-    maximumFractionDigits: currency === "IDR" ? 0 : 2,
-  }).format(amount);
+  formatCurrencyAmount(amount, currency);
 
-const parseInputCurrency = (val: string, currency: string = form.value.currency) => {
-  if (!val) return 0;
-  if (currency === "IDR") {
-    const numeric = Number(val.replace(/[^0-9-]/g, ""));
-    return isNaN(numeric) ? 0 : numeric;
-  }
-  let normalized = val;
-  const hasComma = val.includes(",");
-  const hasDot = val.includes(".");
-  if (hasComma && !hasDot) normalized = val.replace(",", ".");
-  else if (hasComma && hasDot) {
-    if (val.lastIndexOf(",") > val.lastIndexOf("."))
-      normalized = val.replace(/\./g, "").replace(",", ".");
-    else normalized = val.replace(/,/g, "");
-  }
-  const numeric = Number(normalized.replace(/[^0-9.-]+/g, ""));
-  return isNaN(numeric) ? 0 : numeric;
-};
+const parseInputCurrency = (val: string, currency: string = form.value.currency) =>
+  parseCurrencyInput(val, currency);
 
-const formatInputCurrency = (val: number | string, currency: string = form.value.currency) => {
-  if (val === undefined || val === null || val === "") return "";
-  const numericVal = typeof val === "string" ? parseInputCurrency(val, currency) : val;
-  if (isNaN(numericVal)) return "";
-  return new Intl.NumberFormat(currency === "IDR" ? "id-ID" : "en-US", {
-    maximumFractionDigits: currency === "IDR" ? 0 : 2,
-    minimumFractionDigits: 0,
-  }).format(numericVal);
-};
+const formatInputCurrency = (val: number | string, currency: string = form.value.currency) =>
+  formatCurrencyInput(val, currency);
 
 const handleSubmit = () => {
   const validItems = form.value.items.filter(
@@ -734,11 +667,7 @@ const handleSubmit = () => {
               >IDR Equivalent</span
             >
             <span class="text-[10px] font-bold text-[#012D5A]">{{
-              new Intl.NumberFormat("id-ID", {
-                style: "currency",
-                currency: "IDR",
-                minimumFractionDigits: 0,
-              }).format(total * form.exchangeRate)
+              formatCurrencyAmount(total * form.exchangeRate, "IDR")
             }}</span>
           </div>
         </div>

@@ -17,14 +17,19 @@ import {
   MoreHorizontal,
 } from "lucide-vue-next";
 import { toast } from "vue-sonner";
-import jsPDF from "jspdf";
-import html2canvas from "html2canvas";
 import Modal from "~/components/ui/Modal.vue";
 import QuotationCostForm from "./QuotationCostForm.vue";
 import QuotationCostingPreview from "./QuotationCostingPreview.vue";
 import QuotationCostDetailPreview from "./QuotationCostDetailPreview.vue";
 import { useQuotations, type Quotation, type QuotationCost } from "~/composables/useQuotations";
 import { useCompanies } from "~/composables/useCompanies";
+import { formatCurrencyAmount } from "~/utils/currency";
+import { renderElementPdf } from "~/utils/pdfRender";
+import {
+  calculateQuotationProfitSummary,
+  groupCostTotals,
+  type ProfitSummary,
+} from "~/utils/quotationCost";
 
 const props = defineProps<{
   quotation: Quotation;
@@ -86,35 +91,12 @@ const printingCost = computed<QuotationCost | null>(() => {
 const handlePrintCost = async (cost: QuotationCost, idx: number) => {
   printingCostIdx.value = idx;
   isPrintingCost.value = true;
-  await nextTick();
   try {
     if (!costPrintRef.value) return;
-    const canvas = await html2canvas(costPrintRef.value, {
-      scale: 2,
-      useCORS: true,
-      logging: false,
-      backgroundColor: "#ffffff",
-    });
-    const imgData = canvas.toDataURL("image/png");
-    const pdf = new jsPDF("p", "mm", "a4");
-    const pageWidth = pdf.internal.pageSize.getWidth();
-    const margin = 10;
-    const imgWidth = pageWidth - margin * 2;
-    const imgHeight = (canvas.height * imgWidth) / canvas.width;
-    let heightLeft = imgHeight;
-    let position = margin;
-    pdf.addImage(imgData, "PNG", margin, position, imgWidth, imgHeight);
-    heightLeft -= pdf.internal.pageSize.getHeight() - margin * 2;
-    while (heightLeft > 0) {
-      position = margin - (pdf.internal.pageSize.getHeight() - margin * 2);
-      pdf.addPage();
-      pdf.addImage(imgData, "PNG", margin, position, imgWidth, imgHeight);
-      heightLeft -= pdf.internal.pageSize.getHeight() - margin * 2;
-    }
     const fileName = cost.number
       ? `cost-${cost.number.replace(/[/\\?%*:|"<>]/g, "-")}.pdf`
       : `cost-${vendorName(cost).replace(/\s+/g, "-").toLowerCase()}.pdf`;
-    pdf.save(fileName);
+    await renderElementPdf(costPrintRef.value, fileName);
     toast.success("Cost PDF berhasil diunduh.");
   } catch (err) {
     console.error("Failed to print cost PDF:", err);
@@ -136,13 +118,7 @@ onMounted(() => {
   fetchCompanies({ type: "VENDOR", limit: 500 });
 });
 
-const formatCurrency = (amount: number, currency = "IDR") =>
-  new Intl.NumberFormat(currency === "USD" ? "en-US" : "id-ID", {
-    style: "currency",
-    currency,
-    minimumFractionDigits: currency === "IDR" ? 0 : 2,
-    maximumFractionDigits: currency === "IDR" ? 0 : 2,
-  }).format(Number(amount || 0));
+const formatCurrency = (amount: number, currency = "IDR") => formatCurrencyAmount(amount, currency);
 
 const vendorName = (cost: QuotationCost) => {
   if (cost.vendorId) {
@@ -177,69 +153,9 @@ const previewCosts = computed<QuotationCost[]>(() =>
 );
 
 // ---------- Profit analysis ----------
-const profitSummary = computed(() => {
-  const byCurrency: Record<
-    string,
-    { revenue: number; cost: number; profit: number; margin: number }
-  > = {
-    IDR: { revenue: 0, cost: 0, profit: 0, margin: 0 },
-    USD: { revenue: 0, cost: 0, profit: 0, margin: 0 },
-  };
-
-  const quotationRate = Number(props.quotation.exchangeRate || 1);
-  const isQuotationRateConfigured = quotationRate > 1;
-  let revenueIDR = 0;
-  let costIDR = 0;
-
-  (props.quotation.charges || []).forEach((ch) => {
-    if (ch.atCost) return;
-    const curr = ch.currency || "IDR";
-    const amt = Number(ch.quantity || 0) * Number(ch.unitPrice || 0);
-
-    const targetCurr = curr === "USD" && isQuotationRateConfigured ? "IDR" : curr;
-    const targetAmt = curr === "USD" && isQuotationRateConfigured ? amt * quotationRate : amt;
-
-    if (!byCurrency[targetCurr])
-      byCurrency[targetCurr] = { revenue: 0, cost: 0, profit: 0, margin: 0 };
-    byCurrency[targetCurr].revenue += targetAmt;
-    revenueIDR += curr === "USD" ? amt * quotationRate : amt;
-  });
-
-  costs.value.forEach((c) => {
-    const rate = Number(c.exchangeRate || 1);
-    const isCostRateConfigured = rate > 1;
-    (c.items || []).forEach((it) => {
-      const curr = it.currency || "IDR";
-      const amt = Number(it.amount || Number(it.quantity || 0) * Number(it.unitPrice || 0));
-
-      const shouldConvertToIDR =
-        curr === "USD" && (isQuotationRateConfigured || isCostRateConfigured);
-      const targetCurr = shouldConvertToIDR ? "IDR" : curr;
-      const targetAmt = shouldConvertToIDR ? amt * rate : amt;
-
-      if (!byCurrency[targetCurr])
-        byCurrency[targetCurr] = { revenue: 0, cost: 0, profit: 0, margin: 0 };
-      byCurrency[targetCurr].cost += targetAmt;
-      costIDR += curr === "USD" ? amt * rate : amt;
-    });
-  });
-
-  Object.values(byCurrency).forEach((b) => {
-    b.profit = b.revenue - b.cost;
-    b.margin = b.revenue > 0 ? (b.profit / b.revenue) * 100 : 0;
-  });
-
-  const profitIDR = revenueIDR - costIDR;
-  return {
-    byCurrency,
-    combined: {
-      revenueIDR,
-      costIDR,
-      profitIDR,
-      marginIDR: revenueIDR > 0 ? (profitIDR / revenueIDR) * 100 : 0,
-    },
-  };
-});
+const profitSummary = computed<ProfitSummary>(() =>
+  calculateQuotationProfitSummary(props.quotation, costs.value),
+);
 
 const currencyCards = computed(() =>
   Object.entries(profitSummary.value.byCurrency).filter(([, b]) => b.revenue !== 0 || b.cost !== 0),

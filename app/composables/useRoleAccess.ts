@@ -25,6 +25,7 @@ const legacyFeatureMap: Record<string, string> = {
   company: "master.company",
   job: "operational.job",
   ebl: "operational.ebl",
+  vesselTracking: "operational.vesselTracking",
   invoice: "finance.invoice",
   payment: "finance.payment",
   report: "finance.report",
@@ -253,6 +254,10 @@ export function useRoleAccess() {
 
     if (path.startsWith("/operational/ebl")) {
       return hasAccess("operational.ebl");
+    }
+
+    if (path.startsWith("/operational/vessel-tracking")) {
+      return hasAccess("operational.vesselTracking");
     }
 
     if (path.startsWith("/operational/")) {

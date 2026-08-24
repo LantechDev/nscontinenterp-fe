@@ -1,146 +1,27 @@
 <script setup lang="ts">
 /* eslint-disable @typescript-eslint/no-explicit-any -- loose quotation charge data */
-import { ref, computed, nextTick, onMounted } from "vue";
-import jsPDF from "jspdf";
-import html2canvas from "html2canvas";
+import { ref, computed, onMounted } from "vue";
 import { toast } from "vue-sonner";
 import type { Quotation, QuotationCharge } from "~/composables/useQuotations";
 import { useBankAccounts, type BankAccount } from "~/composables/useBankAccounts";
 import { useFinanceTax, type Tax } from "~/composables/useFinanceTax";
 import { useServices, type Service } from "~/composables/useServices";
 import CurrencyStack from "~/components/ui/CurrencyStack.vue";
+import { formatCurrencyDecimal, formatExchangeRateLabel } from "~/utils/currency";
+import { numberToEnglishWords, numberToIndonesianWords } from "~/utils/numberWords";
+import { paginatePdfRows, type PdfRowPage } from "~/utils/pdfPagination";
+import {
+  formatQuotationDate,
+  getQuotationPreviewGroupedTotals,
+  getQuotationRouteDisplay,
+  getQuotationServiceLabels,
+} from "~/utils/quotation-display";
+import { renderA4Pdf } from "~/utils/pdfRender";
 
 const props = defineProps<{
   quotation: Quotation | null;
   organizationName?: string;
 }>();
-
-// Spellings & Words helpers (matches invoice style)
-const terbilang = (n: number): string => {
-  if (n === 0) return "";
-  const words = [
-    "",
-    "Satu",
-    "Dua",
-    "Tiga",
-    "Empat",
-    "Lima",
-    "Enam",
-    "Tujuh",
-    "Delapan",
-    "Sembilan",
-    "Sepuluh",
-    "Sebelas",
-  ];
-
-  if (n < 12) return words[n] || "";
-  if (n < 20) return terbilang(n - 10) + " Belas";
-  if (n < 100) {
-    const utama = Math.floor(n / 10);
-    const sisa = n % 10;
-    return (
-      (utama === 1 ? "Sepuluh" : words[utama] + " Puluh") + (sisa > 0 ? " " + terbilang(sisa) : "")
-    );
-  }
-  if (n < 1000) {
-    const utama = Math.floor(n / 100);
-    const sisa = n % 100;
-    return (
-      (utama === 1 ? "Seratus" : words[utama] + " Ratus") + (sisa > 0 ? " " + terbilang(sisa) : "")
-    );
-  }
-  if (n < 1000000) {
-    const utama = Math.floor(n / 1000);
-    const sisa = n % 1000;
-    return (
-      (utama === 1 ? "Seribu" : terbilang(utama) + " Ribu") +
-      (sisa > 0 ? " " + terbilang(sisa) : "")
-    );
-  }
-  if (n < 1000000000) {
-    const utama = Math.floor(n / 1000000);
-    const sisa = n % 1000000;
-    return terbilang(utama) + " Juta" + (sisa > 0 ? " " + terbilang(sisa) : "");
-  }
-  if (n < 1000000000000) {
-    const utama = Math.floor(n / 1000000000);
-    const sisa = n % 1000000000;
-    return terbilang(utama) + " Miliar" + (sisa > 0 ? " " + terbilang(sisa) : "");
-  }
-  return "";
-};
-
-const numberToEnglish = (num: number): string => {
-  if (num === 0) return "Zero";
-
-  const ones = [
-    "",
-    "One",
-    "Two",
-    "Three",
-    "Four",
-    "Five",
-    "Six",
-    "Seven",
-    "Eight",
-    "Nine",
-    "Ten",
-    "Eleven",
-    "Twelve",
-    "Thirteen",
-    "Fourteen",
-    "Fifteen",
-    "Sixteen",
-    "Seventeen",
-    "Eighteen",
-    "Nineteen",
-  ];
-  const tens = [
-    "",
-    "",
-    "Twenty",
-    "Thirty",
-    "Forty",
-    "Fifty",
-    "Sixty",
-    "Seventy",
-    "Eighty",
-    "Ninety",
-  ];
-  const scales = ["", "Thousand", "Million", "Billion", "Trillion"];
-
-  const convertLessThanThousand = (n: number): string => {
-    let str = "";
-    if (n >= 100) {
-      str += ones[Math.floor(n / 100)] + " Hundred ";
-      n %= 100;
-    }
-    if (n >= 20) {
-      str += tens[Math.floor(n / 10)] + " ";
-      n %= 10;
-    }
-    if (n > 0) {
-      str += ones[n] + " ";
-    }
-    return str.trim();
-  };
-
-  let words = "";
-  let scaleIndex = 0;
-  let tempNum = num;
-
-  while (tempNum > 0) {
-    const chunk = tempNum % 1000;
-    if (chunk > 0) {
-      const chunkWords = convertLessThanThousand(chunk);
-      words = chunkWords + (scales[scaleIndex] ? " " + scales[scaleIndex] : "") + " " + words;
-    }
-    tempNum = Math.floor(tempNum / 1000);
-    scaleIndex++;
-  }
-
-  return words.trim();
-};
 
 const amountInWords = computed(() => {
   const totals = groupedTotals.value;
@@ -150,20 +31,20 @@ const amountInWords = computed(() => {
     if (t.total <= 0) return;
 
     if (currency === "IDR") {
-      const rupiahSpelling = terbilang(Math.floor(t.total)) + " Rupiah";
+      const rupiahSpelling = numberToIndonesianWords(Math.floor(t.total)) + " Rupiah";
       parts.push(`IDR: ${rupiahSpelling}`);
     } else if (currency === "USD") {
       const integerPart = Math.floor(t.total);
       const decimalPart = Math.round((t.total - integerPart) * 100);
-      let spelling = numberToEnglish(integerPart) + " US Dollars";
+      let spelling = numberToEnglishWords(integerPart) + " US Dollars";
       if (decimalPart > 0) {
-        spelling += " and " + numberToEnglish(decimalPart) + " Cents";
+        spelling += " and " + numberToEnglishWords(decimalPart) + " Cents";
       }
       parts.push(`USD: ${spelling}`);
     } else {
       const integerPart = Math.floor(t.total);
       const decimalPart = Math.round((t.total - integerPart) * 100);
-      let spelling = numberToEnglish(integerPart) + ` ${currency}`;
+      let spelling = numberToEnglishWords(integerPart) + ` ${currency}`;
       if (decimalPart > 0) {
         spelling += ` and ${decimalPart}/100`;
       }
@@ -227,48 +108,9 @@ const getTaxRateLabel = (taxId: string | null | undefined) => {
   return found ? `${found.rate}%` : "-";
 };
 
-const groupedTotals = computed(() => {
-  const totals: {
-    IDR: { subTotal: number; taxAmount: number; total: number };
-    USD: { subTotal: number; taxAmount: number; total: number };
-    [key: string]: { subTotal: number; taxAmount: number; total: number };
-  } = {
-    IDR: { subTotal: 0, taxAmount: 0, total: 0 },
-    USD: { subTotal: 0, taxAmount: 0, total: 0 },
-  };
-
-  if (!props.quotation?.charges) return totals;
-
-  const exchangeRate = Number(props.quotation.exchangeRate || 1);
-
-  props.quotation.charges.forEach((ch) => {
-    if (ch.atCost) return;
-    const sourceCurrency = ch.currency || "IDR";
-    const shouldConvertToIDR = sourceCurrency === "USD" && exchangeRate > 1;
-    const currency = shouldConvertToIDR ? "IDR" : sourceCurrency;
-    if (!totals[currency]) {
-      totals[currency] = { subTotal: 0, taxAmount: 0, total: 0 };
-    }
-    const qty = Number(ch.quantity || 0);
-    const price = Number(ch.unitPrice || 0);
-    const amount = qty * price * (shouldConvertToIDR ? exchangeRate : 1);
-    totals[currency].subTotal += amount;
-  });
-
-  // Single PPN rate from quotation-level tax
-  const selectedTax = taxList.value.find((t) => t.id === props.quotation?.taxId);
-  const taxRate = selectedTax && selectedTax.id ? Number(selectedTax.rate) : 0;
-
-  Object.keys(totals).forEach((curr) => {
-    const entry = totals[curr];
-    if (!entry) return;
-    entry.subTotal = roundByCurrency(entry.subTotal, curr);
-    entry.taxAmount = ceilTaxByCurrency(entry.subTotal * (taxRate / 100), curr);
-    entry.total = roundByCurrency(entry.subTotal + entry.taxAmount, curr);
-  });
-
-  return totals;
-});
+const groupedTotals = computed(() =>
+  getQuotationPreviewGroupedTotals(props.quotation || {}, taxList.value),
+);
 
 const visibleGroupedTotals = computed(() => {
   const totals = groupedTotals.value;
@@ -290,113 +132,27 @@ const matchedBankAccount = computed(() =>
 const isGeneratingPDF = ref(false);
 const printContainerRef = ref<HTMLElement | null>(null);
 
-const formatCurrency = (amount: unknown, currency?: string): string => {
-  if (amount === undefined || amount === null) return "-";
-  const num = Number(amount);
-  const curr = currency || props.quotation?.currency || "IDR";
-  return new Intl.NumberFormat(curr === "USD" ? "en-US" : "id-ID", {
-    style: "decimal",
-    minimumFractionDigits: curr === "IDR" ? 0 : 2,
-    maximumFractionDigits: curr === "IDR" ? 0 : 2,
-  }).format(num);
-};
-
-const formatCurrencyIDR = (amount: unknown, currency?: string): string => {
-  if (amount === undefined || amount === null) return "-";
-  const num = Number(amount);
-  const curr = currency || "IDR";
-  const rate = Number(props.quotation?.exchangeRate || 1);
-  const idrAmount = curr === "USD" && rate > 1 ? num * rate : num;
-  return new Intl.NumberFormat("id-ID", {
-    style: "decimal",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(idrAmount);
-};
-
 const exchangeRateLabel = computed(() => {
-  const rate = Number(props.quotation?.exchangeRate || 1);
-  if (rate > 1) {
-    return `1 USD = IDR ${new Intl.NumberFormat("id-ID").format(rate)}`;
-  }
-  return "1 USD = USD 1";
+  return formatExchangeRateLabel(props.quotation?.exchangeRate, {
+    idrPosition: "prefix",
+    defaultLabel: "1 USD = USD 1",
+  });
 });
 
-const formatDate = (dateStr?: string | null) => {
-  if (!dateStr) return "";
-  try {
-    const d = new Date(dateStr);
-    const parts = new Intl.DateTimeFormat("en-GB", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    }).formatToParts(d);
-    return `${parts.find((p) => p.type === "day")?.value} ${parts.find((p) => p.type === "month")?.value.toUpperCase()} ${parts.find((p) => p.type === "year")?.value}`;
-  } catch {
-    return dateStr;
-  }
-};
-
-const tradeTypeLabel = computed(() => {
-  const tradeType = props.quotation?.tradeTypeId;
-  if (tradeType === "IMPORT") return "Import";
-  if (tradeType === "DOMESTIC") return "Domestic";
-  return "Export";
-});
-
-const serviceTypeLabel = computed(() => {
-  const serviceType = props.quotation?.serviceType;
-  const shipmentType = props.quotation?.shipmentType;
-  if (serviceType === "AIR" || shipmentType === "AIR") return "AIR FREIGHT";
-  if (serviceType === "TRUCKING") return "TRUCKING";
-  if (serviceType === "CUSTOM_CLEARANCE") return "CUSTOM CLEARANCE";
-  return "FREIGHT";
-});
-
-const shipmentTypeLabel = computed(() => {
-  const shipmentType = props.quotation?.shipmentType;
-  if (shipmentType === "AIR") return "Air Freight";
-  if (shipmentType === "OCEAN") return "Ocean Freight";
-  return "-";
-});
-
-const isAirFreight = computed(
-  () => props.quotation?.serviceType === "AIR" || props.quotation?.shipmentType === "AIR",
+const serviceLabels = computed(() => getQuotationServiceLabels(props.quotation || {}));
+const routeDisplay = computed(() =>
+  getQuotationRouteDisplay(props.quotation || {}, { labelCase: "upper" }),
 );
-const isTrucking = computed(() => props.quotation?.serviceType === "TRUCKING");
-const isCustomClearance = computed(() => props.quotation?.serviceType === "CUSTOM_CLEARANCE");
 
-const originLabel = computed(() => {
-  if (isTrucking.value) return "PICKUP ADDRESS";
-  if (isCustomClearance.value) return "CLEARANCE ORIGIN / PORT";
-  return isAirFreight.value ? "ORIGIN AIRPORT" : "PORT OF LOADING (POL)";
-});
-
-const destinationLabel = computed(() => {
-  if (isTrucking.value) return "DELIVERY ADDRESS";
-  if (isCustomClearance.value) return "CLEARANCE DESTINATION / PORT";
-  return isAirFreight.value ? "DESTINATION AIRPORT" : "PORT OF DISCHARGE (POD)";
-});
-
-const originValue = computed(() => {
-  if (isTrucking.value) return props.quotation?.pickupAddress || "-";
-  return props.quotation?.polName || props.quotation?.pol || "-";
-});
-
-const destinationValue = computed(() => {
-  if (isTrucking.value) return props.quotation?.deliveryAddress || "-";
-  return props.quotation?.podName || props.quotation?.pod || "-";
-});
-
-const containerTypeValue = computed(() => {
-  if (isCustomClearance.value) return "-";
-  return props.quotation?.containerTypeName || props.quotation?.containerTypeId || "-";
-});
-
-const truckTypeValue = computed(() => {
-  if (!isTrucking.value) return "-";
-  return props.quotation?.truckType || "-";
-});
+const tradeTypeLabel = computed(() => serviceLabels.value.tradeTypeLabel);
+const serviceTypeLabel = computed(() => serviceLabels.value.serviceTypeLabel);
+const shipmentTypeLabel = computed(() => serviceLabels.value.shipmentTypeLabel);
+const originLabel = computed(() => routeDisplay.value.originLabel);
+const destinationLabel = computed(() => routeDisplay.value.destinationLabel);
+const originValue = computed(() => routeDisplay.value.originValue);
+const destinationValue = computed(() => routeDisplay.value.destinationValue);
+const containerTypeValue = computed(() => routeDisplay.value.containerTypeValue);
+const truckTypeValue = computed(() => routeDisplay.value.truckTypeValue);
 
 const MAIN_PX = 1009;
 const FIRST_HEADER_PX = 250;
@@ -430,89 +186,27 @@ const itemRowPx = (item?: QuotationCharge | null) => {
   );
 };
 
-interface QuotationPreviewPage {
-  items: QuotationCharge[];
-  startIndex: number;
-  pageNumber: number;
-  isFirstPage: boolean;
-  isLastPage: boolean;
-}
-
-const previewPages = computed<QuotationPreviewPage[]>(() => {
-  const items = props.quotation?.charges || [];
-  const pages: Array<{ items: QuotationCharge[]; startIndex: number }> = [];
-
-  let i = 0;
-  let first = true;
-
-  while (i < items.length) {
-    const header = first ? FIRST_HEADER_PX : CONT_HEADER_PX;
-    let budget = MAIN_PX - header - TABLE_HEADER_PX;
-
-    const startIndex = i;
-    const pageItems: QuotationCharge[] = [];
-
-    while (i < items.length) {
-      const item = items[i];
-      if (!item) break;
-      const h = itemRowPx(item);
-      const reserve = i === items.length - 1 ? lastPageReservePx.value : 0;
-      if (budget - h - reserve < 0 && pageItems.length > 0) break;
-      pageItems.push(item);
-      i++;
-      budget -= h;
-    }
-
-    pages.push({ items: pageItems, startIndex });
-    first = false;
-  }
-
-  if (pages.length === 0) {
-    pages.push({ items: [], startIndex: 0 });
-  }
-
-  return pages.map((page, index) => ({
-    ...page,
-    pageNumber: index + 1,
-    isFirstPage: index === 0,
-    isLastPage: index === pages.length - 1,
-  }));
-});
+const previewPages = computed<PdfRowPage<QuotationCharge>[]>(() =>
+  paginatePdfRows({
+    items: props.quotation?.charges || [],
+    mainHeightPx: MAIN_PX,
+    firstHeaderPx: FIRST_HEADER_PX,
+    continuationHeaderPx: CONT_HEADER_PX,
+    tableHeaderPx: TABLE_HEADER_PX,
+    lastPageReservePx: lastPageReservePx.value,
+    getRowHeightPx: itemRowPx,
+  }),
+);
 
 const generatePDF = async () => {
   if (!printContainerRef.value || !props.quotation) return false;
 
   try {
     isGeneratingPDF.value = true;
-    await nextTick();
-
-    const pdf = new jsPDF({
-      orientation: "portrait",
-      unit: "mm",
-      format: "a4",
+    return await renderA4Pdf(printContainerRef.value, {
+      filename: `QUOTATION_${props.quotation.number || "DRAFT"}.pdf`,
+      resetScroll: true,
     });
-
-    const pages = printContainerRef.value.querySelectorAll(".a4-page-wrapper");
-
-    for (let i = 0; i < pages.length; i++) {
-      if (i > 0) pdf.addPage();
-
-      const canvas = await html2canvas(pages[i] as HTMLElement, {
-        scale: 3,
-        useCORS: true,
-        logging: false,
-        backgroundColor: "#ffffff",
-        scrollY: 0,
-        scrollX: 0,
-      });
-
-      const imgData = canvas.toDataURL("image/jpeg", 0.95);
-      pdf.addImage(imgData, "JPEG", 0, 0, 210, 297, undefined, "FAST");
-    }
-
-    const filename = `QUOTATION_${props.quotation.number || "DRAFT"}.pdf`;
-    pdf.save(filename);
-    return true;
   } catch (error) {
     console.error(error);
     toast.error("Gagal membuat PDF. Cek console.");
@@ -609,7 +303,7 @@ defineExpose({
                       >DATE</span
                     >
                     <span class="font-mono text-[0.75rem] text-black">{{
-                      formatDate(quotation?.date)
+                      formatQuotationDate(quotation?.date, "pdf")
                     }}</span>
                   </div>
                 </div>
@@ -619,7 +313,7 @@ defineExpose({
                       >VALID UNTIL</span
                     >
                     <span class="font-mono text-[0.75rem] text-black">{{
-                      formatDate(quotation?.validUntil)
+                      formatQuotationDate(quotation?.validUntil, "pdf")
                     }}</span>
                   </div>
                 </div>
@@ -850,15 +544,17 @@ defineExpose({
                       </tr>
                       <tr>
                         <td>Subtotal</td>
-                        <td class="amount">{{ formatCurrency(t.subTotal, curr) }}</td>
+                        <td class="amount">{{ formatCurrencyDecimal(t.subTotal, curr) }}</td>
                       </tr>
                       <tr>
                         <td>VAT / Tax</td>
-                        <td class="amount">{{ formatCurrency(t.taxAmount, curr) }}</td>
+                        <td class="amount">{{ formatCurrencyDecimal(t.taxAmount, curr) }}</td>
                       </tr>
                       <tr class="grand">
                         <td>Total</td>
-                        <td class="amount">{{ curr }} {{ formatCurrency(t.total, curr) }}</td>
+                        <td class="amount">
+                          {{ curr }} {{ formatCurrencyDecimal(t.total, curr) }}
+                        </td>
                       </tr>
                     </tbody>
                   </table>

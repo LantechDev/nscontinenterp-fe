@@ -12,6 +12,9 @@ import DatePicker from "~/components/ui/DatePicker.vue";
 import { toast } from "vue-sonner";
 import type { Company } from "~/composables/useMasterData";
 import type { QuotationCost } from "~/composables/useQuotations";
+import { formatCurrencyAmount, formatCurrencyInput, parseCurrencyInput } from "~/utils/currency";
+import { combineCostToIDR, filterValidCostItems, groupCostTotals } from "~/utils/quotationCost";
+import { buildTaxSelectOptions } from "~/utils/taxOptions";
 
 const props = defineProps<{
   cost?: QuotationCost | null;
@@ -184,11 +187,7 @@ onMounted(async () => {
 
   vendorOptions.value = (vendorsResp?.data || []).map((v) => ({ id: v.id, name: v.name }));
   taxList.value = taxesResp?.items || [];
-  const hasNonPpnRow = taxList.value.some((t) => Number(t.rate) === 0);
-  taxOptions.value = [
-    ...(hasNonPpnRow ? [] : [{ id: "", name: "NON PPN" }]),
-    ...taxList.value.map((t: Tax) => ({ id: t.id, name: `${t.name} (${Number(t.rate)}%)` })),
-  ];
+  taxOptions.value = buildTaxSelectOptions(taxList.value);
   categoryOptions.value = (categoriesResp?.data || [])
     .filter((c) => !c.code || !c.code.startsWith("GEN_"))
     .map((c) => ({ id: c.id, name: c.name }));
@@ -228,13 +227,7 @@ onMounted(async () => {
   }
 });
 
-const formatCurrency = (amount: number, currency = "IDR") =>
-  new Intl.NumberFormat(currency === "IDR" ? "id-ID" : "en-US", {
-    style: "currency",
-    currency,
-    minimumFractionDigits: currency === "IDR" ? 0 : 2,
-    maximumFractionDigits: currency === "IDR" ? 0 : 2,
-  }).format(amount);
+const formatCurrency = (amount: number, currency = "IDR") => formatCurrencyAmount(amount, currency);
 
 const updateItemAmount = (index: number) => {
   const item = form.value.items[index];
@@ -244,34 +237,10 @@ const updateItemAmount = (index: number) => {
   }
 };
 
-const parseInputCurrency = (val: string, currency = "IDR") => {
-  if (!val) return 0;
-  if (currency === "IDR") {
-    const numeric = Number(val.replace(/[^0-9-]/g, ""));
-    return isNaN(numeric) ? 0 : numeric;
-  }
-  let normalized = val;
-  const hasComma = val.includes(",");
-  const hasDot = val.includes(".");
-  if (hasComma && !hasDot) normalized = val.replace(",", ".");
-  else if (hasComma && hasDot)
-    normalized =
-      val.lastIndexOf(",") > val.lastIndexOf(".")
-        ? val.replace(/\./g, "").replace(",", ".")
-        : val.replace(/,/g, "");
-  const numeric = Number(normalized.replace(/[^0-9.-]+/g, ""));
-  return isNaN(numeric) ? 0 : numeric;
-};
+const parseInputCurrency = (val: string, currency = "IDR") => parseCurrencyInput(val, currency);
 
-const formatInputCurrency = (val: number | string, currency = "IDR") => {
-  if (val === undefined || val === null || val === "") return "";
-  const numericVal = typeof val === "string" ? parseInputCurrency(val, currency) : val;
-  if (isNaN(numericVal)) return "";
-  return new Intl.NumberFormat(currency === "IDR" ? "id-ID" : "en-US", {
-    maximumFractionDigits: currency === "IDR" ? 0 : 2,
-    minimumFractionDigits: 0,
-  }).format(numericVal);
-};
+const formatInputCurrency = (val: number | string, currency = "IDR") =>
+  formatCurrencyInput(val, currency);
 
 const resolveVendorName = () => {
   const found =
@@ -487,7 +456,7 @@ async function onCompanyCreated(company: Company) {
               <div class="col-span-2 flex items-center justify-between gap-2">
                 <div class="flex-1 text-right">
                   <p class="text-sm font-bold text-[#012D5A] tabular-nums">
-                    {{ new Intl.NumberFormat("id-ID").format(item.amount) }}
+                    {{ formatInputCurrency(item.amount, item.currency) }}
                   </p>
                 </div>
                 <button

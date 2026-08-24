@@ -1,7 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, nextTick, onMounted } from "vue";
-import jsPDF from "jspdf";
-import html2canvas from "html2canvas";
+import { ref, computed, onMounted } from "vue";
 import { toast } from "vue-sonner";
 import CurrencyStack from "~/components/ui/CurrencyStack.vue";
 import type {
@@ -10,6 +8,11 @@ import type {
   QuotationInvoiceItem,
 } from "~/composables/useQuotations";
 import { useBankAccounts, type BankAccount } from "~/composables/useBankAccounts";
+import { formatCurrencyDecimal, formatExchangeRateLabel } from "~/utils/currency";
+import { formatAmountInWords } from "~/utils/numberWords";
+import { paginatePdfRows, type PdfRowPage } from "~/utils/pdfPagination";
+import { renderA4Pdf } from "~/utils/pdfRender";
+import { formatQuotationDate } from "~/utils/quotation-display";
 
 const props = defineProps<{
   quotation: Quotation | null;
@@ -32,9 +35,10 @@ const documentDisplayCurrency = computed(() =>
     : documentCurrency.value,
 );
 const exchangeRateDisplay = computed(() =>
-  documentExchangeRate.value > 1
-    ? `1 USD = IDR ${new Intl.NumberFormat("id-ID").format(documentExchangeRate.value)}`
-    : "1 USD = USD 1",
+  formatExchangeRateLabel(documentExchangeRate.value, {
+    idrPosition: "prefix",
+    defaultLabel: "1 USD = USD 1",
+  }),
 );
 
 const displayAmount = (amount: unknown, currency = documentCurrency.value): number => {
@@ -44,130 +48,9 @@ const displayAmount = (amount: unknown, currency = documentCurrency.value): numb
     : num;
 };
 
-const terbilang = (n: number): string => {
-  if (n === 0) return "";
-  const words = [
-    "",
-    "Satu",
-    "Dua",
-    "Tiga",
-    "Empat",
-    "Lima",
-    "Enam",
-    "Tujuh",
-    "Delapan",
-    "Sembilan",
-    "Sepuluh",
-    "Sebelas",
-  ];
-  if (n < 12) return words[n] || "";
-  if (n < 20) return terbilang(n - 10) + " Belas";
-  if (n < 100) {
-    const utama = Math.floor(n / 10);
-    const sisa = n % 10;
-    return (
-      (utama === 1 ? "Sepuluh" : words[utama] + " Puluh") + (sisa > 0 ? " " + terbilang(sisa) : "")
-    );
-  }
-  if (n < 1000) {
-    const utama = Math.floor(n / 100);
-    const sisa = n % 100;
-    return (
-      (utama === 1 ? "Seratus" : words[utama] + " Ratus") + (sisa > 0 ? " " + terbilang(sisa) : "")
-    );
-  }
-  if (n < 1000000) {
-    const utama = Math.floor(n / 1000);
-    const sisa = n % 1000;
-    return (
-      (utama === 1 ? "Seribu" : terbilang(utama) + " Ribu") +
-      (sisa > 0 ? " " + terbilang(sisa) : "")
-    );
-  }
-  if (n < 1000000000) {
-    const utama = Math.floor(n / 1000000);
-    const sisa = n % 1000000;
-    return terbilang(utama) + " Juta" + (sisa > 0 ? " " + terbilang(sisa) : "");
-  }
-  if (n < 1000000000000) {
-    const utama = Math.floor(n / 1000000000);
-    const sisa = n % 1000000000;
-    return terbilang(utama) + " Miliar" + (sisa > 0 ? " " + terbilang(sisa) : "");
-  }
-  return "";
-};
-
-const numberToEnglish = (num: number): string => {
-  if (num === 0) return "Zero";
-  const ones = [
-    "",
-    "One",
-    "Two",
-    "Three",
-    "Four",
-    "Five",
-    "Six",
-    "Seven",
-    "Eight",
-    "Nine",
-    "Ten",
-    "Eleven",
-    "Twelve",
-    "Thirteen",
-    "Fourteen",
-    "Fifteen",
-    "Sixteen",
-    "Seventeen",
-    "Eighteen",
-    "Nineteen",
-  ];
-  const tens = [
-    "",
-    "",
-    "Twenty",
-    "Thirty",
-    "Forty",
-    "Fifty",
-    "Sixty",
-    "Seventy",
-    "Eighty",
-    "Ninety",
-  ];
-  const scales = ["", "Thousand", "Million", "Billion", "Trillion"];
-  const clt = (n: number): string => {
-    let s = "";
-    if (n >= 100) {
-      s += ones[Math.floor(n / 100)] + " Hundred ";
-      n %= 100;
-    }
-    if (n >= 20) {
-      s += tens[Math.floor(n / 10)] + " ";
-      n %= 10;
-    }
-    if (n > 0) s += ones[n] + " ";
-    return s.trim();
-  };
-  let w = "";
-  let si = 0;
-  let tn = num;
-  while (tn > 0) {
-    const c = tn % 1000;
-    if (c > 0) w = clt(c) + (scales[si] ? " " + scales[si] : "") + " " + w;
-    tn = Math.floor(tn / 1000);
-    si++;
-  }
-  return w.trim();
-};
-
 const amountInWords = computed(() => {
   const total = displayAmount(props.invoice?.total);
-  if (!total) return "";
-  if (documentDisplayCurrency.value === "USD") {
-    return `${numberToEnglish(Math.floor(total))} Dollars`;
-  }
-  const rupiahSpelling = terbilang(Math.floor(total)) + " Rupiah";
-  const engSpelling = numberToEnglish(Math.floor(total)) + " Rupiahs";
-  return `${rupiahSpelling} / ${engSpelling}`;
+  return formatAmountInWords(total, documentDisplayCurrency.value);
 });
 
 const logoUrl = ref("/images/transparentnscontinenttebal.png");
@@ -184,26 +67,7 @@ onMounted(async () => {
 const formatCurrency = (amount: unknown, currency = documentCurrency.value): string => {
   if (amount === undefined || amount === null) return "-";
   const displayCurrency = currency === "USD" && documentExchangeRate.value > 1 ? "IDR" : currency;
-  return new Intl.NumberFormat(displayCurrency === "USD" ? "en-US" : "id-ID", {
-    style: "decimal",
-    minimumFractionDigits: displayCurrency === "USD" ? 2 : 0,
-    maximumFractionDigits: displayCurrency === "USD" ? 2 : 0,
-  }).format(displayAmount(amount, currency));
-};
-
-const formatDate = (dateStr?: string | null) => {
-  if (!dateStr) return "";
-  try {
-    const d = new Date(dateStr);
-    const parts = new Intl.DateTimeFormat("en-GB", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    }).formatToParts(d);
-    return `${parts.find((p) => p.type === "day")?.value} ${parts.find((p) => p.type === "month")?.value.toUpperCase()} ${parts.find((p) => p.type === "year")?.value}`;
-  } catch {
-    return dateStr;
-  }
+  return formatCurrencyDecimal(displayAmount(amount, currency), displayCurrency);
 };
 
 const FIRST_PAGE_ITEM_SLOTS = 10;
@@ -231,45 +95,17 @@ const itemRowPx = (item?: QuotationInvoiceItem | null) => {
   );
 };
 
-interface PreviewPage {
-  items: QuotationInvoiceItem[];
-  pageNumber: number;
-  startIndex: number;
-  isFirstPage: boolean;
-  isLastPage: boolean;
-}
-
-const previewPages = computed<PreviewPage[]>(() => {
-  const items = invoiceItems.value;
-  const pages: Array<{ items: QuotationInvoiceItem[]; startIndex: number }> = [];
-  let i = 0;
-  let first = true;
-  while (i < items.length) {
-    const header = first ? FIRST_HEADER_PX : CONT_HEADER_PX;
-    let budget = MAIN_PX - header - TABLE_HEADER_PX;
-    const startIndex = i;
-    const pageItems: QuotationInvoiceItem[] = [];
-    while (i < items.length) {
-      const item = items[i];
-      if (!item) break;
-      const h = itemRowPx(item);
-      const reserve = i === items.length - 1 ? LAST_PAGE_RESERVE_PX : 0;
-      if (budget - h - reserve < 0 && pageItems.length > 0) break;
-      pageItems.push(item);
-      i++;
-      budget -= h;
-    }
-    pages.push({ items: pageItems, startIndex });
-    first = false;
-  }
-  if (pages.length === 0) pages.push({ items: [], startIndex: 0 });
-  return pages.map((page, idx) => ({
-    ...page,
-    pageNumber: idx + 1,
-    isFirstPage: idx === 0,
-    isLastPage: idx === pages.length - 1,
-  }));
-});
+const previewPages = computed<PdfRowPage<QuotationInvoiceItem>[]>(() =>
+  paginatePdfRows({
+    items: invoiceItems.value,
+    mainHeightPx: MAIN_PX,
+    firstHeaderPx: FIRST_HEADER_PX,
+    continuationHeaderPx: CONT_HEADER_PX,
+    tableHeaderPx: TABLE_HEADER_PX,
+    lastPageReservePx: LAST_PAGE_RESERVE_PX,
+    getRowHeightPx: itemRowPx,
+  }),
+);
 
 const isGeneratingPDF = ref(false);
 const printContainerRef = ref<HTMLElement | null>(null);
@@ -278,21 +114,9 @@ const generatePDF = async () => {
   if (!printContainerRef.value || !props.invoice) return false;
   try {
     isGeneratingPDF.value = true;
-    await nextTick();
-    const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-    const pages = printContainerRef.value.querySelectorAll(".a4-page-wrapper");
-    for (let i = 0; i < pages.length; i++) {
-      if (i > 0) pdf.addPage();
-      const canvas = await html2canvas(pages[i] as HTMLElement, {
-        scale: 3,
-        useCORS: true,
-        logging: false,
-        backgroundColor: "#ffffff",
-      });
-      pdf.addImage(canvas.toDataURL("image/jpeg", 0.95), "JPEG", 0, 0, 210, 297, undefined, "FAST");
-    }
-    pdf.save(`QUOTATION_${props.invoice.number || "DRAFT"}.pdf`);
-    return true;
+    return await renderA4Pdf(printContainerRef.value, {
+      filename: `QUOTATION_${props.invoice.number || "DRAFT"}.pdf`,
+    });
   } catch (error) {
     console.error(error);
     toast.error("Gagal membuat PDF.");
@@ -383,7 +207,7 @@ defineExpose({ generatePDF, isGeneratingPDF });
                     >DATE</span
                   >
                   <span class="font-mono text-[0.8rem] text-black">{{
-                    formatDate(invoice?.date)
+                    formatQuotationDate(invoice?.date, "pdf")
                   }}</span>
                 </div>
               </div>

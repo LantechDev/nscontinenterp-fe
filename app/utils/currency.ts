@@ -25,11 +25,80 @@ export function normalizeCurrencyCode(currency: string | null | undefined): stri
 
 export function formatCurrencyCode(amount: number, currency: string | null | undefined): string {
   const currencyCode = normalizeCurrencyCode(currency);
-  const formatted = new Intl.NumberFormat(currencyCode === "IDR" ? "id-ID" : "en-US", {
+  const formatted = formatCurrencyDecimal(amount, currencyCode);
+
+  return `${currencyCode} ${formatted}`;
+}
+
+export function formatCurrencyDecimal(amount: number, currency: string | null | undefined): string {
+  const currencyCode = normalizeCurrencyCode(currency);
+  return new Intl.NumberFormat(currencyCode === "IDR" ? "id-ID" : "en-US", {
     style: "decimal",
     minimumFractionDigits: currencyCode === "IDR" ? 0 : 2,
     maximumFractionDigits: currencyCode === "IDR" ? 0 : 2,
   }).format(Number.isFinite(amount) ? amount : 0);
+}
 
-  return `${currencyCode} ${formatted}`;
+export function formatCurrencyAmount(amount: number, currency: string | null | undefined): string {
+  const currencyCode = normalizeCurrencyCode(currency);
+  return new Intl.NumberFormat(currencyCode === "IDR" ? "id-ID" : "en-US", {
+    style: "currency",
+    currency: currencyCode,
+    minimumFractionDigits: currencyCode === "IDR" ? 0 : 2,
+    maximumFractionDigits: currencyCode === "IDR" ? 0 : 2,
+  }).format(Number.isFinite(amount) ? amount : 0);
+}
+
+export function parseCurrencyInput(value: string, currency: string | null | undefined): number {
+  if (!value) return 0;
+
+  const currencyCode = normalizeCurrencyCode(currency);
+  if (currencyCode === "IDR") {
+    const numeric = Number(value.replace(/[^0-9-]/g, ""));
+    return Number.isNaN(numeric) ? 0 : numeric;
+  }
+
+  let normalized = value;
+  const hasComma = value.includes(",");
+  const hasDot = value.includes(".");
+  if (hasComma && !hasDot) {
+    normalized = value.replace(",", ".");
+  } else if (hasComma && hasDot) {
+    normalized =
+      value.lastIndexOf(",") > value.lastIndexOf(".")
+        ? value.replace(/\./g, "").replace(",", ".")
+        : value.replace(/,/g, "");
+  }
+
+  const numeric = Number(normalized.replace(/[^0-9.-]+/g, ""));
+  return Number.isNaN(numeric) ? 0 : numeric;
+}
+
+export function formatCurrencyInput(
+  value: number | string | null | undefined,
+  currency: string | null | undefined,
+): string {
+  if (value === undefined || value === null || value === "") return "";
+
+  const currencyCode = normalizeCurrencyCode(currency);
+  const numericValue = typeof value === "string" ? parseCurrencyInput(value, currencyCode) : value;
+  if (Number.isNaN(numericValue)) return "";
+
+  return new Intl.NumberFormat(currencyCode === "IDR" ? "id-ID" : "en-US", {
+    maximumFractionDigits: currencyCode === "IDR" ? 0 : 2,
+    minimumFractionDigits: 0,
+  }).format(numericValue);
+}
+
+export function formatExchangeRateLabel(
+  rate: string | number | null | undefined,
+  options: { idrPosition: "prefix" | "suffix"; defaultLabel: string },
+): string {
+  const numericRate = Number(rate || 1);
+  if (numericRate <= 1) return options.defaultLabel;
+
+  const formattedRate = new Intl.NumberFormat("id-ID").format(numericRate);
+  return options.idrPosition === "prefix"
+    ? `1 USD = IDR ${formattedRate}`
+    : `1 USD = ${formattedRate} IDR`;
 }
