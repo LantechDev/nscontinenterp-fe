@@ -172,6 +172,29 @@ export function useRoleAccess() {
     hasAccess("finance.accounting") ||
     hasAccess("finance.report");
 
+  const canAccessDashboard = () =>
+    isAdminRole.value ||
+    hasAccess("operational.job") ||
+    hasAccess("operational.quotation") ||
+    hasAccess("operational.ebl") ||
+    canAccessFinance();
+
+  const getDefaultPath = () => {
+    if (canAccessDashboard()) return "/dashboard";
+    if (hasAccess("operational.vesselTracking")) return "/operational/vessel-tracking";
+    if (hasAccess("operational.quotation")) return "/operational/quotations";
+    if (hasAccess("operational.job")) return "/operational/jobs";
+    if (hasAccess("operational.ebl")) return "/operational/ebl";
+    if (hasAccess("finance.report")) return "/finance/dashboard";
+    if (hasAccess("finance.invoice")) return "/finance/invoice";
+    if (hasAccess("finance.payment")) return "/finance/expenses";
+    if (hasAccess("master.company")) return "/master/company";
+    if (hasAccess("master.service")) return "/master/services";
+    if (hasAccess("master.logistics")) return "/master/ports";
+    if (hasAccess("settings.user")) return "/settings/users";
+    return "/dashboard";
+  };
+
   const isOwnProfileRoute = (path: string) => {
     const currentUserId = user.value?.id;
     if (!currentUserId) {
@@ -186,8 +209,12 @@ export function useRoleAccess() {
       return true;
     }
 
-    if (!path || path === "/" || path.startsWith("/dashboard")) {
+    if (!path || path === "/") {
       return true;
+    }
+
+    if (path.startsWith("/dashboard")) {
+      return canAccessDashboard();
     }
 
     if (isOwnProfileRoute(path)) {
@@ -318,6 +345,8 @@ export function useRoleAccess() {
     hasAccess,
     canAccessPath,
     canAccessFinance,
+    canAccessDashboard,
+    getDefaultPath,
     isAdminRole,
   };
 }

@@ -114,7 +114,7 @@ export const NAV_ITEMS: NavItem[] = [
 
 export function useAppSidebar() {
   const { user, session, logout, listOrganizations, setActiveOrganization } = useAuth();
-  const { canAccessPath, ensureRolesLoaded, isAdminRole } = useRoleAccess();
+  const { canAccessPath, ensureRolesLoaded, getDefaultPath, isAdminRole } = useRoleAccess();
   const router = useRouter();
 
   const organizations = ref<Organization[]>([]);
@@ -171,7 +171,7 @@ export function useAppSidebar() {
   const handleOrgSwitch = async (orgId: string) => {
     isOrgDropdownOpen.value = false;
     await setActiveOrganization(orgId);
-    await router.push("/dashboard");
+    await router.push(getDefaultPath());
   };
 
   const toggleExpand = (title: string) => {

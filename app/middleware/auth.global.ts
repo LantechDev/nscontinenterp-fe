@@ -1,6 +1,6 @@
 export default defineNuxtRouteMiddleware(async (to, _from) => {
   const { isLoggedIn, fetchSession, user } = useAuth();
-  const { canAccessPath, ensureRolesLoaded } = useRoleAccess();
+  const { canAccessPath, ensureRolesLoaded, getDefaultPath } = useRoleAccess();
 
   const publicRoutes = ["/login", "/"];
   const isPublicRoute = publicRoutes.includes(to.path);
@@ -42,10 +42,12 @@ export default defineNuxtRouteMiddleware(async (to, _from) => {
 
   // Redirect logged in users away from public routes to last visited page
   if (isLoggedIn.value && isPublicRoute) {
-    let redirectTo = "/dashboard";
+    await ensureRolesLoaded();
+
+    let redirectTo = getDefaultPath();
     if (process.client) {
       const lastPath = localStorage.getItem("lastVisitedPath");
-      if (lastPath && lastPath !== "/login" && lastPath !== "/") {
+      if (lastPath && lastPath !== "/login" && lastPath !== "/" && canAccessPath(lastPath)) {
         redirectTo = lastPath;
       }
     }
@@ -56,7 +58,7 @@ export default defineNuxtRouteMiddleware(async (to, _from) => {
     await ensureRolesLoaded();
 
     if (!canAccessPath(to.path)) {
-      return navigateTo("/dashboard");
+      return navigateTo(getDefaultPath());
     }
   }
 });
