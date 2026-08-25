@@ -470,15 +470,13 @@ const handleExportPdf = async () => {
     const border = [210, 217, 226] as [number, number, number];
     const muted = [100, 116, 139] as [number, number, number];
     const columns = [
-      { key: "hbl", label: "HBL", width: 22 },
-      { key: "mbl", label: "MBL / Booking", width: 28 },
-      { key: "container", label: "Container", width: 25 },
-      { key: "shipper", label: "Shipper", width: 28 },
-      { key: "consignee", label: "Consignee", width: 28 },
-      { key: "agent", label: "Agent", width: 25 },
-      { key: "vessel", label: "Vessel Detail", width: 50 },
-      { key: "status", label: "Status", width: 23 },
-      { key: "reason", label: "Reason", width: 28 },
+      { key: "hbl", label: "HBL", width: 25 },
+      { key: "mbl", label: "MBL", width: 30 },
+      { key: "container", label: "Container", width: 30 },
+      { key: "initialVessel", label: "Initial Vessel", width: 47 },
+      { key: "currentVessel", label: "Current Vessel", width: 47 },
+      { key: "status", label: "Status", width: 34 },
+      { key: "reason", label: "Reason", width: 56 },
     ];
     let y = 18;
     let pageNumber = 1;
@@ -506,8 +504,6 @@ const handleExportPdf = async () => {
       doc.setFont("helvetica", "bold");
       doc.setFontSize(13);
       doc.text("VESSEL TRACKING REPORT", pageWidth / 2, 21, { align: "center" });
-      doc.setFontSize(7);
-      doc.text(getFilterSummary().toUpperCase(), pageWidth / 2, 27, { align: "center" });
 
       doc.setFont("helvetica", "normal");
       doc.setFontSize(7);
@@ -557,11 +553,9 @@ const handleExportPdf = async () => {
     filteredTrackings.value.forEach((tracking, index) => {
       const cells = [
         tracking.hblNo || "-",
-        `${tracking.carrierBlNo || "-"}\n${tracking.bookingNo || "-"}`,
+        tracking.carrierBlNo || "-",
         tracking.containerNo || "-",
-        tracking.shipperName || "-",
-        tracking.consigneeName || "-",
-        tracking.overseasAgentName || "-",
+        getTrackingLegSummary(tracking, "initial") || "-",
         getTrackingLegSummary(tracking, "updated") ||
           getTrackingLegSummary(tracking, "initial") ||
           "-",
@@ -582,10 +576,9 @@ const handleExportPdf = async () => {
       splitCells.forEach((lines, cellIndex) => {
         const col = columns[cellIndex]!;
         doc.setTextColor(31, 41, 55);
-        doc.setFont("helvetica", cellIndex === 0 || cellIndex === 7 ? "bold" : "normal");
+        doc.setFont("helvetica", cellIndex === 0 || cellIndex === 5 ? "bold" : "normal");
         doc.setFontSize(6.8);
-        const textX = cellIndex === 7 ? x + col.width - 3 : x + 2;
-        doc.text(lines, textX, y + 5, { align: "left", lineHeightFactor: 1.18 });
+        doc.text(lines, x + 2, y + 5, { align: "left", lineHeightFactor: 1.18 });
         x += col.width;
       });
 
