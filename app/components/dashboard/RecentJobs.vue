@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Ship, Eye } from "lucide-vue-next";
+import { ArrowRight, Ship, Eye } from "lucide-vue-next";
 import { cn } from "~/lib/utils";
 
 interface Job {
@@ -100,10 +100,20 @@ const getStatusClass = (statusCode: string | null | undefined) => {
               <span class="text-sm font-medium text-[#012D5A]">{{ job.jobNumber }}</span>
             </td>
             <td class="py-3 px-4 text-sm truncate" :title="job.customer">{{ job.customer }}</td>
-            <td class="py-3 px-4 text-sm">
-              <span class="block truncate" :title="`${job.origin} → ${job.destination}`">
-                {{ job.origin }} → {{ job.destination }}
-              </span>
+            <td class="py-3 px-4">
+              <div class="dashboard-route-cell flex flex-col max-w-[240px]">
+                <div class="flex items-center gap-2 text-sm">
+                  <span class="text-foreground truncate font-medium" :title="job.origin">
+                    {{ job.origin || "-" }}
+                  </span>
+                </div>
+                <div class="flex items-center gap-2 text-xs text-muted-foreground">
+                  <ArrowRight class="w-3 h-3 shrink-0" />
+                  <span class="truncate" :title="job.destination">
+                    {{ job.destination || "-" }}
+                  </span>
+                </div>
+              </div>
             </td>
             <td class="py-3 px-4 text-sm">{{ job.date }}</td>
             <td class="py-3 px-4">

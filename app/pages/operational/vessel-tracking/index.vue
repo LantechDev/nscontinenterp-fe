@@ -123,8 +123,8 @@ const filteredTrackings = computed(() =>
 
 const stats = computed(() => {
   const data = filteredTrackings.value;
-  const delayed = data.filter((item) => item.delayDays > 0).length;
-  const onTime = data.filter((item) => item.delayDays === 0).length;
+  const delayed = data.filter((item) => item.exceptionStatus !== "ON_TIME").length;
+  const onTime = data.filter((item) => item.exceptionStatus === "ON_TIME").length;
   const arrived = data.filter((item) => getArrivalStatus(item) === "arrived").length;
   const notArrived = data.filter((item) => getArrivalStatus(item) === "not_arrived").length;
   const totalDelayDays = data.reduce((sum, item) => sum + item.delayDays, 0);
@@ -143,7 +143,7 @@ const delayRanking = computed(() => {
   const ranking = new Map<string, { vesselName: string; shipments: number; totalDelay: number }>();
 
   filteredTrackings.value.forEach((tracking) => {
-    if (tracking.delayDays <= 0) return;
+    if (tracking.exceptionStatus === "ON_TIME") return;
 
     const names = Array.from(
       new Set(
@@ -192,6 +192,12 @@ const formatLegDate = (date?: string | null) => {
   });
 };
 
+const getContainerNumberList = (containerNo?: string | null) =>
+  (containerNo || "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+
 const formatPortLabel = (portName?: string | null) =>
   portName?.split(",")[0]?.trim().toUpperCase() || "";
 
@@ -220,12 +226,16 @@ const getTrackingArrivalDate = (tracking: VesselTracking) =>
     .find((date): date is string => Boolean(date)) || null;
 
 const getArrivalStatus = (tracking: VesselTracking) =>
-  getTrackingArrivalDate(tracking) && getTrackingArrivalDate(tracking)! < getTodayDateKey()
+  tracking.movementStatus === "ARRIVED" ||
+  (!tracking.movementStatus &&
+    getTrackingArrivalDate(tracking) &&
+    getTrackingArrivalDate(tracking)! < getTodayDateKey())
     ? "arrived"
     : "not_arrived";
 
 const getArrivalStatusLabel = (tracking: VesselTracking) =>
-  getArrivalStatus(tracking) === "arrived" ? "Sudah sampai" : "Belum sampai";
+  tracking.movementStatusLabel ||
+  (getArrivalStatus(tracking) === "arrived" ? "Sudah sampai" : "Belum sampai");
 
 const getLegPortName = (
   tracking: VesselTracking,
@@ -460,13 +470,15 @@ const handleExportPdf = async () => {
     const border = [210, 217, 226] as [number, number, number];
     const muted = [100, 116, 139] as [number, number, number];
     const columns = [
-      { key: "job", label: "Job / First ETD", width: 26 },
-      { key: "customer", label: "Customer", width: 34 },
-      { key: "liner", label: "Liner / BL", width: 34 },
-      { key: "route", label: "Route", width: 42 },
-      { key: "initial", label: "Initial Vessel", width: 55 },
-      { key: "updated", label: "Updated Vessel", width: 55 },
-      { key: "delay", label: "Delay", width: 19, align: "right" as const },
+      { key: "hbl", label: "HBL", width: 22 },
+      { key: "mbl", label: "MBL / Booking", width: 28 },
+      { key: "container", label: "Container", width: 25 },
+      { key: "shipper", label: "Shipper", width: 28 },
+      { key: "consignee", label: "Consignee", width: 28 },
+      { key: "agent", label: "Agent", width: 25 },
+      { key: "vessel", label: "Vessel Detail", width: 50 },
+      { key: "status", label: "Status", width: 23 },
+      { key: "reason", label: "Reason", width: 28 },
     ];
     let y = 18;
     let pageNumber = 1;
@@ -544,13 +556,17 @@ const handleExportPdf = async () => {
 
     filteredTrackings.value.forEach((tracking, index) => {
       const cells = [
-        `${tracking.jobNumber}\n${formatTrackingScheduleDate(tracking)}`,
-        tracking.customerName || "-",
-        `${tracking.linerName || "-"}\n${tracking.carrierBlNo || tracking.containerNo || "-"}`,
-        `${tracking.polName || tracking.pol || "-"}\nTO\n${tracking.podName || tracking.pod || "-"}`,
-        getTrackingLegSummary(tracking, "initial") || "-",
-        getTrackingLegSummary(tracking, "updated") || "-",
-        `${tracking.delayDays} days`,
+        tracking.hblNo || "-",
+        `${tracking.carrierBlNo || "-"}\n${tracking.bookingNo || "-"}`,
+        tracking.containerNo || "-",
+        tracking.shipperName || "-",
+        tracking.consigneeName || "-",
+        tracking.overseasAgentName || "-",
+        getTrackingLegSummary(tracking, "updated") ||
+          getTrackingLegSummary(tracking, "initial") ||
+          "-",
+        `${tracking.movementStatusLabel || getArrivalStatusLabel(tracking)}\n${tracking.exceptionStatusLabel}\n${tracking.delayDays} days`,
+        tracking.reason || tracking.remarks || "-",
       ];
       const splitCells = cells.map((cell, cellIndex) => splitCell(cell, columns[cellIndex]!.width));
       const rowHeight = Math.max(12, ...splitCells.map((lines) => lines.length * 4 + 5));
@@ -565,12 +581,11 @@ const handleExportPdf = async () => {
       let x = contentX;
       splitCells.forEach((lines, cellIndex) => {
         const col = columns[cellIndex]!;
-        doc.setTextColor(cellIndex === 6 && tracking.delayDays > 0 ? 185 : 31, 41, 55);
-        doc.setFont("helvetica", cellIndex === 0 || cellIndex === 6 ? "bold" : "normal");
+        doc.setTextColor(31, 41, 55);
+        doc.setFont("helvetica", cellIndex === 0 || cellIndex === 7 ? "bold" : "normal");
         doc.setFontSize(6.8);
-        const textX =
-          col.align === "right" ? x + col.width - 2 : cellIndex === 6 ? x + col.width - 3 : x + 2;
-        doc.text(lines, textX, y + 5, { align: col.align || "left", lineHeightFactor: 1.18 });
+        const textX = cellIndex === 7 ? x + col.width - 3 : x + 2;
+        doc.text(lines, textX, y + 5, { align: "left", lineHeightFactor: 1.18 });
         x += col.width;
       });
 
@@ -607,7 +622,11 @@ const handleExportExcel = () => {
       "Job No",
       "First ETD",
       "Customer",
+      "Shipper",
+      "Consignee",
+      "Overseas Agent",
       "Liner",
+      "Booking No",
       "Carrier BL No",
       "HBL No",
       "Container No",
@@ -615,13 +634,24 @@ const handleExportExcel = () => {
       "POD",
       "Initial Vessel Detail",
       "Updated Vessel Detail",
+      "Status",
+      "Exception",
       "Delay Days",
+      "Reason / Note",
       "Remarks",
     ];
     const rows: StyledRow[] = [
       {
         cells: [
           "PT Nova Sync Continent - VESSEL TRACKING REPORT",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
           "",
           "",
           "",
@@ -652,6 +682,12 @@ const handleExportExcel = () => {
           "",
           "",
           "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
         ],
         style: 8,
       },
@@ -665,7 +701,11 @@ const handleExportExcel = () => {
           tracking.jobNumber,
           formatTrackingScheduleDate(tracking),
           tracking.customerName || "-",
+          tracking.shipperName || "-",
+          tracking.consigneeName || "-",
+          tracking.overseasAgentName || "-",
           tracking.linerName || "-",
+          tracking.bookingNo || "-",
           tracking.carrierBlNo || "-",
           tracking.hblNo || "-",
           tracking.containerNo || "-",
@@ -673,7 +713,10 @@ const handleExportExcel = () => {
           tracking.podName || tracking.pod || "-",
           tracking.initialVesselDetail || "-",
           tracking.updatedVesselDetail || "-",
+          tracking.movementStatusLabel || getArrivalStatusLabel(tracking),
+          tracking.exceptionStatusLabel,
           tracking.delayDays,
+          tracking.reason || "-",
           tracking.remarks || "-",
         ],
         style: isEven ? 5 : 6,
@@ -683,7 +726,7 @@ const handleExportExcel = () => {
     buildStyledWorkbook(
       "Vessel Tracking",
       rows,
-      [18, 16, 28, 18, 22, 22, 22, 22, 22, 45, 45, 12, 35],
+      [18, 16, 28, 28, 28, 28, 18, 22, 22, 22, 22, 22, 22, 45, 45, 20, 18, 12, 35, 35],
       `VESSEL_TRACKING_${new Date().toISOString().split("T")[0]}.xlsx`,
     );
     toast.success("Vessel tracking exported to Excel.");
@@ -920,7 +963,7 @@ onMounted(async () => {
             <input
               v-model="search"
               type="text"
-              placeholder="HBL NO, MBL NO, CUSTOMER, CONSIGNEE, OVERSEAS AGENT, INITIAL/UPDATED VESSEL, SUDAH SAMPAI, BELUM SAMPAI"
+              placeholder="HBL NO, MBL NO, BOOKING NO, CONTAINER NO, SHIPPER, STATUS, REASON"
               class="w-full pl-10 pr-4 py-2 text-sm border border-border rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground"
             />
           </div>
@@ -1016,7 +1059,17 @@ onMounted(async () => {
               <th
                 class="py-3 px-4 text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
               >
+                Container No
+              </th>
+              <th
+                class="py-3 px-4 text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
+              >
                 Customer
+              </th>
+              <th
+                class="py-3 px-4 text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
+              >
+                Shipper
               </th>
               <th
                 class="py-3 px-4 text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
@@ -1032,6 +1085,11 @@ onMounted(async () => {
                 class="py-3 px-4 text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
               >
                 Initial / Updated Vessel
+              </th>
+              <th
+                class="py-3 px-4 text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
+              >
+                Reason / Note
               </th>
               <th
                 class="py-3 px-4 text-[11px] font-bold text-muted-foreground uppercase tracking-widest text-center"
@@ -1070,13 +1128,35 @@ onMounted(async () => {
                     {{ tracking.carrierBlNo || "-" }}
                   </span>
                   <span class="text-[10px] text-muted-foreground font-medium uppercase">
-                    {{ formatTrackingScheduleDate(tracking) }}
+                    Booking: {{ tracking.bookingNo || "-" }}
+                  </span>
+                </div>
+              </td>
+              <td class="py-3 px-4">
+                <div class="flex flex-col items-start gap-1 max-w-[220px]">
+                  <span
+                    v-for="containerNo in getContainerNumberList(tracking.containerNo)"
+                    :key="`${tracking.id}-${containerNo}`"
+                    class="tracking-container-chip"
+                  >
+                    {{ containerNo }}
+                  </span>
+                  <span
+                    v-if="getContainerNumberList(tracking.containerNo).length === 0"
+                    class="tracking-container-chip"
+                  >
+                    -
                   </span>
                 </div>
               </td>
               <td class="py-3 px-4">
                 <div class="text-sm text-foreground max-w-[190px] truncate">
                   {{ tracking.customerName || "-" }}
+                </div>
+              </td>
+              <td class="py-3 px-4">
+                <div class="text-sm text-foreground max-w-[190px] truncate">
+                  {{ tracking.shipperName || "-" }}
                 </div>
               </td>
               <td class="py-3 px-4">
@@ -1213,6 +1293,11 @@ onMounted(async () => {
                   </div>
                 </div>
               </td>
+              <td class="py-3 px-4">
+                <div class="text-sm text-foreground max-w-[220px] whitespace-pre-wrap">
+                  {{ tracking.reason || tracking.remarks || "-" }}
+                </div>
+              </td>
               <td class="py-3 px-4 text-center align-middle">
                 <div class="inline-flex flex-col items-center gap-1.5">
                   <span
@@ -1230,7 +1315,29 @@ onMounted(async () => {
                       class="delay-icon"
                     />
                     <CalendarClock v-else class="delay-icon" />
-                    {{ getArrivalStatusLabel(tracking) }}
+                    {{ tracking.movementStatusLabel || getArrivalStatusLabel(tracking) }}
+                  </span>
+                  <span
+                    :class="
+                      cn(
+                        'delay-badge',
+                        tracking.exceptionStatus === 'ROLLOVER'
+                          ? 'bg-purple-50 text-purple-700 border-purple-200'
+                          : tracking.exceptionStatus === 'DELAY'
+                            ? 'bg-red-50 text-red-700 border-red-200'
+                            : 'bg-green-50 text-green-700 border-green-200',
+                      )
+                    "
+                  >
+                    <AlertTriangle
+                      v-if="
+                        tracking.exceptionStatus === 'ROLLOVER' ||
+                        tracking.exceptionStatus === 'DELAY'
+                      "
+                      class="delay-icon"
+                    />
+                    <CheckCircle2 v-else class="delay-icon" />
+                    {{ tracking.exceptionStatusLabel }}
                   </span>
                   <span
                     :class="
@@ -1440,7 +1547,28 @@ onMounted(async () => {
             >
               <CheckCircle2 v-if="getArrivalStatus(tracking) === 'arrived'" class="delay-icon" />
               <CalendarClock v-else class="delay-icon" />
-              {{ getArrivalStatusLabel(tracking) }}
+              {{ tracking.movementStatusLabel || getArrivalStatusLabel(tracking) }}
+            </span>
+            <span
+              :class="
+                cn(
+                  'delay-badge',
+                  tracking.exceptionStatus === 'ROLLOVER'
+                    ? 'bg-purple-50 text-purple-700 border-purple-200'
+                    : tracking.exceptionStatus === 'DELAY'
+                      ? 'bg-red-50 text-red-700 border-red-200'
+                      : 'bg-green-50 text-green-700 border-green-200',
+                )
+              "
+            >
+              <AlertTriangle
+                v-if="
+                  tracking.exceptionStatus === 'ROLLOVER' || tracking.exceptionStatus === 'DELAY'
+                "
+                class="delay-icon"
+              />
+              <CheckCircle2 v-else class="delay-icon" />
+              {{ tracking.exceptionStatusLabel }}
             </span>
             <span
               :class="
@@ -1889,6 +2017,24 @@ onMounted(async () => {
   line-height: 1rem;
   font-weight: 900;
   letter-spacing: 0;
+}
+
+.tracking-container-chip {
+  display: inline-flex;
+  max-width: 100%;
+  border-width: 1px;
+  border-color: rgb(226 232 240);
+  border-radius: 0.375rem;
+  background: rgb(248 250 252);
+  padding: 0.125rem 0.375rem;
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New",
+    monospace;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-weight: 800;
+  color: rgb(15 23 42);
+  white-space: nowrap;
 }
 
 .arrival-badge {
