@@ -32,9 +32,11 @@ export interface VesselTracking {
   remarks: string | null;
   startedAt: string;
   customerName: string;
+  shipperName: string;
   consigneeName: string;
   overseasAgentName: string;
   linerName: string;
+  bookingNo: string;
   carrierBlNo: string;
   hblNo: string;
   containerNo: string;
@@ -45,6 +47,12 @@ export interface VesselTracking {
   initialVesselDetail: string;
   updatedVesselDetail: string;
   delayDays: number;
+  movementStatus: "SCHEDULED" | "DEPARTED" | "ARRIVED";
+  movementStatusLabel: string;
+  exceptionStatus: "ON_TIME" | "DELAY" | "ROLLOVER";
+  exceptionStatusLabel: string;
+  publicStatus: string;
+  reason: string;
   legs: VesselTrackingLeg[];
   createdAt: string;
   updatedAt: string;
