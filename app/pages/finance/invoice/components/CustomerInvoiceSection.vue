@@ -1,18 +1,35 @@
 <script setup lang="ts">
-import { Plus, Search, Receipt, LayoutList, LayoutGrid, FileText, Loader2 } from "lucide-vue-next";
-import { cn } from "~/lib/utils";
+import { Search, Receipt, LayoutList, LayoutGrid, FileText, Loader2 } from "lucide-vue-next";
+import { cn, formatFullRupiah } from "~/lib/utils";
 import { useInvoices, type InvoiceDetail } from "~/composables/useInvoices";
 import { useInvoicePage, type InvoiceData } from "~/composables/useInvoicePage";
 import { InvoiceListView, InvoiceGridView, InvoiceEditModal } from "./index";
 import JobInvoicePreview from "~/components/operational/JobInvoicePreview.vue";
+import Combobox from "~/components/ui/Combobox.vue";
 import { toast } from "vue-sonner";
 import { buildStyledWorkbook, type StyledRow } from "~/lib/excel-styled";
 import { exportStyledPdf, type PdfCol } from "~/lib/pdf-export";
 import { useExportPopup } from "~/composables/useExportPopup";
+import {
+  buildInvoiceAnalysisCards,
+  isInvoiceAnalysisReady,
+  normalizeInvoiceAnalysisSummary,
+  type InvoiceAnalysisCard,
+  type InvoiceAnalysisSummary,
+  type InvoiceAnalysisTone,
+} from "~/utils/invoiceAnalysis";
 
 type InvoiceListApiResponse =
   | InvoiceData[]
-  | { items?: InvoiceData[]; pagination?: { total: number; limit: number; page: number } };
+  | {
+      items?: InvoiceData[];
+      pagination?: { total: number; limit: number; page: number };
+      summary?: InvoiceAnalysisSummary;
+    };
+
+interface PayableSummaryApiResponse {
+  summary?: InvoiceAnalysisSummary;
+}
 
 const { fetchInvoiceById } = useInvoices();
 const {
@@ -38,7 +55,6 @@ const {
   formatDate,
   getStatusConfig,
   filteredInvoices,
-  openEditModal,
   closeEditModal,
   handleFullUpdate,
   handleRowClick,
@@ -55,6 +71,47 @@ const { showExportOptions, triggerX, triggerY, triggerWidth, triggerHeight, open
   useExportPopup();
 
 const isExporting = ref(false);
+const receivableSummary = ref<InvoiceAnalysisSummary | null>(null);
+const payableSummary = ref<InvoiceAnalysisSummary | null>(null);
+const selectedStatusFilter = computed({
+  get: () => selectedStatus.value,
+  set: (value: string | null | undefined) => {
+    selectedStatus.value = value || "";
+  },
+});
+const isAnalysisReady = computed(() =>
+  isInvoiceAnalysisReady({
+    receivable: receivableSummary.value,
+    payable: payableSummary.value,
+  }),
+);
+
+const analysisCards = computed(() => {
+  const cards = buildInvoiceAnalysisCards({
+    receivable: receivableSummary.value,
+    payable: payableSummary.value,
+  });
+  return [
+    cards.find((card) => card.label === "Total A/R"),
+    cards.find((card) => card.label === "A/R Unpaid"),
+    cards.find((card) => card.label === "A/R Paid"),
+    cards.find((card) => card.label === "Total Profit"),
+  ].filter((card): card is InvoiceAnalysisCard => Boolean(card));
+});
+
+const analysisCardClass = (tone: InvoiceAnalysisTone) => {
+  const toneMap: Record<InvoiceAnalysisTone, string> = {
+    receivable: "border-emerald-200 bg-white before:bg-emerald-500",
+    payable: "border-red-200 bg-white before:bg-red-500",
+    paid: "border-blue-200 bg-white before:bg-blue-500",
+    profit: "border-[#012D5A]/25 bg-[#012D5A] text-white before:bg-emerald-400",
+    warning: "border-amber-200 bg-white before:bg-amber-500",
+  };
+  return toneMap[tone];
+};
+
+const analysisCaptionClass = (tone: InvoiceAnalysisTone) =>
+  tone === "profit" ? "text-white/75" : "text-muted-foreground";
 
 // Client-side: fetch initial data (avoid slow cross-region SSR)
 const {
@@ -64,7 +121,18 @@ const {
   refresh: refreshBootstrap,
 } = useAsyncData<InvoiceListApiResponse>(
   "invoice-list",
-  async () => await $fetch<InvoiceListApiResponse>("/api/finance/invoice"),
+  async () => {
+    const [invoiceResp, payableResp] = await Promise.all([
+      $fetch<InvoiceListApiResponse>("/api/finance/invoice", {
+        query: { includeSummary: "true" },
+      }),
+      $fetch<PayableSummaryApiResponse>("/api/finance/expense", {
+        query: { type: "JOB", limit: 1 },
+      }),
+    ]);
+    payableSummary.value = normalizeInvoiceAnalysisSummary(payableResp.summary);
+    return invoiceResp;
+  },
   { server: false },
 );
 
@@ -83,6 +151,15 @@ watch(
     if (Array.isArray(value)) {
       invoices.value = value;
       pagination.value = { total: value.length, limit: 10, page: 1 };
+      receivableSummary.value = normalizeInvoiceAnalysisSummary({
+        totalAmount: value.reduce((sum, invoice) => sum + Number(invoice.total || 0), 0),
+        totalOutstanding: value.reduce((sum, invoice) => sum + Number(invoice.balanceDue || 0), 0),
+        totalPaid: value.reduce((sum, invoice) => {
+          const paid = Number(invoice.total || 0) - Number(invoice.balanceDue || 0);
+          return sum + Math.max(0, paid);
+        }, 0),
+        count: value.length,
+      });
       return;
     }
     if (value.items) {
@@ -90,6 +167,7 @@ watch(
       if (value.pagination) {
         pagination.value = value.pagination;
       }
+      receivableSummary.value = normalizeInvoiceAnalysisSummary(value.summary);
     }
   },
   { immediate: true },
@@ -147,11 +225,6 @@ const handleInvoiceClick = (id: string) => {
   } else {
     handleRowClick(id); // Fallback to original behavior if no job id
   }
-};
-
-const handleEdit = (id: string) => {
-  if (!requireManage("You only have view access for invoices.")) return;
-  openEditModal(id);
 };
 
 const handleFullUpdateIfAllowed = () => {
@@ -284,6 +357,37 @@ const handleExportPdf = async () => {
 
 <template>
   <div class="space-y-6 animate-fade-in">
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+      <div
+        v-for="card in analysisCards"
+        :key="card.label"
+        :class="[
+          'relative overflow-hidden rounded-lg border px-4 py-3 shadow-sm before:absolute before:left-0 before:top-0 before:h-full before:w-1',
+          analysisCardClass(card.tone),
+        ]"
+      >
+        <p
+          :class="[
+            'text-[11px] font-black uppercase tracking-widest',
+            card.tone === 'profit' ? 'text-white/75' : 'text-muted-foreground',
+          ]"
+        >
+          {{ card.label }}
+        </p>
+        <p v-if="isAnalysisReady" class="mt-2 text-xl font-black tabular-nums">
+          {{ formatFullRupiah(card.value) }}
+        </p>
+        <div
+          v-else
+          :class="[
+            'mt-2 h-7 w-36 animate-pulse rounded',
+            card.tone === 'profit' ? 'bg-white/25' : 'bg-slate-200',
+          ]"
+        ></div>
+        <p :class="['mt-2 text-xs', analysisCaptionClass(card.tone)]">{{ card.caption }}</p>
+      </div>
+    </div>
+
     <!-- Filters and Views -->
     <div class="flex items-center justify-between gap-4">
       <div class="relative w-full max-w-sm">
@@ -297,15 +401,15 @@ const handleExportPdf = async () => {
       </div>
 
       <div class="flex items-center gap-2">
-        <!-- Status Filter -->
-        <select
-          v-model="selectedStatus"
-          class="bg-white border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#012D5A]"
-        >
-          <option v-for="option in statusOptions" :key="option.value" :value="option.value">
-            {{ option.label }}
-          </option>
-        </select>
+        <div class="w-40">
+          <Combobox
+            v-model="selectedStatusFilter"
+            :options="statusOptions"
+            label-key="label"
+            value-key="value"
+            placeholder="All Status"
+          />
+        </div>
 
         <button
           @click="openExportPopup($event)"
