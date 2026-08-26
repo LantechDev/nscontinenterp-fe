@@ -470,15 +470,14 @@ const handleExportPdf = async () => {
     const border = [210, 217, 226] as [number, number, number];
     const muted = [100, 116, 139] as [number, number, number];
     const columns = [
-      { key: "hbl", label: "HBL", width: 22 },
-      { key: "mbl", label: "MBL / Booking", width: 28 },
-      { key: "container", label: "Container", width: 25 },
-      { key: "shipper", label: "Shipper", width: 28 },
-      { key: "consignee", label: "Consignee", width: 28 },
-      { key: "agent", label: "Agent", width: 25 },
-      { key: "vessel", label: "Vessel Detail", width: 50 },
-      { key: "status", label: "Status", width: 23 },
-      { key: "reason", label: "Reason", width: 28 },
+      { key: "hbl", label: "HBL", width: 25 },
+      { key: "mbl", label: "MBL", width: 30 },
+      { key: "container", label: "Container", width: 30 },
+      { key: "exportReference", label: "Export Ref", width: 32 },
+      { key: "initialVessel", label: "Initial Vessel", width: 43 },
+      { key: "currentVessel", label: "Current Vessel", width: 43 },
+      { key: "status", label: "Status", width: 32 },
+      { key: "reason", label: "Reason", width: 51 },
     ];
     let y = 18;
     let pageNumber = 1;
@@ -506,8 +505,6 @@ const handleExportPdf = async () => {
       doc.setFont("helvetica", "bold");
       doc.setFontSize(13);
       doc.text("VESSEL TRACKING REPORT", pageWidth / 2, 21, { align: "center" });
-      doc.setFontSize(7);
-      doc.text(getFilterSummary().toUpperCase(), pageWidth / 2, 27, { align: "center" });
 
       doc.setFont("helvetica", "normal");
       doc.setFontSize(7);
@@ -554,18 +551,26 @@ const handleExportPdf = async () => {
     drawHeader();
     drawTableHeader();
 
+    const formatPdfStatus = (tracking: VesselTracking) =>
+      [
+        tracking.movementStatusLabel || getArrivalStatusLabel(tracking),
+        tracking.exceptionStatusLabel,
+        `${tracking.delayDays} days`,
+      ]
+        .filter((line) => String(line || "").trim())
+        .join("\n");
+
     filteredTrackings.value.forEach((tracking, index) => {
       const cells = [
         tracking.hblNo || "-",
-        `${tracking.carrierBlNo || "-"}\n${tracking.bookingNo || "-"}`,
+        tracking.carrierBlNo || "-",
         tracking.containerNo || "-",
-        tracking.shipperName || "-",
-        tracking.consigneeName || "-",
-        tracking.overseasAgentName || "-",
+        tracking.exportReference || "-",
+        getTrackingLegSummary(tracking, "initial") || "-",
         getTrackingLegSummary(tracking, "updated") ||
           getTrackingLegSummary(tracking, "initial") ||
           "-",
-        `${tracking.movementStatusLabel || getArrivalStatusLabel(tracking)}\n${tracking.exceptionStatusLabel}\n${tracking.delayDays} days`,
+        formatPdfStatus(tracking),
         tracking.reason || tracking.remarks || "-",
       ];
       const splitCells = cells.map((cell, cellIndex) => splitCell(cell, columns[cellIndex]!.width));
@@ -582,10 +587,9 @@ const handleExportPdf = async () => {
       splitCells.forEach((lines, cellIndex) => {
         const col = columns[cellIndex]!;
         doc.setTextColor(31, 41, 55);
-        doc.setFont("helvetica", cellIndex === 0 || cellIndex === 7 ? "bold" : "normal");
+        doc.setFont("helvetica", cellIndex === 0 || cellIndex === 6 ? "bold" : "normal");
         doc.setFontSize(6.8);
-        const textX = cellIndex === 7 ? x + col.width - 3 : x + 2;
-        doc.text(lines, textX, y + 5, { align: "left", lineHeightFactor: 1.18 });
+        doc.text(lines, x + 2, y + 5, { align: "left", lineHeightFactor: 1.18 });
         x += col.width;
       });
 
@@ -629,6 +633,7 @@ const handleExportExcel = () => {
       "Booking No",
       "Carrier BL No",
       "HBL No",
+      "Export Reference",
       "Container No",
       "POL",
       "POD",
@@ -644,50 +649,14 @@ const handleExportExcel = () => {
       {
         cells: [
           "PT Nova Sync Continent - VESSEL TRACKING REPORT",
-          "",
-          "",
-          "",
-          "",
-          "",
-          "",
-          "",
-          "",
-          "",
-          "",
-          "",
-          "",
-          "",
-          "",
-          "",
-          "",
-          "",
-          "",
-          "",
-          "",
+          ...Array(headers.length - 1).fill(""),
         ],
         style: 7,
       },
       {
         cells: [
           `Generated: ${new Date().toLocaleDateString("id-ID")} | ${getFilterSummary()}`,
-          "",
-          "",
-          "",
-          "",
-          "",
-          "",
-          "",
-          "",
-          "",
-          "",
-          "",
-          "",
-          "",
-          "",
-          "",
-          "",
-          "",
-          "",
+          ...Array(headers.length - 1).fill(""),
         ],
         style: 8,
       },
@@ -708,6 +677,7 @@ const handleExportExcel = () => {
           tracking.bookingNo || "-",
           tracking.carrierBlNo || "-",
           tracking.hblNo || "-",
+          tracking.exportReference || "-",
           tracking.containerNo || "-",
           tracking.polName || tracking.pol || "-",
           tracking.podName || tracking.pod || "-",
@@ -726,7 +696,7 @@ const handleExportExcel = () => {
     buildStyledWorkbook(
       "Vessel Tracking",
       rows,
-      [18, 16, 28, 28, 28, 28, 18, 22, 22, 22, 22, 22, 22, 45, 45, 20, 18, 12, 35, 35],
+      [18, 16, 28, 28, 28, 28, 18, 22, 22, 22, 28, 22, 22, 22, 45, 45, 20, 18, 12, 35, 35],
       `VESSEL_TRACKING_${new Date().toISOString().split("T")[0]}.xlsx`,
     );
     toast.success("Vessel tracking exported to Excel.");
@@ -963,7 +933,7 @@ onMounted(async () => {
             <input
               v-model="search"
               type="text"
-              placeholder="HBL NO, MBL NO, BOOKING NO, CONTAINER NO, SHIPPER, STATUS, REASON"
+              placeholder="HBL NO, MBL NO, BOOKING NO, CONTAINER NO, EXPORT REF, SHIPPER, STATUS, REASON"
               class="w-full pl-10 pr-4 py-2 text-sm border border-border rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground"
             />
           </div>
@@ -1036,14 +1006,14 @@ onMounted(async () => {
       </div>
     </div>
 
-    <UiLoadingSkeleton v-if="isLoading" variant="table" :columns="canManage ? 8 : 7" />
+    <UiLoadingSkeleton v-if="isLoading" variant="table" :columns="canManage ? 12 : 11" />
 
     <div
       v-else-if="viewMode === 'list'"
       class="border border-border rounded-xl bg-white overflow-hidden"
     >
       <div class="overflow-x-auto">
-        <table class="w-full min-w-[1380px]">
+        <table class="w-full min-w-[1500px]">
           <thead>
             <tr class="border-b border-border bg-white text-left">
               <th
@@ -1060,6 +1030,11 @@ onMounted(async () => {
                 class="py-3 px-4 text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
               >
                 Container No
+              </th>
+              <th
+                class="py-3 px-4 text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
+              >
+                Export Reference
               </th>
               <th
                 class="py-3 px-4 text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
@@ -1147,6 +1122,11 @@ onMounted(async () => {
                   >
                     -
                   </span>
+                </div>
+              </td>
+              <td class="py-3 px-4">
+                <div class="text-sm text-foreground max-w-[190px] truncate font-mono">
+                  {{ tracking.exportReference || "-" }}
                 </div>
               </td>
               <td class="py-3 px-4">
