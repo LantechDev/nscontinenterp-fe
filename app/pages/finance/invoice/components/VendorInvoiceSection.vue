@@ -1,16 +1,6 @@
 <script setup lang="ts">
-import {
-  Plus,
-  Search,
-  Wallet,
-  LayoutList,
-  LayoutGrid,
-  Pencil,
-  Trash2,
-  Download,
-  ArrowRight,
-} from "lucide-vue-next";
-import { cn } from "~/lib/utils";
+import { Search, Wallet, LayoutList, LayoutGrid, Download, ArrowRight } from "lucide-vue-next";
+import { cn, formatFullRupiah } from "~/lib/utils";
 import { useExpensePage } from "~/composables/useExpensePage";
 import { type Expense, type Pagination } from "~/composables/useFinanceExpense";
 import { type Company } from "~/composables/useMasterData";
@@ -22,12 +12,34 @@ import { generateExpensePdf } from "~/pages/finance/expenses/utils/pdf-generator
 import OperationalJobDetailSlideOver from "~/components/operational/JobDetailSlideOver.vue";
 import CompanyCreateModal from "~/pages/master/company/components/CompanyCreateModal.vue";
 import CurrencyStack from "~/components/ui/CurrencyStack.vue";
+import Combobox from "~/components/ui/Combobox.vue";
+import {
+  buildInvoiceAnalysisCards,
+  isInvoiceAnalysisReady,
+  normalizeInvoiceAnalysisSummary,
+  type InvoiceAnalysisCard,
+  type InvoiceAnalysisSummary,
+  type InvoiceAnalysisTone,
+} from "~/utils/invoiceAnalysis";
+
+interface ExpenseSummary extends InvoiceAnalysisSummary {
+  totalIncome: number;
+  totalExpense: number;
+  totalIncomePaid: number;
+  totalIncomeOutstanding: number;
+  totalExpensePaid: number;
+  totalExpenseOutstanding: number;
+}
 
 interface ExpenseBootstrapData {
-  expenses: { items: Expense[]; pagination: Pagination };
+  expenses: { items: Expense[]; pagination: Pagination; summary?: ExpenseSummary };
   companies: Company[];
   jobs: JobWithBls[];
   taxes: { items: Tax[] };
+}
+
+interface ReceivableSummaryApiResponse {
+  summary?: InvoiceAnalysisSummary;
 }
 
 const {
@@ -47,18 +59,17 @@ const {
   taxOptions,
   companies,
   jobs,
+  summary,
   formatCurrency,
   formatDate,
   isLoading,
   handlePageChange,
   handleRowClick,
-  openEditModal,
   closeEditModal,
   handleCreateVendor,
   handleVendorCreateSuccess,
   handleCreateCategory,
   handleUpdate,
-  handleDelete,
   setData,
 } = useExpensePage();
 
@@ -78,23 +89,49 @@ const handleRowClickIfAllowed = (id: string) => {
 };
 
 filters.value.type = "JOB";
+const selectedCategoryFilter = computed({
+  get: () => filters.value.categoryId || "",
+  set: (value: string | null | undefined) => {
+    filters.value.categoryId = value || "";
+  },
+});
 
 const { fetchExpenseById } = useFinanceExpense();
+const receivableSummary = ref<InvoiceAnalysisSummary | null>(null);
+const payableSummary = ref<InvoiceAnalysisSummary | null>(null);
+const isAnalysisReady = computed(() =>
+  isInvoiceAnalysisReady({
+    receivable: receivableSummary.value,
+    payable: payableSummary.value,
+  }),
+);
 
-const formatExpenseAmount = (amount: number, currency?: string) => {
-  const curr = currency || "IDR";
-  if (curr === "IDR") {
-    return formatCurrency(amount);
-  }
-  try {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: curr,
-    }).format(amount);
-  } catch {
-    return `${curr} ${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  }
+const analysisCards = computed(() => {
+  const cards = buildInvoiceAnalysisCards({
+    receivable: receivableSummary.value,
+    payable: payableSummary.value,
+  });
+  return [
+    cards.find((card) => card.label === "Total A/P"),
+    cards.find((card) => card.label === "A/P Unpaid"),
+    cards.find((card) => card.label === "A/P Paid"),
+    cards.find((card) => card.label === "Total Profit"),
+  ].filter((card): card is InvoiceAnalysisCard => Boolean(card));
+});
+
+const analysisCardClass = (tone: InvoiceAnalysisTone) => {
+  const toneMap: Record<InvoiceAnalysisTone, string> = {
+    receivable: "border-emerald-200 bg-white before:bg-emerald-500",
+    payable: "border-red-200 bg-white before:bg-red-500",
+    paid: "border-blue-200 bg-white before:bg-blue-500",
+    profit: "border-[#012D5A]/25 bg-[#012D5A] text-white before:bg-emerald-400",
+    warning: "border-amber-200 bg-white before:bg-amber-500",
+  };
+  return toneMap[tone];
 };
+
+const analysisCaptionClass = (tone: InvoiceAnalysisTone) =>
+  tone === "profit" ? "text-white/75" : "text-muted-foreground";
 
 // Handle download PDF
 const handleDownloadPdf = async (id: string) => {
@@ -110,12 +147,18 @@ const {
 } = useAsyncData<ExpenseBootstrapData>(
   "expense-list",
   async () => {
-    const expensesResp = await $fetch<{ items: Expense[]; pagination: Pagination }>(
-      "/api/finance/expense",
-      {
-        query: { type: "JOB" },
-      },
-    );
+    const [expensesResp, receivableResp] = await Promise.all([
+      $fetch<{ items: Expense[]; pagination: Pagination; summary?: ExpenseSummary }>(
+        "/api/finance/expense",
+        {
+          query: { type: "JOB" },
+        },
+      ),
+      $fetch<ReceivableSummaryApiResponse>("/api/finance/invoice", {
+        query: { includeSummary: "true" },
+      }),
+    ]);
+    receivableSummary.value = normalizeInvoiceAnalysisSummary(receivableResp.summary);
 
     if (!canManage.value) {
       return { expenses: expensesResp, companies: [], jobs: [], taxes: { items: [] } };
@@ -145,6 +188,7 @@ watch(
   expensesData,
   (value) => {
     if (!value) return;
+    payableSummary.value = normalizeInvoiceAnalysisSummary(value.expenses?.summary);
     setData({
       items: value.expenses?.items || [],
       pagination: value.expenses?.pagination || {
@@ -158,6 +202,7 @@ watch(
         : (value.companies as unknown as { data: Company[] })?.data || [],
       jobs: value.jobs,
       taxOptions: value.taxes?.items,
+      summary: value.expenses?.summary,
     });
   },
   { immediate: true },
@@ -221,6 +266,37 @@ const handleInvoiceClick = (expense: Expense) => {
 
 <template>
   <div class="space-y-6 animate-fade-in">
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+      <div
+        v-for="card in analysisCards"
+        :key="card.label"
+        :class="[
+          'relative overflow-hidden rounded-lg border px-4 py-3 shadow-sm before:absolute before:left-0 before:top-0 before:h-full before:w-1',
+          analysisCardClass(card.tone),
+        ]"
+      >
+        <p
+          :class="[
+            'text-[11px] font-black uppercase tracking-widest',
+            card.tone === 'profit' ? 'text-white/75' : 'text-muted-foreground',
+          ]"
+        >
+          {{ card.label }}
+        </p>
+        <p v-if="isAnalysisReady" class="mt-2 text-xl font-black tabular-nums">
+          {{ formatFullRupiah(card.value) }}
+        </p>
+        <div
+          v-else
+          :class="[
+            'mt-2 h-7 w-36 animate-pulse rounded',
+            card.tone === 'profit' ? 'bg-white/25' : 'bg-slate-200',
+          ]"
+        ></div>
+        <p :class="['mt-2 text-xs', analysisCaptionClass(card.tone)]">{{ card.caption }}</p>
+      </div>
+    </div>
+
     <!-- Filters -->
     <div class="flex items-center justify-between gap-4">
       <div class="relative w-full max-w-sm">
@@ -234,19 +310,15 @@ const handleInvoiceClick = (expense: Expense) => {
       </div>
 
       <div class="flex items-center gap-3">
-        <select
-          v-model="filters.categoryId"
-          class="px-3 py-2 rounded-lg border border-border bg-white text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-        >
-          <option value="">Semua Kategori</option>
-          <option
-            v-for="opt in categoryOptions.filter((o) => o.value !== '')"
-            :key="opt.value"
-            :value="opt.value"
-          >
-            {{ opt.label }}
-          </option>
-        </select>
+        <div class="w-48">
+          <Combobox
+            v-model="selectedCategoryFilter"
+            :options="categoryOptions"
+            label-key="label"
+            value-key="value"
+            placeholder="Semua Kategori"
+          />
+        </div>
         <div class="flex items-center bg-white border border-border rounded-lg p-1 mr-2">
           <button
             @click="viewMode = 'list'"
