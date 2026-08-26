@@ -15,10 +15,12 @@ describe("vessel tracking PDF export", () => {
     expect(page).toContain('{ key: "hbl", label: "HBL", width: 25 }');
     expect(page).toContain('{ key: "mbl", label: "MBL", width: 30 }');
     expect(page).toContain('{ key: "container", label: "Container", width: 30 }');
-    expect(page).toContain('{ key: "initialVessel", label: "Initial Vessel", width: 47 }');
-    expect(page).toContain('{ key: "currentVessel", label: "Current Vessel", width: 47 }');
-    expect(page).toContain('{ key: "status", label: "Status", width: 34 }');
-    expect(page).toContain('{ key: "reason", label: "Reason", width: 56 }');
+    expect(page).toContain('{ key: "exportReference", label: "Export Ref", width: 32 }');
+    expect(page).toContain('{ key: "initialVessel", label: "Initial Vessel", width: 43 }');
+    expect(page).toContain('{ key: "currentVessel", label: "Current Vessel", width: 43 }');
+    expect(page).toContain('{ key: "status", label: "Status", width: 32 }');
+    expect(page).toContain('{ key: "reason", label: "Reason", width: 51 }');
+    expect(page).toContain("tracking.exportReference");
     expect(page).not.toContain("doc.text(getFilterSummary().toUpperCase()");
     expect(page).not.toContain('{ key: "shipper", label: "Shipper"');
     expect(page).not.toContain('{ key: "consignee", label: "Consignee"');

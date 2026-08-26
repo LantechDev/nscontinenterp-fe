@@ -39,6 +39,7 @@ export interface VesselTracking {
   bookingNo: string;
   carrierBlNo: string;
   hblNo: string;
+  exportReference: string;
   containerNo: string;
   pol: string;
   pod: string;
