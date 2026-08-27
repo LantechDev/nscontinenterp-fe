@@ -1,6 +1,9 @@
 // @ts-ignore
 import { describe, expect, it } from "bun:test";
-import { resolveSingleCurrencyPrefillExchangeRate } from "./jobInvoiceExchangeRate";
+import {
+  hasMixedInvoiceCurrencyItems,
+  resolveSingleCurrencyPrefillExchangeRate,
+} from "./jobInvoiceExchangeRate";
 
 describe("resolveSingleCurrencyPrefillExchangeRate", () => {
   it("keeps the quotation exchange rate when pre-filling a single-currency USD invoice", () => {
@@ -11,7 +14,25 @@ describe("resolveSingleCurrencyPrefillExchangeRate", () => {
     expect(resolveSingleCurrencyPrefillExchangeRate("IDR", 17200)).toBe(1);
   });
 
-  it("returns null when a USD invoice has no usable exchange rate", () => {
-    expect(resolveSingleCurrencyPrefillExchangeRate("USD", 1)).toBeNull();
+  it("uses rate 1 for a single-currency USD invoice", () => {
+    expect(resolveSingleCurrencyPrefillExchangeRate("USD", 1)).toBe(1);
+  });
+});
+
+describe("hasMixedInvoiceCurrencyItems", () => {
+  it("does not require exchange rate for USD invoice with USD items", () => {
+    expect(hasMixedInvoiceCurrencyItems("USD", [{ currency: "USD" }])).toBe(false);
+  });
+
+  it("does not require exchange rate for IDR invoice with IDR items", () => {
+    expect(hasMixedInvoiceCurrencyItems("IDR", [{ currency: "IDR" }])).toBe(false);
+  });
+
+  it("requires exchange rate for IDR invoice with USD items", () => {
+    expect(hasMixedInvoiceCurrencyItems("IDR", [{ currency: "USD" }])).toBe(true);
+  });
+
+  it("requires exchange rate for USD invoice with IDR items", () => {
+    expect(hasMixedInvoiceCurrencyItems("USD", [{ currency: "IDR" }])).toBe(true);
   });
 });

@@ -1045,7 +1045,7 @@ const removeShipperRef = (index: number) => {
 
     <SectionCard
       id="containers"
-      :title="isTrucking ? 'Truck Breakdown' : 'Containers Breakdown'"
+      :title="isTrucking ? 'Truck Breakdown' : isAir ? 'Cargo Breakdown' : 'Containers Breakdown'"
       :icon="isTrucking ? Truck : Box"
     >
       <div class="space-y-6">
@@ -1054,7 +1054,9 @@ const removeShipperRef = (index: number) => {
             class="bg-muted/10 px-4 py-3 border-b flex justify-between items-center rounded-t-xl"
           >
             <h3 class="font-medium text-[14px]">
-              {{ isTrucking ? "Truck Information" : "Containers & Seals" }}
+              {{
+                isTrucking ? "Truck Information" : isAir ? "Cargo Details" : "Containers & Seals"
+              }}
             </h3>
             <button
               type="button"
@@ -1062,7 +1064,7 @@ const removeShipperRef = (index: number) => {
               class="btn-outline h-8 px-3 text-xs gap-1.5 flex items-center"
             >
               <Plus class="w-3.5 h-3.5" />
-              {{ isTrucking ? "Add Truck" : "Add Container" }}
+              {{ isTrucking ? "Add Truck" : isAir ? "Add Cargo" : "Add Container" }}
             </button>
           </div>
           <div class="p-4 space-y-4 bg-muted/5 rounded-b-xl">
@@ -1127,6 +1129,33 @@ const removeShipperRef = (index: number) => {
                     <span class="text-[10px] font-bold text-muted-foreground uppercase">DG</span>
                     <Checkbox v-model="container.isHazardous" />
                   </label>
+                  <button
+                    type="button"
+                    @click="removeContainer(Number(index))"
+                    class="p-2 text-muted-foreground hover:text-destructive transition-colors disabled:opacity-50"
+                  >
+                    <Trash2 class="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              <!-- Air Freight Cargo UI -->
+              <div
+                v-else-if="isAir"
+                class="grid grid-cols-1 md:grid-cols-12 gap-4 items-end relative"
+              >
+                <div class="md:col-span-10 space-y-1.5 pt-px">
+                  <label class="text-[10px] font-bold text-muted-foreground uppercase opacity-70"
+                    >Cargo Details</label
+                  >
+                </div>
+                <div class="md:col-span-1 flex items-end justify-end gap-2 pb-1.5">
+                  <label class="flex flex-col items-center gap-1">
+                    <span class="text-[10px] font-bold text-muted-foreground uppercase">DG</span>
+                    <Checkbox v-model="container.isHazardous" />
+                  </label>
+                </div>
+                <div class="md:col-span-1 flex justify-end pb-1.5">
                   <button
                     type="button"
                     @click="removeContainer(Number(index))"
@@ -1329,7 +1358,9 @@ const removeShipperRef = (index: number) => {
                         :placeholder="
                           isTrucking
                             ? 'Description of goods loaded on this truck...'
-                            : 'Description of goods in this container...'
+                            : isAir
+                              ? 'Description of air cargo...'
+                              : 'Description of goods in this container...'
                         "
                       ></textarea>
                     </div>

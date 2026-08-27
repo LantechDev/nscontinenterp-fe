@@ -4,6 +4,7 @@ import { toast } from "vue-sonner";
 import CurrencyStack from "~/components/ui/CurrencyStack.vue";
 import type { Quotation, QuotationCost, QuotationCharge } from "~/composables/useQuotations";
 import { formatCurrencyCode, formatExchangeRateLabel } from "~/utils/currency";
+import { getTransportLocationDisplay } from "~/utils/airFreightJob";
 import { renderA4Pdf } from "~/utils/pdfRender";
 import { formatQuotationDate } from "~/utils/quotation-display";
 
@@ -53,8 +54,18 @@ const exchangeRateDisplay = computed(() =>
   }),
 );
 const routeText = computed(() => {
-  const pol = props.quotation?.polName || props.quotation?.pol || "-";
-  const pod = props.quotation?.podName || props.quotation?.pod || "-";
+  const pol = getTransportLocationDisplay({
+    serviceType: props.quotation?.serviceType,
+    shipmentType: props.quotation?.shipmentType,
+    code: props.quotation?.pol,
+    name: props.quotation?.polName,
+  });
+  const pod = getTransportLocationDisplay({
+    serviceType: props.quotation?.serviceType,
+    shipmentType: props.quotation?.shipmentType,
+    code: props.quotation?.pod,
+    name: props.quotation?.podName,
+  });
   return `${pol} -> ${pod}`;
 });
 

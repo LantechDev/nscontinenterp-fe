@@ -7,6 +7,7 @@ import type {
   EblContainer,
   EblContainerItem,
 } from "./types";
+import { getTransportLocationDisplay } from "~/utils/airFreightJob";
 
 interface RenderedPage {
   key: string;
@@ -116,6 +117,22 @@ const issuePlaceLabel = computed(() =>
         : "PLACE OF BILL(S) ISSUE",
 );
 const transportList = computed(() => props.activeBl?.vessels || props.jobData?.vessels || []);
+const polDisplay = computed(() =>
+  getTransportLocationDisplay({
+    serviceType: props.jobData?.serviceType,
+    shipmentType: props.jobData?.shipmentType,
+    code: props.jobData?.pol,
+    name: props.jobData?.polName,
+  }),
+);
+const podDisplay = computed(() =>
+  getTransportLocationDisplay({
+    serviceType: props.jobData?.serviceType,
+    shipmentType: props.jobData?.shipmentType,
+    code: props.jobData?.pod,
+    name: props.jobData?.podName,
+  }),
+);
 
 const getTransportName = (transport?: (typeof transportList.value)[number]) => {
   if (!transport) return "";
@@ -269,19 +286,19 @@ const receivedTermsDocumentName = computed(() =>
 const placeOfReceiptVal = computed(() =>
   props.isTrucking
     ? getVal(props.jobData?.pickupAddress)
-    : getVal(props.jobData?.placeOfReceipt, getVal(props.jobData?.polName, props.jobData?.pol)),
+    : getVal(props.jobData?.placeOfReceipt, polDisplay.value),
 );
 
 const placeOfDeliveryVal = computed(() =>
   props.isTrucking
     ? getVal(props.jobData?.deliveryAddress)
-    : getVal(props.jobData?.placeOfDelivery, getVal(props.jobData?.podName, props.jobData?.pod)),
+    : getVal(props.jobData?.placeOfDelivery, podDisplay.value),
 );
 
 const finalDestinationVal = computed(() =>
   props.isTrucking
     ? getVal(props.jobData?.deliveryAddress)
-    : getVal(props.jobData?.finalDestination, getVal(props.jobData?.podName, props.jobData?.pod)),
+    : getVal(props.jobData?.finalDestination, podDisplay.value),
 );
 
 const getVal = (val: unknown, fallback: unknown = "") => {
@@ -303,8 +320,8 @@ const freightPayableAtRaw = computed(() => {
   const summary = getVal(props.activeBl?.prepaid) || getVal(props.activeBl?.collect);
   const match = summary.match(/\bAT\s+(.+)$/i);
   if (match?.[1]) return match[1].trim();
-  if (getVal(props.activeBl?.prepaid)) return getVal(props.jobData?.polName, props.jobData?.pol);
-  return getVal(props.jobData?.podName, props.jobData?.pod);
+  if (getVal(props.activeBl?.prepaid)) return polDisplay.value;
+  return podDisplay.value;
 });
 const freightPayableAt = computed(() => limitText(freightPayableAtRaw.value, 18));
 
@@ -888,7 +905,7 @@ const formatDate = (dateStr?: string | null) => {
                 ? jobData?.pickupDate
                   ? `${formatDate(jobData.pickupDate)} ${jobData.pickupTime || ""}`.trim()
                   : "-"
-                : getVal(jobData?.polName, jobData?.pol)
+                : polDisplay
             }}</span>
           </div>
           <div class="w-[50%] pt-0.5 px-2 pb-1.5">
@@ -900,7 +917,7 @@ const formatDate = (dateStr?: string | null) => {
                 ? jobData?.deliveryDate
                   ? `${formatDate(jobData.deliveryDate)} ${jobData.deliveryTime || ""}`.trim()
                   : "-"
-                : getVal(jobData?.podName, jobData?.pod)
+                : podDisplay
             }}</span>
           </div>
         </div>

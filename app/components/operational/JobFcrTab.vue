@@ -22,6 +22,7 @@ import type { ActiveBlData, ActiveJobData, EblContainer, EblContainerItem } from
 import JobBcEditForm from "./booking-confirmation/JobBcEditForm.vue";
 import type { BookingConfirmationForm } from "./booking-confirmation/JobBcEditForm.vue";
 import { useFcr, type Fcr } from "~/composables/useFcr";
+import { getTransportLocationDisplay } from "~/utils/airFreightJob";
 import { buildBcDocumentEditForm, createEmptyBcDocumentForm } from "~/utils/bcDocumentForm";
 
 const props = defineProps<{
@@ -399,6 +400,23 @@ const fcrJob = computed<ActiveJobData>(() => ({
   jobParties: fcrParties.value,
 }));
 
+const fcrPolDisplay = computed(() =>
+  getTransportLocationDisplay({
+    serviceType: props.job?.serviceType,
+    shipmentType: props.job?.shipmentType,
+    code: bcData.value?.pol || props.job?.pol,
+    name: bcData.value?.polName || props.job?.polName,
+  }),
+);
+const fcrPodDisplay = computed(() =>
+  getTransportLocationDisplay({
+    serviceType: props.job?.serviceType,
+    shipmentType: props.job?.shipmentType,
+    code: bcData.value?.pod || props.job?.pod,
+    name: bcData.value?.podName || props.job?.podName,
+  }),
+);
+
 const fcrBl = computed<ActiveBlData>(() => ({
   id: `fcr-${bcData.value?.id || props.job?.id || "draft"}`,
   blNumber: bcData.value?.bookingNumber || props.job?.jobNumber || "",
@@ -410,7 +428,7 @@ const fcrBl = computed<ActiveBlData>(() => ({
   jobContainers: fcrContainers.value,
   renderContainers: fcrContainers.value,
   vessels: bcData.value?.vessels?.length ? bcData.value.vessels : props.job?.vessels || [],
-  placeOfIssue: props.job?.placeOfIssue || props.job?.polName || props.job?.pol || "",
+  placeOfIssue: props.job?.placeOfIssue || fcrPolDisplay.value || "",
   dateOfIssue: bcData.value?.bookingDate || new Date().toISOString(),
   dateCargoReceived:
     bcData.value?.dateCargoReceived || props.job?.billsOfLading?.[0]?.dateCargoReceived || "",
@@ -419,14 +437,8 @@ const fcrBl = computed<ActiveBlData>(() => ({
   cargoDescription:
     bcData.value?.mainDescription || props.job?.mainDescription || props.job?.commodity || "",
   freightTerm: props.job?.freightTerm || "PREPAID",
-  prepaid:
-    props.job?.freightTerm === "COLLECT"
-      ? ""
-      : `PREPAID AT ${props.job?.polName || props.job?.pol || ""}`,
-  collect:
-    props.job?.freightTerm === "COLLECT"
-      ? `COLLECT AT ${props.job?.podName || props.job?.pod || ""}`
-      : "",
+  prepaid: props.job?.freightTerm === "COLLECT" ? "" : `PREPAID AT ${fcrPolDisplay.value || ""}`,
+  collect: props.job?.freightTerm === "COLLECT" ? `COLLECT AT ${fcrPodDisplay.value || ""}` : "",
   shipperReferences: bcData.value?.shipperReferences || props.job?.shipperReferences || [],
   showShipperReferencesOnBl: true,
 }));

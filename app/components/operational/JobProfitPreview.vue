@@ -5,6 +5,7 @@ import html2canvas from "html2canvas";
 import { toast } from "vue-sonner";
 import { cn, toNumber } from "~/lib/utils";
 import { formatCurrencyCode, normalizeCurrencyCode } from "~/utils/currency";
+import { getTransportLocationDisplay } from "~/utils/airFreightJob";
 import type { ActiveJobData, ProfitInvoice, ProfitExpense, ProfitJob } from "./ebl/types";
 
 const props = defineProps<{
@@ -29,6 +30,22 @@ const formatCurrency = (val: number | string | null | undefined, currency: strin
   const num = toNumber(val);
   return formatCurrencyCode(Number.isFinite(num) ? num : 0, currency);
 };
+const jobPolDisplay = computed(() =>
+  getTransportLocationDisplay({
+    serviceType: props.job?.serviceType,
+    shipmentType: props.job?.shipmentType,
+    code: props.job?.pol,
+    name: props.job?.polName,
+  }),
+);
+const jobPodDisplay = computed(() =>
+  getTransportLocationDisplay({
+    serviceType: props.job?.serviceType,
+    shipmentType: props.job?.shipmentType,
+    code: props.job?.pod,
+    name: props.job?.podName,
+  }),
+);
 
 const toBaseAmount = (
   amount: number | string | null | undefined,
@@ -342,7 +359,7 @@ defineExpose({
                   <span
                     class="font-mono text-[0.65rem] text-black uppercase leading-tight break-words"
                   >
-                    {{ job?.polName || job?.pol || "-" }}
+                    {{ jobPolDisplay }}
                   </span>
                 </div>
                 <div class="w-1/2 pt-1 px-2 pb-1">
@@ -352,7 +369,7 @@ defineExpose({
                   <span
                     class="font-mono text-[0.65rem] text-black uppercase leading-tight break-words"
                   >
-                    {{ job?.podName || job?.pod || "-" }}
+                    {{ jobPodDisplay }}
                   </span>
                 </div>
               </div>

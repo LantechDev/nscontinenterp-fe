@@ -31,6 +31,7 @@ import JobPartyRow from "../components/JobPartyRow.vue";
 import CompanyCreateModal from "~/pages/master/company/components/CompanyCreateModal.vue";
 import VesselQuickAddModal from "~/components/operational/VesselQuickAddModal.vue";
 import PlaneQuickAddModal from "~/components/operational/PlaneQuickAddModal.vue";
+import { isAirFreightMode, sanitizeJobContainersForShipment } from "~/utils/airFreightJob";
 
 definePageMeta({
   layout: "dashboard",
@@ -1159,31 +1160,11 @@ async function handleSubmit() {
       etd: formData.vessels[0]?.etd || formData.etd || null,
       carrierBookingNumber: formData.carrierBookingNumber || null,
       mblNumber: formData.mblNumber || null,
-      containers: formData.containers
-        .filter((c) =>
-          formData.serviceType === "TRUCKING"
-            ? c.vehicleNumber || c.containerTypeId
-            : hasContainerPayload(c),
-        )
-        .map((c) => ({
-          containerNumber: formData.serviceType === "TRUCKING" ? null : c.containerNumber || null,
-          sealNumber: formData.serviceType === "TRUCKING" ? null : c.sealNumber || null,
-          containerTypeId: c.containerTypeId || null,
-          vehicleNumber: c.vehicleNumber || null,
-          driverName: c.driverName || null,
-          driverContactNumber: c.driverContactNumber || null,
-          isHazardous: c.isHazardous,
-          items: c.items.map((item) => ({
-            sequenceNo: item.sequenceNo,
-            qty: item.qty,
-            packageTypeCode: item.packageTypeCode || null,
-            grossWeight: item.grossWeight,
-            netWeight: item.netWeight,
-            measurementCbm: item.measurementCbm,
-            description: item.description || null,
-            hsCode: item.hsCode || null,
-          })),
-        })),
+      containers: sanitizeJobContainersForShipment({
+        serviceType: formData.serviceType,
+        shipmentType: formData.shipmentType,
+        containers: formData.containers,
+      }),
       vessels: formData.vessels.map((v) => ({
         vesselId: v.vesselId || null,
         vesselName: v.vesselName || null,
@@ -1730,7 +1711,9 @@ function addVessel() {
                     {{
                       formData.serviceType === "TRUCKING"
                         ? "Truck Information"
-                        : "Containers & Seals"
+                        : isAirFreightMode(formData)
+                          ? "Cargo Details"
+                          : "Containers & Seals"
                     }}
                   </h3>
                   <button
@@ -1763,7 +1746,13 @@ function addVessel() {
                     class="btn-outline h-8 px-3 text-xs gap-1.5 flex items-center"
                   >
                     <Plus class="w-3.5 h-3.5" />
-                    {{ formData.serviceType === "TRUCKING" ? "Add Truck" : "Add Container" }}
+                    {{
+                      formData.serviceType === "TRUCKING"
+                        ? "Add Truck"
+                        : isAirFreightMode(formData)
+                          ? "Add Cargo"
+                          : "Add Container"
+                    }}
                   </button>
                 </div>
                 <div class="p-4 space-y-4 bg-muted/5 rounded-b-xl">
@@ -1826,6 +1815,35 @@ function addVessel() {
                           class="input-field uppercase"
                           v-uppercase
                         />
+                      </div>
+                      <div class="md:col-span-1 flex justify-end pb-1.5">
+                        <button
+                          type="button"
+                          @click="formData.containers.splice(index, 1)"
+                          :disabled="formData.containers.length === 1"
+                          class="p-2 text-muted-foreground hover:text-destructive transition-colors disabled:opacity-50"
+                        >
+                          <Trash2 class="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+
+                    <!-- Air Freight Cargo UI -->
+                    <div
+                      v-else-if="isAirFreightMode(formData)"
+                      class="grid grid-cols-1 md:grid-cols-12 gap-4 items-end relative"
+                    >
+                      <div class="md:col-span-10 space-y-1.5 pt-px">
+                        <label
+                          class="text-[10px] font-bold text-muted-foreground uppercase opacity-70"
+                          >Cargo Details</label
+                        >
+                      </div>
+                      <div class="md:col-span-1 flex flex-col items-center justify-center pb-2">
+                        <label class="text-[10px] font-bold text-muted-foreground uppercase mb-1"
+                          >DG</label
+                        >
+                        <Checkbox v-model="container.isHazardous" />
                       </div>
                       <div class="md:col-span-1 flex justify-end pb-1.5">
                         <button

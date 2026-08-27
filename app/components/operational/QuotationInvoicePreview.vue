@@ -9,6 +9,7 @@ import type {
 } from "~/composables/useQuotations";
 import { useBankAccounts, type BankAccount } from "~/composables/useBankAccounts";
 import { formatCurrencyDecimal, formatExchangeRateLabel } from "~/utils/currency";
+import { getTransportLocationDisplay } from "~/utils/airFreightJob";
 import { formatAmountInWords } from "~/utils/numberWords";
 import { paginatePdfRows, type PdfRowPage } from "~/utils/pdfPagination";
 import { renderA4Pdf } from "~/utils/pdfRender";
@@ -18,6 +19,26 @@ const props = defineProps<{
   quotation: Quotation | null;
   invoice: QuotationInvoice | null;
 }>();
+const originDisplay = computed(() =>
+  props.quotation?.serviceType === "TRUCKING"
+    ? props.quotation?.pickupAddress || "-"
+    : getTransportLocationDisplay({
+        serviceType: props.quotation?.serviceType,
+        shipmentType: props.quotation?.shipmentType,
+        code: props.quotation?.pol,
+        name: props.quotation?.polName,
+      }),
+);
+const destinationDisplay = computed(() =>
+  props.quotation?.serviceType === "TRUCKING"
+    ? props.quotation?.deliveryAddress || "-"
+    : getTransportLocationDisplay({
+        serviceType: props.quotation?.serviceType,
+        shipmentType: props.quotation?.shipmentType,
+        code: props.quotation?.pod,
+        name: props.quotation?.podName,
+      }),
+);
 
 const invoiceItems = computed(() => props.invoice?.items || []);
 const documentCurrency = computed(() => {
@@ -240,14 +261,12 @@ defineExpose({ generatePDF, isGeneratingPDF });
           >
             <div class="w-1/4 border-r border-[#062c58] pt-1 px-2 pb-1">
               <span class="font-bold text-[0.6rem] block leading-none mb-1">POL / ORIGIN</span>
-              <span class="font-mono text-[0.7rem] uppercase text-black">{{
-                quotation?.polName || quotation?.pol || quotation?.pickupAddress || "-"
-              }}</span>
+              <span class="font-mono text-[0.7rem] uppercase text-black">{{ originDisplay }}</span>
             </div>
             <div class="w-1/4 border-r border-[#062c58] pt-1 px-2 pb-1">
               <span class="font-bold text-[0.6rem] block leading-none mb-1">POD / DESTINATION</span>
               <span class="font-mono text-[0.7rem] uppercase text-black">{{
-                quotation?.podName || quotation?.pod || quotation?.deliveryAddress || "-"
+                destinationDisplay
               }}</span>
             </div>
             <div class="w-1/4 border-r border-[#062c58] pt-1 px-2 pb-1">

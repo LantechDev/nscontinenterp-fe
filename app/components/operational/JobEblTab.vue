@@ -27,6 +27,7 @@ import type {
   EblParty,
   EblVessel,
 } from "./ebl/types";
+import { sanitizeJobContainersForShipment } from "~/utils/airFreightJob";
 
 const props = defineProps<{
   job: ActiveJobData;
@@ -395,25 +396,23 @@ const handleSaveDraft = async () => {
       cargoMovementId: f.cargoMovementId || undefined,
       deliveryMovementId: f.deliveryMovementId || undefined,
 
-      containers: f.containers.map((c: EblContainer) => ({
-        containerNumber: c.containerNumber,
-        sealNumber: c.sealNumber,
-        containerTypeId: c.containerTypeId,
-        vehicleNumber: c.vehicleNumber,
-        driverName: c.driverName,
-        driverContactNumber: c.driverContactNumber,
-        isHazardous: c.isHazardous,
-        items: c.items?.map((it: EblContainerItem) => ({
-          sequenceNo: Number(it.sequenceNo),
-          qty: Number(it.qty),
-          packageTypeCode: it.packageTypeCode,
-          grossWeight: Number(it.grossWeight) || 0,
-          netWeight: Number(it.netWeight) || 0,
-          measurementCbm: Number(it.measurementCbm) || 0,
-          description: it.description,
-          hsCode: it.hsCode,
+      containers: sanitizeJobContainersForShipment({
+        serviceType: jobData.value?.serviceType,
+        shipmentType: f.shipmentType || jobData.value?.shipmentType,
+        containers: f.containers.map((c: EblContainer) => ({
+          ...c,
+          items: c.items?.map((it: EblContainerItem) => ({
+            sequenceNo: Number(it.sequenceNo),
+            qty: Number(it.qty),
+            packageTypeCode: it.packageTypeCode,
+            grossWeight: Number(it.grossWeight) || 0,
+            netWeight: Number(it.netWeight) || 0,
+            measurementCbm: Number(it.measurementCbm) || 0,
+            description: it.description,
+            hsCode: it.hsCode,
+          })),
         })),
-      })),
+      }),
       vessels: f.vessels.map((v) => ({
         vesselId: v.vesselId || null,
         vesselName: v.vesselName || null,

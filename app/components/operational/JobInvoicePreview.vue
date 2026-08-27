@@ -7,6 +7,7 @@ import CurrencyStack from "~/components/ui/CurrencyStack.vue";
 import type { InvoiceDetail } from "~/composables/useInvoices";
 import { useBankAccounts, type BankAccount } from "~/composables/useBankAccounts";
 import { useServices, type Service } from "~/composables/useServices";
+import { getTransportLocationDisplay } from "~/utils/airFreightJob";
 import { sortInvoiceItemsForDisplay } from "~/utils/quotationInvoice";
 
 const props = defineProps<{
@@ -25,6 +26,22 @@ const isUsdWithExchangeRate = computed(
 );
 const invoiceDisplayCurrency = computed(() =>
   isUsdWithExchangeRate.value ? "IDR" : invoiceCurrency.value,
+);
+const jobPolDisplay = computed(() =>
+  getTransportLocationDisplay({
+    serviceType: props.invoice?.job?.serviceType,
+    shipmentType: props.invoice?.job?.shipmentType,
+    code: props.invoice?.job?.pol,
+    name: props.invoice?.job?.polName,
+  }),
+);
+const jobPodDisplay = computed(() =>
+  getTransportLocationDisplay({
+    serviceType: props.invoice?.job?.serviceType,
+    shipmentType: props.invoice?.job?.shipmentType,
+    code: props.invoice?.job?.pod,
+    name: props.invoice?.job?.podName,
+  }),
 );
 const exchangeRateDisplay = computed(() =>
   isUsdWithExchangeRate.value
@@ -816,13 +833,13 @@ defineExpose({
             <div class="w-[30%] border-r border-[#062c58] pt-1 px-2 pb-1">
               <span class="font-bold text-[0.6rem] block leading-none mb-1">PORT OF LOADING</span>
               <span class="font-mono text-[0.7rem] uppercase text-black">
-                {{ invoice?.job?.polName || invoice?.job?.pol || "-" }}
+                {{ jobPolDisplay }}
               </span>
             </div>
             <div class="w-[30%] border-r border-[#062c58] pt-1 px-2 pb-1">
               <span class="font-bold text-[0.6rem] block leading-none mb-1">PORT OF DISCHARGE</span>
               <span class="font-mono text-[0.7rem] uppercase text-black">
-                {{ invoice?.job?.podName || invoice?.job?.pod || "-" }}
+                {{ jobPodDisplay }}
               </span>
             </div>
             <div class="w-[15%] pt-1 px-2 pb-1 text-center">

@@ -38,6 +38,10 @@ export interface DeliveryOrderLetter {
   consigneeAddress?: string | null;
   notifyName?: string | null;
   notifyAddress?: string | null;
+  shipperPicName?: string | null;
+  shipperPicTitle?: string | null;
+  receiverPicName?: string | null;
+  receiverPicTitle?: string | null;
   remarks?: string | null;
   parties?: DeliveryOrderLetterParty[];
   containers?: DeliveryOrderLetterContainer[];

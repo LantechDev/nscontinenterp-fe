@@ -206,17 +206,6 @@ const confirmItemSelection = () => {
   } else {
     const currency = currencies[0] || "IDR";
     const exchangeRate = resolveSingleCurrencyPrefillExchangeRate(currency, q.exchangeRate);
-
-    if (exchangeRate === null) {
-      mixedCurrencyQuotation.value = q;
-      availableCurrenciesInQuotation.value = currencies;
-      selectedInvoiceCurrency.value = "USD";
-      showCurrencySelectModal.value = true;
-      showItemSelection.value = false;
-      loadExchangeRate();
-      return;
-    }
-
     proceedPrefillQuotationWithSelection(q, currency, exchangeRate);
   }
 };

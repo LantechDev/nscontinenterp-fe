@@ -44,6 +44,12 @@ describe("JobDeliveryOrderLetterTab print layout", () => {
     expect(component).toContain("Finalize Surat Pengantar DO?");
     expect(component).toContain("Unfinalize Surat Pengantar DO?");
     expect(component).toContain("Reopen Draft");
+    expect(component).toContain("shipperPicName");
+    expect(component).toContain("shipperPicTitle");
+    expect(component).toContain("receiverPicName");
+    expect(component).toContain("receiverPicTitle");
+    expect(component).toContain('<span class="block">PIC Name</span>');
+    expect(component).toContain('<span class="block">PIC Position</span>');
     expect(component).toContain("container-input-grid");
     expect(component).toContain("Container No.");
     expect(component).toContain("Seal No.");

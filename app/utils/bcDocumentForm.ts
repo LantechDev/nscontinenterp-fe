@@ -208,8 +208,18 @@ export function buildBcDocumentEditForm({
     : job?.jobContainers || [];
   const pol = pick(document?.pol, job?.pol);
   const pod = pick(document?.pod, job?.pod);
-  const polDisplay = pick(document?.polName, job?.polName, pol);
-  const podDisplay = pick(document?.podName, job?.podName, pod);
+  const polDisplay = getTransportLocationDisplay({
+    serviceType: pick(document?.serviceType, job?.serviceType),
+    shipmentType: pick(document?.shipmentType, job?.shipmentType),
+    code: pol,
+    name: pick(document?.polName, job?.polName),
+  });
+  const podDisplay = getTransportLocationDisplay({
+    serviceType: pick(document?.serviceType, job?.serviceType),
+    shipmentType: pick(document?.shipmentType, job?.shipmentType),
+    code: pod,
+    name: pick(document?.podName, job?.podName),
+  });
   const freightValues = buildFreightValues({
     freightPayment: pick(document?.freightPayment),
     prepaidValue: pick(document?.prepaidValue),
@@ -293,3 +303,4 @@ export function buildBcDocumentEditForm({
     containers: containerSource.map(mapContainer),
   };
 }
+import { getTransportLocationDisplay } from "./airFreightJob";
