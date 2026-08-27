@@ -4,6 +4,7 @@ import { ref, computed, nextTick, onMounted } from "vue";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import { toast } from "vue-sonner";
+import { getTransportLocationDisplay } from "~/utils/airFreightJob";
 
 // Standalone internal "Job Cover" filing sheet. Read-only — it only renders the
 // existing job detail (GET /api/operational/jobs/{id}) and exports a single A4 PDF.
@@ -87,8 +88,22 @@ const consigneeName = computed(() => partyName(findParty("CONSIGNEE")));
 const agentName = computed(() => partyName(findParty("FORWARDER") || findParty("CARRIER")));
 
 // ---- Routing -------------------------------------------------------------
-const polDisplay = computed(() => getVal(props.job?.polName || props.job?.pol));
-const podDisplay = computed(() => getVal(props.job?.podName || props.job?.pod));
+const polDisplay = computed(() =>
+  getTransportLocationDisplay({
+    serviceType: props.job?.serviceType,
+    shipmentType: props.job?.shipmentType,
+    code: props.job?.pol,
+    name: props.job?.polName,
+  }),
+);
+const podDisplay = computed(() =>
+  getTransportLocationDisplay({
+    serviceType: props.job?.serviceType,
+    shipmentType: props.job?.shipmentType,
+    code: props.job?.pod,
+    name: props.job?.podName,
+  }),
+);
 const vesselVoyage = computed(() => {
   const v = props.job?.vessels?.[0];
   const name =

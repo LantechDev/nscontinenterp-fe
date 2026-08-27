@@ -30,6 +30,7 @@ import JobPartyRow from "./components/JobPartyRow.vue";
 import CompanyCreateModal from "~/pages/master/company/components/CompanyCreateModal.vue";
 import VesselQuickAddModal from "~/components/operational/VesselQuickAddModal.vue";
 import PlaneQuickAddModal from "~/components/operational/PlaneQuickAddModal.vue";
+import { isAirFreightMode, sanitizeJobContainersForShipment } from "~/utils/airFreightJob";
 
 definePageMeta({
   layout: "dashboard",
@@ -895,31 +896,11 @@ async function handleSubmit(isDraft: boolean = false) {
     mainDescription: formData.mainDescription || undefined,
     hsCode: formData.hsCode || undefined,
     freightTerm: (formData.freightTerm as "PREPAID" | "COLLECT") || undefined,
-    containers: formData.containers
-      .filter((c) =>
-        formData.serviceType === "TRUCKING"
-          ? c.vehicleNumber || c.containerTypeId
-          : hasContainerPayload(c),
-      )
-      .map((c) => ({
-        containerNumber: formData.serviceType === "TRUCKING" ? null : c.containerNumber || null,
-        sealNumber: formData.serviceType === "TRUCKING" ? null : c.sealNumber || null,
-        containerTypeId: c.containerTypeId || null,
-        vehicleNumber: c.vehicleNumber || null,
-        driverName: c.driverName || null,
-        driverContactNumber: c.driverContactNumber || null,
-        isHazardous: c.isHazardous,
-        items: c.items.map((item) => ({
-          sequenceNo: item.sequenceNo,
-          qty: item.qty,
-          packageTypeCode: item.packageTypeCode || null,
-          grossWeight: item.grossWeight,
-          netWeight: item.netWeight,
-          measurementCbm: item.measurementCbm,
-          description: item.description || null,
-          hsCode: item.hsCode || null,
-        })),
-      })),
+    containers: sanitizeJobContainersForShipment({
+      serviceType: formData.serviceType,
+      shipmentType: formData.shipmentType,
+      containers: formData.containers,
+    }),
     pol: formData.pol,
     pod: formData.pod,
     vessels: formData.vessels.map((v) => ({
@@ -1836,7 +1817,9 @@ async function populateFormFromExistingJob(jobInput: unknown) {
                       {{
                         formData.serviceType === "TRUCKING"
                           ? "Truck Information"
-                          : "Containers & Seals"
+                          : isAirFreightMode(formData)
+                            ? "Cargo Details"
+                            : "Containers & Seals"
                       }}
                     </h3>
                   </div>
@@ -1870,7 +1853,13 @@ async function populateFormFromExistingJob(jobInput: unknown) {
                     class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-primary/20 bg-primary/5 text-primary text-xs font-semibold hover:bg-primary/10 transition-colors"
                   >
                     <Plus class="w-3.5 h-3.5" />
-                    {{ formData.serviceType === "TRUCKING" ? "Add Truck" : "Add Container" }}
+                    {{
+                      formData.serviceType === "TRUCKING"
+                        ? "Add Truck"
+                        : isAirFreightMode(formData)
+                          ? "Add Cargo"
+                          : "Add Container"
+                    }}
                   </button>
                 </div>
                 <div class="p-5 space-y-8">
@@ -1943,6 +1932,26 @@ async function populateFormFromExistingJob(jobInput: unknown) {
                         />
                       </div>
                       <div class="col-span-1 flex flex-col items-center justify-center pb-2">
+                        <label
+                          class="text-[11px] font-bold text-muted-foreground/70 uppercase mb-2 tracking-widest"
+                          >DG</label
+                        >
+                        <Checkbox v-model="container.isHazardous" />
+                      </div>
+                    </div>
+
+                    <!-- Air Freight Cargo UI -->
+                    <div
+                      v-else-if="isAirFreightMode(formData)"
+                      class="grid grid-cols-1 md:grid-cols-12 gap-5 items-end pl-6"
+                    >
+                      <div class="md:col-span-11 space-y-2">
+                        <label
+                          class="text-[11px] font-bold text-muted-foreground/70 uppercase tracking-widest pl-1"
+                          >Cargo Details</label
+                        >
+                      </div>
+                      <div class="md:col-span-1 flex flex-col items-center justify-center pb-2">
                         <label
                           class="text-[11px] font-bold text-muted-foreground/70 uppercase mb-2 tracking-widest"
                           >DG</label

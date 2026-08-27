@@ -1,4 +1,5 @@
 import { ceilTaxByCurrency, roundByCurrency } from "./currency";
+import { getTransportLocationDisplay } from "./airFreightJob";
 
 export interface QuotationDisplayCharge {
   atCost?: boolean | null;
@@ -196,10 +197,20 @@ export function getQuotationRouteDisplay(
     destinationLabel: formatLabel(destinationLabel),
     originValue: flags.isTrucking
       ? quotation.pickupAddress || "-"
-      : quotation.polName || quotation.pol || "-",
+      : getTransportLocationDisplay({
+          serviceType: quotation.serviceType,
+          shipmentType: quotation.shipmentType,
+          code: quotation.pol,
+          name: quotation.polName,
+        }),
     destinationValue: flags.isTrucking
       ? quotation.deliveryAddress || "-"
-      : quotation.podName || quotation.pod || "-",
+      : getTransportLocationDisplay({
+          serviceType: quotation.serviceType,
+          shipmentType: quotation.shipmentType,
+          code: quotation.pod,
+          name: quotation.podName,
+        }),
     containerTypeValue: flags.isCustomClearance
       ? "-"
       : quotation.containerTypeName || quotation.containerTypeId || "-",

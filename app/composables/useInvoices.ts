@@ -105,6 +105,8 @@ export interface InvoiceDetail extends Invoice {
     id: string;
     jobNumber: string;
     tradeTypeId?: string;
+    serviceType?: string | null;
+    shipmentType?: string | null;
     tradeType?: {
       id: string;
       name: string;

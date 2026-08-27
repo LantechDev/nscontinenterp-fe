@@ -106,16 +106,10 @@ const filteredJobs = computed(() => {
         return job.serviceType === "CUSTOM_CLEARANCE";
       }
       if (shipmentTypeFilter.value === "AIR") {
-        return job.serviceType === "AIR" || job.shipmentType === "AIR";
+        return isAirJob(job);
       }
       if (shipmentTypeFilter.value === "OCEAN") {
-        return (
-          job.serviceType === "OCEAN" ||
-          (job.serviceType !== "TRUCKING" &&
-            job.serviceType !== "AIR" &&
-            job.serviceType !== "CUSTOM_CLEARANCE" &&
-            job.shipmentType === "OCEAN")
-        );
+        return isOceanJob(job);
       }
       return true;
     })();
@@ -162,6 +156,28 @@ const shipmentTypeOptions = [
   { value: "CUSTOM_CLEARANCE", label: "CUSTOM CLEARANCE" },
 ];
 
+type JobModeSource = {
+  serviceType?: string | null;
+  shipmentType?: string | null;
+};
+
+const isAirJob = (job: JobModeSource) => job.serviceType === "AIR" || job.shipmentType === "AIR";
+
+const isOceanJob = (job: JobModeSource) =>
+  !isAirJob(job) &&
+  (job.serviceType === "OCEAN" ||
+    (job.serviceType !== "TRUCKING" &&
+      job.serviceType !== "CUSTOM_CLEARANCE" &&
+      job.shipmentType === "OCEAN"));
+
+const getJobModeLabel = (job: JobModeSource) => {
+  if (job.serviceType === "TRUCKING") return "TRUCKING";
+  if (job.serviceType === "CUSTOM_CLEARANCE") return "CUSTOM CLEARANCE";
+  if (isAirJob(job)) return "AIR";
+  if (isOceanJob(job)) return "OCEAN";
+  return job.serviceType || job.shipmentType || "-";
+};
+
 // Stats for header (consistent with other master pages)
 const stats = computed(() => {
   const list = jobs.value;
@@ -172,17 +188,10 @@ const stats = computed(() => {
     return !["CANCELLED", "VOID", "COMPLETED", "CLOSED", "DONE"].includes(code);
   }).length;
 
-  const air = list.filter((j) => j.serviceType === "AIR" || j.shipmentType === "AIR").length;
+  const air = list.filter(isAirJob).length;
   const trucking = list.filter((j) => j.serviceType === "TRUCKING").length;
   const customClearance = list.filter((j) => j.serviceType === "CUSTOM_CLEARANCE").length;
-  const ocean = list.filter(
-    (j) =>
-      j.serviceType === "OCEAN" ||
-      (j.serviceType !== "TRUCKING" &&
-        j.serviceType !== "AIR" &&
-        j.serviceType !== "CUSTOM_CLEARANCE" &&
-        j.shipmentType === "OCEAN"),
-  ).length;
+  const ocean = list.filter(isOceanJob).length;
 
   return { total, active, air, ocean, trucking, customClearance };
 });
@@ -462,17 +471,14 @@ watch(
                   <div class="p-1.5 rounded bg-blue-50 text-[#012D5A]">
                     <FileCheck2 v-if="job.serviceType === 'CUSTOM_CLEARANCE'" class="w-4 h-4" />
                     <Truck v-else-if="job.serviceType === 'TRUCKING'" class="w-4 h-4" />
-                    <Plane
-                      v-else-if="job.shipmentType === 'AIR' || job.serviceType === 'AIR'"
-                      class="w-4 h-4"
-                    />
+                    <Plane v-else-if="isAirJob(job)" class="w-4 h-4" />
                     <Ship v-else class="w-4 h-4" />
                   </div>
                   <div class="flex flex-col">
                     <span class="text-sm font-semibold text-[#012D5A]">{{ job.jobNumber }}</span>
                     <span
                       class="text-[10px] text-muted-foreground font-medium uppercase tracking-tighter"
-                      >{{ job.serviceType }}</span
+                      >{{ getJobModeLabel(job) }}</span
                     >
                   </div>
                 </div>
@@ -700,10 +706,7 @@ watch(
             >
               <FileCheck2 v-if="job.serviceType === 'CUSTOM_CLEARANCE'" class="w-6 h-6" />
               <Truck v-else-if="job.serviceType === 'TRUCKING'" class="w-6 h-6" />
-              <Plane
-                v-else-if="job.shipmentType === 'AIR' || job.serviceType === 'AIR'"
-                class="w-6 h-6"
-              />
+              <Plane v-else-if="isAirJob(job)" class="w-6 h-6" />
               <Ship v-else class="w-6 h-6" />
             </div>
             <div>

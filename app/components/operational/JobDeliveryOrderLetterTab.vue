@@ -79,6 +79,10 @@ const form = ref({
   notifyAddressId: "",
   notifyName: "",
   notifyAddress: "",
+  shipperPicName: "",
+  shipperPicTitle: "",
+  receiverPicName: "",
+  receiverPicTitle: "",
   remarks: "",
   containers: [] as DeliveryOrderLetterContainer[],
 });
@@ -249,6 +253,10 @@ const fillForm = (letter: DeliveryOrderLetter) => {
     notifyAddressId: notify?.addressBookId || "",
     notifyName: letter.notifyName || "",
     notifyAddress: letter.notifyAddress || "",
+    shipperPicName: letter.shipperPicName || "",
+    shipperPicTitle: letter.shipperPicTitle || "",
+    receiverPicName: letter.receiverPicName || "",
+    receiverPicTitle: letter.receiverPicTitle || "",
     remarks: letter.remarks || "",
     containers: (letter.containers || []).map((container, index) => ({
       ...container,
@@ -755,6 +763,56 @@ onMounted(async () => {
           />
         </div>
 
+        <div class="rounded-lg border border-border bg-white overflow-hidden">
+          <div class="px-6 py-3 border-b border-border/50 bg-muted/20">
+            <h4 class="text-sm font-bold text-foreground">Signatures</h4>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
+            <div class="space-y-3">
+              <p class="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                PT Nova Sync Continent
+              </p>
+              <label class="block space-y-1.5 text-xs font-semibold text-muted-foreground">
+                <span class="block">PIC Name</span>
+                <input
+                  v-model="form.shipperPicName"
+                  placeholder="Nama"
+                  class="w-full h-9 px-3 rounded-md border border-border text-sm font-normal text-foreground focus:ring-1 focus:ring-primary outline-none"
+                />
+              </label>
+              <label class="block space-y-1.5 text-xs font-semibold text-muted-foreground">
+                <span class="block">PIC Position</span>
+                <input
+                  v-model="form.shipperPicTitle"
+                  placeholder="Jabatan"
+                  class="w-full h-9 px-3 rounded-md border border-border text-sm font-normal text-foreground focus:ring-1 focus:ring-primary outline-none"
+                />
+              </label>
+            </div>
+            <div class="space-y-3">
+              <p class="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                Penerima
+              </p>
+              <label class="block space-y-1.5 text-xs font-semibold text-muted-foreground">
+                <span class="block">PIC Name</span>
+                <input
+                  v-model="form.receiverPicName"
+                  placeholder="Nama"
+                  class="w-full h-9 px-3 rounded-md border border-border text-sm font-normal text-foreground focus:ring-1 focus:ring-primary outline-none"
+                />
+              </label>
+              <label class="block space-y-1.5 text-xs font-semibold text-muted-foreground">
+                <span class="block">PIC Position</span>
+                <input
+                  v-model="form.receiverPicTitle"
+                  placeholder="Jabatan"
+                  class="w-full h-9 px-3 rounded-md border border-border text-sm font-normal text-foreground focus:ring-1 focus:ring-primary outline-none"
+                />
+              </label>
+            </div>
+          </div>
+        </div>
+
         <div class="space-y-3">
           <div class="flex items-center justify-between">
             <div>
@@ -1100,12 +1158,20 @@ onMounted(async () => {
                 <div>
                   <p>Hormat kami,</p>
                   <div class="h-16"></div>
-                  <p class="font-bold border-t border-[#062c58] pt-2">PT Nova Sync Continent</p>
+                  <div class="border-t border-[#062c58] pt-2 min-h-12">
+                    <p class="font-bold">{{ activeLetter.shipperPicName || "Nama" }}</p>
+                    <p class="text-[10px]">{{ activeLetter.shipperPicTitle || "Jabatan" }}</p>
+                    <p class="font-bold mt-2">PT Nova Sync Continent</p>
+                  </div>
                 </div>
                 <div>
                   <p>Penerima,</p>
                   <div class="h-16"></div>
-                  <p class="font-bold border-t border-[#062c58] pt-2">________________________</p>
+                  <div class="border-t border-[#062c58] pt-2 min-h-12">
+                    <p class="font-bold">{{ activeLetter.receiverPicName || "Nama" }}</p>
+                    <p class="text-[10px]">{{ activeLetter.receiverPicTitle || "Jabatan" }}</p>
+                    <p class="font-bold mt-2">{{ activeLetter.consigneeName || "Penerima" }}</p>
+                  </div>
                 </div>
               </div>
             </div>

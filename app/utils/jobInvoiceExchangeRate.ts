@@ -6,8 +6,17 @@ export const resolveSingleCurrencyPrefillExchangeRate = (
   sourceExchangeRate: number | string | null | undefined,
 ) => {
   const normalized = normalizeInvoiceCurrency(currency);
-  if (normalized === "IDR") return 1;
-
   const rate = Number(sourceExchangeRate || 1);
-  return rate > 1 ? rate : null;
+  if (normalized === "IDR") return 1;
+  return rate > 1 ? rate : 1;
+};
+
+export const hasMixedInvoiceCurrencyItems = (
+  invoiceCurrency: string | null | undefined,
+  items: Array<{ currency?: string | null }> | null | undefined,
+) => {
+  const normalizedInvoiceCurrency = normalizeInvoiceCurrency(invoiceCurrency);
+  return (items || []).some(
+    (item) => normalizeInvoiceCurrency(item.currency) !== normalizedInvoiceCurrency,
+  );
 };

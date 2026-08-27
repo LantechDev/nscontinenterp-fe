@@ -2,6 +2,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- loose job/BC snapshot data */
 import { computed } from "vue";
 import type { BookingConfirmation } from "~/composables/useBookingConfirmation";
+import { getTransportLocationDisplay } from "~/utils/airFreightJob";
 
 // Copy-adapted from operational/ebl/JobEblFrontPage.vue.
 // This is a STANDALONE Booking Confirmation page — it does NOT import or modify any eBL
@@ -149,16 +150,20 @@ const mblNumber = computed(() => getVal(props.jobData?.mblNumber, blNumber.value
 
 // BC-first routing resolvers (fall back to Job).
 const polDisplay = computed(() =>
-  getVal(
-    props.bcData?.polName,
-    getVal(props.bcData?.pol, getVal(props.jobData?.polName, props.jobData?.pol)),
-  ),
+  getTransportLocationDisplay({
+    serviceType: props.jobData?.serviceType,
+    shipmentType: props.jobData?.shipmentType,
+    code: getVal(props.bcData?.pol, props.jobData?.pol),
+    name: getVal(props.bcData?.polName, props.jobData?.polName),
+  }),
 );
 const podDisplay = computed(() =>
-  getVal(
-    props.bcData?.podName,
-    getVal(props.bcData?.pod, getVal(props.jobData?.podName, props.jobData?.pod)),
-  ),
+  getTransportLocationDisplay({
+    serviceType: props.jobData?.serviceType,
+    shipmentType: props.jobData?.shipmentType,
+    code: getVal(props.bcData?.pod, props.jobData?.pod),
+    name: getVal(props.bcData?.podName, props.jobData?.podName),
+  }),
 );
 const shippingMarkDisplay = computed(() =>
   getVal(props.bcData?.shippingMark, props.jobData?.shippingMark),

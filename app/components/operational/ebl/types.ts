@@ -244,6 +244,8 @@ export interface ProfitJob {
   profit?: number | string | null;
   margin?: number | string | null;
   customer?: string | { name: string } | null;
+  serviceType?: string | null;
+  shipmentType?: string | null;
   polName?: string | null;
   pol?: string | null;
   podName?: string | null;
