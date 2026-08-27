@@ -6,6 +6,7 @@ import {
   calculateInvoiceTotal,
   groupInvoiceTotals,
   isWithholdingInvoiceTax,
+  sortInvoiceItemsForDisplay,
 } from "./quotationInvoice";
 
 const root = process.cwd();
@@ -60,6 +61,36 @@ describe("quotation invoice totals", () => {
     expect(totals.USD!.taxAmount).toBe(1.12);
     expect(totals.USD!.total).toBeCloseTo(11.245, 3);
     expect(totals.IDR).toEqual({ subTotal: 10_000, taxAmount: 1_100, total: 11_100 });
+  });
+
+  it("sorts invoice items by logistics service category for display", () => {
+    const items = [
+      { id: "warehouse", description: "Warehouse Handling", service: { name: "Warehouse" } },
+      { id: "trucking", description: "Delivery", service: { category: { name: "Trucking" } } },
+      { id: "freight", description: "Ocean Freight 20FT", service: { name: "Ocean Freight" } },
+      { id: "other", description: "Bank Admin Fee", service: { category: { name: "Others" } } },
+      {
+        id: "clearance",
+        description: "PIB Process",
+        service: { category: { name: "Custom Clearance" } },
+      },
+      {
+        id: "local",
+        description: "THC",
+        service: { category: { name: "Local Charges" } },
+      },
+      { id: "docs", description: "BL Fee", service: { category: { name: "Documentation" } } },
+    ];
+
+    expect(sortInvoiceItemsForDisplay(items).map((item) => item.id)).toEqual([
+      "freight",
+      "local",
+      "docs",
+      "clearance",
+      "trucking",
+      "warehouse",
+      "other",
+    ]);
   });
 
   it("keeps quotation invoice form on shared invoice total helpers", () => {

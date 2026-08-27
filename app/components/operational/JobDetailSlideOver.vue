@@ -29,7 +29,9 @@ import JobCoverPreview from "./JobCoverPreview.vue";
 import JobEblTab from "./JobEblTab.vue";
 import JobBookingConfirmationTab from "./JobBookingConfirmationTab.vue";
 import JobFcrTab from "./JobFcrTab.vue";
+import JobDeliveryOrderLetterTab from "./JobDeliveryOrderLetterTab.vue";
 import JobDocumentTab from "./JobDocumentTab.vue";
+import { getJobDocumentTabs } from "~/utils/jobDocumentTabs";
 import { useAuth } from "~/composables/useAuth";
 const { canApproveJobs, user } = useAuth();
 import Combobox from "~/components/ui/Combobox.vue";
@@ -61,16 +63,6 @@ const { currentJob, getJob, isLoading, updateJob, deleteJob, completeJob, cancel
 const { canManage, requireManage, canApprove } = useFeatureAccess("operational.job");
 
 const activeTab = ref("overview");
-const tabs = [
-  { id: "overview", label: "Overview" },
-  { id: "bookingConfirmation", label: "Booking Confirmation" },
-  { id: "ebl", label: "eBL" },
-  { id: "fcr", label: "FCR" },
-  { id: "finance", label: "Finance" },
-  { id: "jobCover", label: "Job Cover" },
-  { id: "document", label: "Upload Document" },
-];
-
 const jobCoverPreviewRef = ref<InstanceType<typeof JobCoverPreview> | null>(null);
 
 const { fetchVessels, fetchPlanes, createVessel, createPlane, fetchPorts } = useMasterData();
@@ -214,6 +206,8 @@ const syncTransportNames = () => {
 };
 
 const job = computed(() => currentJob.value);
+const tabs = computed(() => getJobDocumentTabs(job.value));
+const activeTabIsAvailable = computed(() => tabs.value.some((tab) => tab.id === activeTab.value));
 const isAir = computed(() => job.value?.shipmentType === "AIR" || job.value?.serviceType === "AIR");
 const isTrucking = computed(() => job.value?.serviceType === "TRUCKING");
 const isCustomClearance = computed(() => job.value?.serviceType === "CUSTOM_CLEARANCE");
@@ -298,6 +292,16 @@ watch(activeTab, (tab) => {
     getJob(props.jobId);
   }
 });
+
+watch(
+  [tabs, activeTab],
+  ([availableTabs]) => {
+    if (!activeTabIsAvailable.value) {
+      activeTab.value = availableTabs[0]?.id || "overview";
+    }
+  },
+  { immediate: true },
+);
 
 const formatDate = (dateString?: string | null) => {
   if (!dateString) return "-";
@@ -1641,7 +1645,13 @@ watch(
                   />
                 </div>
 
-                <JobFcrTab v-else-if="activeTab === 'fcr'" :job="job" />
+                <JobFcrTab v-else-if="activeTab === 'fcr'" :job="job" :can-manage-job="canManage" />
+
+                <JobDeliveryOrderLetterTab
+                  v-else-if="activeTab === 'deliveryOrderLetter'"
+                  :job="job"
+                  :can-manage-job="canManage"
+                />
 
                 <!-- Job Cover Tab (internal filing cover sheet) -->
                 <div

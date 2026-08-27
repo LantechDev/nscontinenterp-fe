@@ -3,6 +3,7 @@ import type { ComputedRef } from "vue";
 export interface Vessel {
   id: string;
   name: string;
+  voyageNumber?: string | null;
   imoNumber: string | null;
   description: string | null;
   isActive: boolean;

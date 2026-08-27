@@ -3,8 +3,10 @@
 import { computed, nextTick, onMounted, ref } from "vue";
 import {
   Download,
+  CheckCircle2,
   Loader2,
   Plus,
+  RotateCcw,
   Trash2,
   FileText,
   ArrowLeft,
@@ -24,9 +26,11 @@ import { buildBcDocumentEditForm, createEmptyBcDocumentForm } from "~/utils/bcDo
 
 const props = defineProps<{
   job: any;
+  canManageJob?: boolean;
 }>();
 
-const { fetchFcrs, createFcr, updateFcrDraftById, deleteFcr } = useFcr();
+const { fetchFcrs, createFcr, updateFcrDraftById, finalizeFcrById, unfinalizeFcrById, deleteFcr } =
+  useFcr();
 const { confirm } = useConfirm();
 const bcData = ref<Fcr | null>(null);
 const bcList = ref<Fcr[]>([]);
@@ -39,6 +43,7 @@ const fcrContainer = ref<HTMLElement | null>(null);
 const logoUrl = ref("/images/transparentnscontinenttebal.png");
 
 const editForm = ref<BookingConfirmationForm>(createEmptyBcDocumentForm());
+const isFinalized = computed(() => bcData.value?.status === "finalized");
 
 const replaceActiveFcr = (bc: Fcr) => {
   bcData.value = bc;
@@ -76,6 +81,7 @@ const toggleEditMode = () => {
     return;
   }
   if (!bcData.value) return;
+  if (isFinalized.value) return;
 
   editForm.value = buildBcDocumentEditForm({
     document: bcData.value,
@@ -159,6 +165,10 @@ const buildDraftPayload = () => {
 
 const handleSaveFcr = async () => {
   if (!bcData.value?.id) return;
+  if (isFinalized.value) {
+    toast.error("Finalized FCR cannot be edited.");
+    return;
+  }
   isSaving.value = true;
   const res = await updateFcrDraftById(bcData.value.id, buildDraftPayload());
   if (res.success && res.data) {
@@ -202,8 +212,8 @@ const handleCreateFcr = async () => {
 
 const handleDeleteFcr = async () => {
   if (!bcData.value?.id) return;
-  if (bcData.value.status === "finalized") {
-    toast.error("Finalized document cannot be deleted.");
+  if (isFinalized.value) {
+    toast.error("Finalized FCR cannot be deleted.");
     return;
   }
   const yes = await confirm({
@@ -221,6 +231,43 @@ const handleDeleteFcr = async () => {
     toast.success("FCR deleted.");
   } else {
     toast.error(res.error || "Failed to delete FCR.");
+  }
+};
+
+const handleFinalize = async () => {
+  if (!bcData.value?.id) return;
+  const yes = await confirm({
+    title: "Finalize FCR?",
+    message: "Once finalized, you cannot edit it until it is unfinalized.",
+    confirmText: "Yes, Finalize",
+  });
+  if (!yes) return;
+
+  const res = await finalizeFcrById(bcData.value.id);
+  if (res.success && res.data) {
+    replaceActiveFcr(res.data);
+    editMode.value = false;
+    toast.success("FCR finalized.");
+  } else {
+    toast.error(res.error || "Failed to finalize FCR.");
+  }
+};
+
+const handleUnfinalize = async () => {
+  if (!bcData.value?.id) return;
+  const yes = await confirm({
+    title: "Unfinalize FCR?",
+    message: "This will change the status back to Draft so you can edit it.",
+    confirmText: "Yes, Unfinalize",
+  });
+  if (!yes) return;
+
+  const res = await unfinalizeFcrById(bcData.value.id);
+  if (res.success && res.data) {
+    replaceActiveFcr(res.data);
+    toast.success("FCR unfinalized.");
+  } else {
+    toast.error(res.error || "Failed to unfinalize FCR.");
   }
 };
 
@@ -526,13 +573,14 @@ const generatePDF = async () => {
             <h3 class="text-base font-bold text-foreground">FCR</h3>
           </div>
           <button
+            v-if="canManageJob"
             type="button"
             @click="handleCreateFcr"
             :disabled="isCreating"
-            class="px-3 py-1 bg-blue-600 text-white text-[10px] font-bold rounded hover:bg-blue-700 transition-colors flex items-center gap-1 disabled:opacity-50"
+            class="px-3 py-2 rounded-md text-xs font-semibold transition-colors flex items-center gap-2 bg-[#012D5A] text-white hover:bg-[#012D5A]/90 disabled:opacity-50"
           >
-            <Loader2 v-if="isCreating" class="w-3 h-3 animate-spin" />
-            <Plus v-else class="w-3 h-3" />
+            <Loader2 v-if="isCreating" class="w-4 h-4 animate-spin" />
+            <Plus v-else class="w-4 h-4" />
             ADD FCR
           </button>
         </div>
@@ -577,9 +625,14 @@ const generatePDF = async () => {
               </div>
               <div class="flex items-center gap-2">
                 <span
-                  class="px-2.5 py-1 rounded-md text-[10px] font-bold border uppercase tracking-widest leading-none border-amber-200 bg-amber-50 text-amber-700"
+                  :class="[
+                    'px-2.5 py-1 rounded-md text-[10px] font-bold border uppercase tracking-widest leading-none',
+                    bc.status === 'finalized'
+                      ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                      : 'border-amber-200 bg-amber-50 text-amber-700',
+                  ]"
                 >
-                  FCR
+                  {{ bc.status || "draft" }}
                 </span>
               </div>
             </div>
@@ -619,9 +672,14 @@ const generatePDF = async () => {
             </p>
             <div class="flex items-center gap-3">
               <span
-                class="px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest border leading-none max-w-fit border-amber-200 bg-amber-50 text-amber-700"
+                :class="[
+                  'px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest border leading-none max-w-fit',
+                  isFinalized
+                    ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                    : 'border-amber-200 bg-amber-50 text-amber-700',
+                ]"
               >
-                FCR
+                {{ isFinalized ? "Finalized" : "Draft" }}
               </span>
             </div>
           </div>
@@ -629,6 +687,7 @@ const generatePDF = async () => {
 
         <div v-if="!editMode" class="flex flex-wrap items-center justify-end gap-3 shrink-0">
           <button
+            v-if="canManageJob && !isFinalized"
             type="button"
             @click="toggleEditMode"
             class="px-4 py-2 text-xs font-semibold rounded-md border border-border bg-white hover:bg-gray-50 flex items-center gap-2 shadow-sm transition-colors"
@@ -637,12 +696,31 @@ const generatePDF = async () => {
             Edit
           </button>
           <button
+            v-if="canManageJob && !isFinalized"
             type="button"
             @click="handleDeleteFcr"
             class="px-4 py-2 text-xs font-semibold rounded-md border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 flex items-center gap-2 shadow-sm transition-colors"
           >
             <Trash2 class="w-3.5 h-3.5" />
             Delete
+          </button>
+          <button
+            v-if="canManageJob && isFinalized"
+            type="button"
+            @click="handleUnfinalize"
+            class="px-4 py-2 text-xs font-semibold rounded-md border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 flex items-center gap-2 shadow-sm transition-colors"
+          >
+            <RotateCcw class="w-3.5 h-3.5" />
+            Reopen Draft
+          </button>
+          <button
+            v-else-if="canManageJob"
+            type="button"
+            @click="handleFinalize"
+            class="px-4 py-2 text-xs font-semibold rounded-md border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 flex items-center gap-2 shadow-sm transition-colors"
+          >
+            <CheckCircle2 class="w-3.5 h-3.5" />
+            Finalize
           </button>
           <button
             type="button"
