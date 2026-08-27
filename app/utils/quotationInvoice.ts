@@ -7,6 +7,17 @@ type InvoiceItemDraft = {
   currency?: string;
 };
 
+type InvoiceDisplayItem = {
+  description?: string | null;
+  service?: {
+    name?: string | null;
+    category?: {
+      name?: string | null;
+      code?: string | null;
+    } | null;
+  } | null;
+};
+
 type InvoiceCurrency = "IDR" | "USD";
 type InvoiceDiscountType = "PERCENTAGE" | "FIXED" | null;
 
@@ -37,6 +48,46 @@ export function buildInvoiceItems(items: InvoiceItemDraft[]) {
       amount: quantity * unitPrice,
     };
   });
+}
+
+function normalizeInvoiceServiceText(value: string | null | undefined): string {
+  return (value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function getInvoiceServiceCategoryRank(item: InvoiceDisplayItem): number {
+  const service = item.service;
+  const parts = [
+    service?.category?.name,
+    service?.category?.code,
+    service?.name,
+    item.description,
+  ].map(normalizeInvoiceServiceText);
+  const haystack = parts.filter(Boolean).join(" ");
+
+  if (!haystack) return 99;
+  if (haystack.includes("freight")) return 0;
+  if (haystack.includes("local charge") || haystack.includes("local charges")) return 1;
+  if (haystack.includes("documentation") || haystack.includes("document")) return 2;
+  if (
+    haystack.includes("custom clearance") ||
+    haystack.includes("customs clearance") ||
+    haystack.includes("clearance")
+  ) {
+    return 3;
+  }
+  if (haystack.includes("trucking") || haystack.includes("truck")) return 4;
+  if (haystack.includes("warehouse") || haystack.includes("other")) return 5;
+  return 99;
+}
+
+export function sortInvoiceItemsForDisplay<T extends InvoiceDisplayItem>(items: T[]): T[] {
+  return items
+    .map((item, index) => ({ item, index, rank: getInvoiceServiceCategoryRank(item) }))
+    .toSorted((left, right) => left.rank - right.rank || left.index - right.index)
+    .map(({ item }) => item);
 }
 
 export function isWithholdingInvoiceTax(tax: InvoiceTaxDraft | null | undefined): boolean {

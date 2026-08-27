@@ -347,10 +347,10 @@ const handleDelete = async () => {
             v-if="canManageJob"
             @click="handleCreateDraft"
             :disabled="isCreating"
-            class="px-3 py-1 bg-blue-600 text-white text-[10px] font-bold rounded hover:bg-blue-700 transition-colors flex items-center gap-1 disabled:opacity-50"
+            class="px-3 py-2 rounded-md text-xs font-semibold transition-colors flex items-center gap-2 bg-[#012D5A] text-white hover:bg-[#012D5A]/90 disabled:opacity-50"
           >
-            <Loader2 v-if="isCreating" class="w-3 h-3 animate-spin" />
-            <Plus v-else class="w-3 h-3" />
+            <Loader2 v-if="isCreating" class="w-4 h-4 animate-spin" />
+            <Plus v-else class="w-4 h-4" />
             ADD BC
           </button>
         </div>

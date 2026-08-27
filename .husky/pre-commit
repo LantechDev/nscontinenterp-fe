@@ -1,2 +1,11 @@
+# Add NVM Node versions to PATH to find pnpm/node
+for version in "$HOME"/.nvm/versions/node/*; do
+  if [ -d "$version/bin" ]; then
+    export PATH="$version/bin:$PATH"
+  fi
+done
+
+export PATH="$HOME/.bun/bin:/usr/local/bin:/opt/homebrew/bin:$PATH"
+
 pnpm run typecheck
 pnpm lint-staged

@@ -94,6 +94,11 @@ export interface InvoiceDetail extends Invoice {
     service?: {
       id: string;
       name: string;
+      category?: {
+        id?: string;
+        name?: string;
+        code?: string;
+      } | null;
     };
   }>;
   job?: {

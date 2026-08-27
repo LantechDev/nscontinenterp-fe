@@ -7,6 +7,7 @@ import CurrencyStack from "~/components/ui/CurrencyStack.vue";
 import type { InvoiceDetail } from "~/composables/useInvoices";
 import { useBankAccounts, type BankAccount } from "~/composables/useBankAccounts";
 import { useServices, type Service } from "~/composables/useServices";
+import { sortInvoiceItemsForDisplay } from "~/utils/quotationInvoice";
 
 const props = defineProps<{
   invoice: InvoiceDetail | null;
@@ -414,7 +415,7 @@ const itemRowPx = (item?: InvoicePreviewItem | null) => {
 };
 
 const paginatedInvoicePages = computed<InvoicePreviewPage[]>(() => {
-  const items = props.invoice?.items || [];
+  const items = sortInvoiceItemsForDisplay(props.invoice?.items || []);
   const pages: Array<{ items: InvoicePreviewItem[]; startIndex: number }> = [];
 
   let i = 0;

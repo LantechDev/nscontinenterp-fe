@@ -163,11 +163,41 @@ export function useFcr() {
     }
   };
 
+  const finalizeFcrById = async (fcrId: string) => {
+    isLoading.value = true;
+    try {
+      const response = await $fetch(`/api/operational/jobs/fcrs/${fcrId}/finalize`, {
+        method: "POST",
+      });
+      return { success: true, data: response as Fcr };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    } finally {
+      isLoading.value = false;
+    }
+  };
+
+  const unfinalizeFcrById = async (fcrId: string) => {
+    isLoading.value = true;
+    try {
+      const response = await $fetch(`/api/operational/jobs/fcrs/${fcrId}/unfinalize`, {
+        method: "POST",
+      });
+      return { success: true, data: response as Fcr };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    } finally {
+      isLoading.value = false;
+    }
+  };
+
   return {
     isLoading,
     fetchFcrs,
     createFcr,
     updateFcrDraftById,
+    finalizeFcrById,
+    unfinalizeFcrById,
     deleteFcr,
   };
 }
