@@ -277,6 +277,25 @@ describe("quotation service items display", () => {
     expect(edit).toContain("taxId: ch.taxId || formData.taxId || null");
   });
 
+  it("shows quotation list financial cards as display-only quotation numbers", () => {
+    const page = readFileSync(join(root, "app/pages/operational/quotations/index.vue"), "utf8");
+    const composable = readFileSync(join(root, "app/composables/useQuotations.ts"), "utf8");
+
+    expect(page).toContain("quotationFinancialSummary");
+    expect(page).toContain("Total Sales Proposals");
+    expect(page).toContain("Draft Quotations");
+    expect(page).toContain("Sent to Clients");
+    expect(page).toContain("Approved (Confirmed)");
+    expect(page).toContain("Total Quotation");
+    expect(page).toContain("Est. Tax");
+    expect(page).toContain("Est. Profit");
+    expect(page).toContain("text-lg font-bold");
+    expect(page).not.toContain("Before Tax");
+    expect(page).not.toContain("Pajak hanya display quotation");
+    expect(page).not.toContain("Before tax: revenue dikurangi cost");
+    expect(composable).toContain("financialSummary");
+  });
+
   it("uses shared formatters across quotation costing and invoice views", () => {
     const costing = readFileSync(
       join(root, "app/components/operational/QuotationCostingTab.vue"),

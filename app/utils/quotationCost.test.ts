@@ -92,6 +92,78 @@ describe("quotation cost totals", () => {
     expect(summary.byCurrency.USD).toMatchObject({ revenue: 0, cost: 0, profit: 0 });
   });
 
+  it("uses quotation currency when a service item has no currency", () => {
+    const summary = calculateQuotationProfitSummary(
+      {
+        currency: "USD",
+        exchangeRate: 15500,
+        charges: [{ currency: null, quantity: 1, unitPrice: 1746.64 }],
+      },
+      [
+        {
+          exchangeRate: 1,
+          items: [{ currency: "IDR", quantity: 1, unitPrice: 9698600, amount: 9698600 }],
+        },
+      ],
+    );
+
+    expect(summary.combined.revenueIDR).toBe(27_072_920);
+    expect(summary.combined.costIDR).toBe(9_698_600);
+    expect(summary.combined.profitIDR).toBe(17_374_320);
+    expect(summary.byCurrency.IDR).toMatchObject({
+      revenue: 27_072_920,
+      cost: 9_698_600,
+      profit: 17_374_320,
+    });
+  });
+
+  it("uses quotation currency when a service item has no currency", () => {
+    const summary = calculateQuotationProfitSummary(
+      {
+        currency: "USD",
+        exchangeRate: 15500,
+        charges: [{ currency: null, quantity: 1, unitPrice: 1746.64 }],
+      },
+      [
+        {
+          exchangeRate: 1,
+          items: [{ currency: "IDR", quantity: 1, unitPrice: 9698600, amount: 9698600 }],
+        },
+      ],
+    );
+
+    expect(summary.combined.revenueIDR).toBe(27_072_920);
+    expect(summary.combined.costIDR).toBe(9_698_600);
+    expect(summary.combined.profitIDR).toBe(17_374_320);
+    expect(summary.byCurrency.IDR).toMatchObject({
+      revenue: 27_072_920,
+      cost: 9_698_600,
+      profit: 17_374_320,
+    });
+  });
+
+  it("estimates net profit with API exchange rate when quotation USD has no stored rate", () => {
+    const summary = calculateQuotationProfitSummary(
+      {
+        currency: "USD",
+        exchangeRate: 1,
+        charges: [{ currency: null, quantity: 1, unitPrice: 1746.64 }],
+      },
+      [
+        {
+          exchangeRate: 1,
+          items: [{ currency: "IDR", quantity: 1, unitPrice: 9698600, amount: 9698600 }],
+        },
+      ],
+      { fallbackExchangeRate: 15500 },
+    );
+
+    expect(summary.isEstimated).toBe(true);
+    expect(summary.combined.revenueIDR).toBe(27_072_920);
+    expect(summary.combined.costIDR).toBe(9_698_600);
+    expect(summary.combined.profitIDR).toBe(17_374_320);
+  });
+
   it("keeps quotation cost form on shared currency and cost helpers", () => {
     const contents = readFileSync(
       join(root, "app/components/operational/QuotationCostForm.vue"),
@@ -104,5 +176,17 @@ describe("quotation cost totals", () => {
     expect(contents).toContain("groupCostTotals(");
     expect(contents).toContain("combineCostToIDR(");
     expect(contents).not.toContain("new Intl.NumberFormat");
+  });
+
+  it("labels costing net profit as estimate only when fallback currency data is used", () => {
+    const contents = readFileSync(
+      join(root, "app/components/operational/QuotationCostingTab.vue"),
+      "utf8",
+    );
+
+    expect(contents).toContain("fallbackExchangeRate");
+    expect(contents).toContain("/api/finance/invoice/exchange-rate");
+    expect(contents).toContain("Estimate Net Profit (IDR eq.)");
+    expect(contents).toContain("Net Profit (IDR eq.)");
   });
 });

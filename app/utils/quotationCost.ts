@@ -28,6 +28,8 @@ export interface ProfitCurrencyBucket {
 export interface ProfitSummary {
   byCurrency: Record<string, ProfitCurrencyBucket>;
   combined: { revenueIDR: number; costIDR: number; profitIDR: number; marginIDR: number };
+  isEstimated?: boolean;
+  effectiveExchangeRate?: number;
 }
 
 export interface ProfitCharge {
@@ -50,8 +52,13 @@ export interface ProfitCost {
 }
 
 export interface ProfitQuotation {
+  currency?: string | null;
   exchangeRate?: string | number | null;
   charges?: ProfitCharge[] | null;
+}
+
+export interface ProfitSummaryOptions {
+  fallbackExchangeRate?: string | number | null;
 }
 
 function emptyProfitBucket(): ProfitCurrencyBucket {
@@ -108,6 +115,7 @@ export function combineCostToIDR(
 export function calculateQuotationProfitSummary(
   quotation: ProfitQuotation,
   costs: ProfitCost[],
+  options: ProfitSummaryOptions = {},
 ): ProfitSummary {
   const summary: ProfitSummary = {
     byCurrency: {
@@ -115,37 +123,49 @@ export function calculateQuotationProfitSummary(
       USD: emptyProfitBucket(),
     },
     combined: { revenueIDR: 0, costIDR: 0, profitIDR: 0, marginIDR: 0 },
+    isEstimated: false,
+    effectiveExchangeRate: 1,
   };
 
   const quotationRate = Number(quotation.exchangeRate || 1);
-  const isQuotationRateConfigured = quotationRate > 1;
+  const fallbackRate = Number(options.fallbackExchangeRate || 1);
+  const effectiveQuotationRate =
+    quotationRate > 1 ? quotationRate : fallbackRate > 1 ? fallbackRate : 1;
+  const isQuotationRateConfigured = effectiveQuotationRate > 1;
+  const quotationCurrency = quotation.currency || "IDR";
 
   (quotation.charges || []).forEach((charge) => {
     if (charge.atCost) return;
-    const currency = charge.currency || "IDR";
+    const currency = charge.currency || quotationCurrency;
+    const isRevenueEstimated =
+      !charge.currency || (currency === "USD" && quotationRate <= 1 && fallbackRate > 1);
     const amount = numeric(charge.quantity) * numeric(charge.unitPrice);
     const targetCurrency = currency === "USD" && isQuotationRateConfigured ? "IDR" : currency;
     const targetAmount =
-      currency === "USD" && isQuotationRateConfigured ? amount * quotationRate : amount;
+      currency === "USD" && isQuotationRateConfigured ? amount * effectiveQuotationRate : amount;
 
     ensureProfitBucket(summary, targetCurrency).revenue += targetAmount;
-    summary.combined.revenueIDR += currency === "USD" ? amount * quotationRate : amount;
+    summary.combined.revenueIDR += currency === "USD" ? amount * effectiveQuotationRate : amount;
+    if (isRevenueEstimated) summary.isEstimated = true;
   });
 
   costs.forEach((cost) => {
     const rate = Number(cost.exchangeRate || 1);
-    const isCostRateConfigured = rate > 1;
+    const effectiveCostRate = rate > 1 ? rate : fallbackRate > 1 ? fallbackRate : 1;
+    const isCostRateConfigured = effectiveCostRate > 1;
 
     (cost.items || []).forEach((item) => {
       const currency = item.currency || "IDR";
       const amount = Number(item.amount || numeric(item.quantity) * numeric(item.unitPrice));
+      const isCostEstimated = currency === "USD" && rate <= 1 && fallbackRate > 1;
       const shouldConvertToIDR =
         currency === "USD" && (isQuotationRateConfigured || isCostRateConfigured);
       const targetCurrency = shouldConvertToIDR ? "IDR" : currency;
-      const targetAmount = shouldConvertToIDR ? amount * rate : amount;
+      const targetAmount = shouldConvertToIDR ? amount * effectiveCostRate : amount;
 
       ensureProfitBucket(summary, targetCurrency).cost += targetAmount;
-      summary.combined.costIDR += currency === "USD" ? amount * rate : amount;
+      summary.combined.costIDR += currency === "USD" ? amount * effectiveCostRate : amount;
+      if (isCostEstimated) summary.isEstimated = true;
     });
   });
 
@@ -159,6 +179,8 @@ export function calculateQuotationProfitSummary(
     summary.combined.revenueIDR > 0
       ? (summary.combined.profitIDR / summary.combined.revenueIDR) * 100
       : 0;
+
+  summary.effectiveExchangeRate = effectiveQuotationRate;
 
   return summary;
 }

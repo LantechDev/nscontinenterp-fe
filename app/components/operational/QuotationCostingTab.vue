@@ -52,6 +52,7 @@ const showCostDetail = ref(false);
 const activeCostDetail = ref<QuotationCost | null>(null);
 const costDetailPreviewRef = ref<InstanceType<typeof QuotationCostDetailPreview> | null>(null);
 const showCostActions = ref(false);
+const fallbackExchangeRate = ref<number | null>(null);
 
 const openCostDetail = (cost: QuotationCost) => {
   activeCostDetail.value = cost;
@@ -148,13 +149,43 @@ const usdTotal = (cost: QuotationCost) => {
   return totals.USD?.total || 0;
 };
 
+const needsEstimateExchangeRate = computed(() => {
+  if (Number(props.quotation.exchangeRate || 1) > 1) return false;
+  if (props.quotation.currency === "USD") return true;
+  if (
+    (props.quotation.charges || []).some((charge) => !charge.currency || charge.currency === "USD")
+  )
+    return true;
+  return costs.value.some((cost) => hasUsdItem(cost) && Number(cost.exchangeRate || 1) <= 1);
+});
+
+const loadFallbackExchangeRate = async () => {
+  if (!needsEstimateExchangeRate.value || fallbackExchangeRate.value) return;
+  try {
+    const res = await $fetch<{ success: boolean; rate?: number }>(
+      "/api/finance/invoice/exchange-rate",
+    );
+    if (res?.success && res.rate) fallbackExchangeRate.value = res.rate;
+  } catch {
+    // Silent fallback: costing still shows saved currency buckets if API rate is unavailable.
+  }
+};
+
+watch(needsEstimateExchangeRate, loadFallbackExchangeRate, { immediate: true });
+
 const previewCosts = computed<QuotationCost[]>(() =>
   costs.value.map((c) => ({ ...c, vendorName: vendorName(c) })),
 );
 
 // ---------- Profit analysis ----------
 const profitSummary = computed<ProfitSummary>(() =>
-  calculateQuotationProfitSummary(props.quotation, costs.value),
+  calculateQuotationProfitSummary(props.quotation, costs.value, {
+    fallbackExchangeRate: fallbackExchangeRate.value,
+  }),
+);
+
+const netProfitTitle = computed(() =>
+  profitSummary.value.isEstimated ? "Estimate Net Profit (IDR eq.)" : "Net Profit (IDR eq.)",
 );
 
 const currencyCards = computed(() =>
@@ -323,7 +354,7 @@ const handlePrint = async () => {
         >
           <div>
             <p class="text-[10px] font-bold uppercase tracking-widest text-white/70">
-              Net Profit (IDR eq.)
+              {{ netProfitTitle }}
             </p>
             <p class="text-xl font-black mt-1">
               {{ formatCurrency(profitSummary.combined.profitIDR, "IDR") }}
@@ -379,7 +410,7 @@ const handlePrint = async () => {
         >
           <div>
             <p class="text-[10px] font-bold uppercase tracking-widest text-white/70">
-              Net Profit (IDR eq.)
+              {{ netProfitTitle }}
             </p>
             <p class="text-xl font-black mt-1">
               {{ formatCurrency(profitSummary.combined.profitIDR, "IDR") }}

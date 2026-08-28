@@ -7,9 +7,6 @@ import {
   Eye,
   Edit,
   Trash2,
-  TrendingUp,
-  DollarSign,
-  Briefcase,
   ChevronLeft,
   ChevronRight,
   MoreVertical,
@@ -61,6 +58,13 @@ const apiStats = ref({
   expired: 0,
 });
 
+const quotationFinancialSummary = ref({
+  totalQuotation: 0,
+  totalBeforeTax: 0,
+  totalTax: 0,
+  estimatedProfitBeforeTax: 0,
+});
+
 // Load data
 async function loadData() {
   const params = {
@@ -76,6 +80,9 @@ async function loadData() {
     totalPages.value = res.data.totalPages;
     if (res.data.stats) {
       apiStats.value = res.data.stats;
+    }
+    if (res.data.financialSummary) {
+      quotationFinancialSummary.value = res.data.financialSummary;
     }
   } else if (res.error) {
     toast.error("Failed to load quotations: " + res.error);
@@ -290,6 +297,48 @@ watch(
             </div>
             <div class="p-3 bg-emerald-50 text-emerald-600 rounded-lg">
               <CheckCircle class="w-5 h-5" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Quotation financial cards are display-only and do not feed finance reports -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 px-6">
+          <div
+            class="bg-white border border-emerald-200 border-l-4 border-l-emerald-500 px-4 py-3 rounded-xl shadow-sm"
+          >
+            <div class="space-y-0.5">
+              <p class="text-[11px] text-muted-foreground font-semibold uppercase tracking-wider">
+                Total Quotation
+              </p>
+              <p class="text-lg font-bold text-foreground leading-tight">
+                {{ formatCurrencyAmount(quotationFinancialSummary.totalQuotation, "IDR") }}
+              </p>
+            </div>
+          </div>
+
+          <div
+            class="bg-white border border-amber-200 border-l-4 border-l-amber-500 px-4 py-3 rounded-xl shadow-sm"
+          >
+            <div class="space-y-0.5">
+              <p class="text-[11px] text-muted-foreground font-semibold uppercase tracking-wider">
+                Est. Tax
+              </p>
+              <p class="text-lg font-bold text-foreground leading-tight">
+                {{ formatCurrencyAmount(quotationFinancialSummary.totalTax, "IDR") }}
+              </p>
+            </div>
+          </div>
+
+          <div class="bg-[#062c58] border border-[#062c58] px-4 py-3 rounded-xl shadow-sm">
+            <div class="space-y-0.5">
+              <p class="text-[11px] text-white/70 font-semibold uppercase tracking-wider">
+                Est. Profit
+              </p>
+              <p class="text-lg font-bold text-white leading-tight">
+                {{
+                  formatCurrencyAmount(quotationFinancialSummary.estimatedProfitBeforeTax, "IDR")
+                }}
+              </p>
             </div>
           </div>
         </div>
