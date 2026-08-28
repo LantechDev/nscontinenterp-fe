@@ -2,6 +2,7 @@ import { ref } from "vue";
 import { formatFullRupiah } from "~/lib/utils";
 
 export interface DetailedTaxReportItem {
+  sourceId: string;
   invoiceId: string;
   jobId: string | null;
   invoiceNumber: string;
@@ -14,6 +15,13 @@ export interface DetailedTaxReportItem {
   type: "SALES" | "PURCHASE";
   currency?: string;
   exchangeRate?: number;
+  taxId?: string | null;
+  taxReportKey: string;
+  isTaxPayable: boolean;
+  taxPaymentStatus: "UNPAID" | "PAID" | "NOT_APPLICABLE";
+  taxPaymentId?: string | null;
+  taxPaidDate?: string | null;
+  taxPaymentReference?: string | null;
 }
 
 export function useFinanceDashboardPageTaxReport() {

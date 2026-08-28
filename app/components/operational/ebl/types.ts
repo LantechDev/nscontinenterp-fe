@@ -133,6 +133,7 @@ export interface ActiveJobData {
   commodity?: string | null;
   mainDescription?: string | null;
   totalBlCount?: number | null;
+  isDirectMaster?: boolean | null;
   jobParties?: EblParty[];
   jobContainers?: EblContainer[];
   billsOfLading?: ActiveBlData[];

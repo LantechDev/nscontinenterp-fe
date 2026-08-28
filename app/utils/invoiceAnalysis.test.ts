@@ -30,6 +30,30 @@ describe("invoice analysis cards", () => {
     ]);
   });
 
+  it("calculates invoice page profit from net amounts before tax", () => {
+    const cards = buildInvoiceAnalysisCards({
+      receivable: {
+        totalAmount: 11_100_000,
+        netAmount: 10_000_000,
+        totalPaid: 11_100_000,
+        totalOutstanding: 0,
+        count: 1,
+      },
+      payable: {
+        totalAmount: 5_550_000,
+        netAmount: 5_000_000,
+        totalPaid: 5_550_000,
+        totalOutstanding: 0,
+        count: 1,
+      },
+    });
+
+    expect(cards.find((card) => card.label === "Total Profit")?.value).toBe(5_000_000);
+    expect(cards.find((card) => card.label === "Total Profit")?.caption).toBe(
+      "Net before tax: A/R dikurangi A/P",
+    );
+  });
+
   it("treats missing summaries as loading so zero is not shown before API data arrives", () => {
     expect(isInvoiceAnalysisReady({ receivable: null, payable: null })).toBe(false);
     expect(

@@ -1,5 +1,6 @@
 export interface InvoiceAnalysisSummary {
   totalAmount: number;
+  netAmount?: number;
   totalPaid: number;
   totalOutstanding: number;
   count: number;
@@ -26,6 +27,7 @@ export function normalizeInvoiceAnalysisSummary(
 ): InvoiceAnalysisSummary {
   return {
     totalAmount: Number(summary?.totalAmount || 0),
+    netAmount: Number(summary?.netAmount ?? summary?.totalAmount ?? 0),
     totalPaid: Number(summary?.totalPaid || 0),
     totalOutstanding: Number(summary?.totalOutstanding || 0),
     count: Number(summary?.count || 0),
@@ -50,7 +52,7 @@ export function calculateInvoiceProfit(
 ) {
   const ar = normalizeInvoiceAnalysisSummary(receivable || emptySummary);
   const ap = normalizeInvoiceAnalysisSummary(payable || emptySummary);
-  return ar.totalAmount - ap.totalAmount;
+  return ar.netAmount! - ap.netAmount!;
 }
 
 export function buildInvoiceAnalysisCards(params: {
@@ -101,7 +103,7 @@ export function buildInvoiceAnalysisCards(params: {
     {
       label: "Total Profit",
       value: profit,
-      caption: "A/R dikurangi A/P",
+      caption: "Net before tax: A/R dikurangi A/P",
       tone: "profit",
     },
   ];
