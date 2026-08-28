@@ -302,9 +302,17 @@ export function useFinanceDashboardPage() {
       router.push("/finance/transactions/create");
     },
     handleTransactionEdit: (transaction: TransactionItem) => {
+      if (!transaction.isEditable || transaction.referenceType !== "MANUAL") {
+        toast.error("Invoice, vendor bill, tax, and payment rows are view-only.");
+        return;
+      }
       router.push(`/finance/transaction/${transaction.id}/edit`);
     },
     handleTransactionDelete: async (transaction: TransactionItem) => {
+      if (!transaction.isEditable || transaction.referenceType !== "MANUAL") {
+        toast.error("Invoice, vendor bill, tax, and payment rows are view-only.");
+        return;
+      }
       const { confirm } = useConfirm();
       const confirmed = await confirm({
         title: "Delete Transaction",
