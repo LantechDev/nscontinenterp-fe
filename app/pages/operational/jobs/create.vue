@@ -1287,7 +1287,7 @@ async function populateFormFromExistingJob(jobInput: unknown) {
   formData.placeOfIssue = job.placeOfIssue || "";
   formData.dateOfIssue = job.dateOfIssue || "";
   formData.isDirectMaster = job.isDirectMaster || false;
-  formData.totalBlCount = job.totalBlCount || 1;
+  formData.totalBlCount = job.totalBlCount ?? 1;
 
   // Pickup / Delivery (for trucking)
   formData.pickupAddress = job.pickupAddress || "";

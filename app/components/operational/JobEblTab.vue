@@ -226,7 +226,7 @@ const toggleEditMode = () => {
           ? "COLLECT_POL"
           : "COLLECT_POD"
         : "",
-    totalBlCount: d?.totalBlCount || d?.job?.totalBlCount || 1,
+    totalBlCount: d?.totalBlCount ?? d?.job?.totalBlCount ?? 1,
     isNegotiable: blDoc?.isNegotiable || false,
     placeOfIssue: blDoc?.placeOfIssue || "",
     dateOfIssue: blDoc?.dateOfIssue || "",
@@ -373,7 +373,7 @@ const handleSaveDraft = async () => {
       freightTerm: (f.freightTerm as "PREPAID" | "COLLECT") || undefined,
       prepaid: f.prepaidValue || undefined,
       collect: f.collectValue || undefined,
-      totalBlCount: Number(f.totalBlCount) || 1,
+      totalBlCount: props.job?.isDirectMaster ? 0 : Number(f.totalBlCount) || 1,
       isNegotiable: f.isNegotiable,
       placeOfIssue: f.placeOfIssue,
       dateOfIssue: f.dateOfIssue,

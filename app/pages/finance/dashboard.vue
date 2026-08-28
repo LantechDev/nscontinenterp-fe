@@ -1097,6 +1097,13 @@ function handleTaxReportExport() {
     item.issuedDate ? new Date(item.issuedDate).toLocaleDateString("id-ID") : "-",
     item.companyName || "-",
     `${item.taxName} (${item.rate}%)`,
+    item.taxPaymentStatus === "PAID"
+      ? "Sudah Bayar"
+      : item.taxPaymentStatus === "UNPAID"
+        ? "Belum Bayar"
+        : "-",
+    item.taxPaidDate ? new Date(item.taxPaidDate).toLocaleDateString("id-ID") : "-",
+    item.taxPaymentReference || "-",
     formatExportCurrency(Number(item.baseAmount) || 0, item.currency),
     formatExportCurrency(Number(item.taxAmount) || 0, item.currency),
   ]);
@@ -1116,17 +1123,23 @@ function handleTaxReportExport() {
     "",
     "",
     "",
+    "",
+    "",
+    "",
     formatExportCurrency(totalBaseConverted, "IDR"),
     formatExportCurrency(totalTaxConverted, "IDR"),
   ]);
 
   const cols: PdfCol[] = [
-    { header: "No. Invoice", width: 0.2 },
-    { header: "Tanggal", width: 0.12 },
-    { header: "Customer", width: 0.2 },
-    { header: "Pajak", width: 0.18 },
-    { header: "Dasar Pengenaan", width: 0.15, align: "right" },
-    { header: "Total Pajak", width: 0.15, align: "right" },
+    { header: "No. Invoice", width: 0.14 },
+    { header: "Tanggal", width: 0.09 },
+    { header: "Customer", width: 0.16 },
+    { header: "Pajak", width: 0.14 },
+    { header: "Status", width: 0.1 },
+    { header: "Tgl Bayar", width: 0.09 },
+    { header: "No Ref", width: 0.1 },
+    { header: "Dasar Pengenaan", width: 0.09, align: "right" },
+    { header: "Total Pajak", width: 0.09, align: "right" },
   ];
 
   exportStyledPdf({
@@ -1148,10 +1161,23 @@ function handleTaxReportExportExcel() {
   const periodLabel = `Tahun: ${selectedYear.value || new Date().getFullYear()} | Dibuat: ${new Date().toLocaleDateString("id-ID")}`;
 
   const rows: StyledRow[] = [
-    { cells: ["PT Nova Sync Continent — LAPORAN PAJAK (DETAIL)", "", "", "", "", ""], style: 7 },
-    { cells: [periodLabel, "", "", "", "", ""], style: 8 },
     {
-      cells: ["No. Invoice", "Tanggal", "Customer", "Pajak", "Dasar Pengenaan", "Total Pajak"],
+      cells: ["PT Nova Sync Continent — LAPORAN PAJAK (DETAIL)", "", "", "", "", "", "", "", ""],
+      style: 7,
+    },
+    { cells: [periodLabel, "", "", "", "", "", "", "", ""], style: 8 },
+    {
+      cells: [
+        "No. Invoice",
+        "Tanggal",
+        "Customer",
+        "Pajak",
+        "Status",
+        "Tgl Bayar",
+        "No Ref",
+        "Dasar Pengenaan",
+        "Total Pajak",
+      ],
       style: 0,
     },
   ];
@@ -1164,11 +1190,21 @@ function handleTaxReportExportExcel() {
         item.issuedDate ? new Date(item.issuedDate).toLocaleDateString("id-ID") : "-",
         item.companyName || "-",
         `${item.taxName} (${item.rate}%)`,
+        item.taxPaymentStatus === "PAID"
+          ? "Sudah Bayar"
+          : item.taxPaymentStatus === "UNPAID"
+            ? "Belum Bayar"
+            : "-",
+        item.taxPaidDate ? new Date(item.taxPaidDate).toLocaleDateString("id-ID") : "-",
+        item.taxPaymentReference || "-",
         formatExportCurrency(Number(item.baseAmount) || 0, item.currency),
         formatExportCurrency(Number(item.taxAmount) || 0, item.currency),
       ],
       style: isEven ? 1 : 2,
       cellStyles: [
+        isEven ? 1 : 2,
+        isEven ? 1 : 2,
+        isEven ? 1 : 2,
         isEven ? 1 : 2,
         isEven ? 1 : 2,
         isEven ? 1 : 2,
@@ -1194,14 +1230,17 @@ function handleTaxReportExportExcel() {
       "",
       "",
       "",
+      "",
+      "",
+      "",
       formatExportCurrency(totalBaseConverted, "IDR"),
       formatExportCurrency(totalTaxConverted, "IDR"),
     ],
     style: 3,
-    cellStyles: [3, 3, 3, 3, 3, 3],
+    cellStyles: [3, 3, 3, 3, 3, 3, 3, 3, 3],
   });
 
-  const colWidths = [20, 15, 25, 20, 22, 22];
+  const colWidths = [20, 15, 25, 20, 16, 15, 18, 22, 22];
 
   buildStyledWorkbook(
     "Tax Report",
@@ -1465,6 +1504,7 @@ function handleTaxReportExportExcel() {
           :tax-report-data="taxReportData"
           :stats-cards="taxStatsCards"
           @export="openExportPopup($event)"
+          @paid="loadTaxReport"
         />
 
         <!-- Placeholder for other tabs -->

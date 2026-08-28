@@ -436,7 +436,7 @@ function populateFormData(job: JobWithBls) {
     formData.eta = blEta && typeof blEta === "string" ? (blEta.split("T")[0] as string) : "";
   }
 
-  formData.totalBlCount = job.totalBlCount || 1;
+  formData.totalBlCount = job.totalBlCount ?? 1;
   formData.hsCode = job.hsCode || "";
   formData.mainDescription = job.mainDescription || "";
   formData.isDirectMaster = Boolean(job.isDirectMaster);

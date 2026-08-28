@@ -59,6 +59,11 @@ export interface Expense {
   currency?: string;
   exchangeRate?: number;
   direction?: string;
+  sourceType?: "MANUAL" | "CLIENT_PAYMENT" | "VENDOR_PAYMENT" | "TAX_PAYMENT";
+  sourceId?: string;
+  referenceType?: string;
+  referenceId?: string;
+  isEditable?: boolean;
   items?: ExpenseItem[];
   paymentAllocations?: ExpensePaymentAllocation[];
 }
@@ -115,6 +120,7 @@ export function useFinanceExpense() {
         pagination: Pagination;
         summary: {
           totalAmount: number;
+          netAmount: number;
           totalPaid: number;
           totalOutstanding: number;
           totalIncome: number;

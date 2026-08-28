@@ -95,6 +95,10 @@ const openCreateModalIfAllowed = () => {
 const openEditModalIfAllowed = (id: string) => {
   if (!requireManage("You only have view access for payments and expenses.")) return;
   const expense = expenses.value.find((item) => item.id === id);
+  if (expense && isReadOnlyExpense(expense)) {
+    toast.info("Transaksi dari invoice/payment hanya bisa dilihat dari Cash In/Out.");
+    return;
+  }
   if (expense?.isOrphaned) {
     toast.error("Transaksi ini terhubung ke job yang sudah dihapus. Audit dulu sebelum diedit.");
     return;
@@ -104,6 +108,11 @@ const openEditModalIfAllowed = (id: string) => {
 
 const handleDeleteIfAllowed = (id: string) => {
   if (!requireManage("You only have view access for payments and expenses.")) return;
+  const expense = expenses.value.find((item) => item.id === id);
+  if (expense && isReadOnlyExpense(expense)) {
+    toast.info("Transaksi dari invoice/payment tidak bisa dihapus dari Cash In/Out.");
+    return;
+  }
   handleDelete(id);
 };
 
@@ -125,15 +134,32 @@ const handleToggleManualAccount = (checked: boolean) => {
 
 const handleRowClickIfAllowed = (id: string) => {
   if (!canManage.value) return;
+  const expense = expenses.value.find((item) => item.id === id);
+  if (expense && isReadOnlyExpense(expense)) return;
   handleRowClick(id);
 };
 
 const isOrphanExpense = (expense: Expense) => Boolean(expense.isOrphaned);
+const isReadOnlyExpense = (expense: Expense) => expense.isEditable === false;
 
 const getOrphanLabel = (expense: Expense) => {
   if (expense.orphanReason === "DELETED_JOB") return "Job Deleted";
   if (expense.orphanReason === "MISSING_JOB") return "Job Missing";
   return "Orphan";
+};
+
+const getSourceLabel = (expense: Expense) => {
+  if (expense.sourceType === "CLIENT_PAYMENT") return "Client Payment";
+  if (expense.sourceType === "VENDOR_PAYMENT") return "Vendor Payment";
+  if (expense.sourceType === "TAX_PAYMENT") return "Tax Payment";
+  return "Manual";
+};
+
+const getCategoryName = (expense: Expense) => {
+  if (isReadOnlyExpense(expense)) {
+    return expense.expenseCategory?.name || expense.category?.name || getSourceLabel(expense);
+  }
+  return expense.expenseCategory?.name || expense.category?.name || "Uncategorized";
 };
 
 const statsCards = computed(() => {
@@ -155,9 +181,9 @@ const statsCards = computed(() => {
       color: "red" as const,
     },
     {
-      title: "Saldo Bersih",
+      title: "Arus Kas Bersih",
       value: formatCurrency(netFlow),
-      changeLabel: netFlow >= 0 ? "Surplus" : "Defisit",
+      changeLabel: netFlow >= 0 ? "Surplus periode" : "Defisit periode",
       isPrimary: true,
       color: netFlow >= 0 ? ("green" as const) : ("red" as const),
     },
@@ -387,10 +413,16 @@ const isPageLoading = computed(() => isLoading.value || isBootstrapping.value);
           <table class="w-full">
             <thead>
               <tr class="border-b border-border bg-white text-left">
-                <th class="py-3 px-4 text-sm font-medium text-foreground">No. Transaksi</th>
-                <th class="py-3 px-4 text-sm font-medium text-foreground">Tipe</th>
-                <th class="py-3 px-4 text-sm font-medium text-foreground">Deskripsi</th>
-                <th class="py-3 px-4 text-sm font-medium text-foreground">Kategori</th>
+                <th class="py-3 px-4 text-sm font-medium text-foreground min-w-[180px]">
+                  No. Transaksi
+                </th>
+                <th class="py-3 px-4 text-sm font-medium text-foreground min-w-[150px]">Tipe</th>
+                <th class="py-3 px-4 text-sm font-medium text-foreground min-w-[360px]">
+                  Deskripsi
+                </th>
+                <th class="py-3 px-4 text-sm font-medium text-foreground min-w-[140px]">
+                  Kategori
+                </th>
                 <th class="py-3 px-4 text-sm font-medium text-foreground">Vendor/Kontak</th>
                 <th class="py-3 px-4 text-sm font-medium text-foreground">Tanggal</th>
                 <th class="py-3 px-4 text-sm font-medium text-foreground">Jumlah</th>
@@ -415,10 +447,16 @@ const isPageLoading = computed(() => isLoading.value || isBootstrapping.value);
           <table class="w-full">
             <thead>
               <tr class="border-b border-border bg-white text-left">
-                <th class="py-3 px-4 text-sm font-medium text-foreground">No. Transaksi</th>
-                <th class="py-3 px-4 text-sm font-medium text-foreground">Tipe</th>
-                <th class="py-3 px-4 text-sm font-medium text-foreground">Deskripsi</th>
-                <th class="py-3 px-4 text-sm font-medium text-foreground">Kategori</th>
+                <th class="py-3 px-4 text-sm font-medium text-foreground min-w-[180px]">
+                  No. Transaksi
+                </th>
+                <th class="py-3 px-4 text-sm font-medium text-foreground min-w-[150px]">Tipe</th>
+                <th class="py-3 px-4 text-sm font-medium text-foreground min-w-[360px]">
+                  Deskripsi
+                </th>
+                <th class="py-3 px-4 text-sm font-medium text-foreground min-w-[140px]">
+                  Kategori
+                </th>
                 <th class="py-3 px-4 text-sm font-medium text-foreground">Vendor/Kontak</th>
                 <th class="py-3 px-4 text-sm font-medium text-foreground">Tanggal</th>
                 <th class="py-3 px-4 text-sm font-medium text-foreground">Jumlah</th>
@@ -430,11 +468,16 @@ const isPageLoading = computed(() => isLoading.value || isBootstrapping.value);
               <tr
                 v-for="expense in expenses"
                 :key="expense.id"
-                class="border-b border-border last:border-0 hover:bg-muted/30 transition-colors cursor-pointer"
+                :class="
+                  cn(
+                    'border-b border-border last:border-0 hover:bg-muted/30 transition-colors',
+                    isReadOnlyExpense(expense) ? 'cursor-default' : 'cursor-pointer',
+                  )
+                "
                 @click="handleRowClickIfAllowed(expense.id)"
               >
-                <td class="py-3 px-4">
-                  <div class="flex items-center gap-2">
+                <td class="py-3 px-4 min-w-[180px]">
+                  <div class="flex items-center gap-2 whitespace-nowrap">
                     <div
                       :class="
                         cn(
@@ -456,24 +499,36 @@ const isPageLoading = computed(() => isLoading.value || isBootstrapping.value);
                     </span>
                   </div>
                 </td>
-                <td class="py-3 px-4 text-sm">
-                  <span
-                    :class="
-                      cn(
-                        'px-2 py-0.5 rounded text-xs font-semibold',
-                        expense.direction === 'IN'
-                          ? 'bg-emerald-100 text-emerald-800'
-                          : 'bg-red-100 text-red-800',
-                      )
-                    "
-                  >
-                    {{ expense.direction === "IN" ? "Uang Masuk" : "Uang Keluar" }}
-                  </span>
+                <td class="py-3 px-4 text-sm min-w-[150px]">
+                  <div class="flex flex-col items-start gap-1.5">
+                    <span
+                      v-if="isReadOnlyExpense(expense)"
+                      class="inline-flex whitespace-nowrap text-[9px] font-black uppercase tracking-widest text-slate-600 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded"
+                    >
+                      {{ getSourceLabel(expense) }}
+                    </span>
+                    <span
+                      :class="
+                        cn(
+                          'inline-flex whitespace-nowrap px-2 py-0.5 rounded text-xs font-semibold',
+                          expense.direction === 'IN'
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : 'bg-red-100 text-red-800',
+                        )
+                      "
+                    >
+                      {{ expense.direction === "IN" ? "Uang Masuk" : "Uang Keluar" }}
+                    </span>
+                  </div>
                 </td>
-                <td class="py-3 px-4 text-sm">{{ expense.description }}</td>
-                <td class="py-3 px-4 text-sm">
-                  <span class="px-2 py-0.5 rounded bg-muted text-muted-foreground border text-xs">
-                    {{ expense.expenseCategory?.name || "Uncategorized" }}
+                <td class="py-3 px-4 text-sm min-w-[360px] max-w-[560px]">
+                  <span class="block break-words leading-relaxed">{{ expense.description }}</span>
+                </td>
+                <td class="py-3 px-4 text-sm min-w-[140px]">
+                  <span
+                    class="inline-flex whitespace-nowrap px-2 py-0.5 rounded bg-muted text-muted-foreground border text-xs"
+                  >
+                    {{ getCategoryName(expense) }}
                   </span>
                 </td>
                 <td class="py-3 px-4 text-sm text-muted-foreground">
@@ -501,7 +556,7 @@ const isPageLoading = computed(() => isLoading.value || isBootstrapping.value);
                 <td class="py-3 px-4 text-right">
                   <div class="flex gap-1 justify-end">
                     <button
-                      v-if="canManage"
+                      v-if="canManage && !isReadOnlyExpense(expense)"
                       :class="
                         cn(
                           'p-1.5 rounded transition-colors',
@@ -520,13 +575,14 @@ const isPageLoading = computed(() => isLoading.value || isBootstrapping.value);
                       <Pencil class="w-4 h-4 text-muted-foreground" />
                     </button>
                     <button
-                      v-if="canManage"
+                      v-if="canManage && !isReadOnlyExpense(expense)"
                       class="p-1.5 rounded hover:bg-muted transition-colors"
                       @click.stop="handleDeleteIfAllowed(expense.id)"
                     >
                       <Trash2 class="w-4 h-4 text-muted-foreground" />
                     </button>
                     <button
+                      v-if="!isReadOnlyExpense(expense)"
                       class="p-1.5 rounded hover:bg-muted transition-colors"
                       @click.stop="handleDownloadPdf(expense.id)"
                     >
@@ -550,7 +606,12 @@ const isPageLoading = computed(() => isLoading.value || isBootstrapping.value);
         <div
           v-for="expense in expenses"
           :key="expense.id"
-          class="border border-border rounded-xl bg-white p-5 hover:shadow-sm transition-shadow cursor-pointer"
+          :class="
+            cn(
+              'border border-border rounded-xl bg-white p-5 hover:shadow-sm transition-shadow',
+              isReadOnlyExpense(expense) ? 'cursor-default' : 'cursor-pointer',
+            )
+          "
           @click="handleRowClickIfAllowed(expense.id)"
         >
           <div class="flex items-start justify-between mb-4">
@@ -577,6 +638,12 @@ const isPageLoading = computed(() => isLoading.value || isBootstrapping.value);
                 >
                   {{ getOrphanLabel(expense) }}
                 </span>
+                <span
+                  v-if="isReadOnlyExpense(expense)"
+                  class="mt-1 inline-flex whitespace-nowrap text-[9px] font-black uppercase tracking-widest text-slate-600 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded"
+                >
+                  {{ getSourceLabel(expense) }}
+                </span>
                 <p class="text-xs text-muted-foreground">
                   {{ formatDate(expense.date) }}
                 </p>
@@ -586,7 +653,7 @@ const isPageLoading = computed(() => isLoading.value || isBootstrapping.value);
 
           <div class="flex gap-2">
             <button
-              v-if="canManage"
+              v-if="canManage && !isReadOnlyExpense(expense)"
               :class="
                 cn(
                   'p-1',
@@ -603,13 +670,14 @@ const isPageLoading = computed(() => isLoading.value || isBootstrapping.value);
               <Pencil class="w-4 h-4" />
             </button>
             <button
-              v-if="canManage"
+              v-if="canManage && !isReadOnlyExpense(expense)"
               class="text-muted-foreground hover:text-foreground p-1"
               @click.stop="handleDeleteIfAllowed(expense.id)"
             >
               <Trash2 class="w-4 h-4" />
             </button>
             <button
+              v-if="!isReadOnlyExpense(expense)"
               class="text-muted-foreground hover:text-foreground p-1"
               @click.stop="handleDownloadPdf(expense.id)"
             >
@@ -642,8 +710,10 @@ const isPageLoading = computed(() => isLoading.value || isBootstrapping.value);
           </div>
 
           <div class="flex items-center justify-between pt-4 border-t border-border">
-            <span class="text-xs bg-muted px-2 py-0.5 rounded-full text-muted-foreground border">
-              {{ expense.expenseCategory?.name || "Uncategorized" }}
+            <span
+              class="inline-flex whitespace-nowrap text-xs bg-muted px-2 py-0.5 rounded-full text-muted-foreground border"
+            >
+              {{ getCategoryName(expense) }}
             </span>
             <span
               :class="
