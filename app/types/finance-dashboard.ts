@@ -74,6 +74,8 @@ export interface TransactionItem {
   type: string;
   total: number;
   isIncome: boolean;
+  isCashMovement?: boolean;
+  isEditable?: boolean;
   pnlIncomeTotal?: number;
   pnlOutcomeTotal?: number;
   paymentMethod?: string;
