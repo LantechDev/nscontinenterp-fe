@@ -919,7 +919,7 @@ async function handleSubmit(isDraft: boolean = false) {
     finalDestination: formData.finalDestination || undefined,
     etd: formData.vessels[0]?.etd || undefined, // Fallback for main ETD
     eta: formData.eta || undefined,
-    totalBlCount: formData.totalBlCount || 1,
+    totalBlCount: formData.isDirectMaster ? 0 : (formData.totalBlCount ?? 1),
     blType: (formData.blType as "ORIGINAL" | "DRAFT" | "SEAWAYBILL") || undefined,
     isNegotiable: formData.isNegotiable,
     placeOfIssue: formData.placeOfIssue || undefined,
