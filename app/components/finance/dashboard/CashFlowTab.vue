@@ -105,6 +105,26 @@ const groups = computed<CashFlowActivityGroup[]>(() =>
     : [],
 );
 
+const invoiceCashInOut = computed(() => report.value?.invoiceCashInOut);
+
+const invoiceCashInOutStatCards = computed(() => [
+  {
+    title: "Invoice Cash In",
+    value: formatFullRupiah(invoiceCashInOut.value?.cashIn || 0),
+    color: "green" as const,
+  },
+  {
+    title: "Invoice Cash Out",
+    value: formatFullRupiah(invoiceCashInOut.value?.cashOut || 0),
+    color: "red" as const,
+  },
+  {
+    title: "Invoice Net",
+    value: formatFullRupiah(invoiceCashInOut.value?.netCashFlow || 0),
+    color: "blue" as const,
+  },
+]);
+
 watch([startDate, endDate], () => fetchCashFlow());
 
 onMounted(() => {
@@ -266,6 +286,98 @@ onMounted(() => {
                 </td>
                 <td class="py-3 px-4 text-sm text-right font-bold">
                   {{ formatFullRupiah(group.netCashFlow) }}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="!isLoading && !error" class="space-y-4">
+      <div class="flex flex-col xl:flex-row xl:items-center justify-between gap-2 pt-2">
+        <div>
+          <h2 class="text-lg font-semibold text-[#012D5A]">Invoice Cash In/Out</h2>
+          <p class="text-sm text-muted-foreground">
+            {{ invoiceCashInOut?.startDate || startDate }} to
+            {{ invoiceCashInOut?.endDate || endDate }}
+          </p>
+        </div>
+        <span
+          class="inline-flex w-fit items-center rounded border border-gray-200 bg-gray-50 px-2 py-1 text-xs font-medium text-gray-600"
+        >
+          Read-only from invoice/job
+        </span>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <FinanceStatCard
+          v-for="(card, index) in invoiceCashInOutStatCards"
+          :key="card.title"
+          :card="card"
+          :index="index"
+        />
+      </div>
+
+      <div class="border border-border rounded-xl bg-white overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full">
+            <thead>
+              <tr class="border-b border-border bg-gray-50/50">
+                <th class="py-3 px-4 text-left text-sm font-medium text-gray-500">Tanggal</th>
+                <th class="py-3 px-4 text-left text-sm font-medium text-gray-500">Job</th>
+                <th class="py-3 px-4 text-left text-sm font-medium text-gray-500">No. Invoice</th>
+                <th class="py-3 px-4 text-left text-sm font-medium text-gray-500">
+                  Customer/Vendor
+                </th>
+                <th class="py-3 px-4 text-left text-sm font-medium text-gray-500">Tipe</th>
+                <th class="py-3 px-4 text-right text-sm font-medium text-gray-500">Cash In</th>
+                <th class="py-3 px-4 text-right text-sm font-medium text-gray-500">Cash Out</th>
+                <th class="py-3 px-4 text-right text-sm font-medium text-gray-500">Net</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-if="!invoiceCashInOut?.rows.length">
+                <td colspan="8" class="py-8 text-center text-muted-foreground">
+                  No invoice cash in/out data available
+                </td>
+              </tr>
+              <tr
+                v-for="item in invoiceCashInOut?.rows || []"
+                :key="item.id"
+                class="border-b border-gray-100"
+              >
+                <td class="py-3 px-4 text-sm">{{ item.date }}</td>
+                <td class="py-3 px-4 text-sm font-medium text-[#012D5A]">{{ item.jobNumber }}</td>
+                <td class="py-3 px-4 text-sm font-medium">{{ item.documentNumber }}</td>
+                <td class="py-3 px-4 text-sm">{{ item.companyName }}</td>
+                <td class="py-3 px-4 text-sm">
+                  <span
+                    class="inline-flex rounded border border-gray-200 bg-gray-50 px-2 py-1 text-xs font-medium text-gray-700"
+                  >
+                    {{ item.label }}
+                  </span>
+                </td>
+                <td class="py-3 px-4 text-sm text-right font-semibold text-green-700">
+                  {{ item.cashIn ? formatFullRupiah(item.cashIn) : "-" }}
+                </td>
+                <td class="py-3 px-4 text-sm text-right font-semibold text-red-600">
+                  {{ item.cashOut ? formatFullRupiah(item.cashOut) : "-" }}
+                </td>
+                <td class="py-3 px-4 text-sm text-right font-semibold">
+                  {{ formatFullRupiah(item.netCashFlow) }}
+                </td>
+              </tr>
+              <tr v-if="invoiceCashInOut?.rows.length" class="bg-gray-50">
+                <td class="py-3 px-4 text-sm font-bold" colspan="5">Total Invoice Cash In/Out</td>
+                <td class="py-3 px-4 text-sm text-right font-bold">
+                  {{ formatFullRupiah(invoiceCashInOut.cashIn) }}
+                </td>
+                <td class="py-3 px-4 text-sm text-right font-bold">
+                  {{ formatFullRupiah(invoiceCashInOut.cashOut) }}
+                </td>
+                <td class="py-3 px-4 text-sm text-right font-bold">
+                  {{ formatFullRupiah(invoiceCashInOut.netCashFlow) }}
                 </td>
               </tr>
             </tbody>

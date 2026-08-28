@@ -75,7 +75,11 @@ export interface ExpenseData {
   category?: { id: string; name: string };
   expenseCategory?: { id: string; name: string };
   vendor?: { id: string; name: string };
-  job?: { id: string; jobNumber: string };
+  job?: { id: string; jobNumber: string; deletedAt?: string | null };
+  jobStatus?: "ACTIVE" | "DELETED" | "MISSING" | "NONE";
+  orphanReason?: "DELETED_JOB" | "MISSING_JOB" | null;
+  orphanJobNumber?: string | null;
+  isOrphaned?: boolean;
   notes?: string;
   direction?: string;
 }

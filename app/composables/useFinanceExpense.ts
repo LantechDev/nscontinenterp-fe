@@ -47,7 +47,11 @@ export interface Expense {
   category?: { id: string; name: string };
   expenseCategory?: { id: string; name: string };
   vendor?: { id: string; name: string; address?: string; addresses?: CompanyAddress[] };
-  job?: { id: string; jobNumber: string };
+  job?: { id: string; jobNumber: string; deletedAt?: string | null };
+  jobStatus?: "ACTIVE" | "DELETED" | "MISSING" | "NONE";
+  orphanReason?: "DELETED_JOB" | "MISSING_JOB" | null;
+  orphanJobNumber?: string | null;
+  isOrphaned?: boolean;
   status?: { id: string; code: string; name: string };
   notes?: string;
   createdAt: string;

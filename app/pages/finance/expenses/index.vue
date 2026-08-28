@@ -19,6 +19,7 @@ import type { JobWithBls } from "~/composables/useJobs";
 import CompanyCreateModal from "~/pages/master/company/components/CompanyCreateModal.vue";
 import { ExpenseEditModal } from "./components";
 import { generateExpensePdf } from "./utils/pdf-generator";
+import { toast } from "vue-sonner";
 
 definePageMeta({
   layout: "dashboard",
@@ -93,6 +94,11 @@ const openCreateModalIfAllowed = () => {
 
 const openEditModalIfAllowed = (id: string) => {
   if (!requireManage("You only have view access for payments and expenses.")) return;
+  const expense = expenses.value.find((item) => item.id === id);
+  if (expense?.isOrphaned) {
+    toast.error("Transaksi ini terhubung ke job yang sudah dihapus. Audit dulu sebelum diedit.");
+    return;
+  }
   openEditModal(id);
 };
 
@@ -120,6 +126,14 @@ const handleToggleManualAccount = (checked: boolean) => {
 const handleRowClickIfAllowed = (id: string) => {
   if (!canManage.value) return;
   handleRowClick(id);
+};
+
+const isOrphanExpense = (expense: Expense) => Boolean(expense.isOrphaned);
+
+const getOrphanLabel = (expense: Expense) => {
+  if (expense.orphanReason === "DELETED_JOB") return "Job Deleted";
+  if (expense.orphanReason === "MISSING_JOB") return "Job Missing";
+  return "Orphan";
 };
 
 const statsCards = computed(() => {
@@ -434,6 +448,12 @@ const isPageLoading = computed(() => isLoading.value || isBootstrapping.value);
                       <Wallet class="w-4 h-4" />
                     </div>
                     <span class="text-sm font-medium">{{ expense.number }}</span>
+                    <span
+                      v-if="isOrphanExpense(expense)"
+                      class="text-[9px] font-black uppercase tracking-widest text-rose-700 bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded"
+                    >
+                      {{ getOrphanLabel(expense) }}
+                    </span>
                   </div>
                 </td>
                 <td class="py-3 px-4 text-sm">
@@ -482,8 +502,20 @@ const isPageLoading = computed(() => isLoading.value || isBootstrapping.value);
                   <div class="flex gap-1 justify-end">
                     <button
                       v-if="canManage"
-                      class="p-1.5 rounded hover:bg-muted transition-colors"
+                      :class="
+                        cn(
+                          'p-1.5 rounded transition-colors',
+                          isOrphanExpense(expense)
+                            ? 'text-slate-300 cursor-not-allowed'
+                            : 'hover:bg-muted',
+                        )
+                      "
                       @click.stop="openEditModalIfAllowed(expense.id)"
+                      :title="
+                        isOrphanExpense(expense)
+                          ? 'Job sudah dihapus, audit dulu sebelum edit'
+                          : 'Edit'
+                      "
                     >
                       <Pencil class="w-4 h-4 text-muted-foreground" />
                     </button>
@@ -539,6 +571,12 @@ const isPageLoading = computed(() => isLoading.value || isBootstrapping.value);
                 <h3 class="font-bold text-base text-foreground">
                   {{ expense.number }}
                 </h3>
+                <span
+                  v-if="isOrphanExpense(expense)"
+                  class="mt-1 inline-flex text-[9px] font-black uppercase tracking-widest text-rose-700 bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded"
+                >
+                  {{ getOrphanLabel(expense) }}
+                </span>
                 <p class="text-xs text-muted-foreground">
                   {{ formatDate(expense.date) }}
                 </p>
@@ -549,8 +587,18 @@ const isPageLoading = computed(() => isLoading.value || isBootstrapping.value);
           <div class="flex gap-2">
             <button
               v-if="canManage"
-              class="text-muted-foreground hover:text-foreground p-1"
+              :class="
+                cn(
+                  'p-1',
+                  isOrphanExpense(expense)
+                    ? 'text-slate-300 cursor-not-allowed'
+                    : 'text-muted-foreground hover:text-foreground',
+                )
+              "
               @click.stop="openEditModalIfAllowed(expense.id)"
+              :title="
+                isOrphanExpense(expense) ? 'Job sudah dihapus, audit dulu sebelum edit' : 'Edit'
+              "
             >
               <Pencil class="w-4 h-4" />
             </button>

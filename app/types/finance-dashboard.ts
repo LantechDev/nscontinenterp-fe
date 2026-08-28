@@ -227,6 +227,32 @@ export interface CashFlowUnclassifiedItem {
   amount: number;
 }
 
+export type InvoiceCashInOutSourceType = "INVOICE_AR" | "INVOICE_AP" | "AR_TAX" | "AP_TAX";
+
+export interface InvoiceCashInOutRow {
+  id: string;
+  sourceId: string;
+  sourceType: InvoiceCashInOutSourceType;
+  label: string;
+  jobNumber: string;
+  documentNumber: string;
+  date: string;
+  companyName: string;
+  cashIn: number;
+  cashOut: number;
+  netCashFlow: number;
+  isEditable: false;
+}
+
+export interface InvoiceCashInOutReport {
+  startDate: string;
+  endDate: string;
+  cashIn: number;
+  cashOut: number;
+  netCashFlow: number;
+  rows: InvoiceCashInOutRow[];
+}
+
 export interface CashFlowReport {
   startDate: string;
   endDate: string;
@@ -248,4 +274,5 @@ export interface CashFlowReport {
     count: number;
     items: CashFlowUnclassifiedItem[];
   };
+  invoiceCashInOut?: InvoiceCashInOutReport;
 }

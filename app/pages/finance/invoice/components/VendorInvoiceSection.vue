@@ -235,11 +235,11 @@ const groupedExpenses = computed(() => {
   const groups: Record<string, { jobKey: string; jobNumber: string; expenses: Expense[] }> = {};
 
   expenses.value.forEach((exp: Expense) => {
-    const jobKey = exp.job?.jobNumber || "no-job";
+    const jobKey = exp.orphanJobNumber || exp.job?.jobNumber || "no-job";
     if (!groups[jobKey]) {
       groups[jobKey] = {
         jobKey,
-        jobNumber: exp.job?.jobNumber || "Tanpa Job",
+        jobNumber: exp.orphanJobNumber || exp.job?.jobNumber || "Tanpa Job",
         expenses: [],
       };
     }
@@ -253,8 +253,19 @@ const isJobDetailOpen = ref(false);
 const selectedJobId = ref("");
 const initialInvoiceId = ref("");
 
+const isOrphanExpense = (expense: Expense) => Boolean(expense.isOrphaned);
+
+const getOrphanLabel = (expense: Expense) => {
+  if (expense.orphanReason === "DELETED_JOB") return "Job Deleted";
+  if (expense.orphanReason === "MISSING_JOB") return "Job Missing";
+  return "Orphan";
+};
+
+const getExpenseJobNumber = (expense: Expense) =>
+  expense.orphanJobNumber || expense.job?.jobNumber || "-";
+
 const handleInvoiceClick = (expense: Expense) => {
-  if (expense.job?.id) {
+  if (!isOrphanExpense(expense) && expense.job?.id) {
     selectedJobId.value = expense.job.id;
     initialInvoiceId.value = expense.id;
     isJobDetailOpen.value = true;
@@ -458,10 +469,16 @@ const handleInvoiceClick = (expense: Expense) => {
                       >
                         VOID
                       </span>
+                      <span
+                        v-if="isOrphanExpense(expense)"
+                        class="text-[9px] font-black uppercase tracking-widest text-rose-700 bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded"
+                      >
+                        {{ getOrphanLabel(expense) }}
+                      </span>
                     </div>
                   </td>
                   <td class="py-3 px-4 text-sm font-mono text-muted-foreground uppercase">
-                    {{ expense.job?.jobNumber || "-" }}
+                    {{ getExpenseJobNumber(expense) }}
                   </td>
                   <td class="py-3 px-4 text-sm font-medium">{{ expense.vendor?.name || "N/A" }}</td>
                   <td class="py-3 px-4 text-sm text-muted-foreground">
@@ -498,7 +515,7 @@ const handleInvoiceClick = (expense: Expense) => {
                         <Download class="w-4 h-4 text-muted-foreground" />
                       </button>
                       <button
-                        v-if="expense.job?.id"
+                        v-if="!isOrphanExpense(expense) && expense.job?.id"
                         class="p-1.5 rounded hover:bg-blue-50 transition-colors"
                         @click.stop="handleInvoiceClick(expense)"
                         title="Buka Detail Job Shipment"
@@ -538,6 +555,12 @@ const handleInvoiceClick = (expense: Expense) => {
                 <h3 class="font-bold text-base text-foreground">
                   {{ expense.number }}
                 </h3>
+                <span
+                  v-if="isOrphanExpense(expense)"
+                  class="mt-1 inline-flex text-[9px] font-black uppercase tracking-widest text-rose-700 bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded"
+                >
+                  {{ getOrphanLabel(expense) }}
+                </span>
                 <p class="text-xs text-muted-foreground">
                   {{ formatDate(expense.date) }}
                 </p>
@@ -577,7 +600,7 @@ const handleInvoiceClick = (expense: Expense) => {
 
           <div class="flex items-center justify-between pt-4 border-t border-border">
             <span class="text-xs bg-muted px-2 py-0.5 rounded-full text-muted-foreground border">
-              {{ expense.category?.name || "Uncategorized" }}
+              {{ getExpenseJobNumber(expense) }}
             </span>
           </div>
         </div>

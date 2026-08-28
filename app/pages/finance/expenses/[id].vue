@@ -46,6 +46,12 @@ const {
 
 const expense = computed(() => expenseData.value);
 const isLoading = computed(() => loading.value);
+const isOrphanExpense = computed(() => Boolean(expense.value?.isOrphaned));
+const orphanLabel = computed(() => {
+  if (expense.value?.orphanReason === "DELETED_JOB") return "Job Deleted";
+  if (expense.value?.orphanReason === "MISSING_JOB") return "Job Missing";
+  return "Orphan";
+});
 
 // Use expense page composable for modal
 const {
@@ -72,9 +78,23 @@ const {
 // Wrapped handleUpdate to refresh data on success
 const handleFormSubmit = async () => {
   if (!requireManage("You only have view access for expenses.")) return;
+  if (isOrphanExpense.value) {
+    toast.error("Transaksi ini terhubung ke job yang sudah dihapus. Audit dulu sebelum diedit.");
+    return;
+  }
 
   await handleUpdate();
   await refresh();
+};
+
+const openEditModalIfAllowed = () => {
+  if (!expense.value) return;
+  if (!requireManage("You only have view access for expenses.")) return;
+  if (isOrphanExpense.value) {
+    toast.error("Transaksi ini terhubung ke job yang sudah dihapus. Audit dulu sebelum diedit.");
+    return;
+  }
+  openEditModal(expense.value.id);
 };
 
 async function handleDelete() {
@@ -181,6 +201,13 @@ onMounted(() => {
         <div class="flex items-center gap-3">
           <!-- Status Badge -->
           <div
+            v-if="isOrphanExpense"
+            class="px-3 py-1 rounded-full text-xs font-semibold border uppercase tracking-wider bg-rose-50 text-rose-700 border-rose-200"
+          >
+            {{ orphanLabel }}
+          </div>
+
+          <div
             :class="
               cn(
                 'px-3 py-1 rounded-full text-xs font-semibold border uppercase tracking-wider',
@@ -198,7 +225,7 @@ onMounted(() => {
           </button>
 
           <!-- Edit Button -->
-          <button v-if="canManage" @click="openEditModal(expense.id)" class="btn-secondary">
+          <button v-if="canManage" @click="openEditModalIfAllowed" class="btn-secondary">
             <Pencil class="w-4 h-4 mr-2" />
             Edit
           </button>
@@ -255,7 +282,10 @@ onMounted(() => {
                 </div>
                 <div class="space-y-1">
                   <p class="text-muted-foreground font-medium">Job Number</p>
-                  <p v-if="expense.job" class="font-bold text-primary">
+                  <p v-if="expense.orphanJobNumber" class="font-bold text-rose-700">
+                    {{ expense.orphanJobNumber }}
+                  </p>
+                  <p v-else-if="expense.job" class="font-bold text-primary">
                     {{ expense.job.jobNumber }}
                   </p>
                   <p v-else class="font-bold text-slate-400">N/A</p>
