@@ -748,6 +748,7 @@ async function handleSubmit() {
     charges: formData.charges.map((ch) => ({
       id: ch.id,
       serviceId: ch.serviceId,
+      taxId: ch.taxId || formData.taxId || null,
       description: ch.description || "Service Item",
       quantity: Number(ch.quantity || 1),
       unitPrice: ch.atCost ? 0 : Number(ch.unitPrice || 0),

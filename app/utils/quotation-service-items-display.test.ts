@@ -269,6 +269,14 @@ describe("quotation service items display", () => {
     expect(edit).not.toContain("formData.charges.forEach((ch)");
   });
 
+  it("sends the selected quotation tax with each charge so preview/detail tax cards stay consistent", () => {
+    const create = readFileSync(join(root, "app/pages/operational/quotations/create.vue"), "utf8");
+    const edit = readFileSync(join(root, "app/pages/operational/quotations/[id]/edit.vue"), "utf8");
+
+    expect(create).toContain("taxId: ch.taxId || formData.taxId || null");
+    expect(edit).toContain("taxId: ch.taxId || formData.taxId || null");
+  });
+
   it("uses shared formatters across quotation costing and invoice views", () => {
     const costing = readFileSync(
       join(root, "app/components/operational/QuotationCostingTab.vue"),
