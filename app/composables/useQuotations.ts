@@ -322,6 +322,12 @@ export function useQuotations() {
         cancelled: number;
         expired: number;
       };
+      financialSummary: {
+        totalQuotation: number;
+        totalBeforeTax: number;
+        totalTax: number;
+        estimatedProfitBeforeTax: number;
+      };
     }>
   > {
     isLoading.value = true;
@@ -338,6 +344,12 @@ export function useQuotations() {
           converted: number;
           cancelled: number;
           expired: number;
+        };
+        financialSummary: {
+          totalQuotation: number;
+          totalBeforeTax: number;
+          totalTax: number;
+          estimatedProfitBeforeTax: number;
         };
       }>("/api/operational/quotations", { params });
       quotations.value = data.items || [];

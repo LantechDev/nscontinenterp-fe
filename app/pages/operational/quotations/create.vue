@@ -257,6 +257,7 @@ const formData = reactive({
     {
       id: Date.now(),
       serviceId: "",
+      taxId: "",
       description: "",
       quantity: 1,
       unitPrice: 0,
@@ -319,6 +320,7 @@ watch(
         formData.charges = (q.charges || []).map((ch) => ({
           id: Date.now() + Math.random(),
           serviceId: ch.serviceId || "",
+          taxId: ch.taxId || "",
           description: ch.description || "",
           quantity: Number(ch.quantity || 1),
           unitPrice: Number(ch.unitPrice || 0),
@@ -367,6 +369,7 @@ function addChargeLine() {
   formData.charges.push({
     id: Date.now(),
     serviceId: "",
+    taxId: "",
     description: "",
     quantity: 1,
     unitPrice: 0,
@@ -759,6 +762,7 @@ async function handleSubmit() {
     total: legacyTotal,
     charges: formData.charges.map((ch) => ({
       serviceId: ch.serviceId,
+      taxId: ch.taxId || formData.taxId || null,
       description: ch.description || "Service Item",
       quantity: Number(ch.quantity || 1),
       unitPrice: ch.atCost ? 0 : Number(ch.unitPrice || 0),
