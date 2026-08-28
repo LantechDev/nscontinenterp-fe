@@ -43,75 +43,75 @@ export function useFinanceDashboardPageTransactions() {
     if (!t) {
       return [
         {
-          title: "Total Revenue",
+          title: "Total Cash In",
           value: "Rp0",
-          subtitle: "Semua customer invoice / earned revenue",
-          tooltip: "Total revenue from customer invoices.",
+          subtitle: "Semua payment masuk + cash in manual",
+          tooltip: "Total received cash from payments and manual cash-in transactions.",
           color: "green",
           changeLabel: "vs Last Period",
         },
         {
-          title: "Total Expense",
+          title: "Total Cash Out",
           value: "Rp0",
-          subtitle: "Semua vendor invoice + operational expense",
-          tooltip: "Total operational and vendor expenses.",
+          subtitle: "Semua payment keluar + cash out manual",
+          tooltip: "Total paid cash from payments and manual cash-out transactions.",
           color: "red",
           changeLabel: "vs Last Period",
         },
         {
-          title: "Gross Profit",
+          title: "Net Cash Flow",
           value: "Rp0",
-          subtitle: "Formula: Revenue - Expense",
-          tooltip: "Gross profit before tax and adjustments.",
+          subtitle: "Formula: Cash In - Cash Out",
+          tooltip: "Net cash movement for the selected period.",
           color: "blue",
           changeLabel: "vs Last Period",
         },
         {
-          title: "P&L Volume",
+          title: "Cash Movement Volume",
           value: "Rp0",
-          subtitle: "Formula: Revenue + Expense",
-          tooltip: "Total revenue and expense movement that affects profit and loss.",
+          subtitle: "Formula: Cash In + Cash Out",
+          tooltip: "Total cash movement volume for the selected period.",
           color: "neutral",
           changeLabel: "vs Last Period",
         },
       ];
     }
 
-    const revenueVal = t.totalIncome;
-    const expenseVal = t.totalOutcome;
-    const grossProfitVal = revenueVal - expenseVal;
-    const journalVolumeVal = t.totalJournal;
+    const cashInVal = t.totalIncome;
+    const cashOutVal = t.totalOutcome;
+    const netCashFlowVal = cashInVal - cashOutVal;
+    const cashMovementVolumeVal = t.totalJournal;
 
     return [
       {
-        title: "Total Revenue",
-        value: formatFullRupiah(revenueVal),
-        subtitle: "Semua customer invoice / earned revenue",
-        tooltip: "Total revenue from customer invoices.",
+        title: "Total Cash In",
+        value: formatFullRupiah(cashInVal),
+        subtitle: "Semua payment masuk + cash in manual",
+        tooltip: "Total received cash from payments and manual cash-in transactions.",
         color: "green",
         changeLabel: "vs Last Period",
       },
       {
-        title: "Total Expense",
-        value: formatFullRupiah(expenseVal),
-        subtitle: "Semua vendor invoice + operational expense",
-        tooltip: "Total operational and vendor expenses.",
+        title: "Total Cash Out",
+        value: formatFullRupiah(cashOutVal),
+        subtitle: "Semua payment keluar + cash out manual",
+        tooltip: "Total paid cash from payments and manual cash-out transactions.",
         color: "red",
         changeLabel: "vs Last Period",
       },
       {
-        title: "Gross Profit",
-        value: formatFullRupiah(grossProfitVal),
-        subtitle: "Formula: Revenue - Expense",
-        tooltip: "Gross profit before tax and adjustments.",
+        title: "Net Cash Flow",
+        value: formatFullRupiah(netCashFlowVal),
+        subtitle: "Formula: Cash In - Cash Out",
+        tooltip: "Net cash movement for the selected period.",
         color: "blue",
         changeLabel: "vs Last Period",
       },
       {
-        title: "P&L Volume",
-        value: formatFullRupiah(journalVolumeVal),
-        subtitle: "Formula: Revenue + Expense",
-        tooltip: "Total revenue and expense movement that affects profit and loss.",
+        title: "Cash Movement Volume",
+        value: formatFullRupiah(cashMovementVolumeVal),
+        subtitle: "Formula: Cash In + Cash Out",
+        tooltip: "Total cash movement volume for the selected period.",
         color: "neutral",
         changeLabel: "vs Last Period",
       },
