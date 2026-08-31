@@ -33,7 +33,6 @@ export const optionalJobId = (value: string | null | undefined) => value || unde
 const hasCargoItemPayload = (container: JobContainerInput) =>
   (container.items || []).some(
     (item) =>
-      item.qty ||
       item.packageTypeCode ||
       item.grossWeight ||
       item.netWeight ||
@@ -64,28 +63,41 @@ export const sanitizeJobContainersForShipment = ({
 
   return containers
     .filter((container) =>
-      isTrucking
-        ? container.vehicleNumber || container.containerTypeId || hasCargoItemPayload(container)
-        : hasContainerPayload(container),
+      isAir
+        ? hasCargoItemPayload(container)
+        : isTrucking
+          ? container.vehicleNumber || container.containerTypeId || hasCargoItemPayload(container)
+          : hasContainerPayload(container),
     )
     .map((container) => ({
       containerNumber: isAir || isTrucking ? null : container.containerNumber || null,
       sealNumber: isAir || isTrucking ? null : container.sealNumber || null,
-      containerTypeId: isAir ? null : container.containerTypeId || null,
+      containerTypeId: isAir ? undefined : optionalJobId(container.containerTypeId),
       vehicleNumber: isTrucking ? container.vehicleNumber || null : null,
       driverName: isTrucking ? container.driverName || null : null,
       driverContactNumber: isTrucking ? container.driverContactNumber || null : null,
       isHazardous: Boolean(container.isHazardous),
-      items: (container.items || []).map((item, index) => ({
-        sequenceNo: item.sequenceNo ?? index + 1,
-        qty: item.qty ?? 1,
-        packageTypeCode: item.packageTypeCode || null,
-        grossWeight: item.grossWeight,
-        netWeight: item.netWeight,
-        measurementCbm: item.measurementCbm,
-        description: item.description || null,
-        hsCode: item.hsCode || null,
-      })),
+      items: (container.items || [])
+        .filter((item) =>
+          Boolean(
+            item.packageTypeCode ||
+            item.grossWeight ||
+            item.netWeight ||
+            item.measurementCbm ||
+            item.description ||
+            item.hsCode,
+          ),
+        )
+        .map((item, index) => ({
+          sequenceNo: item.sequenceNo ?? index + 1,
+          qty: item.qty ?? 1,
+          packageTypeCode: item.packageTypeCode || null,
+          grossWeight: item.grossWeight ?? undefined,
+          netWeight: item.netWeight ?? undefined,
+          measurementCbm: item.measurementCbm ?? undefined,
+          description: item.description || undefined,
+          hsCode: item.hsCode || null,
+        })),
     }));
 };
 

@@ -37,7 +37,7 @@ describe("sanitizeJobContainersForShipment", () => {
       {
         containerNumber: null,
         sealNumber: null,
-        containerTypeId: null,
+        containerTypeId: undefined,
         vehicleNumber: null,
         driverName: null,
         driverContactNumber: null,
@@ -56,6 +56,31 @@ describe("sanitizeJobContainersForShipment", () => {
         ],
       },
     ]);
+  });
+
+  it("drops blank AIR containers so update job does not send null containerTypeId", () => {
+    const containers = sanitizeJobContainersForShipment({
+      serviceType: "FREIGHT",
+      shipmentType: "AIR",
+      containers: [
+        {
+          containerTypeId: null,
+          items: [
+            {
+              sequenceNo: 1,
+              qty: 1,
+              grossWeight: null,
+              netWeight: null,
+              measurementCbm: null,
+              description: "",
+              hsCode: "",
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(containers).toEqual([]);
   });
 });
 
