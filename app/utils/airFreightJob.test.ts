@@ -1,6 +1,10 @@
 // @ts-ignore
 import { describe, expect, it } from "bun:test";
-import { getTransportLocationDisplay, sanitizeJobContainersForShipment } from "./airFreightJob";
+import {
+  getTransportLocationDisplay,
+  optionalJobId,
+  sanitizeJobContainersForShipment,
+} from "./airFreightJob";
 
 describe("sanitizeJobContainersForShipment", () => {
   it("removes container fields for AIR jobs while keeping cargo details and DG flag", () => {
@@ -76,5 +80,13 @@ describe("getTransportLocationDisplay", () => {
         name: "BELAWAN, SUMATRA, INDONESIA",
       }),
     ).toBe("BELAWAN, SUMATRA, INDONESIA");
+  });
+});
+
+describe("optionalJobId", () => {
+  it("keeps optional job ids undefined instead of null for update payloads", () => {
+    expect(optionalJobId(null)).toBeUndefined();
+    expect(optionalJobId("")).toBeUndefined();
+    expect(optionalJobId("addr_123")).toBe("addr_123");
   });
 });

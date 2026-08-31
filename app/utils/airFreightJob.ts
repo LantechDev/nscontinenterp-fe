@@ -28,6 +28,8 @@ type JobContainerInput = {
 export const isAirFreightMode = (mode: ShipmentMode) =>
   mode.serviceType === "AIR" || mode.shipmentType === "AIR";
 
+export const optionalJobId = (value: string | null | undefined) => value || undefined;
+
 const hasCargoItemPayload = (container: JobContainerInput) =>
   (container.items || []).some(
     (item) =>
