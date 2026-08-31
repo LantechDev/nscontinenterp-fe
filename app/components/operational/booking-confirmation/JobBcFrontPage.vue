@@ -184,13 +184,25 @@ const deliveryMovementCode = computed(
 );
 
 const placeOfReceiptVal = computed(() =>
-  getVal(props.bcData?.placeOfReceipt, getVal(props.jobData?.placeOfReceipt, polDisplay.value)),
+  props.isAir
+    ? polDisplay.value
+    : getVal(props.bcData?.placeOfReceipt, getVal(props.jobData?.placeOfReceipt, polDisplay.value)),
 );
 const placeOfDeliveryVal = computed(() =>
-  getVal(props.bcData?.placeOfDelivery, getVal(props.jobData?.placeOfDelivery, podDisplay.value)),
+  props.isAir
+    ? podDisplay.value
+    : getVal(
+        props.bcData?.placeOfDelivery,
+        getVal(props.jobData?.placeOfDelivery, podDisplay.value),
+      ),
 );
 const finalDestinationVal = computed(() =>
-  getVal(props.bcData?.finalDestination, getVal(props.jobData?.finalDestination, podDisplay.value)),
+  props.isAir
+    ? podDisplay.value
+    : getVal(
+        props.bcData?.finalDestination,
+        getVal(props.jobData?.finalDestination, podDisplay.value),
+      ),
 );
 
 const formatNumber = (num: unknown, decimals = 3): string => {
@@ -663,10 +675,7 @@ const dateLaden = computed(() => {
               class="flex w-full mb-1 font-bold italic border-b border-[#062c58]/10"
             >
               <div class="w-[22%] pl-3 pr-6 break-words whitespace-pre-wrap text-[11px]">
-                <template v-if="isAir">
-                  {{ page.pageIndex === 0 && cIdx === 0 ? shippingMarkDisplay : "" }}
-                </template>
-                <template v-else>
+                <template v-if="!isAir">
                   {{ cnt.containerNumber || ""
                   }}<span v-if="cnt.sealNumber" class="ml-1">/{{ cnt.sealNumber }}</span>
                 </template>

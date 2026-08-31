@@ -28,4 +28,40 @@ describe("BL printout container summaries", () => {
     expect(bcFrontPage).not.toContain("formatNumber(item.grossWeight");
     expect(bcFrontPage).not.toContain("formatNumber(item.measurementCbm");
   });
+
+  it("keeps booking confirmation air shipping marks aligned with cargo item details", () => {
+    const bcFrontPage = readFileSync(
+      join(root, "app/components/operational/booking-confirmation/JobBcFrontPage.vue"),
+      "utf8",
+    );
+
+    expect(bcFrontPage).not.toContain(
+      '{{ page.pageIndex === 0 && cIdx === 0 ? shippingMarkDisplay : "" }}',
+    );
+    expect(bcFrontPage).toContain(
+      '{{ page.pageIndex === 0 && cIdx === 0 && iIdx === 0 ? shippingMarkDisplay : "" }}',
+    );
+  });
+
+  it("uses IATA codes for booking confirmation air receipt and delivery places", () => {
+    const bcFrontPage = readFileSync(
+      join(root, "app/components/operational/booking-confirmation/JobBcFrontPage.vue"),
+      "utf8",
+    );
+
+    expect(bcFrontPage).toContain("props.isAir");
+    expect(bcFrontPage).toContain("? polDisplay.value");
+    expect(bcFrontPage).toContain("? podDisplay.value");
+  });
+
+  it("uses IATA codes for eBL air receipt and delivery places", () => {
+    const eblFrontPage = readFileSync(
+      join(root, "app/components/operational/ebl/JobEblFrontPage.vue"),
+      "utf8",
+    );
+
+    expect(eblFrontPage).toContain("props.isAir");
+    expect(eblFrontPage).toContain("? polDisplay.value");
+    expect(eblFrontPage).toContain("? podDisplay.value");
+  });
 });

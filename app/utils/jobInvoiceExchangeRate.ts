@@ -20,3 +20,13 @@ export const hasMixedInvoiceCurrencyItems = (
     (item) => normalizeInvoiceCurrency(item.currency) !== normalizedInvoiceCurrency,
   );
 };
+
+export const requiresInvoiceExchangeRate = (
+  invoiceCurrency: string | null | undefined,
+  items: Array<{ currency?: string | null }> | null | undefined,
+) => {
+  return (
+    normalizeInvoiceCurrency(invoiceCurrency) === "USD" ||
+    hasMixedInvoiceCurrencyItems(invoiceCurrency, items)
+  );
+};

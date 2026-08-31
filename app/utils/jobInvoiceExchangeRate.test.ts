@@ -2,6 +2,7 @@
 import { describe, expect, it } from "bun:test";
 import {
   hasMixedInvoiceCurrencyItems,
+  requiresInvoiceExchangeRate,
   resolveSingleCurrencyPrefillExchangeRate,
 } from "./jobInvoiceExchangeRate";
 
@@ -34,5 +35,19 @@ describe("hasMixedInvoiceCurrencyItems", () => {
 
   it("requires exchange rate for USD invoice with IDR items", () => {
     expect(hasMixedInvoiceCurrencyItems("USD", [{ currency: "IDR" }])).toBe(true);
+  });
+});
+
+describe("requiresInvoiceExchangeRate", () => {
+  it("requires exchange rate for a single-currency USD invoice", () => {
+    expect(requiresInvoiceExchangeRate("USD", [{ currency: "USD" }])).toBe(true);
+  });
+
+  it("requires exchange rate when invoice items differ from invoice currency", () => {
+    expect(requiresInvoiceExchangeRate("IDR", [{ currency: "USD" }])).toBe(true);
+  });
+
+  it("does not require exchange rate for an IDR invoice with only IDR items", () => {
+    expect(requiresInvoiceExchangeRate("IDR", [{ currency: "IDR" }])).toBe(false);
   });
 });
