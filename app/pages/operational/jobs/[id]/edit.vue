@@ -31,7 +31,11 @@ import JobPartyRow from "../components/JobPartyRow.vue";
 import CompanyCreateModal from "~/pages/master/company/components/CompanyCreateModal.vue";
 import VesselQuickAddModal from "~/components/operational/VesselQuickAddModal.vue";
 import PlaneQuickAddModal from "~/components/operational/PlaneQuickAddModal.vue";
-import { isAirFreightMode, sanitizeJobContainersForShipment } from "~/utils/airFreightJob";
+import {
+  isAirFreightMode,
+  optionalJobId,
+  sanitizeJobContainersForShipment,
+} from "~/utils/airFreightJob";
 
 definePageMeta({
   layout: "dashboard",
@@ -1153,7 +1157,14 @@ async function handleSubmit() {
     isSubmitting.value = true;
     const payload = {
       ...formData,
-      customerId: formData.customerId,
+      shipperAddressId: optionalJobId(formData.shipperAddressId),
+      consigneeAddressId: optionalJobId(formData.consigneeAddressId),
+      notifyPartyId: optionalJobId(formData.notifyPartyId),
+      notifyPartyAddressId: optionalJobId(formData.notifyPartyAddressId),
+      forwarderId: optionalJobId(formData.forwarderId),
+      forwarderAddressId: optionalJobId(formData.forwarderAddressId),
+      customerId: optionalJobId(formData.customerId),
+      customerAddressId: optionalJobId(formData.customerAddressId),
       vendorId: formData.vendorId || null,
       vesselId: formData.vessels[0]?.vesselId || formData.vesselId || null,
       voyageNumber: formData.vessels[0]?.voyageNumber || formData.voyageNumber || null,
