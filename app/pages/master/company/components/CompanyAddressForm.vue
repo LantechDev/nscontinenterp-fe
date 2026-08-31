@@ -34,7 +34,7 @@ const defaultFormData: AddressFormData = {
   city: "",
   state: "",
   postalCode: "",
-  country: "id",
+  country: "INDONESIA",
   eori: "",
 };
 const addressTypeOptions = [
@@ -43,12 +43,22 @@ const addressTypeOptions = [
   { id: "warehouse", name: "Warehouse" },
 ];
 const countryOptions = [
-  { id: "id", name: "Indonesia" },
-  { id: "sg", name: "Singapore" },
-  { id: "my", name: "Malaysia" },
+  { id: "INDONESIA", name: "Indonesia" },
+  { id: "SINGAPORE", name: "Singapore" },
+  { id: "MALAYSIA", name: "Malaysia" },
 ];
 
 const formData = ref<AddressFormData>({ ...defaultFormData });
+
+const normalizeCountryValue = (value?: string | null) => {
+  const countryMap: Record<string, string> = {
+    id: "INDONESIA",
+    sg: "SINGAPORE",
+    my: "MALAYSIA",
+  };
+  if (!value) return defaultFormData.country;
+  return countryMap[value.toLowerCase()] || value.toUpperCase();
+};
 
 // Watch for address prop changes to populate form in edit mode
 watch(
@@ -63,7 +73,7 @@ watch(
         city: newAddress.city || "",
         state: newAddress.state || "",
         postalCode: newAddress.postalCode || "",
-        country: newAddress.country || "id",
+        country: normalizeCountryValue(newAddress.country),
         eori: newAddress.eori || "",
       };
     } else if (props.mode === "add") {
@@ -100,6 +110,7 @@ const handleSave = async () => {
       city: uppercase(formData.value.city),
       state: uppercase(formData.value.state),
       postalCode: uppercase(formData.value.postalCode),
+      country: normalizeCountryValue(formData.value.country),
       eori: uppercase(formData.value.eori),
     });
   } finally {
@@ -111,13 +122,8 @@ const handleSave = async () => {
 <template>
   <div class="flex-1 self-stretch flex flex-col overflow-hidden">
     <!-- Form Content - Scrollable -->
-    <div class="self-stretch flex-1 p-6 overflow-y-auto">
+    <div class="self-stretch flex-1 overflow-y-auto">
       <div class="self-stretch flex flex-col gap-6">
-        <!-- Form Title -->
-        <div class="text-black text-lg font-semibold font-['Inter'] leading-7">
-          {{ mode === "add" ? "Add New Address" : "Edit Address" }}
-        </div>
-
         <!-- Form -->
         <div class="self-stretch flex flex-col gap-4">
           <!-- Address Label -->
@@ -233,7 +239,7 @@ const handleSave = async () => {
 
     <!-- Form Actions - Fixed at bottom -->
     <div
-      class="self-stretch border-t border-slate-300 flex justify-end gap-3 p-4 bg-white shrink-0"
+      class="self-stretch border-t border-slate-200 flex justify-end gap-3 pt-4 mt-5 bg-white shrink-0"
     >
       <button
         class="px-4 py-2 border border-slate-200 rounded-md text-sm text-slate-600 hover:bg-slate-50 transition-colors"

@@ -5,6 +5,7 @@ import { toast } from "vue-sonner";
 
 import Combobox from "~/components/ui/Combobox.vue";
 import JobPartyRow from "~/pages/operational/jobs/components/JobPartyRow.vue";
+import CompanyAddressModal from "~/pages/master/company/components/CompanyAddressModal.vue";
 import SectionCard from "~/pages/operational/jobs/components/SectionCard.vue";
 import DatePicker from "~/components/ui/DatePicker.vue";
 import Checkbox from "~/components/ui/Checkbox.vue";
@@ -51,6 +52,7 @@ const {
   createVessel,
   createPlane,
 } = useMasterData();
+const { createAddress } = useCompanies();
 
 const { confirm } = useConfirm();
 
@@ -70,6 +72,15 @@ const vessels = ref<Vessel[]>([]);
 const planes = ref<Plane[]>([]);
 const portsPol = ref<Port[]>([]);
 const portsPod = ref<Port[]>([]);
+const isAddressModalOpen = ref(false);
+const activeAddressCompanyId = ref("");
+const activeAddressField = ref<
+  | "customerAddressId"
+  | "shipperAddressId"
+  | "consigneeAddressId"
+  | "notifyPartyAddressId"
+  | "forwarderAddressId"
+>("customerAddressId");
 
 onMounted(async () => {
   const [c, ct, pt, cargoMoves, deliveryMoves, v, p] = await Promise.all([
@@ -556,6 +567,53 @@ const addShipperRef = () => {
 const removeShipperRef = (index: number) => {
   editForm.value.shipperReferences.splice(index, 1);
 };
+
+function handleAddAddress(
+  companyId: string,
+  field:
+    | "customerAddressId"
+    | "shipperAddressId"
+    | "consigneeAddressId"
+    | "notifyPartyAddressId"
+    | "forwarderAddressId",
+) {
+  activeAddressCompanyId.value = companyId;
+  activeAddressField.value = field;
+  isAddressModalOpen.value = true;
+}
+
+const onAddressSave = async (payload: {
+  label: string;
+  fullAddress: string;
+  street?: string;
+  city?: string;
+  state?: string;
+  postalCode?: string;
+  country?: string;
+  eori?: string;
+}) => {
+  if (!activeAddressCompanyId.value) return;
+
+  const result = await createAddress(activeAddressCompanyId.value, {
+    label: payload.label,
+    fullAddress: payload.fullAddress,
+    street: payload.street,
+    city: payload.city,
+    state: payload.state,
+    postalCode: payload.postalCode,
+    country: payload.country,
+    eori: payload.eori,
+  });
+
+  if (result.success && result.data) {
+    companies.value = await fetchCompanies();
+    editForm.value[activeAddressField.value] = result.data.id;
+    isAddressModalOpen.value = false;
+    toast.success("Address added.");
+  } else {
+    toast.error(result.error || "Failed to add address.");
+  }
+};
 </script>
 
 <template>
@@ -568,6 +626,7 @@ const removeShipperRef = (index: number) => {
           :companies="companies"
           v-model:companyId="editForm.customerId"
           v-model:addressId="editForm.customerAddressId"
+          @add-address="(companyId) => handleAddAddress(companyId, 'customerAddressId')"
         />
 
         <JobPartyRow
@@ -576,6 +635,7 @@ const removeShipperRef = (index: number) => {
           :companies="companies"
           v-model:companyId="editForm.shipperId"
           v-model:addressId="editForm.shipperAddressId"
+          @add-address="(companyId) => handleAddAddress(companyId, 'shipperAddressId')"
         />
 
         <JobPartyRow
@@ -584,6 +644,7 @@ const removeShipperRef = (index: number) => {
           :companies="companies"
           v-model:companyId="editForm.consigneeId"
           v-model:addressId="editForm.consigneeAddressId"
+          @add-address="(companyId) => handleAddAddress(companyId, 'consigneeAddressId')"
         />
 
         <JobPartyRow
@@ -594,6 +655,7 @@ const removeShipperRef = (index: number) => {
           v-model:addressId="editForm.notifyPartyAddressId"
           has-extra-controls
           :disabled-company="editForm.isNotifySameAsConsignee"
+          @add-address="(companyId) => handleAddAddress(companyId, 'notifyPartyAddressId')"
         >
           <template #extra-controls>
             <label
@@ -614,6 +676,7 @@ const removeShipperRef = (index: number) => {
           :companies="companies"
           v-model:companyId="editForm.forwarderId"
           v-model:addressId="editForm.forwarderAddressId"
+          @add-address="(companyId) => handleAddAddress(companyId, 'forwarderAddressId')"
         />
 
         <!-- Shipper References (PO Numbers) -->
@@ -685,6 +748,13 @@ const removeShipperRef = (index: number) => {
         </div>
       </div>
     </SectionCard>
+
+    <CompanyAddressModal
+      v-model="isAddressModalOpen"
+      mode="add"
+      :company-id="activeAddressCompanyId"
+      @save="onAddressSave"
+    />
 
     <!-- Route Details Integrated into Movement -->
 

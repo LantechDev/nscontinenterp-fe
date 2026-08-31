@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import { Plus } from "lucide-vue-next";
 import type { Company, Address } from "~/composables/useMasterData";
 import Combobox from "~/components/ui/Combobox.vue";
 
@@ -19,6 +20,7 @@ const addressId = defineModel<string | null | undefined>("addressId");
 
 const emit = defineEmits<{
   (e: "create", name: string): void;
+  (e: "add-address", companyId: string): void;
 }>();
 
 const company = computed(() => props.companies.find((c) => c.id === companyId.value));
@@ -33,6 +35,16 @@ const addressDetails = computed(() => {
   if (!company.value || !addressId.value) return null;
   return company.value.addresses?.find((a: Address) => a.id === addressId.value);
 });
+
+const formatCountry = (country?: string | null) => {
+  const countryMap: Record<string, string> = {
+    id: "INDONESIA",
+    sg: "SINGAPORE",
+    my: "MALAYSIA",
+  };
+  if (!country) return "-";
+  return countryMap[country.toLowerCase()] || country.toUpperCase();
+};
 </script>
 
 <template>
@@ -84,6 +96,15 @@ const addressDetails = computed(() => {
           placeholder="Select Address..."
           :disabled="disabledAddress || !companyId"
         />
+        <button
+          v-if="companyId && !disabledAddress"
+          type="button"
+          class="mt-2 inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-[#012D5A] hover:underline"
+          @click="emit('add-address', companyId)"
+        >
+          <Plus class="w-3 h-3" />
+          Add Address
+        </button>
       </div>
 
       <!-- Details Column -->
@@ -96,7 +117,9 @@ const addressDetails = computed(() => {
           </div>
           <div class="flex justify-between items-center opacity-80">
             <span class="mr-2">Country:</span>
-            <span class="text-foreground shrink-0">{{ addressDetails.country }}</span>
+            <span class="text-foreground shrink-0">{{
+              formatCountry(addressDetails.country)
+            }}</span>
           </div>
           <div class="flex justify-between items-center opacity-80">
             <span class="mr-2">City:</span>
