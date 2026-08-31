@@ -25,18 +25,12 @@ import {
   Truck,
   Plane as PlaneIcon,
   Plus,
-  Trash2,
-  Pencil,
   ArrowLeft,
   ChevronRight,
+  Trash2,
 } from "lucide-vue-next";
-import {
-  useQuotations,
-  type Quotation,
-  type QuotationCharge,
-  type QuotationInvoice,
-  type QuotationInvoiceItem,
-} from "~/composables/useQuotations";
+import Modal from "~/components/ui/Modal.vue";
+import { useQuotations, type QuotationInvoice } from "~/composables/useQuotations";
 import { useFinanceTax } from "~/composables/useFinanceTax";
 import { formatCurrencyAmount, formatExchangeRateLabel } from "~/utils/currency";
 import {
@@ -49,11 +43,10 @@ import {
   getQuotationStatusBadgeClass,
 } from "~/utils/quotation-display";
 import { toast } from "vue-sonner";
-import Modal from "~/components/ui/Modal.vue";
 import QuotationPreview from "./QuotationPreview.vue";
 import QuotationCostingTab from "./QuotationCostingTab.vue";
-import QuotationInvoiceForm from "./QuotationInvoiceForm.vue";
 import QuotationInvoicePreview from "./QuotationInvoicePreview.vue";
+import QuotationInvoiceForm from "./QuotationInvoiceForm.vue";
 
 interface Props {
   modelValue: boolean;
@@ -79,7 +72,6 @@ const activeTab = ref("overview");
 const tabs = [
   { id: "overview", label: "Overview" },
   { id: "items", label: "Service Items" },
-  { id: "invoices", label: "Additional Quotations" },
   { id: "costing", label: "Costing & Profit" },
   { id: "usage", label: "Usage" },
 ];
@@ -90,15 +82,15 @@ const isConverting = ref(false);
 const isUpdatingStatus = ref(false);
 const isGeneratingPDF = ref(false);
 const previewRef = ref<InstanceType<typeof QuotationPreview> | null>(null);
+const invoicePreviewRef = ref<InstanceType<typeof QuotationInvoicePreview> | null>(null);
 const taxesList = ref<Array<{ id: string; name: string; rate: number }>>([]);
 
 const quotation = computed(() => currentQuotation.value);
+const quotationInvoices = computed(() => quotation.value?.quotationInvoices || []);
 
 const isMultiUse = computed(() => Boolean(quotation.value?.allowMultipleInvoices));
 
 const relatedInvoices = computed(() => quotation.value?.invoices || []);
-
-const quotationInvoices = computed(() => quotation.value?.quotationInvoices || []);
 
 const serviceLabels = computed(() => getQuotationServiceLabels(quotation.value || {}));
 const serviceFlags = computed(() => getQuotationServiceFlags(quotation.value || {}));
@@ -201,12 +193,22 @@ const handleUpdateStatus = async (newStatus: string) => {
   }
 };
 
-const showInvoiceForm = ref(false);
 const showPreview = ref(false);
+const previewInvoice = ref<QuotationInvoice | null>(null);
+const showInvoiceForm = ref(false);
 const editingInvoice = ref<QuotationInvoice | null>(null);
 const isCreatingInvoice = ref(false);
-const previewInvoice = ref<QuotationInvoice | null>(null);
-const invoicePreviewRef = ref<InstanceType<typeof QuotationInvoicePreview> | null>(null);
+
+const nextInvoiceNumber = computed(() => {
+  const count = quotationInvoices.value.length + 1;
+  const dateStamp = new Date().toISOString().slice(2, 10).replace(/-/g, "");
+  return `QINV-${dateStamp}-${String(count).padStart(3, "0")}`;
+});
+
+const openCreateInvoiceForm = () => {
+  editingInvoice.value = null;
+  showInvoiceForm.value = true;
+};
 
 const openEditInvoiceForm = (invoice: QuotationInvoice) => {
   editingInvoice.value = invoice;
@@ -215,6 +217,12 @@ const openEditInvoiceForm = (invoice: QuotationInvoice) => {
 
 const openInvoicePreview = (invoice: QuotationInvoice) => {
   previewInvoice.value = invoice;
+  showPreview.value = false;
+};
+
+const closeServicePreview = () => {
+  showPreview.value = false;
+  previewInvoice.value = null;
 };
 
 const getQuotationInvoiceCurrency = (invoice: QuotationInvoice) => {
@@ -223,38 +231,30 @@ const getQuotationInvoiceCurrency = (invoice: QuotationInvoice) => {
   return currencies.length === 1 ? currencies[0]! : "IDR";
 };
 
-const handleGenerateInvoicePDF = async () => {
-  if (!invoicePreviewRef.value) return;
-  await invoicePreviewRef.value.generatePDF();
-};
-
-const nextInvoiceNumber = computed(() => {
-  const count = (quotationInvoices.value?.length || 0) + 1;
-  return `QINV-${new Date().toISOString().slice(2, 10).replace(/-/g, "")}-${String(count).padStart(3, "0")}`;
-});
-
-const openCreateInvoiceForm = () => {
-  editingInvoice.value = null;
-  showInvoiceForm.value = true;
-};
-
 const handleInvoiceFormSubmit = async (payload: QuotationInvoice) => {
   if (!quotation.value) return;
   isCreatingInvoice.value = true;
   try {
     const existingId = editingInvoice.value?.id;
-    const updated = existingId
-      ? (quotationInvoices.value || []).map((inv) =>
-          inv.id === existingId ? { ...payload, id: existingId } : inv,
+    const updatedInvoices = existingId
+      ? quotationInvoices.value.map((invoice) =>
+          invoice.id === existingId ? { ...payload, id: existingId } : invoice,
         )
-      : [...(quotationInvoices.value || []), payload];
-    const res = await updateQuotationInvoices(quotation.value.id, updated);
+      : [...quotationInvoices.value, payload];
+    const res = await updateQuotationInvoices(quotation.value.id, updatedInvoices);
     if (res.success) {
-      toast.success(editingInvoice.value ? "Quotation updated." : "Quotation created.");
+      toast.success(
+        editingInvoice.value
+          ? "Service item berhasil diupdate."
+          : "Service item berhasil ditambahkan.",
+      );
       showInvoiceForm.value = false;
       editingInvoice.value = null;
+      activeTab.value = "items";
+      closeServicePreview();
+      await getQuotation(quotation.value.id);
     } else {
-      toast.error(res.error || "Failed to save invoice.");
+      toast.error(res.error || "Gagal menyimpan service item.");
     }
   } finally {
     isCreatingInvoice.value = false;
@@ -264,18 +264,33 @@ const handleInvoiceFormSubmit = async (payload: QuotationInvoice) => {
 const handleDeleteInvoice = async (invoiceId?: string) => {
   if (!quotation.value || !invoiceId) return;
   const yes = await confirm({
-    title: "Delete Quotation",
-    message: "Hapus quotation ini?",
-    confirmText: "Hapus",
-    cancelText: "Batal",
+    title: "Delete Service Item",
+    message: "Hapus service item ini dari quotation?",
+    confirmText: "Delete",
+    cancelText: "Cancel",
   });
   if (!yes) return;
-  const updated = (quotationInvoices.value || []).filter((inv) => inv.id !== invoiceId);
-  const res = await updateQuotationInvoices(quotation.value.id, updated);
+
+  const res = await updateQuotationInvoices(
+    quotation.value.id,
+    quotationInvoices.value.filter((invoice) => invoice.id !== invoiceId),
+  );
   if (res.success) {
-    toast.success("Quotation deleted.");
+    toast.success("Service item berhasil dihapus.");
+    closeServicePreview();
+    await getQuotation(quotation.value.id);
   } else {
-    toast.error(res.error || "Failed to delete invoice.");
+    toast.error(res.error || "Gagal menghapus service item.");
+  }
+};
+
+const handleGenerateInvoicePDF = async () => {
+  if (!invoicePreviewRef.value) return;
+  isGeneratingPDF.value = true;
+  try {
+    await invoicePreviewRef.value.generatePDF();
+  } finally {
+    isGeneratingPDF.value = false;
   }
 };
 
@@ -739,13 +754,24 @@ const handleGeneratePDF = async () => {
                 <!-- Tab 2: Service Items (Printable Preview) -->
                 <div v-else-if="activeTab === 'items'" class="animate-fade-in">
                   <!-- Card View -->
-                  <div v-if="!showPreview" class="space-y-4">
-                    <div>
-                      <h3 class="text-base font-bold text-foreground">Service Items</h3>
-                      <p class="text-[11px] text-muted-foreground mt-0.5 max-w-lg">
-                        Printable quotation preview untuk dikirim ke customer. Klik untuk melihat
-                        tampilan PDF.
-                      </p>
+                  <div v-if="!showPreview && !previewInvoice" class="space-y-4">
+                    <div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
+                      <div>
+                        <h3 class="text-base font-bold text-foreground">Service Items</h3>
+                        <p class="text-[11px] text-muted-foreground mt-0.5 max-w-lg">
+                          Printable quotation preview untuk dikirim ke customer. Klik untuk melihat
+                          tampilan PDF.
+                        </p>
+                      </div>
+                      <button
+                        v-if="canManage && quotation?.status !== 'CONVERTED'"
+                        type="button"
+                        @click="openCreateInvoiceForm"
+                        class="inline-flex items-center px-3 py-1.5 bg-[#012D5A] text-white text-xs font-semibold rounded-md hover:bg-[#012D5A]/90 transition-colors gap-1.5 shadow-sm w-fit"
+                      >
+                        <Plus class="w-3.5 h-3.5" />
+                        Add Service Item
+                      </button>
                     </div>
                     <div
                       @click="showPreview = true"
@@ -800,16 +826,74 @@ const handleGeneratePDF = async () => {
                         />
                       </div>
                     </div>
+
+                    <div
+                      v-for="(qinv, index) in quotationInvoices"
+                      :key="qinv.id || qinv.number || `service-item-${index}`"
+                      @click="openInvoicePreview(qinv)"
+                      class="group p-4 rounded-xl border border-border bg-white hover:border-[#012D5A]/30 hover:shadow-md transition-all cursor-pointer flex items-center justify-between"
+                    >
+                      <div class="flex items-center gap-4 min-w-0">
+                        <div
+                          class="w-10 h-10 rounded-lg bg-blue-50 text-[#012D5A] flex items-center justify-center shrink-0 border border-blue-100"
+                        >
+                          <FileText class="w-5 h-5" />
+                        </div>
+                        <div class="min-w-0">
+                          <span
+                            class="font-bold text-sm text-foreground group-hover:text-[#012D5A] transition-colors"
+                            >{{ qinv.number || "Draft Service Item" }}</span
+                          >
+                          <p class="text-xs text-muted-foreground mt-0.5 truncate">
+                            {{ quotation.customerName || "—" }} ·
+                            {{ (qinv.items || []).length }} item(s)
+                          </p>
+                        </div>
+                      </div>
+                      <div class="flex items-center gap-3 shrink-0">
+                        <button
+                          v-if="canManage && quotation?.status !== 'CONVERTED'"
+                          type="button"
+                          class="p-1.5 rounded-md text-muted-foreground hover:text-[#012D5A] hover:bg-blue-50 transition-colors"
+                          @click.stop="openEditInvoiceForm(qinv)"
+                          title="Edit service item"
+                        >
+                          <Edit class="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          v-if="canManage && quotation?.status !== 'CONVERTED'"
+                          type="button"
+                          class="p-1.5 rounded-md text-muted-foreground hover:text-red-600 hover:bg-red-50 transition-colors"
+                          @click.stop="handleDeleteInvoice(qinv.id)"
+                          title="Delete service item"
+                        >
+                          <Trash2 class="w-3.5 h-3.5" />
+                        </button>
+                        <div class="text-right">
+                          <p class="font-black text-sm text-[#012D5A]">
+                            {{
+                              formatCurrencyAmount(
+                                qinv.total || 0,
+                                getQuotationInvoiceCurrency(qinv),
+                              )
+                            }}
+                          </p>
+                        </div>
+                        <ChevronRight
+                          class="w-4 h-4 text-muted-foreground group-hover:text-[#012D5A] transition-colors"
+                        />
+                      </div>
+                    </div>
                   </div>
 
-                  <!-- Detail/Preview View -->
-                  <template v-else>
+                  <!-- Main Quotation Preview -->
+                  <template v-else-if="showPreview">
                     <div
                       class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border/50 pb-6 mb-6"
                     >
                       <div class="flex items-start gap-4">
                         <button
-                          @click="showPreview = false"
+                          @click="closeServicePreview"
                           class="p-2 -ml-2 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground shrink-0 mt-0.5"
                         >
                           <ArrowLeft class="w-5 h-5" />
@@ -845,120 +929,22 @@ const handleGeneratePDF = async () => {
                     </div>
                     <QuotationPreview ref="previewRef" :quotation="quotation" />
                   </template>
-                </div>
-                <!-- Tab 3: Additional quotations -->
-                <div v-else-if="activeTab === 'invoices'" class="animate-fade-in space-y-6">
-                  <template v-if="!previewInvoice">
-                    <div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
-                      <div>
-                        <h3 class="text-base font-bold text-foreground">Additional Quotations</h3>
-                        <p class="text-[11px] text-muted-foreground mt-0.5 max-w-lg">
-                          Daftar quotation tambahan dari charge item yang dipilih.
-                        </p>
-                      </div>
-                      <button
-                        v-if="canManage && quotation?.status !== 'CONVERTED'"
-                        @click="openCreateInvoiceForm"
-                        class="inline-flex items-center px-3 py-1.5 bg-[#012D5A] text-white text-xs font-semibold rounded-md hover:bg-[#012D5A]/90 transition-colors gap-1.5 shadow-sm w-fit"
-                      >
-                        <Plus class="w-3.5 h-3.5" />
-                        Add Quotation
-                      </button>
-                    </div>
 
-                    <div
-                      v-if="quotationInvoices.length === 0"
-                      class="border border-dashed border-border rounded-xl p-8 text-center bg-white"
-                    >
-                      <FileText class="w-8 h-8 mx-auto text-muted-foreground/40 mb-3" />
-                      <p class="text-sm font-semibold text-foreground mb-1">
-                        Belum ada quotation tambahan.
-                      </p>
-                      <p
-                        class="text-xs text-muted-foreground max-w-[300px] mx-auto leading-relaxed"
-                      >
-                        Tambahkan quotation dari charge item yang ingin dipisahkan.
-                      </p>
-                    </div>
-
-                    <div v-else class="space-y-3">
-                      <div
-                        v-for="qinv in quotationInvoices"
-                        :key="qinv.id"
-                        class="group p-4 rounded-xl border border-border bg-white hover:border-[#012D5A]/30 hover:shadow-md transition-all cursor-pointer flex items-center justify-between gap-4"
-                        role="button"
-                        tabindex="0"
-                        @click="openInvoicePreview(qinv)"
-                        @keydown.enter.prevent="openInvoicePreview(qinv)"
-                        @keydown.space.prevent="openInvoicePreview(qinv)"
-                      >
-                        <div class="flex items-center gap-4 min-w-0">
-                          <div
-                            class="w-10 h-10 rounded-lg bg-blue-50 text-[#012D5A] flex items-center justify-center shrink-0 border border-blue-100"
-                          >
-                            <FileText class="w-5 h-5" />
-                          </div>
-                          <div class="min-w-0">
-                            <span
-                              class="font-bold text-sm text-foreground group-hover:text-[#012D5A] transition-colors truncate block"
-                            >
-                              {{ qinv.number || "-" }}
-                            </span>
-                            <p class="text-xs text-muted-foreground mt-0.5 truncate">
-                              {{ qinv.items?.[0]?.description || "No item description" }} ·
-                              {{ qinv.items?.length || 0 }} charge(s)
-                            </p>
-                          </div>
-                        </div>
-                        <div class="flex items-center gap-3 shrink-0">
-                          <div class="text-right">
-                            <p class="font-black text-sm text-[#012D5A]">
-                              {{
-                                formatCurrencyAmount(qinv.total, getQuotationInvoiceCurrency(qinv))
-                              }}
-                            </p>
-                            <p class="text-[9px] text-muted-foreground font-bold uppercase">
-                              Quotation
-                            </p>
-                          </div>
-                          <button
-                            v-if="canManage && quotation?.status !== 'CONVERTED'"
-                            @click.stop="openEditInvoiceForm(qinv)"
-                            class="p-1.5 rounded-lg text-muted-foreground hover:text-[#012D5A] hover:bg-blue-50 transition-colors"
-                            title="Edit quotation"
-                          >
-                            <Pencil class="w-4 h-4" />
-                          </button>
-                          <button
-                            v-if="canManage && quotation?.status !== 'CONVERTED'"
-                            @click.stop="handleDeleteInvoice(qinv.id)"
-                            class="p-1.5 rounded-lg text-muted-foreground hover:text-red-600 hover:bg-red-50 transition-colors"
-                            title="Delete quotation"
-                          >
-                            <Trash2 class="w-4 h-4" />
-                          </button>
-                          <ChevronRight
-                            class="w-4 h-4 text-muted-foreground group-hover:text-[#012D5A] transition-colors"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </template>
-
-                  <template v-else>
+                  <!-- Standalone Service Item Preview -->
+                  <template v-else-if="previewInvoice">
                     <div
                       class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border/50 pb-6 mb-6"
                     >
                       <div class="flex items-start gap-4">
                         <button
-                          @click="previewInvoice = null"
+                          @click="closeServicePreview"
                           class="p-2 -ml-2 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground shrink-0 mt-0.5"
                         >
                           <ArrowLeft class="w-5 h-5" />
                         </button>
                         <div class="flex flex-col gap-2 mt-1">
                           <h1 class="text-2xl font-bold text-foreground leading-none">
-                            {{ previewInvoice.number || "Additional Quotation" }}
+                            {{ previewInvoice.number || "Draft Service Item" }}
                           </h1>
                           <p class="text-sm text-muted-foreground leading-none mb-1">
                             {{ quotation.customerName || "—" }} ·
@@ -968,16 +954,25 @@ const handleGeneratePDF = async () => {
                       </div>
                       <div class="flex flex-wrap items-center justify-end gap-3 shrink-0">
                         <button
-                          @click="handleGenerateInvoicePDF"
-                          class="px-4 py-2 bg-[#012D5A] hover:bg-[#012D5A]/90 text-white rounded-md shadow-sm text-xs font-semibold flex items-center gap-2 transition-colors"
+                          v-if="canManage && quotation?.status !== 'CONVERTED'"
+                          @click="openEditInvoiceForm(previewInvoice)"
+                          class="px-4 py-2 border border-border bg-white hover:bg-gray-50 text-gray-700 rounded-md shadow-sm text-xs font-semibold flex items-center gap-2 transition-colors"
                         >
-                          <Download class="w-3.5 h-3.5" />
-                          Download PDF
+                          <Edit class="w-3.5 h-3.5" />
+                          Edit
+                        </button>
+                        <button
+                          @click="handleGenerateInvoicePDF"
+                          :disabled="isGeneratingPDF"
+                          class="px-4 py-2 bg-[#012D5A] hover:bg-[#012D5A]/90 text-white rounded-md shadow-sm text-xs font-semibold flex items-center gap-2 transition-colors disabled:opacity-50"
+                        >
+                          <Loader2 v-if="isGeneratingPDF" class="w-3.5 h-3.5 animate-spin" />
+                          <Download v-else class="w-3.5 h-3.5" />
+                          {{ isGeneratingPDF ? "Generating..." : "Download PDF" }}
                         </button>
                       </div>
                     </div>
                     <QuotationInvoicePreview
-                      v-if="quotation"
                       ref="invoicePreviewRef"
                       :quotation="quotation"
                       :invoice="previewInvoice"
@@ -1130,14 +1125,13 @@ const handleGeneratePDF = async () => {
     </Transition>
   </Teleport>
 
-  <!-- Quotation Form Modal -->
   <Modal
     v-model="showInvoiceForm"
-    :title="editingInvoice ? 'Edit Quotation' : 'Create Quotation'"
+    :title="editingInvoice ? 'Edit Service Item' : 'Add Service Item'"
     :description="
       editingInvoice
-        ? 'Modify this quotation document.'
-        : 'Create a new quotation document from selected charges.'
+        ? 'Update service item document untuk quotation ini.'
+        : 'Buat service item document yang berdiri sendiri di quotation ini.'
     "
     width="2xl"
   >

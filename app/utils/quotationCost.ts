@@ -39,6 +39,18 @@ export interface ProfitCharge {
   unitPrice?: string | number | null;
 }
 
+export interface ProfitQuotationInvoiceItem {
+  currency?: string | null;
+  amount?: string | number | null;
+  quantity?: string | number | null;
+  unitPrice?: string | number | null;
+}
+
+export interface ProfitQuotationInvoice {
+  currency?: string | null;
+  items?: ProfitQuotationInvoiceItem[] | null;
+}
+
 export interface ProfitCostItem {
   currency?: string | null;
   amount?: string | number | null;
@@ -55,6 +67,7 @@ export interface ProfitQuotation {
   currency?: string | null;
   exchangeRate?: string | number | null;
   charges?: ProfitCharge[] | null;
+  quotationInvoices?: ProfitQuotationInvoice[] | null;
 }
 
 export interface ProfitSummaryOptions {
@@ -147,6 +160,23 @@ export function calculateQuotationProfitSummary(
     ensureProfitBucket(summary, targetCurrency).revenue += targetAmount;
     summary.combined.revenueIDR += currency === "USD" ? amount * effectiveQuotationRate : amount;
     if (isRevenueEstimated) summary.isEstimated = true;
+  });
+
+  (quotation.quotationInvoices || []).forEach((invoice) => {
+    const invoiceCurrency = invoice.currency || quotationCurrency;
+    (invoice.items || []).forEach((item) => {
+      const currency = item.currency || invoiceCurrency;
+      const isRevenueEstimated =
+        !item.currency || (currency === "USD" && quotationRate <= 1 && fallbackRate > 1);
+      const amount = Number(item.amount || numeric(item.quantity) * numeric(item.unitPrice));
+      const targetCurrency = currency === "USD" && isQuotationRateConfigured ? "IDR" : currency;
+      const targetAmount =
+        currency === "USD" && isQuotationRateConfigured ? amount * effectiveQuotationRate : amount;
+
+      ensureProfitBucket(summary, targetCurrency).revenue += targetAmount;
+      summary.combined.revenueIDR += currency === "USD" ? amount * effectiveQuotationRate : amount;
+      if (isRevenueEstimated) summary.isEstimated = true;
+    });
   });
 
   costs.forEach((cost) => {

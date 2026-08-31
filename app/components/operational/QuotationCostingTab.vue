@@ -156,6 +156,12 @@ const needsEstimateExchangeRate = computed(() => {
     (props.quotation.charges || []).some((charge) => !charge.currency || charge.currency === "USD")
   )
     return true;
+  if (
+    (props.quotation.quotationInvoices || []).some((invoice) =>
+      (invoice.items || []).some((item) => !item.currency || item.currency === "USD"),
+    )
+  )
+    return true;
   return costs.value.some((cost) => hasUsdItem(cost) && Number(cost.exchangeRate || 1) <= 1);
 });
 

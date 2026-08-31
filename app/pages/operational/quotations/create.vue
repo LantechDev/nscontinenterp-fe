@@ -1,41 +1,17 @@
 <script setup lang="ts">
-import {
-  ArrowLeft,
-  Save,
-  Plus,
-  Trash2,
-  DollarSign,
-  TrendingUp,
-  Percent,
-  Calculator,
-  FileText,
-  Building2,
-  X,
-  Loader2,
-  RefreshCw,
-  AlertTriangle,
-  Receipt,
-  Wallet,
-  Eye,
-} from "lucide-vue-next";
+import { ArrowLeft, Save, FileText, Building2, X, Loader2 } from "lucide-vue-next";
 import Combobox from "~/components/ui/Combobox.vue";
 import DatePicker from "~/components/ui/DatePicker.vue";
 import SectionCard from "~/pages/operational/jobs/components/SectionCard.vue";
-import {
-  useQuotations,
-  type QuotationInvoice,
-  type QuotationCost,
-} from "~/composables/useQuotations";
-import { useFinanceTax, type Tax } from "~/composables/useFinanceTax";
-import { useServices } from "~/composables/useServices";
-import ServiceCreateModal from "~/pages/master/services/components/ServiceCreateModal.vue";
+import { useQuotations } from "~/composables/useQuotations";
 import CompanyCreateModal from "~/pages/master/company/components/CompanyCreateModal.vue";
-import QuotationInvoiceForm from "~/components/operational/QuotationInvoiceForm.vue";
-import QuotationCostForm from "~/components/operational/QuotationCostForm.vue";
-import Modal from "~/components/ui/Modal.vue";
 import type { Port, ContainerType } from "~/composables/useMasterData";
-import { formatCurrencyAmount, formatCurrencyInput, parseCurrencyInput } from "~/utils/currency";
-import { getQuotationFormGroupedTotals } from "~/utils/quotation-display";
+import {
+  getQuotationContainerTypeOptions,
+  getQuotationPortSearchType,
+  isQuotationAirFreight,
+  normalizeQuotationServiceMode,
+} from "~/utils/quotationRouteOptions";
 import { toast } from "vue-sonner";
 
 definePageMeta({
@@ -43,25 +19,10 @@ definePageMeta({
   title: "Create Quotation",
 });
 
-const { createQuotation, getQuotation, updateQuotationInvoices, updateQuotationCosts, isLoading } =
-  useQuotations();
-const { fetchTaxes } = useFinanceTax();
-const { createService } = useServices();
+const { createQuotation, getQuotation, isLoading } = useQuotations();
 const router = useRouter();
 
-const isServiceModalOpen = ref(false);
-const isSubmittingService = ref(false);
-const activeItemIndex = ref<number | null>(null);
-const serviceError = ref<string | null>(null);
-const initialServiceData = ref<{ name: string; code: string } | null>(null);
-
 // Fetch Selector Option Lists
-interface ServiceItem {
-  id: string;
-  name: string;
-  code: string;
-}
-
 interface CompanyItem {
   id: string;
   name: string;
@@ -74,24 +35,14 @@ const {
 } = useAsyncData(
   "quotation-create-master",
   async () => {
-    const [comps, servs, taxesRes, initialPorts, cTypes] = await Promise.all([
+    const [comps, initialPorts, cTypes] = await Promise.all([
       $fetch<CompanyItem[]>("/api/master/companies"),
-      $fetch<ServiceItem[]>("/api/master/services"),
-      fetchTaxes({ isActive: true }),
       $fetch<Port[]>("/api/master/ports"),
       $fetch<ContainerType[]>("/api/master/container-types"),
     ]);
 
-    const dynamicTaxes = (taxesRes?.items || []).map((t) => ({
-      name: `${t.name} (${Number(t.rate)}%)`,
-      id: t.id,
-      rate: Number(t.rate),
-    }));
-
     return {
       companies: comps || [],
-      services: servs || [],
-      taxes: [{ name: "0%", id: "", rate: 0 }, ...dynamicTaxes],
       ports: initialPorts || [],
       containerTypes: cTypes || [],
     };
@@ -106,22 +57,12 @@ const customers = computed(() => {
   }));
 });
 
-const services = computed(() => {
-  return (masterData.value?.services || []).map((s) => ({
-    id: s.id,
-    name: s.name,
-  }));
-});
-
-const truckContainerTypeCodes = new Set(["CDE", "CDD", "CDD_LONG", "WING_BOX"]);
-
 const containerTypes = computed(() => {
-  return (masterData.value?.containerTypes || [])
-    .filter((ct) => !truckContainerTypeCodes.has(ct.code))
-    .map((ct) => ({
-      id: ct.id,
-      name: ct.name,
-    }));
+  return getQuotationContainerTypeOptions({
+    serviceType: formData.serviceType,
+    shipmentType: formData.shipmentType,
+    containerTypes: masterData.value?.containerTypes || [],
+  });
 });
 
 const truckContainerTypes = computed(() => {
@@ -166,14 +107,12 @@ const TRADE_TYPES = [
 
 const SERVICE_TYPES = [
   { id: "OCEAN", name: "FREIGHT" },
+  { id: "AIR", name: "AIR FREIGHT" },
   { id: "TRUCKING", name: "TRUCKING" },
   { id: "CUSTOM_CLEARANCE", name: "CUSTOM CLEARANCE" },
 ];
 
-const SHIPMENT_TYPES = [
-  { id: "OCEAN", name: "Ocean Freight" },
-  { id: "AIR", name: "Air Freight" },
-];
+const SHIPMENT_TYPES = [{ id: "OCEAN", name: "Ocean Freight" }];
 
 const FREIGHT_TERMS = [
   { id: "PREPAID", name: "PREPAID" },
@@ -201,18 +140,25 @@ watch(
 const portsPol = computed(() => searchedPorts.value);
 const portsPod = computed(() => searchedPorts.value);
 const isOceanService = computed(() => formData.serviceType === "OCEAN");
-const isOcean = computed(
-  () => formData.serviceType === "OCEAN" && formData.shipmentType === "OCEAN",
+const isAir = computed(() =>
+  isQuotationAirFreight({ serviceType: formData.serviceType, shipmentType: formData.shipmentType }),
 );
-const isAir = computed(() => formData.serviceType === "OCEAN" && formData.shipmentType === "AIR");
 const isTrucking = computed(() => formData.serviceType === "TRUCKING");
 const isCustomClearance = computed(() => formData.serviceType === "CUSTOM_CLEARANCE");
-const usesPortRoute = computed(() => isOceanService.value || isCustomClearance.value);
-const portSearchType = computed(() => (isAir.value ? "air" : "ocean"));
+const usesPortRoute = computed(
+  () => isOceanService.value || isAir.value || isCustomClearance.value,
+);
+const portSearchType = computed(() =>
+  getQuotationPortSearchType({
+    serviceType: formData.serviceType,
+    shipmentType: formData.shipmentType,
+  }),
+);
 
 async function handleSearchPol(query: string) {
   if (!query) {
-    searchedPorts.value = (masterData.value?.ports || []).map(uppercasePort);
+    const results = await $fetch<Port[]>(`/api/master/ports?type=${portSearchType.value}`);
+    searchedPorts.value = results.map(uppercasePort);
     return;
   }
   const results = await $fetch<Port[]>(
@@ -252,19 +198,6 @@ const formData = reactive({
   exchangeRate: 1,
   allowMultipleInvoices: false,
   notes: "",
-  taxId: "",
-  charges: [
-    {
-      id: Date.now(),
-      serviceId: "",
-      taxId: "",
-      description: "",
-      quantity: 1,
-      unitPrice: 0,
-      atCost: false,
-      currency: "IDR" as "IDR" | "USD",
-    },
-  ],
 });
 
 const route = useRoute();
@@ -279,19 +212,17 @@ watch(
       const res = await getQuotation(copyFrom);
       if (res.success && res.data) {
         const q = res.data;
-        const normalizedServiceType = q.serviceType === "AIR" ? "OCEAN" : q.serviceType || "OCEAN";
-        const normalizedShipmentType =
-          q.serviceType === "AIR"
-            ? "AIR"
-            : ["OCEAN", "AIR"].includes(q.shipmentType || "")
-              ? q.shipmentType || "OCEAN"
-              : "OCEAN";
+        const normalizedMode = normalizeQuotationServiceMode({
+          serviceType: q.serviceType,
+          shipmentType: q.shipmentType,
+        });
 
         formData.customerId = q.customerId;
         formData.picName = q.picName || "";
         formData.tradeTypeId = q.tradeTypeId || "EXPORT";
-        formData.serviceType = normalizedServiceType;
-        formData.shipmentType = normalizedServiceType === "OCEAN" ? normalizedShipmentType : "";
+        formData.serviceType = normalizedMode.serviceType;
+        formData.shipmentType =
+          normalizedMode.serviceType === "OCEAN" ? "OCEAN" : normalizedMode.shipmentType;
         formData.pol = q.pol || "";
         formData.pod = q.pod || "";
         formData.containerTypeId = q.containerTypeId || "";
@@ -315,22 +246,10 @@ watch(
         formData.exchangeRate = Number(q.exchangeRate || 1);
         formData.allowMultipleInvoices = Boolean(q.allowMultipleInvoices);
         formData.notes = q.notes || "";
-        formData.taxId = q.taxId || "";
-
-        formData.charges = (q.charges || []).map((ch) => ({
-          id: Date.now() + Math.random(),
-          serviceId: ch.serviceId || "",
-          taxId: ch.taxId || "",
-          description: ch.description || "",
-          quantity: Number(ch.quantity || 1),
-          unitPrice: Number(ch.unitPrice || 0),
-          atCost: Boolean(ch.atCost),
-          currency: ch.currency || "IDR",
-        }));
 
         // Fetch and merge selected POL/POD to ensure they are available in dropdown options
         const portQueries = [];
-        const portSearchTypeVal = normalizedShipmentType === "AIR" ? "air" : "ocean";
+        const portSearchTypeVal = getQuotationPortSearchType(normalizedMode);
         if (q.pol) {
           portQueries.push(
             $fetch<Port[]>(`/api/master/ports`, {
@@ -364,96 +283,8 @@ watch(
   { immediate: true },
 );
 
-// Helper to add charge line
-function addChargeLine() {
-  formData.charges.push({
-    id: Date.now(),
-    serviceId: "",
-    taxId: "",
-    description: "",
-    quantity: 1,
-    unitPrice: 0,
-    atCost: false,
-    currency: "IDR",
-  });
-}
-
-// Helper to remove charge line
-function removeChargeLine(index: number) {
-  if (formData.charges.length > 1) {
-    formData.charges.splice(index, 1);
-  } else {
-    toast.error("Quotation harus memiliki minimal 1 item service.");
-  }
-}
-
 const isCompanyModalOpen = ref(false);
 const presetCompanyName = ref("");
-
-// Pending invoice & cost state (saved after quotation created)
-const pendingInvoices = ref<QuotationInvoice[]>([]);
-const pendingCosts = ref<QuotationCost[]>([]);
-const showInvoiceForm = ref(false);
-const showCostForm = ref(false);
-const editingInvoice = ref<QuotationInvoice | null>(null);
-const editingCost = ref<QuotationCost | null>(null);
-const invoiceFormSaving = ref(false);
-const costFormSaving = ref(false);
-
-const nextInvNumber = computed(() => {
-  const count = pendingInvoices.value.length + 1;
-  return `QINV-${new Date().toISOString().slice(2, 10).replace(/-/g, "")}-${String(count).padStart(3, "0")}`;
-});
-
-const getQuotationInvoiceCurrency = (inv: QuotationInvoice) => {
-  if (inv.currency) return inv.currency;
-  const currencies = [...new Set((inv.items || []).map((item) => item.currency || "IDR"))];
-  return currencies.length === 1 ? currencies[0]! : "IDR";
-};
-
-const handleInvoiceSubmit = (payload: QuotationInvoice) => {
-  if (editingInvoice.value) {
-    pendingInvoices.value = pendingInvoices.value.map((inv) =>
-      inv === editingInvoice.value ? { ...payload } : inv,
-    );
-    editingInvoice.value = null;
-  } else {
-    pendingInvoices.value = [...pendingInvoices.value, payload];
-  }
-  showInvoiceForm.value = false;
-  toast.success("Quotation added to pending list.");
-};
-
-const handleCostSubmit = (payload: QuotationCost) => {
-  if (editingCost.value) {
-    pendingCosts.value = pendingCosts.value.map((c) =>
-      c === editingCost.value ? { ...payload } : c,
-    );
-    editingCost.value = null;
-  } else {
-    pendingCosts.value = [...pendingCosts.value, payload];
-  }
-  showCostForm.value = false;
-  toast.success("Cost added to pending list.");
-};
-
-const removePendingInvoice = (idx: number) => {
-  pendingInvoices.value.splice(idx, 1);
-};
-
-const removePendingCost = (idx: number) => {
-  pendingCosts.value.splice(idx, 1);
-};
-
-const editPendingInvoice = (idx: number) => {
-  editingInvoice.value = pendingInvoices.value[idx] ?? null;
-  showInvoiceForm.value = true;
-};
-
-const editPendingCost = (idx: number) => {
-  editingCost.value = pendingCosts.value[idx] ?? null;
-  showCostForm.value = true;
-};
 
 function handleCreateCompany(name: string) {
   presetCompanyName.value = name;
@@ -466,85 +297,21 @@ const onCompanyCreateSuccess = async (company: CompanyItem) => {
   isCompanyModalOpen.value = false;
 };
 
-// Watchers to auto-fill description when service changes
-function handleServiceChange(index: number, serviceId: string) {
-  const selected = masterData.value?.services.find((s) => s.id === serviceId);
-  const row = formData.charges[index];
-  if (selected && row && !row.description) {
-    row.description = selected.name;
-  }
-}
-
-// Inline creation of a new service from the Combobox using standard ServiceCreateModal
-function handleCreateService(name: string, index: number) {
-  initialServiceData.value = {
-    name: name,
-    code: name.toUpperCase().replace(/\s+/g, "_").substring(0, 10),
-  };
-  activeItemIndex.value = index;
-  isServiceModalOpen.value = true;
-}
-
-async function submitServiceForm(modalData: {
-  name: string;
-  code: string;
-  status: string;
-  unitId: string;
-  categoryId: string;
-}) {
-  if (!modalData.name || !modalData.code) {
-    serviceError.value = "Please fill in all required fields (Name, Code)";
-    return;
-  }
-
-  isSubmittingService.value = true;
-  serviceError.value = null;
-
-  try {
-    const payload = {
-      name: modalData.name,
-      code: modalData.code,
-      unitId: modalData.unitId || undefined,
-      categoryId: modalData.categoryId || undefined,
-      isActive: modalData.status === "Active",
-    };
-
-    const res = await createService(payload);
-
-    if (res.success && res.data) {
-      // Add the new service to the local services list in masterData
-      if (masterData.value) {
-        masterData.value = {
-          ...masterData.value,
-          services: [...masterData.value.services, res.data],
-        };
-      }
-      if (activeItemIndex.value !== null) {
-        const row = formData.charges[activeItemIndex.value];
-        if (row) {
-          row.serviceId = res.data.id;
-          row.description = res.data.name;
-        }
-      }
-      isServiceModalOpen.value = false;
-      toast.success(`Service "${res.data.name}" successfully created!`);
-    } else {
-      serviceError.value = res.error || "Failed to create service";
-    }
-  } catch (error: unknown) {
-    serviceError.value = (error as Error)?.message || "Failed to create service";
-  } finally {
-    isSubmittingService.value = false;
-  }
-}
-
 watch(
   () => formData.serviceType,
   (serviceType) => {
     if (serviceType === "OCEAN") {
-      if (!["OCEAN", "AIR"].includes(formData.shipmentType)) {
-        formData.shipmentType = "OCEAN";
-      }
+      formData.shipmentType = "OCEAN";
+      formData.truckType = "";
+      formData.pickupAddress = "";
+      formData.deliveryAddress = "";
+      formData.pickupDate = "";
+      formData.deliveryDate = "";
+      return;
+    }
+    if (serviceType === "AIR") {
+      formData.shipmentType = "AIR";
+      formData.containerTypeId = "AIR_AIR";
       formData.truckType = "";
       formData.pickupAddress = "";
       formData.deliveryAddress = "";
@@ -574,60 +341,17 @@ watch(
 watch(
   () => formData.shipmentType,
   async (shipmentType) => {
-    if (formData.serviceType === "OCEAN") {
+    if (usesPortRoute.value) {
       const results = await $fetch<Port[]>(`/api/master/ports?type=${portSearchType.value}`);
       searchedPorts.value = results.map(uppercasePort);
     }
   },
 );
 
-// Mathematical Calculations matching Nuxt ERP Invoice standard
-const groupedTotals = computed(() =>
-  getQuotationFormGroupedTotals(formData, masterData.value?.taxes || []),
-);
-
-const hasUSDCharges = computed(() => formData.charges.some((ch) => ch.currency === "USD"));
-
-const quotationCurrency = computed(() => {
-  const currencies = [...new Set(formData.charges.map((ch) => ch.currency || "IDR"))];
-  return currencies.length === 1 ? currencies[0]! : "MIXED";
-});
-
-const isFetchingRate = ref(false);
-async function loadExchangeRate() {
-  isFetchingRate.value = true;
-  try {
-    const res = await $fetch<{ success: boolean; rate?: number }>(
-      "/api/finance/invoice/exchange-rate",
-    );
-    if (res?.success && res.rate) {
-      formData.exchangeRate = res.rate;
-      toast.success("Exchange rate updated from Frankfurter API.");
-    }
-  } catch {
-    toast.error("Failed to fetch exchange rate.");
-  } finally {
-    isFetchingRate.value = false;
-  }
-}
-
-// Currencies selector options
-const CURRENCIES = ["IDR", "USD"];
-
-const formatCurrency = (amount: number, currency: string = "IDR") =>
-  formatCurrencyAmount(amount, currency);
-
-const parseInputCurrency = (val: string, currency: string = formData.currency) =>
-  parseCurrencyInput(val, currency);
-
-const formatInputCurrency = (val: number | string, currency: string = formData.currency) =>
-  formatCurrencyInput(val, currency);
-
 // Scroll Spy & Navigation for Quotation Creation
 const SECTIONS = computed(() => [
   { id: "header-info", label: "Header Information", step: "1" },
-  { id: "pricing-info", label: "Service Items & Pricing", step: "2" },
-  { id: "remarks-info", label: "Remarks & Terms", step: "3" },
+  { id: "remarks-info", label: "Remarks & Terms", step: "2" },
 ]);
 
 const activeSection = ref("header-info");
@@ -715,28 +439,17 @@ async function handleSubmit() {
     return;
   }
 
-  const invalidCharges = formData.charges.some((ch) => !ch.serviceId);
-  if (invalidCharges) {
-    toast.error("Semua baris service harus memiliki jenis Service.");
-    return;
-  }
-
-  const legacySubTotal =
-    (groupedTotals.value.IDR?.subTotal || 0) + (groupedTotals.value.USD?.subTotal || 0);
-  const legacyTaxTotal =
-    (groupedTotals.value.IDR?.taxAmount || 0) + (groupedTotals.value.USD?.taxAmount || 0);
-  const legacyTotal = (groupedTotals.value.IDR?.total || 0) + (groupedTotals.value.USD?.total || 0);
-
   const payload = {
     customerId: formData.customerId,
     picName: formData.picName ? uppercase(formData.picName) : null,
     tradeTypeId: formData.tradeTypeId,
     serviceType: formData.serviceType,
-    shipmentType: isOceanService.value && formData.shipmentType ? formData.shipmentType : null,
+    shipmentType:
+      (isOceanService.value || isAir.value) && formData.shipmentType ? formData.shipmentType : null,
     pol: usesPortRoute.value && formData.pol ? uppercase(formData.pol) : null,
     pod: usesPortRoute.value && formData.pod ? uppercase(formData.pod) : null,
     containerTypeId:
-      (isOceanService.value || isTrucking.value) && formData.containerTypeId
+      (isOceanService.value || isAir.value || isTrucking.value) && formData.containerTypeId
         ? formData.containerTypeId
         : null,
     truckType: isTrucking.value && formData.truckType ? formData.truckType : null,
@@ -752,45 +465,19 @@ async function handleSubmit() {
     freeTime: formData.freeTime ? uppercase(formData.freeTime) : null,
     salesName: formData.salesName ? uppercase(formData.salesName) : null,
     notes: formData.notes ? uppercase(formData.notes) : null,
-    currency: quotationCurrency.value === "MIXED" ? "IDR" : quotationCurrency.value,
+    currency: formData.currency,
     exchangeRate: Number(formData.exchangeRate || 1),
     allowMultipleInvoices: formData.allowMultipleInvoices,
-    taxId: formData.taxId || null,
-    subTotal: legacySubTotal,
-    taxAmount: legacySubTotal > 0 ? (legacyTaxTotal / legacySubTotal) * 100 : 0,
-    taxTotal: legacyTaxTotal,
-    total: legacyTotal,
-    charges: formData.charges.map((ch) => ({
-      serviceId: ch.serviceId,
-      taxId: ch.taxId || formData.taxId || null,
-      description: ch.description || "Service Item",
-      quantity: Number(ch.quantity || 1),
-      unitPrice: ch.atCost ? 0 : Number(ch.unitPrice || 0),
-      amount: ch.atCost ? 0 : Number(ch.quantity || 1) * Number(ch.unitPrice || 0),
-      currency: ch.currency || "IDR",
-      atCost: Boolean(ch.atCost),
-    })),
+    taxId: null,
+    subTotal: 0,
+    taxAmount: 0,
+    taxTotal: 0,
+    total: 0,
+    charges: [],
   };
 
   const res = await createQuotation(payload);
   if (res.success && res.data) {
-    const q = res.data;
-    if (pendingInvoices.value.length > 0) {
-      const invoiceRes = await updateQuotationInvoices(q.id, pendingInvoices.value);
-      if (!invoiceRes.success) {
-        toast.error(invoiceRes.error || "Quotation dibuat, tapi gagal menyimpan invoice.");
-        return;
-      }
-    }
-
-    if (pendingCosts.value.length > 0) {
-      const costRes = await updateQuotationCosts(q.id, pendingCosts.value);
-      if (!costRes.success) {
-        toast.error(costRes.error || "Quotation dibuat, tapi gagal menyimpan cost.");
-        return;
-      }
-    }
-
     toast.success("Quotation berhasil dibuat.");
     router.push("/operational/quotations");
   } else {
@@ -988,7 +675,7 @@ async function handleSubmit() {
                   />
                 </div>
 
-                <div v-if="isOceanService" class="space-y-2">
+                <div v-if="isOceanService || isAir" class="space-y-2">
                   <label
                     class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
                   >
@@ -1199,498 +886,6 @@ async function handleSubmit() {
                   />
                 </div>
               </div>
-
-              <!-- Currency & Exchange Rate -->
-              <div class="mt-6 p-4 bg-blue-50/30 rounded-xl border border-blue-100 space-y-3">
-                <div class="flex items-center justify-between">
-                  <h4 class="text-[10px] font-black text-[#062c58] uppercase tracking-widest">
-                    Currency Configuration
-                  </h4>
-                  <span class="text-[9px] text-muted-foreground">
-                    Digunakan untuk profit analysis &amp; preview PDF
-                  </span>
-                </div>
-                <div
-                  v-if="hasUSDCharges && Number(formData.exchangeRate) <= 1"
-                  class="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg"
-                >
-                  <AlertTriangle class="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                  <div>
-                    <p class="text-[11px] font-bold text-amber-800">
-                      Isi exchange rate agar profit tidak negatif
-                    </p>
-                    <p class="text-[10px] text-amber-700 mt-0.5">
-                      Ada item USD di quotation. Kalau rate tetap 1, revenue USD akan dihitung
-                      sebagai IDR dan Net Profit jadi minus.
-                    </p>
-                  </div>
-                </div>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div class="space-y-1.5">
-                    <label
-                      class="text-[10px] font-black text-muted-foreground uppercase tracking-widest"
-                    >
-                      Quotation Currency
-                    </label>
-                    <div
-                      class="flex items-center gap-2 h-10 px-3 bg-gray-50 border border-border rounded-lg"
-                    >
-                      <span
-                        v-for="curr in [
-                          ...new Set(formData.charges.map((ch) => ch.currency || 'IDR')),
-                        ]"
-                        :key="curr"
-                        class="text-[11px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded border"
-                        :class="
-                          curr === 'IDR'
-                            ? 'bg-white text-[#062c58] border-[#062c58]/20'
-                            : 'bg-white text-emerald-700 border-emerald-200'
-                        "
-                      >
-                        {{ curr }}
-                      </span>
-                      <span class="text-[10px] text-muted-foreground ml-auto">auto</span>
-                    </div>
-                  </div>
-                  <div class="space-y-1.5">
-                    <label
-                      class="text-[10px] font-black text-muted-foreground uppercase tracking-widest"
-                    >
-                      Exchange Rate (USD → IDR)
-                    </label>
-                    <div class="flex gap-2 items-start">
-                      <div class="flex-1 space-y-1">
-                        <input
-                          type="text"
-                          :value="formatInputCurrency(formData.exchangeRate, 'IDR')"
-                          @input="
-                            (e) =>
-                              (formData.exchangeRate = parseInputCurrency(
-                                (e.target as HTMLInputElement).value,
-                                'IDR',
-                              ))
-                          "
-                          class="w-full px-3 py-2 text-sm border border-border rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-[#062c58] shadow-sm h-10 font-semibold"
-                          placeholder="16,000"
-                        />
-                        <p class="text-[9px] font-bold text-muted-foreground">
-                          $1 = {{ formatCurrency(Number(formData.exchangeRate) || 0, "IDR") }}
-                        </p>
-                      </div>
-                      <div class="relative group/tip shrink-0">
-                        <button
-                          type="button"
-                          @click="loadExchangeRate"
-                          :disabled="isFetchingRate"
-                          class="h-10 px-3 inline-flex items-center gap-1.5 bg-white border border-blue-200 text-[#062c58] text-[11px] font-bold rounded-lg hover:bg-blue-50 hover:border-blue-300 transition-all disabled:opacity-50"
-                        >
-                          <Loader2 v-if="isFetchingRate" class="w-3.5 h-3.5 animate-spin" />
-                          <RefreshCw v-else class="w-3.5 h-3.5" />
-                        </button>
-                        <div
-                          class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 bg-gray-900 text-white text-[10px] font-medium rounded-lg opacity-0 invisible group-hover/tip:opacity-100 group-hover/tip:visible transition-all duration-150 whitespace-nowrap z-50"
-                        >
-                          Ambil kurs terkini dari API
-                          <div
-                            class="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900"
-                          ></div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div class="mb-4"></div>
-            </SectionCard>
-
-            <!-- Items/Services Section -->
-            <SectionCard
-              id="pricing-info"
-              title="Service Items & Pricing"
-              :icon="Calculator"
-              no-padding
-            >
-              <div class="p-6 pb-0">
-                <span class="text-xs font-semibold text-muted-foreground"
-                  >List of quotation services & charges</span
-                >
-              </div>
-
-              <div class="border-t border-b border-border bg-muted/5 mt-4">
-                <!-- Header -->
-                <div
-                  class="grid grid-cols-12 gap-3 px-6 py-2 bg-gray-50/50 text-[10px] font-bold text-muted-foreground uppercase tracking-wider"
-                >
-                  <div class="col-span-5">Service / Description</div>
-                  <div class="col-span-2 text-center">Qty / Currency</div>
-                  <div class="col-span-2 text-right">Unit Price</div>
-                  <div class="col-span-2 text-center pr-4">At Cost</div>
-                  <div class="col-span-1"></div>
-                </div>
-
-                <!-- Body -->
-                <div class="divide-y divide-border/50">
-                  <div
-                    v-for="(ch, idx) in formData.charges"
-                    :key="ch.id"
-                    class="grid grid-cols-12 gap-3 px-6 py-4 items-start group hover:bg-white transition-colors relative"
-                    :style="{ zIndex: formData.charges.length + 10 - idx }"
-                  >
-                    <!-- Service dropdown and Description -->
-                    <div class="col-span-5 space-y-2">
-                      <Combobox
-                        v-model="ch.serviceId"
-                        :options="services"
-                        placeholder="Choose service..."
-                        allow-create
-                        @create="(name) => handleCreateService(name, idx)"
-                        @update:model-value="(val) => handleServiceChange(idx, val as string)"
-                      />
-                      <textarea
-                        v-model="ch.description"
-                        v-uppercase
-                        placeholder="Item description..."
-                        rows="1"
-                        class="w-full px-3 py-2 bg-white border border-border rounded-lg text-xs focus:ring-1 focus:ring-[#062c58] outline-none transition-all resize-none shadow-sm min-h-9"
-                      ></textarea>
-                    </div>
-
-                    <!-- Qty / Currency -->
-                    <div class="col-span-2 space-y-1.5">
-                      <input
-                        type="number"
-                        v-model.number="ch.quantity"
-                        min="1"
-                        class="w-full px-3 py-2 bg-white border border-border rounded-lg text-sm focus:ring-1 focus:ring-[#062c58] outline-none transition-all shadow-sm h-10 text-right"
-                        v-uppercase
-                      />
-                      <Combobox
-                        v-model="ch.currency"
-                        :options="[
-                          { id: 'IDR', name: 'IDR' },
-                          { id: 'USD', name: 'USD' },
-                        ]"
-                        @update:model-value="
-                          (val) => {
-                            if (!val) ch.currency = 'IDR';
-                          }
-                        "
-                        class="w-full"
-                        placeholder="Select..."
-                      />
-                    </div>
-
-                    <!-- Unit Price -->
-                    <div class="col-span-2 space-y-1.5">
-                      <template v-if="ch.atCost">
-                        <div
-                          class="h-10 flex items-center justify-end text-[11px] font-extrabold text-muted-foreground uppercase tracking-widest"
-                        >
-                          AT COST
-                        </div>
-                      </template>
-                      <template v-else>
-                        <input
-                          type="text"
-                          :value="formatInputCurrency(ch.unitPrice, ch.currency)"
-                          v-uppercase
-                          @input="
-                            (e) =>
-                              (ch.unitPrice = parseInputCurrency(
-                                (e.target as HTMLInputElement).value,
-                                ch.currency,
-                              ))
-                          "
-                          class="w-full px-3 py-2 bg-white border border-border rounded-lg text-sm text-right font-semibold focus:ring-1 focus:ring-[#062c58] outline-none transition-all shadow-sm h-10"
-                        />
-                      </template>
-                      <p
-                        class="text-[9px] text-right font-bold text-muted-foreground whitespace-nowrap pt-2"
-                      >
-                        Sub:
-                        {{
-                          formatCurrency(
-                            Number(ch.quantity || 1) * Number(ch.atCost ? 0 : ch.unitPrice || 0),
-                            ch.currency,
-                          )
-                        }}
-                      </p>
-                    </div>
-
-                    <!-- At Cost checkbox -->
-                    <div class="col-span-2 flex flex-col items-center justify-center pr-4">
-                      <label class="relative inline-flex items-center cursor-pointer">
-                        <input type="checkbox" v-model="ch.atCost" class="sr-only peer" />
-                        <div
-                          class="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#062c58]"
-                        ></div>
-                      </label>
-                    </div>
-
-                    <!-- Delete line -->
-                    <div class="col-span-1 flex justify-end">
-                      <button
-                        type="button"
-                        @click="removeChargeLine(idx)"
-                        class="p-2 text-muted-foreground hover:text-red-500 transition-colors disabled:opacity-30"
-                        :disabled="formData.charges.length === 1"
-                      >
-                        <Trash2 class="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div class="px-6 py-3 flex items-end justify-between">
-                <div class="min-w-[240px] w-72 space-y-1.5">
-                  <label
-                    class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest"
-                    >PPN / Tax</label
-                  >
-                  <Combobox
-                    v-model="formData.taxId"
-                    :options="masterData?.taxes || []"
-                    placeholder="Select PPN..."
-                  />
-                </div>
-                <div class="flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    @click="addChargeLine"
-                    class="inline-flex items-center gap-1.5 text-xs font-bold text-[#062c58] hover:bg-blue-50/50 px-3 py-1.5 rounded-lg border border-blue-100 transition-colors"
-                  >
-                    <Plus class="w-3.5 h-3.5" /> Add Service Line
-                  </button>
-                </div>
-              </div>
-
-              <!-- Pending quotation documents and costs summary -->
-              <div
-                v-if="pendingInvoices.length > 0 || pendingCosts.length > 0"
-                class="px-6 pb-6 pt-6 border-t border-border/40 space-y-4"
-              >
-                <div v-if="pendingInvoices.length > 0">
-                  <div class="flex items-center gap-2 mb-3">
-                    <div class="p-1 rounded-md bg-green-100 text-green-700">
-                      <Receipt class="w-3.5 h-3.5" />
-                    </div>
-                    <h4 class="text-xs font-bold text-foreground uppercase tracking-wide">
-                      Pending Quotations ({{ pendingInvoices.length }})
-                    </h4>
-                  </div>
-                  <div class="space-y-2">
-                    <div
-                      v-for="(inv, idx) in pendingInvoices"
-                      :key="idx"
-                      class="group p-3.5 rounded-xl border border-green-200 bg-green-50/30 hover:border-green-300 hover:shadow-sm transition-all"
-                    >
-                      <div class="flex items-start justify-between gap-3">
-                        <div class="flex items-start gap-3 min-w-0">
-                          <div
-                            class="w-9 h-9 rounded-lg bg-green-100 text-green-600 flex items-center justify-center shrink-0 border border-green-200"
-                          >
-                            <Receipt class="w-4 h-4" />
-                          </div>
-                          <div class="min-w-0">
-                            <div class="flex items-center gap-2">
-                              <span class="font-bold text-sm text-foreground">{{
-                                inv.number || "QINV-" + (idx + 1)
-                              }}</span>
-                              <span
-                                class="text-[9px] px-1.5 py-0.5 rounded font-black border uppercase tracking-wider bg-green-100 text-green-700 border-green-200"
-                                >Quotation</span
-                              >
-                            </div>
-                            <p class="text-xs text-muted-foreground mt-1">
-                              {{ inv.items?.length || 0 }} charge(s)
-                            </p>
-                          </div>
-                        </div>
-                        <div class="flex items-center gap-3">
-                          <div class="text-right">
-                            <p
-                              class="text-[9px] text-muted-foreground mb-0.5 uppercase tracking-widest font-bold opacity-70"
-                            >
-                              Total
-                            </p>
-                            <p class="font-black text-sm text-[#062c58]">
-                              {{ formatCurrency(inv.total || 0, getQuotationInvoiceCurrency(inv)) }}
-                            </p>
-                          </div>
-                          <div
-                            class="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
-                          >
-                            <button
-                              @click="editPendingInvoice(idx)"
-                              class="p-1.5 rounded-lg text-muted-foreground hover:text-[#062c58] hover:bg-blue-50 transition-colors"
-                              title="View / Edit"
-                            >
-                              <Eye class="w-4 h-4" />
-                            </button>
-                            <button
-                              @click="removePendingInvoice(idx)"
-                              class="p-1.5 rounded-lg text-muted-foreground hover:text-red-600 hover:bg-red-50 transition-colors"
-                            >
-                              <Trash2 class="w-4 h-4" />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                      <div
-                        v-if="inv.items?.length"
-                        class="mt-3 ml-12 border-t border-green-200/70 pt-2 space-y-1.5"
-                      >
-                        <div
-                          v-for="(item, itemIdx) in inv.items.slice(0, 3)"
-                          :key="`${idx}-${itemIdx}-${item.description}`"
-                          class="grid grid-cols-[1fr_auto_auto] gap-3 text-[11px] items-center"
-                        >
-                          <span class="font-semibold text-foreground truncate">
-                            {{ item.description || "Untitled charge" }}
-                          </span>
-                          <span class="text-muted-foreground">x{{ item.quantity || 1 }}</span>
-                          <span class="font-bold text-[#062c58]">
-                            {{
-                              formatCurrency(
-                                item.amount || 0,
-                                item.currency || getQuotationInvoiceCurrency(inv),
-                              )
-                            }}
-                          </span>
-                        </div>
-                        <p
-                          v-if="inv.items.length > 3"
-                          class="text-[10px] font-semibold text-muted-foreground"
-                        >
-                          +{{ inv.items.length - 3 }} more charge(s)
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div v-if="pendingCosts.length > 0">
-                  <div class="flex items-center gap-2 mb-3">
-                    <div class="p-1 rounded-md bg-red-100 text-red-700">
-                      <Wallet class="w-3.5 h-3.5" />
-                    </div>
-                    <h4 class="text-xs font-bold text-foreground uppercase tracking-wide">
-                      Pending Costs ({{ pendingCosts.length }})
-                    </h4>
-                  </div>
-                  <div class="space-y-2">
-                    <div
-                      v-for="(cost, idx) in pendingCosts"
-                      :key="idx"
-                      class="group p-3.5 rounded-xl border border-red-200 bg-red-50/30 hover:border-red-300 hover:shadow-sm transition-all flex items-center justify-between"
-                    >
-                      <div class="flex items-start gap-3">
-                        <div
-                          class="w-9 h-9 rounded-lg bg-red-100 text-red-600 flex items-center justify-center shrink-0 border border-red-200"
-                        >
-                          <Wallet class="w-4 h-4" />
-                        </div>
-                        <div>
-                          <div class="flex items-center gap-2">
-                            <span class="font-bold text-sm text-foreground">{{
-                              cost.number || "VCOST-" + (idx + 1)
-                            }}</span>
-                            <span
-                              class="text-[9px] px-1.5 py-0.5 rounded font-black border uppercase tracking-wider bg-red-100 text-red-700 border-red-200"
-                              >Cost</span
-                            >
-                          </div>
-                          <p class="text-xs text-muted-foreground mt-1">
-                            {{ cost.items?.length || 0 }} item(s)
-                          </p>
-                        </div>
-                      </div>
-                      <div class="flex items-center gap-3">
-                        <div class="text-right">
-                          <p
-                            class="text-[9px] text-muted-foreground mb-0.5 uppercase tracking-widest font-bold opacity-70"
-                          >
-                            Total
-                          </p>
-                          <p class="font-black text-sm text-red-600">
-                            {{ formatCurrency(cost.amount || 0) }}
-                          </p>
-                        </div>
-                        <div
-                          class="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          <button
-                            @click="editPendingCost(idx)"
-                            class="p-1.5 rounded-lg text-muted-foreground hover:text-[#062c58] hover:bg-blue-50 transition-colors"
-                            title="View / Edit"
-                          >
-                            <Eye class="w-4 h-4" />
-                          </button>
-                          <button
-                            @click="removePendingCost(idx)"
-                            class="p-1.5 rounded-lg text-muted-foreground hover:text-red-600 hover:bg-red-50 transition-colors"
-                          >
-                            <Trash2 class="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Total summary block -->
-              <div class="flex justify-end p-6">
-                <div
-                  class="w-[380px] space-y-4 bg-gray-50/50 p-5 rounded-xl border border-border shadow-sm"
-                >
-                  <h4 class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-                    Quotation Summary
-                  </h4>
-                  <div class="divide-y divide-border/50">
-                    <div
-                      v-for="(t, curr) in groupedTotals"
-                      :key="curr"
-                      class="py-2.5 first:pt-0 last:pb-0"
-                    >
-                      <div
-                        v-if="
-                          t.total > 0 ||
-                          (curr === 'IDR' &&
-                            Object.values(groupedTotals).every((x) => x.total === 0))
-                        "
-                        class="space-y-1.5"
-                      >
-                        <span
-                          class="text-[10px] font-extrabold text-[#062c58] uppercase tracking-wider"
-                          >{{ curr }} Charges</span
-                        >
-                        <div class="flex justify-between text-xs text-muted-foreground">
-                          <span>Subtotal</span>
-                          <span class="font-semibold text-foreground">{{
-                            formatCurrency(t.subTotal, curr)
-                          }}</span>
-                        </div>
-                        <div class="flex justify-between text-xs text-muted-foreground">
-                          <span>VAT / Tax</span>
-                          <span class="font-semibold text-foreground">{{
-                            formatCurrency(t.taxAmount, curr)
-                          }}</span>
-                        </div>
-                        <div
-                          class="flex justify-between text-sm font-bold text-[#062c58] pt-1 border-t border-dashed border-border/60"
-                        >
-                          <span>Total Amount</span>
-                          <span class="text-base font-black">{{
-                            formatCurrency(t.total, curr)
-                          }}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
             </SectionCard>
 
             <!-- Remarks Textarea paling bawah -->
@@ -1708,65 +903,11 @@ async function handleSubmit() {
       </main>
     </div>
 
-    <!-- Service Creation Modal -->
-    <ServiceCreateModal
-      :is-open="isServiceModalOpen"
-      :is-submitting="isSubmittingService"
-      :error="serviceError"
-      :initial-data="initialServiceData"
-      @update:is-open="(val) => (isServiceModalOpen = val)"
-      @submit="submitServiceForm"
-    />
-
     <!-- Company Creation Modal -->
     <CompanyCreateModal
       v-model="isCompanyModalOpen"
       :preset-name="presetCompanyName"
       @success="onCompanyCreateSuccess"
     />
-
-    <!-- Quotation Form Modal -->
-    <Modal
-      v-model="showInvoiceForm"
-      :title="editingInvoice ? 'Edit Quotation' : 'Create Quotation'"
-      :description="
-        editingInvoice
-          ? 'Modify this quotation document.'
-          : 'Group charges into an additional quotation document.'
-      "
-      width="2xl"
-    >
-      <QuotationInvoiceForm
-        v-if="showInvoiceForm"
-        :invoice="editingInvoice"
-        :is-saving="invoiceFormSaving"
-        :next-number="nextInvNumber"
-        :quotation-currency="quotationCurrency === 'MIXED' ? 'IDR' : quotationCurrency"
-        :quotation-exchange-rate="Number(formData.exchangeRate || 1)"
-        @submit="handleInvoiceSubmit"
-        @cancel="
-          showInvoiceForm = false;
-          editingInvoice = null;
-        "
-      />
-    </Modal>
-
-    <!-- Quotation Cost Form Modal -->
-    <Modal
-      v-model="showCostForm"
-      :title="editingCost ? 'Edit Cost' : 'Record Cost'"
-      :description="editingCost ? 'Edit cost details.' : 'Record a cost for this quotation.'"
-      width="2xl"
-    >
-      <QuotationCostForm
-        :cost="editingCost"
-        :is-saving="costFormSaving"
-        @submit="handleCostSubmit"
-        @cancel="
-          showCostForm = false;
-          editingCost = null;
-        "
-      />
-    </Modal>
   </div>
 </template>

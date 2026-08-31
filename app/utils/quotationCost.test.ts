@@ -92,6 +92,27 @@ describe("quotation cost totals", () => {
     expect(summary.byCurrency.USD).toMatchObject({ revenue: 0, cost: 0, profit: 0 });
   });
 
+  it("includes standalone quotation documents in profit revenue", () => {
+    const summary = calculateQuotationProfitSummary(
+      {
+        exchangeRate: 1,
+        charges: [{ currency: "IDR", quantity: 1, unitPrice: 1_000_000 }],
+        quotationInvoices: [
+          {
+            items: [
+              { currency: "IDR", quantity: 2, unitPrice: 500_000, amount: 1_000_000 },
+              { currency: "IDR", quantity: 1, unitPrice: 250_000, amount: 250_000 },
+            ],
+          },
+        ],
+      },
+      [],
+    );
+
+    expect(summary.combined.revenueIDR).toBe(2_250_000);
+    expect(summary.byCurrency.IDR?.revenue).toBe(2_250_000);
+  });
+
   it("uses quotation currency when a service item has no currency", () => {
     const summary = calculateQuotationProfitSummary(
       {

@@ -44,6 +44,8 @@ export interface QuotationInvoiceItem {
   id?: string;
   invoiceId?: string;
   chargeId?: string | null;
+  serviceId?: string | null;
+  serviceName?: string | null;
   description: string;
   quantity: number;
   unitPrice: number;

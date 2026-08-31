@@ -22,6 +22,7 @@ const handleDownloadProfit = async () => {
 const props = defineProps<{
   jobId: string;
   jobNumber: string;
+  quotationId?: string | null;
   customerId?: string;
   jobParties?: EblParty[];
   initialInvoiceId?: string;
@@ -129,6 +130,7 @@ const handleRefresh = async () => {
         <JobInvoiceTab
           :job-id="jobId"
           :job-number="jobNumber"
+          :quotation-id="quotationId"
           :customer-id="customerId"
           :job-parties="jobParties"
           :initial-invoice-id="initialInvoiceId"

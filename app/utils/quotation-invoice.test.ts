@@ -1,6 +1,6 @@
 // @ts-ignore
 import { describe, expect, it } from "bun:test";
-import { buildInvoiceItems } from "./quotationInvoice";
+import { buildInvoiceItems, findServiceIdForInvoiceDescription } from "./quotationInvoice";
 
 interface QuotationCost {
   id?: string;
@@ -67,9 +67,11 @@ function hasCostData(q: Quotation): boolean {
   return getQuotationCostTotal(q) > 0;
 }
 
-function canUseQuotationForInvoice(q: Quotation): boolean {
+function canUseQuotationForInvoice(q: Quotation, currentJobQuotationId?: string | null): boolean {
   if (q.status === "CONFIRMED") return true;
-  if (q.status === "CONVERTED") return Boolean(q.allowMultipleInvoices);
+  if (q.status === "CONVERTED") {
+    return q.id === currentJobQuotationId || Boolean(q.allowMultipleInvoices);
+  }
   return false;
 }
 
@@ -103,6 +105,21 @@ function getQuotationTotals(q: Quotation): Record<string, number> {
     }
   });
 
+  (q.quotationInvoices || []).forEach((invoice) => {
+    (invoice.items || []).forEach((item) => {
+      const currency = item.currency || "IDR";
+      const lineTotal = Number(
+        item.amount || Number(item.quantity || 0) * Number(item.unitPrice || 0),
+      );
+
+      if (shouldConvert && currency === "USD") {
+        totals.IDR = (totals.IDR || 0) + Math.round(lineTotal * rate);
+      } else {
+        totals[currency] = (totals[currency] || 0) + lineTotal;
+      }
+    });
+  });
+
   if (totals.IDR !== undefined) {
     totals.IDR = Math.round(totals.IDR);
   }
@@ -117,6 +134,12 @@ function getQuotationRevenue(q: Quotation): number {
     if (ch.atCost) return;
     const amt = Number(ch.quantity || 0) * Number(ch.unitPrice || 0);
     total += (ch.currency || "IDR") === "USD" && rate > 1 ? amt * rate : amt;
+  });
+  (q.quotationInvoices || []).forEach((invoice) => {
+    (invoice.items || []).forEach((item) => {
+      const amt = Number(item.amount || Number(item.quantity || 0) * Number(item.unitPrice || 0));
+      total += (item.currency || "IDR") === "USD" && rate > 1 ? amt * rate : amt;
+    });
   });
   return total;
 }
@@ -177,6 +200,7 @@ describe("buildInvoiceItems", () => {
   it("keeps quotation invoice items independent from quotation charges", () => {
     const items = buildInvoiceItems([
       {
+        serviceId: "svc_ocean",
         description: "Ocean Freight",
         quantity: 2,
         unitPrice: 1500000,
@@ -187,6 +211,7 @@ describe("buildInvoiceItems", () => {
     expect(items).toEqual([
       {
         chargeId: null,
+        serviceId: "svc_ocean",
         description: "Ocean Freight",
         quantity: 2,
         unitPrice: 1500000,
@@ -194,6 +219,25 @@ describe("buildInvoiceItems", () => {
         amount: 3000000,
       },
     ]);
+  });
+});
+
+describe("findServiceIdForInvoiceDescription", () => {
+  it("selects the matching master service from a saved quotation item description", () => {
+    const serviceId = findServiceIdForInvoiceDescription("AIR FREIGHT", [
+      { id: "svc-fsc", name: "FSC" },
+      { id: "svc-air", name: "AIR FREIGHT" },
+    ]);
+
+    expect(serviceId).toBe("svc-air");
+  });
+
+  it("selects the base service when the saved description has extra detail", () => {
+    const serviceId = findServiceIdForInvoiceDescription("AIR FREIGHT +1000", [
+      { id: "svc-air", name: "AIR FREIGHT" },
+    ]);
+
+    expect(serviceId).toBe("svc-air");
   });
 });
 
@@ -249,6 +293,20 @@ describe("canUseQuotationForInvoice", () => {
         allowMultipleInvoices: false,
       }),
     ).toBe(false);
+  });
+
+  it("allows a converted quotation when it belongs to the current job", () => {
+    expect(
+      canUseQuotationForInvoice(
+        {
+          id: "3",
+          number: "Q-003",
+          status: "CONVERTED",
+          allowMultipleInvoices: false,
+        },
+        "3",
+      ),
+    ).toBe(true);
   });
 
   it("denies DRAFT", () => {
@@ -321,6 +379,34 @@ describe("getQuotationTotals", () => {
     const totals = getQuotationTotals(q);
     expect(totals.IDR).toBe(8000000); // 500 * 16000
   });
+
+  it("includes additional service items in quotation picker totals", () => {
+    const q: Quotation = {
+      id: "5",
+      number: "Q-005",
+      status: "CONFIRMED",
+      exchangeRate: 1,
+      charges: [{ currency: "IDR", quantity: 1, unitPrice: 1_000_000, taxRate: 0 }],
+      quotationInvoices: [
+        {
+          items: [
+            {
+              description: "ADDITIONAL HANDLING",
+              quantity: 2,
+              unitPrice: 500_000,
+              currency: "IDR",
+              amount: 1_000_000,
+            },
+          ],
+          total: 1_000_000,
+          subTotal: 1_000_000,
+          taxAmount: 0,
+        },
+      ],
+    };
+
+    expect(getQuotationTotals(q).IDR).toBe(2_000_000);
+  });
 });
 
 describe("getQuotationRevenue", () => {
@@ -362,6 +448,34 @@ describe("getQuotationRevenue", () => {
     };
     // rate=1 is not > 1, so USD is not converted — just added raw
     expect(getQuotationRevenue(q)).toBe(100);
+  });
+
+  it("includes additional service items in quotation picker revenue", () => {
+    const q: Quotation = {
+      id: "4",
+      number: "Q-004",
+      status: "CONFIRMED",
+      exchangeRate: 1,
+      charges: [{ currency: "IDR", quantity: 1, unitPrice: 1_000_000 }],
+      quotationInvoices: [
+        {
+          items: [
+            {
+              description: "ADDITIONAL HANDLING",
+              quantity: 2,
+              unitPrice: 500_000,
+              currency: "IDR",
+              amount: 1_000_000,
+            },
+          ],
+          total: 1_000_000,
+          subTotal: 1_000_000,
+          taxAmount: 0,
+        },
+      ],
+    };
+
+    expect(getQuotationRevenue(q)).toBe(2_000_000);
   });
 });
 

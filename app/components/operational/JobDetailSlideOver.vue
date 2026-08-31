@@ -1619,6 +1619,7 @@ watch(
                   <JobFinanceTab
                     :job-id="job.id"
                     :job-number="job.jobNumber"
+                    :quotation-id="job.quotationId || undefined"
                     :customer-id="job.customerId || undefined"
                     :job-parties="job.jobParties"
                     :initial-invoice-id="initialInvoiceId"
