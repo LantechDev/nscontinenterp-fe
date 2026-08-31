@@ -11,7 +11,10 @@ import ServiceCreateModal from "~/pages/master/services/components/ServiceCreate
 import DatePicker from "~/components/ui/DatePicker.vue";
 import { toast } from "vue-sonner";
 import { z } from "zod";
-import { hasMixedInvoiceCurrencyItems } from "~/utils/jobInvoiceExchangeRate";
+import {
+  hasMixedInvoiceCurrencyItems,
+  requiresInvoiceExchangeRate,
+} from "~/utils/jobInvoiceExchangeRate";
 
 const invoiceSchema = z.object({
   customerId: z.string().min(1, "Please select a Billing Party (Customer)"),
@@ -187,11 +190,11 @@ onMounted(async () => {
   }
 });
 
-const hasUSDItems = computed(() => {
-  return form.value.items.some((item) => item.currency === "USD");
-});
 const hasMixedCurrencyItems = computed(() =>
   hasMixedInvoiceCurrencyItems(form.value.currency, form.value.items),
+);
+const needsExchangeRate = computed(() =>
+  requiresInvoiceExchangeRate(form.value.currency, form.value.items),
 );
 const isExchangeRateConfigured = computed(() => Number(form.value.exchangeRate || 1) > 1);
 
@@ -222,7 +225,7 @@ watch(
 watch(
   () => form.value.currency,
   (newCurrency) => {
-    if (newCurrency === "IDR" && !hasUSDItems.value) {
+    if (newCurrency === "IDR" && !needsExchangeRate.value) {
       form.value.exchangeRate = 1;
     }
   },
@@ -387,8 +390,8 @@ const handleSubmit = async () => {
     return;
   }
 
-  if (hasMixedCurrencyItems.value && Number(form.value.exchangeRate || 0) <= 1) {
-    toast.error("Exchange rate must be greater than 1 when invoice item currency differs");
+  if (needsExchangeRate.value && Number(form.value.exchangeRate || 0) <= 1) {
+    toast.error("Exchange rate must be greater than 1 for USD invoices");
     return;
   }
 
@@ -404,7 +407,7 @@ const handleSubmit = async () => {
     isReimbursement: form.value.isReimbursement,
     companyId: form.value.customerId,
     currency: form.value.currency,
-    exchangeRate: hasMixedCurrencyItems.value ? Number(form.value.exchangeRate || 1) : 1,
+    exchangeRate: needsExchangeRate.value ? Number(form.value.exchangeRate || 1) : 1,
     issuedDate: (form.value.issuedDate || new Date().toISOString().split("T")[0]) as string,
     dueDate: (form.value.dueDate || new Date().toISOString().split("T")[0]) as string,
     subTotal: subTotal.value,
@@ -782,9 +785,9 @@ const formatInputCurrency = (val: number | string, currency: string = form.value
         </div>
       </div>
 
-      <!-- Section: Kurs (only for mixed IDR/USD invoice items) -->
+      <!-- Section: Kurs (USD invoice or mixed IDR/USD invoice items) -->
       <div
-        v-if="hasMixedCurrencyItems"
+        v-if="needsExchangeRate"
         class="p-4 bg-blue-50/50 rounded-xl border border-blue-100 space-y-3"
       >
         <label class="text-[10px] font-black text-[#012D5A] uppercase tracking-widest">

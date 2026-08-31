@@ -286,19 +286,25 @@ const receivedTermsDocumentName = computed(() =>
 const placeOfReceiptVal = computed(() =>
   props.isTrucking
     ? getVal(props.jobData?.pickupAddress)
-    : getVal(props.jobData?.placeOfReceipt, polDisplay.value),
+    : props.isAir
+      ? polDisplay.value
+      : getVal(props.jobData?.placeOfReceipt, polDisplay.value),
 );
 
 const placeOfDeliveryVal = computed(() =>
   props.isTrucking
     ? getVal(props.jobData?.deliveryAddress)
-    : getVal(props.jobData?.placeOfDelivery, podDisplay.value),
+    : props.isAir
+      ? podDisplay.value
+      : getVal(props.jobData?.placeOfDelivery, podDisplay.value),
 );
 
 const finalDestinationVal = computed(() =>
   props.isTrucking
     ? getVal(props.jobData?.deliveryAddress)
-    : getVal(props.jobData?.finalDestination, podDisplay.value),
+    : props.isAir
+      ? podDisplay.value
+      : getVal(props.jobData?.finalDestination, podDisplay.value),
 );
 
 const getVal = (val: unknown, fallback: unknown = "") => {
