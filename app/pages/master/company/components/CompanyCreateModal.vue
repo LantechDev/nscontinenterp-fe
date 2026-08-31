@@ -1,12 +1,15 @@
 <script setup lang="ts">
 import { ref, watch, computed, onMounted } from "vue";
-import { Save, Loader2 } from "lucide-vue-next";
+import { Save, Loader2, Plus, Pencil, Trash2 } from "lucide-vue-next";
 import { useCompanies } from "~/composables/useCompanies";
 import { useMasterData } from "~/composables/useMasterData";
+import type { Address } from "~/composables/useMasterData";
 import Combobox from "~/components/ui/Combobox.vue";
 import MultiSelect from "~/components/ui/MultiSelect.vue";
 import SearchSelect from "~/components/ui/SearchSelect.vue";
 import Radio from "~/components/ui/Radio.vue";
+import CompanyAddressModal from "./CompanyAddressModal.vue";
+import type { AddressFormData } from "./CompanyAddressForm.vue";
 
 const props = defineProps<{
   modelValue: boolean;
@@ -27,9 +30,14 @@ const isOpen = computed({
 });
 
 const isEditMode = computed(() => props.mode === "edit");
-const { createCompany, updateCompany } = useCompanies();
+const { createCompany, updateCompany, createAddress, updateAddress, deleteAddress } =
+  useCompanies();
 const isSubmitting = ref(false);
 const formError = ref<string | null>(null);
+const companyAddresses = ref<Address[]>([]);
+const isAddressModalOpen = ref(false);
+const addressMode = ref<"add" | "edit">("add");
+const editingAddress = ref<Address | null>(null);
 const phoneOptions = ref<{ code: string; dialCode: string }[]>([
   { code: "ID", dialCode: "+62" },
   { code: "US", dialCode: "+1" },
@@ -111,6 +119,26 @@ const dialCodeMap = computed(() => {
 
 const uppercase = (value: string) => value.toUpperCase();
 
+const normalizeAddressCountry = (value: string) => {
+  const countryMap: Record<string, string> = {
+    id: "INDONESIA",
+    sg: "SINGAPORE",
+    my: "MALAYSIA",
+  };
+  return countryMap[value] || uppercase(value);
+};
+
+const toAddressPayload = (data: AddressFormData) => ({
+  label: uppercase(data.label),
+  fullAddress: uppercase(data.fullAddress),
+  street: uppercase(data.street),
+  city: uppercase(data.city),
+  state: uppercase(data.state),
+  postalCode: uppercase(data.postalCode),
+  country: normalizeAddressCountry(data.country),
+  eori: uppercase(data.eori),
+});
+
 const normalizePhone = (countryCode: string, rawValue: string) => {
   const digits = rawValue.replace(/\D/g, "");
 
@@ -171,6 +199,10 @@ const resetForm = () => {
     description: "",
     notes: "",
   };
+  companyAddresses.value = [];
+  isAddressModalOpen.value = false;
+  addressMode.value = "add";
+  editingAddress.value = null;
   formError.value = null;
 };
 watch(isOpen, (val) => {
@@ -182,6 +214,7 @@ watch(isOpen, (val) => {
     isActive.value = props.company.isActive ?? true;
 
     isActive.value = props.company.isActive ?? true;
+    companyAddresses.value = props.company.addresses ? [...props.company.addresses] : [];
 
     formData.value = {
       name: props.company.name || "",
@@ -203,6 +236,67 @@ watch(isOpen, (val) => {
     };
   }
 });
+
+const openAddAddress = () => {
+  if (!props.company?.id) return;
+  addressMode.value = "add";
+  editingAddress.value = null;
+  isAddressModalOpen.value = true;
+};
+
+const openEditAddress = (address: Address) => {
+  addressMode.value = "edit";
+  editingAddress.value = address;
+  isAddressModalOpen.value = true;
+};
+
+const emitCompanyAddressUpdate = () => {
+  if (!props.company) return;
+  emit("success", { ...props.company, addresses: companyAddresses.value });
+};
+
+const handleAddressSave = async (data: AddressFormData) => {
+  if (!props.company?.id) {
+    formError.value = "Company data is missing.";
+    return;
+  }
+
+  const payload = toAddressPayload(data);
+  const result =
+    addressMode.value === "edit" && editingAddress.value
+      ? await updateAddress(props.company.id, editingAddress.value.id, payload)
+      : await createAddress(props.company.id, {
+          ...payload,
+          isDefault: companyAddresses.value.length === 0,
+        });
+
+  if (result.success && result.data) {
+    companyAddresses.value =
+      addressMode.value === "edit" && editingAddress.value
+        ? companyAddresses.value.map((address) =>
+            address.id === editingAddress.value?.id ? { ...address, ...result.data } : address,
+          )
+        : [...companyAddresses.value, result.data];
+    isAddressModalOpen.value = false;
+    editingAddress.value = null;
+    emitCompanyAddressUpdate();
+    emit("refresh");
+  } else {
+    formError.value = result.error || "Failed to save address";
+  }
+};
+
+const handleDeleteAddress = async (addressId: string) => {
+  if (!props.company?.id) return;
+  const result = await deleteAddress(props.company.id, addressId);
+  if (result.success) {
+    companyAddresses.value = companyAddresses.value.filter((address) => address.id !== addressId);
+    emitCompanyAddressUpdate();
+    emit("refresh");
+  } else {
+    formError.value = result.error || "Failed to delete address";
+  }
+};
 
 const loadPhoneOptions = async () => {
   try {
@@ -361,8 +455,74 @@ const handleSubmitCompany = async () => {
 
       <!-- Address -->
       <div>
-        <h3 class="text-base font-bold text-foreground mb-4">Address</h3>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="flex items-center justify-between gap-3 mb-4">
+          <h3 class="text-base font-bold text-foreground">Address</h3>
+          <button
+            v-if="isEditMode"
+            type="button"
+            class="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-white bg-[#012D5A] rounded-lg hover:bg-[#012D5A]/90 transition-colors"
+            @click="openAddAddress"
+          >
+            <Plus class="w-4 h-4" />
+            Add Address
+          </button>
+        </div>
+
+        <div v-if="isEditMode" class="space-y-3">
+          <div
+            v-if="companyAddresses.length === 0"
+            class="rounded-lg border border-dashed border-border bg-muted/20 px-4 py-6 text-sm text-muted-foreground text-center"
+          >
+            No address yet.
+          </div>
+          <div
+            v-for="address in companyAddresses"
+            :key="address.id"
+            class="rounded-lg border border-border bg-white p-4 flex items-start justify-between gap-4"
+          >
+            <div class="min-w-0 space-y-1">
+              <div class="flex items-center gap-2">
+                <p class="font-semibold text-foreground truncate">
+                  {{ address.label || "Address" }}
+                </p>
+                <span
+                  v-if="address.isDefault"
+                  class="px-2 py-0.5 rounded-md bg-blue-50 text-[#012D5A] text-[11px] font-semibold"
+                >
+                  Default
+                </span>
+              </div>
+              <p class="text-sm text-foreground whitespace-pre-line">{{ address.fullAddress }}</p>
+              <p class="text-xs text-muted-foreground">
+                {{
+                  [address.city, address.state, address.postalCode, address.country]
+                    .filter(Boolean)
+                    .join(", ")
+                }}
+              </p>
+            </div>
+            <div class="flex items-center gap-1 shrink-0">
+              <button
+                type="button"
+                class="p-2 rounded-md text-muted-foreground hover:text-[#012D5A] hover:bg-blue-50 transition-colors"
+                @click="openEditAddress(address)"
+                aria-label="Edit address"
+              >
+                <Pencil class="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                class="p-2 rounded-md text-muted-foreground hover:text-red-600 hover:bg-red-50 transition-colors"
+                @click="handleDeleteAddress(address.id)"
+                aria-label="Delete address"
+              >
+                <Trash2 class="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div class="space-y-1.5">
             <label class="text-sm font-medium text-foreground">Country</label>
             <input
@@ -467,4 +627,13 @@ const handleSubmitCompany = async () => {
       </button>
     </template>
   </UiModal>
+
+  <CompanyAddressModal
+    v-if="isEditMode && props.company?.id"
+    v-model="isAddressModalOpen"
+    :mode="addressMode"
+    :company-id="props.company.id"
+    :address="editingAddress"
+    @save="handleAddressSave"
+  />
 </template>

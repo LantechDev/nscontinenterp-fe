@@ -5,7 +5,7 @@ import type { MappedCompany, CompanyDetails, CompanyActivityLog } from "~/compos
 import type { Address } from "~/composables/useMasterData";
 import CompanySidebar from "./CompanySidebar.vue";
 import CompanyMainContent from "./CompanyMainContent.vue";
-import CompanyAddressForm from "./CompanyAddressForm.vue";
+import CompanyAddressModal from "./CompanyAddressModal.vue";
 import { useCompanyAddressForm } from "./useCompanyAddressForm";
 
 const props = defineProps<{ modelValue: boolean; company: MappedCompany | null }>();
@@ -108,6 +108,13 @@ const handleAddressSaveIfAllowed = async (formData: AddressFormPayload) => {
   await handleAddressSave(formData);
 };
 
+const isAddressModalOpen = computed({
+  get: () => addressMode.value !== "view",
+  set: (value) => {
+    if (!value) closeAddressMode();
+  },
+});
+
 // Click outside to close menu
 const handleClickOutside = (event: MouseEvent) => {
   const target = event.target as HTMLElement;
@@ -135,7 +142,7 @@ onUnmounted(() => {
         <!-- Slideover Content -->
         <div
           class="slide-panel relative w-full bg-white h-full shadow-2xl flex flex-col overflow-hidden z-10 transition-all duration-300"
-          :style="addressMode !== 'view' ? 'max-width: 600px;' : 'max-width: calc(100vw - 320px);'"
+          style="max-width: calc(100vw - 320px)"
         >
           <!-- Loading State -->
           <UiLoadingSkeleton v-if="isLoading" variant="form" />
@@ -151,10 +158,6 @@ onUnmounted(() => {
               <div class="flex items-center gap-2 text-sm text-muted-foreground font-medium">
                 Master Data <span class="mx-1">›</span> Company <span class="mx-1">›</span>
                 <span class="text-foreground">{{ companyDetails.name }}</span>
-                <template v-if="addressMode !== 'view'">
-                  <span class="mx-1">›</span> Address <span class="mx-1">›</span>
-                  <span class="text-foreground">{{ addressMode === "add" ? "Add" : "Edit" }}</span>
-                </template>
               </div>
               <div class="flex items-center gap-2">
                 <button
@@ -170,7 +173,6 @@ onUnmounted(() => {
             <div class="self-stretch flex-1 flex justify-start items-stretch overflow-hidden">
               <!-- Sidebar / Left Panel -->
               <CompanySidebar
-                v-if="addressMode === 'view'"
                 :company="companyDetails"
                 :addresses="companyAddresses"
                 :active-address-menu="activeAddressMenu"
@@ -184,19 +186,8 @@ onUnmounted(() => {
                 @delete-address="handleDeleteAddressIfAllowed"
               />
 
-              <!-- Address Edit/Add Form -->
-              <CompanyAddressForm
-                v-if="addressMode !== 'view'"
-                :mode="addressMode"
-                :company-id="companyDetails.id"
-                :address="editingAddress"
-                @cancel="closeAddressMode"
-                @save="handleAddressSaveIfAllowed"
-              />
-
               <!-- Main Content Area -->
               <CompanyMainContent
-                v-if="addressMode === 'view'"
                 :company="companyDetails"
                 :active-tab="activeTab"
                 :tab-list="tabList"
@@ -209,6 +200,15 @@ onUnmounted(() => {
                 @delete-address="handleDeleteAddressIfAllowed"
               />
             </div>
+
+            <CompanyAddressModal
+              v-if="addressMode !== 'view'"
+              v-model="isAddressModalOpen"
+              :mode="addressMode"
+              :company-id="companyDetails.id"
+              :address="editingAddress"
+              @save="handleAddressSaveIfAllowed"
+            />
           </div>
         </div>
       </div>

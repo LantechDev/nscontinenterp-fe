@@ -28,6 +28,7 @@ import type { Plane } from "~/composables/usePlanes";
 import SectionCard from "./components/SectionCard.vue";
 import JobPartyRow from "./components/JobPartyRow.vue";
 import CompanyCreateModal from "~/pages/master/company/components/CompanyCreateModal.vue";
+import CompanyAddressModal from "~/pages/master/company/components/CompanyAddressModal.vue";
 import VesselQuickAddModal from "~/components/operational/VesselQuickAddModal.vue";
 import PlaneQuickAddModal from "~/components/operational/PlaneQuickAddModal.vue";
 import { isAirFreightMode, sanitizeJobContainersForShipment } from "~/utils/airFreightJob";
@@ -39,6 +40,7 @@ definePageMeta({
 
 import { useJobs, type CreateJob } from "~/composables/useJobs";
 const { createJob, getJob, isLoading } = useJobs();
+const { createAddress } = useCompanies();
 const { confirm } = useConfirm();
 const { createVessel, createPlane } = useMasterData();
 const { createPackageType } = usePackageTypes();
@@ -167,6 +169,15 @@ const activeCompanyField = ref<
   | "vendorId"
   | null
 >(null);
+const isAddressModalOpen = ref(false);
+const activeAddressCompanyId = ref("");
+const activeAddressField = ref<
+  | "customerAddressId"
+  | "shipperAddressId"
+  | "consigneeAddressId"
+  | "notifyPartyAddressId"
+  | "forwarderAddressId"
+>("customerAddressId");
 
 // Vessel Modal State
 const isVesselModalOpen = ref(false);
@@ -736,6 +747,53 @@ const onCompanyCreateSuccess = async (company: Company) => {
   }
 
   isCompanyModalOpen.value = false;
+};
+
+function handleAddAddress(
+  companyId: string,
+  field:
+    | "customerAddressId"
+    | "shipperAddressId"
+    | "consigneeAddressId"
+    | "notifyPartyAddressId"
+    | "forwarderAddressId",
+) {
+  activeAddressCompanyId.value = companyId;
+  activeAddressField.value = field;
+  isAddressModalOpen.value = true;
+}
+
+const onAddressSave = async (payload: {
+  label: string;
+  fullAddress: string;
+  street?: string;
+  city?: string;
+  state?: string;
+  postalCode?: string;
+  country?: string;
+  eori?: string;
+}) => {
+  if (!activeAddressCompanyId.value) return;
+
+  const result = await createAddress(activeAddressCompanyId.value, {
+    label: payload.label,
+    fullAddress: payload.fullAddress,
+    street: payload.street,
+    city: payload.city,
+    state: payload.state,
+    postalCode: payload.postalCode,
+    country: payload.country,
+    eori: payload.eori,
+  });
+
+  if (result.success && result.data) {
+    await refreshMasterData();
+    formData[activeAddressField.value] = result.data.id;
+    isAddressModalOpen.value = false;
+    toast.success("Address added.");
+  } else {
+    toast.error(result.error || "Failed to add address.");
+  }
 };
 
 // Unified handler - decides Vessel or Plane based on shipmentType
@@ -1706,6 +1764,7 @@ async function populateFormFromExistingJob(jobInput: unknown) {
                   z-index="50"
                   has-extra-controls
                   @create="(name) => handleCreateCompany(name, 'customerId')"
+                  @add-address="(companyId) => handleAddAddress(companyId, 'customerAddressId')"
                 >
                   <template #extra-controls>
                     <div class="flex gap-2 items-center">
@@ -1737,6 +1796,7 @@ async function populateFormFromExistingJob(jobInput: unknown) {
                   v-model:addressId="formData.shipperAddressId"
                   z-index="40"
                   @create="(name) => handleCreateCompany(name, 'shipperId')"
+                  @add-address="(companyId) => handleAddAddress(companyId, 'shipperAddressId')"
                 />
 
                 <JobPartyRow
@@ -1747,6 +1807,7 @@ async function populateFormFromExistingJob(jobInput: unknown) {
                   v-model:addressId="formData.consigneeAddressId"
                   z-index="30"
                   @create="(name) => handleCreateCompany(name, 'consigneeId')"
+                  @add-address="(companyId) => handleAddAddress(companyId, 'consigneeAddressId')"
                 />
 
                 <JobPartyRow
@@ -1759,6 +1820,7 @@ async function populateFormFromExistingJob(jobInput: unknown) {
                   has-extra-controls
                   :disabled-company="formData.isNotifySameAsConsignee"
                   @create="(name) => handleCreateCompany(name, 'notifyPartyId')"
+                  @add-address="(companyId) => handleAddAddress(companyId, 'notifyPartyAddressId')"
                 >
                   <template #extra-controls>
                     <label
@@ -1783,6 +1845,7 @@ async function populateFormFromExistingJob(jobInput: unknown) {
                   v-model:addressId="formData.forwarderAddressId"
                   z-index="10"
                   @create="(name) => handleCreateCompany(name, 'forwarderId')"
+                  @add-address="(companyId) => handleAddAddress(companyId, 'forwarderAddressId')"
                 />
               </div>
             </div>
@@ -2714,6 +2777,13 @@ async function populateFormFromExistingJob(jobInput: unknown) {
       v-model="isCompanyModalOpen"
       :preset-name="presetCompanyName"
       @success="onCompanyCreateSuccess"
+    />
+
+    <CompanyAddressModal
+      v-model="isAddressModalOpen"
+      mode="add"
+      :company-id="activeAddressCompanyId"
+      @save="onAddressSave"
     />
 
     <!-- Quick Add Vessel Modal -->
