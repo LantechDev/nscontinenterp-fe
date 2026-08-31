@@ -40,6 +40,7 @@ export interface ProfitCharge {
 }
 
 export interface ProfitQuotationInvoiceItem {
+  chargeId?: string | null;
   currency?: string | null;
   amount?: string | number | null;
   quantity?: string | number | null;
@@ -165,6 +166,7 @@ export function calculateQuotationProfitSummary(
   (quotation.quotationInvoices || []).forEach((invoice) => {
     const invoiceCurrency = invoice.currency || quotationCurrency;
     (invoice.items || []).forEach((item) => {
+      if (item.chargeId) return;
       const currency = item.currency || invoiceCurrency;
       const isRevenueEstimated =
         !item.currency || (currency === "USD" && quotationRate <= 1 && fallbackRate > 1);

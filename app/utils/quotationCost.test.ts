@@ -113,6 +113,32 @@ describe("quotation cost totals", () => {
     expect(summary.byCurrency.IDR?.revenue).toBe(2_250_000);
   });
 
+  it("does not double count legacy additional items linked to saved charges", () => {
+    const summary = calculateQuotationProfitSummary(
+      {
+        exchangeRate: 1,
+        charges: [{ currency: "IDR", quantity: 1, unitPrice: 1_000_000 }],
+        quotationInvoices: [
+          {
+            items: [
+              {
+                chargeId: "quotation-charge-1",
+                currency: "IDR",
+                quantity: 1,
+                unitPrice: 1_000_000,
+                amount: 1_000_000,
+              },
+            ],
+          },
+        ],
+      },
+      [],
+    );
+
+    expect(summary.combined.revenueIDR).toBe(1_000_000);
+    expect(summary.byCurrency.IDR?.revenue).toBe(1_000_000);
+  });
+
   it("uses quotation currency when a service item has no currency", () => {
     const summary = calculateQuotationProfitSummary(
       {

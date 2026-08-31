@@ -487,6 +487,7 @@ function getQuotationTotals(q: Quotation) {
 
   (q.quotationInvoices || []).forEach((invoice) => {
     (invoice.items || []).forEach((item) => {
+      if (item.chargeId) return;
       const currency = item.currency || "IDR";
       const lineTotal = Number(
         item.amount || Number(item.quantity || 0) * Number(item.unitPrice || 0),
@@ -517,6 +518,7 @@ function getQuotationRevenue(q: Quotation): number {
   });
   (q.quotationInvoices || []).forEach((invoice) => {
     (invoice.items || []).forEach((item) => {
+      if (item.chargeId) return;
       const amt = Number(item.amount || Number(item.quantity || 0) * Number(item.unitPrice || 0));
       total += (item.currency || "IDR") === "USD" && rate > 1 ? amt * rate : amt;
     });

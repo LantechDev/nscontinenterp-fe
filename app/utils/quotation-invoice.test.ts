@@ -107,6 +107,7 @@ function getQuotationTotals(q: Quotation): Record<string, number> {
 
   (q.quotationInvoices || []).forEach((invoice) => {
     (invoice.items || []).forEach((item) => {
+      if (item.chargeId) return;
       const currency = item.currency || "IDR";
       const lineTotal = Number(
         item.amount || Number(item.quantity || 0) * Number(item.unitPrice || 0),
@@ -137,6 +138,7 @@ function getQuotationRevenue(q: Quotation): number {
   });
   (q.quotationInvoices || []).forEach((invoice) => {
     (invoice.items || []).forEach((item) => {
+      if (item.chargeId) return;
       const amt = Number(item.amount || Number(item.quantity || 0) * Number(item.unitPrice || 0));
       total += (item.currency || "IDR") === "USD" && rate > 1 ? amt * rate : amt;
     });
@@ -407,6 +409,35 @@ describe("getQuotationTotals", () => {
 
     expect(getQuotationTotals(q).IDR).toBe(2_000_000);
   });
+
+  it("does not double count legacy additional items linked to saved charges", () => {
+    const q: Quotation = {
+      id: "legacy-linked",
+      number: "Q-LEGACY",
+      status: "CONFIRMED",
+      exchangeRate: 1,
+      charges: [{ currency: "IDR", quantity: 1, unitPrice: 1_000_000, taxRate: 0 }],
+      quotationInvoices: [
+        {
+          items: [
+            {
+              chargeId: "quotation-charge-1",
+              description: "MAIN FREIGHT COPY",
+              quantity: 1,
+              unitPrice: 1_000_000,
+              currency: "IDR",
+              amount: 1_000_000,
+            },
+          ],
+          total: 1_000_000,
+          subTotal: 1_000_000,
+          taxAmount: 0,
+        },
+      ],
+    };
+
+    expect(getQuotationTotals(q).IDR).toBe(1_000_000);
+  });
 });
 
 describe("getQuotationRevenue", () => {
@@ -476,6 +507,35 @@ describe("getQuotationRevenue", () => {
     };
 
     expect(getQuotationRevenue(q)).toBe(2_000_000);
+  });
+
+  it("does not count legacy additional items linked to saved charges as new revenue", () => {
+    const q: Quotation = {
+      id: "legacy-linked-revenue",
+      number: "Q-LEGACY-REV",
+      status: "CONFIRMED",
+      exchangeRate: 1,
+      charges: [{ currency: "IDR", quantity: 1, unitPrice: 1_000_000 }],
+      quotationInvoices: [
+        {
+          items: [
+            {
+              chargeId: "quotation-charge-1",
+              description: "MAIN FREIGHT COPY",
+              quantity: 1,
+              unitPrice: 1_000_000,
+              currency: "IDR",
+              amount: 1_000_000,
+            },
+          ],
+          total: 1_000_000,
+          subTotal: 1_000_000,
+          taxAmount: 0,
+        },
+      ],
+    };
+
+    expect(getQuotationRevenue(q)).toBe(1_000_000);
   });
 });
 
