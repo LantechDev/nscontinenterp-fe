@@ -1,6 +1,7 @@
 import { ceilTaxByCurrency } from "./currency";
 
 type InvoiceItemDraft = {
+  serviceId?: string | null;
   description: string;
   quantity: number;
   unitPrice: number;
@@ -16,6 +17,11 @@ type InvoiceDisplayItem = {
       code?: string | null;
     } | null;
   } | null;
+};
+
+type ServiceCandidate = {
+  id: string;
+  name?: string | null;
 };
 
 type InvoiceCurrency = "IDR" | "USD";
@@ -41,6 +47,7 @@ export function buildInvoiceItems(items: InvoiceItemDraft[]) {
 
     return {
       chargeId: null,
+      serviceId: it.serviceId || null,
       description: it.description.trim(),
       quantity,
       unitPrice,
@@ -55,6 +62,25 @@ function normalizeInvoiceServiceText(value: string | null | undefined): string {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
+}
+
+export function findServiceIdForInvoiceDescription(
+  description: string | null | undefined,
+  services: ServiceCandidate[],
+): string {
+  const normalizedDescription = normalizeInvoiceServiceText(description);
+  if (!normalizedDescription) return "";
+
+  const service = services.find((candidate) => {
+    const normalizedName = normalizeInvoiceServiceText(candidate.name);
+    return (
+      normalizedName &&
+      (normalizedDescription === normalizedName ||
+        normalizedDescription.startsWith(`${normalizedName} `))
+    );
+  });
+
+  return service?.id || "";
 }
 
 function getInvoiceServiceCategoryRank(item: InvoiceDisplayItem): number {

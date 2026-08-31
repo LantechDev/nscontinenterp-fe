@@ -39,6 +39,12 @@ import Modal from "~/components/ui/Modal.vue";
 import type { Port, ContainerType } from "~/composables/useMasterData";
 import { formatCurrencyAmount, formatCurrencyInput, parseCurrencyInput } from "~/utils/currency";
 import { getQuotationFormGroupedTotals } from "~/utils/quotation-display";
+import {
+  getQuotationContainerTypeOptions,
+  getQuotationPortSearchType,
+  isQuotationAirFreight,
+  normalizeQuotationServiceMode,
+} from "~/utils/quotationRouteOptions";
 import { toast } from "vue-sonner";
 
 definePageMeta({
@@ -126,15 +132,12 @@ const services = computed(() => {
   }));
 });
 
-const truckContainerTypeCodes = new Set(["CDE", "CDD", "CDD_LONG", "WING_BOX"]);
-
 const containerTypes = computed(() => {
-  return (masterData.value?.containerTypes || [])
-    .filter((ct) => !truckContainerTypeCodes.has(ct.code))
-    .map((ct) => ({
-      id: ct.id,
-      name: ct.name,
-    }));
+  return getQuotationContainerTypeOptions({
+    serviceType: formData.serviceType,
+    shipmentType: formData.shipmentType,
+    containerTypes: masterData.value?.containerTypes || [],
+  });
 });
 
 const truckContainerTypes = computed(() => {
@@ -179,14 +182,12 @@ const TRADE_TYPES = [
 
 const SERVICE_TYPES = [
   { id: "OCEAN", name: "FREIGHT" },
+  { id: "AIR", name: "AIR FREIGHT" },
   { id: "TRUCKING", name: "TRUCKING" },
   { id: "CUSTOM_CLEARANCE", name: "CUSTOM CLEARANCE" },
 ];
 
-const SHIPMENT_TYPES = [
-  { id: "OCEAN", name: "Ocean Freight" },
-  { id: "AIR", name: "Air Freight" },
-];
+const SHIPMENT_TYPES = [{ id: "OCEAN", name: "Ocean Freight" }];
 
 const FREIGHT_TERMS = [
   { id: "PREPAID", name: "PREPAID" },
@@ -220,18 +221,25 @@ watch(
 const portsPol = computed(() => searchedPorts.value);
 const portsPod = computed(() => searchedPorts.value);
 const isOceanService = computed(() => formData.serviceType === "OCEAN");
-const isOcean = computed(
-  () => formData.serviceType === "OCEAN" && formData.shipmentType === "OCEAN",
+const isAir = computed(() =>
+  isQuotationAirFreight({ serviceType: formData.serviceType, shipmentType: formData.shipmentType }),
 );
-const isAir = computed(() => formData.serviceType === "OCEAN" && formData.shipmentType === "AIR");
 const isTrucking = computed(() => formData.serviceType === "TRUCKING");
 const isCustomClearance = computed(() => formData.serviceType === "CUSTOM_CLEARANCE");
-const usesPortRoute = computed(() => isOceanService.value || isCustomClearance.value);
-const portSearchType = computed(() => (isAir.value ? "air" : "ocean"));
+const usesPortRoute = computed(
+  () => isOceanService.value || isAir.value || isCustomClearance.value,
+);
+const portSearchType = computed(() =>
+  getQuotationPortSearchType({
+    serviceType: formData.serviceType,
+    shipmentType: formData.shipmentType,
+  }),
+);
 
 async function handleSearchPol(query: string) {
   if (!query) {
-    searchedPorts.value = (masterData.value?.ports || []).map(uppercasePort);
+    const results = await $fetch<Port[]>(`/api/master/ports?type=${portSearchType.value}`);
+    searchedPorts.value = results.map(uppercasePort);
     return;
   }
   const results = await $fetch<Port[]>(
@@ -286,18 +294,16 @@ async function loadQuotation() {
   const res = await getQuotation(quotationId);
   if (res.success && res.data) {
     const q = res.data;
-    const normalizedServiceType = q.serviceType === "AIR" ? "OCEAN" : q.serviceType || "OCEAN";
-    const normalizedShipmentType =
-      q.serviceType === "AIR"
-        ? "AIR"
-        : ["OCEAN", "AIR"].includes(q.shipmentType || "")
-          ? q.shipmentType || "OCEAN"
-          : "OCEAN";
+    const normalizedMode = normalizeQuotationServiceMode({
+      serviceType: q.serviceType,
+      shipmentType: q.shipmentType,
+    });
     formData.customerId = q.customerId;
     formData.picName = q.picName || "";
     formData.tradeTypeId = q.tradeTypeId || "EXPORT";
-    formData.serviceType = normalizedServiceType;
-    formData.shipmentType = normalizedServiceType === "OCEAN" ? normalizedShipmentType : "";
+    formData.serviceType = normalizedMode.serviceType;
+    formData.shipmentType =
+      normalizedMode.serviceType === "OCEAN" ? "OCEAN" : normalizedMode.shipmentType;
     formData.pol = q.pol || "";
     formData.pod = q.pod || "";
     formData.containerTypeId = q.containerTypeId || "";
@@ -334,7 +340,7 @@ async function loadQuotation() {
 
     // Fetch and merge selected POL/POD to ensure they are available in dropdown options on page load
     const portQueries = [];
-    const portSearchTypeVal = normalizedShipmentType === "AIR" ? "air" : "ocean";
+    const portSearchTypeVal = getQuotationPortSearchType(normalizedMode);
     if (q.pol) {
       portQueries.push(
         $fetch<Port[]>(`/api/master/ports`, {
@@ -593,10 +599,17 @@ watch(
     if (isLocked.value) return;
 
     if (serviceType === "OCEAN") {
-      formData.shipmentType =
-        formData.shipmentType && ["OCEAN", "AIR"].includes(formData.shipmentType)
-          ? formData.shipmentType
-          : "OCEAN";
+      formData.shipmentType = "OCEAN";
+      formData.truckType = "";
+      formData.pickupAddress = "";
+      formData.deliveryAddress = "";
+      formData.pickupDate = "";
+      formData.deliveryDate = "";
+      return;
+    }
+    if (serviceType === "AIR") {
+      formData.shipmentType = "AIR";
+      formData.containerTypeId = "AIR_AIR";
       formData.truckType = "";
       formData.pickupAddress = "";
       formData.deliveryAddress = "";
@@ -629,7 +642,7 @@ watch(
     if (!isDataLoaded.value) return;
     if (isLocked.value) return;
 
-    if (formData.serviceType === "OCEAN") {
+    if (usesPortRoute.value) {
       const results = await $fetch<Port[]>(`/api/master/ports?type=${portSearchType.value}`);
       searchedPorts.value = results.map(uppercasePort);
     }
@@ -716,11 +729,12 @@ async function handleSubmit() {
     picName: formData.picName ? uppercase(formData.picName) : null,
     tradeTypeId: formData.tradeTypeId,
     serviceType: formData.serviceType,
-    shipmentType: isOceanService.value && formData.shipmentType ? formData.shipmentType : null,
+    shipmentType:
+      (isOceanService.value || isAir.value) && formData.shipmentType ? formData.shipmentType : null,
     pol: usesPortRoute.value && formData.pol ? uppercase(formData.pol) : null,
     pod: usesPortRoute.value && formData.pod ? uppercase(formData.pod) : null,
     containerTypeId:
-      (isOceanService.value || isTrucking.value) && formData.containerTypeId
+      (isOceanService.value || isAir.value || isTrucking.value) && formData.containerTypeId
         ? formData.containerTypeId
         : null,
     truckType: isTrucking.value && formData.truckType ? formData.truckType : null,
@@ -767,8 +781,12 @@ async function handleSubmit() {
   }
 }
 
-onMounted(() => {
-  loadQuotation();
+onMounted(async () => {
+  await loadQuotation();
+  if (route.hash === "#pricing-info") {
+    await nextTick();
+    scrollTo("pricing-info");
+  }
 });
 
 // Scroll Spy & Navigation for Quotation Edit
@@ -1047,7 +1065,7 @@ function scrollTo(id: string) {
                   />
                 </div>
 
-                <div v-if="isOceanService" class="space-y-2">
+                <div v-if="isOceanService || isAir" class="space-y-2">
                   <label
                     class="text-[11px] font-bold text-muted-foreground uppercase tracking-widest"
                   >

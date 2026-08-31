@@ -34,6 +34,7 @@ import { resolveSingleCurrencyPrefillExchangeRate } from "~/utils/jobInvoiceExch
 const props = defineProps<{
   jobId: string;
   jobNumber: string;
+  quotationId?: string | null;
   customerId?: string;
   jobParties?: Array<{ partyRole?: { code?: string } | null; companyId?: string | null }>;
   initialInvoiceId?: string;
@@ -484,6 +485,21 @@ function getQuotationTotals(q: Quotation) {
     }
   });
 
+  (q.quotationInvoices || []).forEach((invoice) => {
+    (invoice.items || []).forEach((item) => {
+      const currency = item.currency || "IDR";
+      const lineTotal = Number(
+        item.amount || Number(item.quantity || 0) * Number(item.unitPrice || 0),
+      );
+
+      if (shouldConvert && currency === "USD") {
+        totals.IDR = (totals.IDR || 0) + Math.round(lineTotal * rate);
+      } else {
+        totals[currency] = (totals[currency] || 0) + lineTotal;
+      }
+    });
+  });
+
   if (totals.IDR !== undefined) {
     totals.IDR = Math.round(totals.IDR);
   }
@@ -498,6 +514,12 @@ function getQuotationRevenue(q: Quotation): number {
     if (ch.atCost) return;
     const amt = Number(ch.quantity || 0) * Number(ch.unitPrice || 0);
     total += (ch.currency || "IDR") === "USD" && rate > 1 ? amt * rate : amt;
+  });
+  (q.quotationInvoices || []).forEach((invoice) => {
+    (invoice.items || []).forEach((item) => {
+      const amt = Number(item.amount || Number(item.quantity || 0) * Number(item.unitPrice || 0));
+      total += (item.currency || "IDR") === "USD" && rate > 1 ? amt * rate : amt;
+    });
   });
   return total;
 }
@@ -554,7 +576,7 @@ const selectQuotationInvoice = (qinv: QuotationInvoice) => {
   showQuotationPicker.value = false;
   isEditing.value = false;
   showForm.value = true;
-  toast.success(`Prefilled invoice from additional quotation ${qinv.number || ""}.`);
+  toast.success(`Prefilled invoice from service item ${qinv.number || ""}.`);
 };
 
 const getQuotationInvoiceCurrency = (qinv: QuotationInvoice) => {
@@ -663,7 +685,7 @@ const canUseQuotationForInvoice = (q: Quotation): boolean => {
   if (q.status === "CONFIRMED") return true;
   if (q.status === "CONVERTED") {
     const flag = (q as unknown as { allowMultipleInvoices?: boolean }).allowMultipleInvoices;
-    return Boolean(flag);
+    return q.id === props.quotationId || Boolean(flag);
   }
   return false;
 };
@@ -787,7 +809,7 @@ const handlePaymentVoided = async () => {
       :title="showSourcePicker ? 'Pilih Sumber Invoice' : 'Pilih Quotation'"
       :description="
         showSourcePicker
-          ? 'Pilih additional quotation atau item individual.'
+          ? 'Pilih service item tambahan atau service item tersimpan.'
           : 'Pilih quotation yang ingin dijadikan invoice.'
       "
       width="max-w-3xl"
@@ -800,7 +822,7 @@ const handlePaymentVoided = async () => {
         }
       "
     >
-      <!-- Source Picker View: choose between invoice or individual charges -->
+      <!-- Source Picker View: choose between service item documents or individual charges -->
       <div v-if="showSourcePicker && sourcePickerQuotation" class="space-y-4 pt-1">
         <button
           @click="
@@ -821,12 +843,12 @@ const handlePaymentVoided = async () => {
           </div>
         </div>
 
-        <!-- Additional Quotations -->
+        <!-- Additional Service Items -->
         <div v-if="sourcePickerQuotation.quotationInvoices?.length">
           <h4
             class="text-xs font-bold text-foreground uppercase tracking-wide mb-2 flex items-center gap-2"
           >
-            <Receipt class="w-3.5 h-3.5 text-[#062c58]" /> Additional Quotations
+            <Receipt class="w-3.5 h-3.5 text-[#062c58]" /> Additional Service Items
           </h4>
           <div class="space-y-2 max-h-[280px] overflow-y-auto pr-1">
             <div
@@ -843,7 +865,7 @@ const handlePaymentVoided = async () => {
                   <div>
                     <p class="text-sm font-bold text-[#062c58]">{{ qinv.number || "—" }}</p>
                     <p class="text-xs text-muted-foreground mt-0.5">
-                      {{ qinv.items?.length || 0 }} charge(s)
+                      {{ qinv.items?.length || 0 }} item(s)
                     </p>
                   </div>
                 </div>
@@ -880,10 +902,10 @@ const handlePaymentVoided = async () => {
                 </div>
                 <div>
                   <p class="text-sm font-bold text-foreground group-hover:text-[#062c58]">
-                    Select Individual Charges
+                    Saved Service Items
                   </p>
                   <p class="text-xs text-muted-foreground mt-0.5">
-                    {{ sourcePickerQuotation.charges?.length || 0 }} charge items available
+                    {{ sourcePickerQuotation.charges?.length || 0 }} item(s) available
                   </p>
                 </div>
               </div>
@@ -978,7 +1000,7 @@ const handlePaymentVoided = async () => {
               </div>
               <div v-if="q.charges?.length" class="mt-2 pl-11">
                 <p class="text-[10px] text-muted-foreground">
-                  {{ q.charges.length }} charge item{{ q.charges.length > 1 ? "s" : "" }}:
+                  {{ q.charges.length }} service item{{ q.charges.length > 1 ? "s" : "" }}:
                   {{
                     q.charges
                       .slice(0, 2)
@@ -1035,7 +1057,7 @@ const handlePaymentVoided = async () => {
                   />
                 </svg>
                 <p class="text-[10px] text-amber-600 font-semibold">
-                  Harus berstatus CONFIRMED, atau CONVERTED dengan Multi-use aktif
+                  Harus CONFIRMED, atau CONVERTED yang berasal dari job ini / Multi-use aktif
                 </p>
               </div>
             </button>
@@ -1050,7 +1072,7 @@ const handlePaymentVoided = async () => {
       title="Pilih Item untuk Invoice"
       :description="
         itemSelectionQuotation
-          ? `Pilih charge item dari quotation ${itemSelectionQuotation.number} yang ingin dijadikan invoice.`
+          ? `Pilih service item tersimpan dari quotation ${itemSelectionQuotation.number} yang ingin dijadikan invoice.`
           : ''
       "
       width="max-w-2xl"
@@ -1059,7 +1081,7 @@ const handlePaymentVoided = async () => {
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-2">
             <span class="text-xs font-bold text-muted-foreground">
-              {{ (itemSelectionQuotation.charges || []).length }} charge items
+              {{ (itemSelectionQuotation.charges || []).length }} service items
             </span>
             <span class="text-[10px] text-muted-foreground">
               · {{ selectedItemIndices.size }} selected

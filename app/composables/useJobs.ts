@@ -57,6 +57,7 @@ export interface Job {
   id: string;
   jobNumber: string;
   organizationId: string;
+  quotationId?: string | null;
   serviceType: string;
   shipmentType?: string | null;
   pol?: string | null;

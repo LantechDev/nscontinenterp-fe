@@ -11,6 +11,7 @@ import type { QuotationInvoice } from "~/composables/useQuotations";
 import {
   buildInvoiceItems,
   calculateInvoiceTotal,
+  findServiceIdForInvoiceDescription,
   groupInvoiceTotals,
   isWithholdingInvoiceTax,
 } from "~/utils/quotationInvoice";
@@ -60,7 +61,7 @@ const form = ref({
   discountType: null as "PERCENTAGE" | "FIXED" | null,
   discountValue: 0,
   items: (props.invoice?.items?.map((item) => ({
-    serviceId: "",
+    serviceId: item.serviceId || "",
     description: item.description,
     quantity: Number(item.quantity || 1),
     unitPrice: Number(item.unitPrice || 0),
@@ -79,6 +80,13 @@ const form = ref({
 const hasUSDItems = computed(() => form.value.items.some((item) => item.currency === "USD"));
 const isExchangeRateConfigured = computed(() => Number(form.value.exchangeRate || 1) > 1);
 const useGroupedTotals = computed(() => !isExchangeRateConfigured.value);
+
+const hydrateServiceSelections = () => {
+  form.value.items.forEach((item) => {
+    if (item.serviceId || !item.description) return;
+    item.serviceId = findServiceIdForInvoiceDescription(item.description, services.value);
+  });
+};
 
 watch(
   () => form.value.items,
@@ -111,6 +119,7 @@ onMounted(async () => {
     fetchTaxes({ isActive: true, limit: 100 }),
     fetchServices(),
   ]);
+  hydrateServiceSelections();
   if (taxesRes?.items) {
     taxList.value = taxesRes.items;
     taxOptions.value = buildTaxSelectOptions(taxList.value);
@@ -298,36 +307,21 @@ const handleSubmit = () => {
 </script>
 
 <template>
-  <div class="bg-white rounded-xl border border-border shadow-sm overflow-hidden animate-fade-in">
-    <div class="px-6 py-4 border-b border-border bg-gray-50 flex items-center justify-between">
-      <div class="flex items-center gap-4">
-        <div class="flex items-center gap-2">
-          <Receipt class="w-5 h-5 text-[#012D5A]" />
-          <h3 class="font-bold text-foreground">
-            {{ invoice?.id ? "Edit" : "Create New" }} Quotation
-          </h3>
-        </div>
-        <div class="h-4 w-[1px] bg-border mx-1"></div>
-        <div class="flex items-center gap-2">
-          <span class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest"
-            >Quotation Currency</span
-          >
-          <span
-            class="px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider bg-[#012D5A]/5 border border-[#012D5A]/10 text-[#012D5A] shadow-sm"
-            >{{ form.currency }}</span
-          >
-        </div>
+  <div class="animate-fade-in">
+    <div class="mb-5 flex items-center justify-end">
+      <div class="flex items-center gap-2">
+        <Receipt class="w-4 h-4 text-[#012D5A]" />
+        <span class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest"
+          >Currency</span
+        >
+        <span
+          class="px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider bg-[#012D5A]/5 border border-[#012D5A]/10 text-[#012D5A] shadow-sm"
+          >{{ form.currency }}</span
+        >
       </div>
-      <button
-        type="button"
-        @click="$emit('cancel')"
-        class="text-muted-foreground hover:text-foreground transition-colors"
-      >
-        <X class="w-5 h-5" />
-      </button>
     </div>
 
-    <form @submit.prevent="handleSubmit" class="p-6 space-y-6">
+    <form @submit.prevent="handleSubmit" class="space-y-6">
       <div class="grid grid-cols-2 gap-4">
         <div class="space-y-1.5">
           <label class="text-xs font-bold text-muted-foreground uppercase tracking-wider"
@@ -355,95 +349,112 @@ const handleSubmit = () => {
             >Service Items</label
           >
         </div>
-        <div class="border rounded-xl border-border bg-muted/5">
-          <div
-            class="grid grid-cols-12 gap-3 px-4 py-2 border-b border-border bg-gray-50/50 text-[10px] font-bold text-muted-foreground uppercase tracking-wider"
-          >
-            <div class="col-span-4">Service / Description</div>
-            <div class="col-span-1 text-center">Qty</div>
-            <div class="col-span-2 text-center">Currency</div>
-            <div class="col-span-3 text-right">Unit Price</div>
-            <div class="col-span-2 text-right pr-4">Amount</div>
-          </div>
-          <div class="divide-y divide-border/50">
+        <div class="space-y-3">
+          <div>
             <div
               v-for="(item, index) in form.items"
               :key="index"
-              class="grid grid-cols-12 gap-3 px-4 py-3 items-start group hover:bg-white transition-colors relative"
+              class="relative space-y-3 rounded-xl border border-border bg-muted/5 p-4"
               :style="{ zIndex: form.items.length + 10 - index }"
             >
-              <div class="col-span-4 space-y-2">
-                <Combobox
-                  v-model="item.serviceId"
-                  :options="services"
-                  label-key="name"
-                  value-key="id"
-                  placeholder="Choose service..."
-                  allow-create
-                  @update:model-value="onServiceChange(index)"
-                  @create="(name) => handleCreateService(name, index)"
-                />
-                <textarea
-                  v-model="item.description"
-                  placeholder="Item description..."
-                  rows="1"
-                  class="w-full px-3 py-1.5 bg-white border border-border rounded-md text-xs focus:ring-2 focus:ring-[#012D5A]/20 focus:border-[#012D5A] outline-none transition-all resize-none"
-                  v-uppercase
-                ></textarea>
-              </div>
-              <div class="col-span-1">
-                <input
-                  type="number"
-                  v-model.number="item.quantity"
-                  min="1"
-                  class="w-full px-2 py-2 bg-white border border-border rounded-md text-sm text-center focus:ring-2 focus:ring-[#012D5A]/20 focus:border-[#012D5A] outline-none transition-all"
-                  v-uppercase
-                />
-              </div>
-              <div class="col-span-2">
-                <Combobox
-                  v-model="item.currency"
-                  :options="[
-                    { id: 'IDR', name: 'IDR' },
-                    { id: 'USD', name: 'USD' },
-                  ]"
-                  placeholder="IDR"
-                  @update:model-value="
-                    (val) => {
-                      if (!val) item.currency = 'IDR';
-                    }
-                  "
-                />
-              </div>
-              <div class="col-span-3">
-                <input
-                  type="text"
-                  :value="formatInputCurrency(item.unitPrice, item.currency)"
-                  v-uppercase
-                  @input="
-                    (e) =>
-                      (item.unitPrice = parseInputCurrency(
-                        (e.target as HTMLInputElement).value,
-                        item.currency,
-                      ))
-                  "
-                  class="w-full px-3 py-2 bg-white border border-border rounded-md text-sm text-right font-medium focus:ring-2 focus:ring-[#012D5A]/20 focus:border-[#012D5A] outline-none transition-all"
-                />
-              </div>
-              <div class="col-span-2 flex items-center justify-between gap-2 pr-2">
-                <p class="text-sm font-bold text-[#012D5A] tabular-nums text-right flex-1">
-                  {{
-                    formatCurrency(Number(item.quantity) * Number(item.unitPrice), item.currency)
-                  }}
-                </p>
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0 flex-1 space-y-1.5">
+                  <label
+                    class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider"
+                    >Service / Description</label
+                  >
+                  <Combobox
+                    v-model="item.serviceId"
+                    :options="services"
+                    label-key="name"
+                    value-key="id"
+                    placeholder="Choose service..."
+                    allow-create
+                    @update:model-value="onServiceChange(index)"
+                    @create="(name) => handleCreateService(name, index)"
+                  />
+                </div>
                 <button
                   type="button"
                   @click="removeItem(index)"
-                  class="p-1.5 text-muted-foreground hover:text-red-500 transition-colors disabled:opacity-30"
+                  class="mt-6 p-1.5 text-muted-foreground hover:text-red-500 transition-colors disabled:opacity-30"
                   :disabled="form.items.length === 1"
                 >
                   <Trash2 class="w-4 h-4" />
                 </button>
+              </div>
+
+              <textarea
+                v-model="item.description"
+                placeholder="Item description..."
+                rows="1"
+                class="w-full px-3 py-1.5 bg-white border border-border rounded-md text-xs focus:ring-2 focus:ring-[#012D5A]/20 focus:border-[#012D5A] outline-none transition-all resize-none"
+                v-uppercase
+              ></textarea>
+
+              <div class="grid grid-cols-3 gap-3">
+                <div class="space-y-1.5">
+                  <label
+                    class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider"
+                    >Qty</label
+                  >
+                  <input
+                    type="number"
+                    v-model.number="item.quantity"
+                    min="1"
+                    class="w-full px-2 py-2 bg-white border border-border rounded-md text-sm text-center focus:ring-2 focus:ring-[#012D5A]/20 focus:border-[#012D5A] outline-none transition-all"
+                    v-uppercase
+                  />
+                </div>
+                <div class="space-y-1.5">
+                  <label
+                    class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider"
+                    >Currency</label
+                  >
+                  <Combobox
+                    v-model="item.currency"
+                    :options="[
+                      { id: 'IDR', name: 'IDR' },
+                      { id: 'USD', name: 'USD' },
+                    ]"
+                    placeholder="IDR"
+                    @update:model-value="
+                      (val) => {
+                        if (!val) item.currency = 'IDR';
+                      }
+                    "
+                  />
+                </div>
+                <div class="space-y-1.5">
+                  <label
+                    class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider"
+                    >Unit Price</label
+                  >
+                  <input
+                    type="text"
+                    :value="formatInputCurrency(item.unitPrice, item.currency)"
+                    v-uppercase
+                    @input="
+                      (e) =>
+                        (item.unitPrice = parseInputCurrency(
+                          (e.target as HTMLInputElement).value,
+                          item.currency,
+                        ))
+                    "
+                    class="w-full px-3 py-2 bg-white border border-border rounded-md text-sm text-right font-medium focus:ring-2 focus:ring-[#012D5A]/20 focus:border-[#012D5A] outline-none transition-all"
+                  />
+                </div>
+              </div>
+
+              <div class="flex items-center justify-between border-t border-border/60 pt-3">
+                <span class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider"
+                  >Amount</span
+                >
+                <p class="text-sm font-bold text-[#012D5A] tabular-nums">
+                  {{
+                    formatCurrency(Number(item.quantity) * Number(item.unitPrice), item.currency)
+                  }}
+                </p>
               </div>
             </div>
           </div>
@@ -476,7 +487,6 @@ const handleSubmit = () => {
           </p>
         </div>
       </div>
-
       <!-- Section: Kurs (only if any USD item) -->
       <div v-if="hasUSDItems" class="p-4 bg-blue-50/50 rounded-xl border border-blue-100 space-y-3">
         <label class="text-[10px] font-black text-[#012D5A] uppercase tracking-widest">
@@ -674,7 +684,7 @@ const handleSubmit = () => {
       </div>
     </form>
 
-    <div class="flex items-center justify-end gap-3 px-6 py-4 border-t border-border bg-gray-50/30">
+    <div class="mt-6 flex items-center justify-end gap-3 border-t border-border pt-4">
       <button
         type="button"
         @click="emit('cancel')"
@@ -690,7 +700,7 @@ const handleSubmit = () => {
         :disabled="isSaving"
       >
         <span v-if="isSaving">{{ invoice?.id ? "Updating..." : "Saving..." }}</span>
-        <span v-else>{{ invoice?.id ? "Update" : "Create" }} Quotation</span>
+        <span v-else>{{ invoice?.id ? "Update" : "Create" }} Service Item</span>
       </button>
     </div>
 
