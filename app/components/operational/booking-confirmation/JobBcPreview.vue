@@ -32,6 +32,13 @@ const isTrucking = computed(() => props.jobData?.serviceType === "TRUCKING");
 // Prefer the BC's own snapshot; fall back to the live Job for BCs created before
 // the standalone snapshot existed (so they still render).
 const containers = computed(() => props.bcData?.containers || props.jobData?.jobContainers || []);
+const cargoDescriptionFallback = computed(
+  () =>
+    props.bcData?.mainDescription ||
+    props.jobData?.mainDescription ||
+    props.jobData?.commodity ||
+    "",
+);
 
 // --- Pagination (adapted from JobEblPreview). ---
 // Page 1 has the full routing section above the cargo grid, so it holds fewer rows than
@@ -41,6 +48,28 @@ const LINE_HEIGHT = 16;
 const PAGE_1_MAX_HEIGHT = 520; // cargo room on page 1 (after routing section)
 const PAGE_N_MAX_HEIGHT = 780; // cargo room on continuation pages
 const CHARS_PER_LINE = 32;
+
+const getCargoDisplayLines = (descriptionText: string) => {
+  const rawLines = descriptionText.split("\n");
+  const processedLines: string[] = [];
+
+  rawLines.forEach((line: string) => {
+    if (line.length <= CHARS_PER_LINE) {
+      processedLines.push(line);
+    } else {
+      const regex = new RegExp(`.{1,${CHARS_PER_LINE}}`, "g");
+      const chunks = line.match(regex);
+      if (chunks) processedLines.push(...chunks);
+    }
+  });
+
+  return processedLines;
+};
+
+const getCargoItemHeight = (item: any) => {
+  const descriptionText = (item.description || cargoDescriptionFallback.value).trim();
+  return getCargoDisplayLines(descriptionText).length * LINE_HEIGHT + 12;
+};
 
 const paginatedPages = computed(() => {
   const pages: any[][] = [];
@@ -57,8 +86,13 @@ const paginatedPages = computed(() => {
   containers.value.forEach((container: any) => {
     if (!container) return;
     const headerHeight = 60;
+    const containerItems = container.items || [];
+    const firstItemHeight = containerItems[0] ? getCargoItemHeight(containerItems[0]) : 0;
 
-    if (currentHeight + headerHeight > getMaxHeight()) {
+    if (
+      currentHeight + headerHeight + firstItemHeight > getMaxHeight() &&
+      currentPageContent.length > 0
+    ) {
       pages.push(currentPageContent);
       currentPageContent = [];
       currentHeight = 0;
@@ -68,20 +102,9 @@ const paginatedPages = computed(() => {
     let currentContainerOnPage: any = { ...container, renderItems: [], isHeaderVisible: true };
     currentHeight += headerHeight;
 
-    (container.items || []).forEach((item: any) => {
-      const descriptionText = (item.description || "").trim();
-      const rawLines = descriptionText.split("\n");
-      const processedLines: string[] = [];
-
-      rawLines.forEach((line: string) => {
-        if (line.length <= CHARS_PER_LINE) {
-          processedLines.push(line);
-        } else {
-          const regex = new RegExp(`.{1,${CHARS_PER_LINE}}`, "g");
-          const chunks = line.match(regex);
-          if (chunks) processedLines.push(...chunks);
-        }
-      });
+    containerItems.forEach((item: any) => {
+      const descriptionText = (item.description || cargoDescriptionFallback.value).trim();
+      const processedLines = getCargoDisplayLines(descriptionText);
 
       const itemTotalHeight = processedLines.length * LINE_HEIGHT + 12;
 
