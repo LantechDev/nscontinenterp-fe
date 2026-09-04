@@ -203,6 +203,7 @@ const isTaxSelected = (taxId: string) => {
                     v-model.number="item.unitPrice"
                     type="number"
                     min="0"
+                    step="0.01"
                     class="w-full px-2 py-1.5 rounded border border-border focus:outline-none focus:ring-1 focus:ring-primary bg-white text-sm text-right"
                     @input="emit('updateItemAmount', index)"
                     required
