@@ -92,10 +92,43 @@ const containers = computed(() => {
   return [];
 });
 
+const cargoDescriptionFallback = computed(
+  () =>
+    props.activeBl?.mainDescription ||
+    props.activeBl?.cargoDescription ||
+    props.activeBl?.job?.mainDescription ||
+    props.jobData?.mainDescription ||
+    props.activeBl?.job?.commodity ||
+    props.jobData?.commodity ||
+    "",
+);
+
 const LINE_HEIGHT = 16;
 const PAGE_1_MAX_HEIGHT = 230;
 const PAGE_2_MAX_HEIGHT = 750;
 const CHARS_PER_LINE = 32;
+
+const getCargoDisplayLines = (descriptionText: string) => {
+  const rawLines = descriptionText.split("\n");
+  const processedLines: string[] = [];
+
+  rawLines.forEach((line: string) => {
+    if (line.length <= CHARS_PER_LINE) {
+      processedLines.push(line);
+    } else {
+      const regex = new RegExp(`.{1,${CHARS_PER_LINE}}`, "g");
+      const chunks = line.match(regex);
+      if (chunks) processedLines.push(...chunks);
+    }
+  });
+
+  return processedLines;
+};
+
+const getCargoItemHeight = (item: EblContainerItem) => {
+  const descriptionText = (item.description || cargoDescriptionFallback.value).trim();
+  return getCargoDisplayLines(descriptionText).length * LINE_HEIGHT + 12;
+};
 
 const paginatedPages = computed(() => {
   const pages: Array<EblContainer[]> = [];
@@ -113,8 +146,13 @@ const paginatedPages = computed(() => {
     if (!container) return;
 
     const headerHeight = 60;
+    const containerItems = container.items || [];
+    const firstItemHeight = containerItems[0] ? getCargoItemHeight(containerItems[0]) : 0;
 
-    if (currentHeight + headerHeight > getMaxHeight()) {
+    if (
+      currentHeight + headerHeight + firstItemHeight > getMaxHeight() &&
+      currentPageContent.length > 0
+    ) {
       pages.push(currentPageContent);
       currentPageContent = [];
       currentHeight = 0;
@@ -147,20 +185,9 @@ const paginatedPages = computed(() => {
       };
     };
 
-    (container.items || []).forEach((item: EblContainerItem) => {
-      const descriptionText = (item.description || "").trim();
-      const rawLines = descriptionText.split("\n");
-      const processedLines: string[] = [];
-
-      rawLines.forEach((line: string) => {
-        if (line.length <= CHARS_PER_LINE) {
-          processedLines.push(line);
-        } else {
-          const regex = new RegExp(`.{1,${CHARS_PER_LINE}}`, "g");
-          const chunks = line.match(regex);
-          if (chunks) processedLines.push(...chunks);
-        }
-      });
+    containerItems.forEach((item: EblContainerItem) => {
+      const descriptionText = (item.description || cargoDescriptionFallback.value).trim();
+      const processedLines = getCargoDisplayLines(descriptionText);
 
       let remainingLines = [...processedLines];
       let isFirstSegment = true;

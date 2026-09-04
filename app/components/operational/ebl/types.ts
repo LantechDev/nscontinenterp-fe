@@ -27,6 +27,7 @@ export interface EblContainerItem {
   measurementCbm?: number | null;
   description?: string;
   hsCode?: string;
+  isContinuationSegment?: boolean;
 }
 export interface EblContainer {
   id?: string | number;

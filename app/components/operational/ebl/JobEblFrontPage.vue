@@ -425,22 +425,56 @@ const pluralPackageUnit = (unit?: string | null) => {
   return `${normalized}S`;
 };
 
-// Package unit shown next to a container's total quantity (e.g. "PACKAGES").
-const containerPackageUnit = (cnt: EblContainer) => {
-  const items = Array.isArray(cnt.items) ? cnt.items : [];
-  const codes = Array.from(
-    new Set(items.map((it) => (it.packageTypeCode || "").trim()).filter(Boolean)),
-  );
-  return codes.length === 1 ? pluralPackageUnit(codes[0]) : "PACKAGES";
+const cargoItemPackageCode = (item: EblContainerItem) => {
+  if (item.packageTypeCode) return item.packageTypeCode;
+  if (typeof item.packageType === "string") return item.packageType;
+  return item.packageType?.code || "PKGS";
 };
 
-const containerQtyNumberText = (cnt: EblContainer) => {
-  const qty = cargoFigure(cnt, "qty", ["totalQty", "quantity"]);
-  return qty === null ? "-" : formatNumber(qty, 0);
+const cargoItemQtyText = (item: EblContainerItem) => {
+  const qty = Number(item.qty);
+  const qtyText = Number.isFinite(qty) && qty > 0 ? formatNumber(qty, 0) : "-";
+  return `${qtyText} ${pluralPackageUnit(cargoItemPackageCode(item))}`;
 };
 
-const containerQtyUnitText = (cnt: EblContainer) =>
-  containerQtyNumberText(cnt) === "-" ? "" : containerPackageUnit(cnt);
+const hasSaidToContainInCargo = computed(() =>
+  containers.value.some((cnt) =>
+    (cnt?.items || []).some((item) =>
+      /SAID\s+TO\s+CONTAINS?/i.test(String(item?.description || "")),
+    ),
+  ),
+);
+
+const containerTypeSummary = computed(() => {
+  const counts = new Map<string, number>();
+  containers.value.forEach((cnt) => {
+    if (!cnt) return;
+    const typeCode = cnt.containerType?.code || cnt.containerType?.name || "";
+    if (typeCode) {
+      counts.set(typeCode, (counts.get(typeCode) || 0) + 1);
+    }
+  });
+  return Array.from(counts.entries())
+    .map(([code, count]) => `${count}X${code}`)
+    .join(", ");
+});
+
+const totalPackageUnit = computed(() => {
+  const units = new Set<string>();
+  containers.value.forEach((cnt) => {
+    const items = Array.isArray(cnt?.items) ? cnt.items : [];
+    items.forEach((item) => {
+      if (item?.isContinuationSegment) return;
+      units.add(pluralPackageUnit(cargoItemPackageCode(item)));
+    });
+  });
+  return units.size === 1 ? Array.from(units)[0] : "PACKAGES";
+});
+
+const cargoItemGrossWeightText = (item: EblContainerItem) => figureText(item.grossWeight, "KGS");
+
+const cargoItemMeasurementText = (item: EblContainerItem) =>
+  figureText(item.measurementCbm, "CBM", 2);
 
 const findPartyByRole = (roleCodes: string[]) => {
   const normalizedRoles = roleCodes.map((role) => role.replace(/[\s-]/g, "_").toUpperCase());
@@ -490,20 +524,6 @@ const totals = computed(() => {
       Number(props.activeBl?.totalMeasurementCbm) || Number(props.jobData?.measurement) || 0;
 
   return { qty, grossWeight, netWeight, measurement };
-});
-
-const containerTypeSummary = computed(() => {
-  const counts = new Map<string, number>();
-  containers.value.forEach((cnt) => {
-    if (!cnt) return;
-    const typeCode = cnt.containerType?.code || cnt.containerType?.name || "";
-    if (typeCode) {
-      counts.set(typeCode, (counts.get(typeCode) || 0) + 1);
-    }
-  });
-  if (counts.size === 0) return "";
-  const parts = Array.from(counts.entries()).map(([code, count]) => `${count}X${code}`);
-  return `S.T.C ${parts.join(", ")}`;
 });
 
 const blGrandTotals = computed(() => {
@@ -1079,35 +1099,50 @@ const formatDate = (dateStr?: string | null) => {
         </div>
 
         <div
-          class="relative z-[1] text-black font-mono pt-2"
+          v-if="isAir && page.pageIndex === 0 && !page.pageItems[0]?.isFallback"
+          class="air-shipping-mark absolute left-0 top-2 z-[2] w-[22%] pl-3 pr-6 font-mono text-[9px] text-black uppercase leading-tight whitespace-pre-wrap break-words pointer-events-none"
+        >
+          {{ page.pageIndex === 0 ? getVal(jobData?.shippingMark) : "" }}
+        </div>
+
+        <div
+          class="relative z-[1] text-black font-mono"
           :class="[
             page.pageIndex === paginatedPagesLength - 1 &&
             page.pageItems.length > 0 &&
             !page.pageItems[0]?.isFallback
               ? 'pb-[18px]'
               : '',
+            'pt-2',
           ]"
         >
           <div
-            v-if="page.pageIndex === 0 && containerTypeSummary && !page.pageItems[0]?.isFallback"
-            class="flex w-full mb-1 font-semibold text-[9.5px] border-b border-[#062c58]/20 pb-0.5"
+            v-if="
+              page.pageIndex === 0 &&
+              !hasSaidToContainInCargo &&
+              containerTypeSummary &&
+              page.pageItems.length > 0 &&
+              !page.pageItems[0]?.isFallback
+            "
+            class="flex w-full mb-1 font-bold italic text-[9.5px]"
           >
             <div class="w-[22%]"></div>
             <div class="w-[10%]"></div>
             <div class="w-[3%]"></div>
-            <div class="w-[40%] px-3 text-left tracking-[0]">{{ containerTypeSummary }}</div>
+            <div class="w-[40%] px-3 text-left tracking-[0]">
+              {{ containerTypeSummary }} SAID TO CONTAIN:
+            </div>
             <div class="w-[12.5%]"></div>
             <div class="w-[12.5%]"></div>
           </div>
           <template v-for="(cnt, cIdx) in page.pageItems" :key="cIdx">
             <div
-              v-if="cnt.isHeaderVisible && !cnt.isFallback"
-              class="flex w-full mb-1 font-bold italic border-b border-[#062c58]/10"
+              v-if="cnt.isHeaderVisible && !cnt.isFallback && isAir"
+              class="flex w-full font-bold italic"
+              :class="[isAir ? 'mb-0 border-b-0' : 'mb-1 border-b border-[#062c58]/10']"
             >
               <div class="w-[22%] pl-3 pr-6 break-words whitespace-pre-wrap text-[11px]">
-                <template v-if="isAir">
-                  {{ page.pageIndex === 0 && cIdx === 0 ? getVal(jobData?.shippingMark) : "" }}
-                </template>
+                <template v-if="isAir"> </template>
                 <template v-else-if="isTrucking">
                   {{ cnt.vehicleNumber || "" }}
                   <span v-if="cnt.driverName" class="ml-1">/ {{ cnt.driverName }}</span>
@@ -1122,53 +1157,13 @@ const formatDate = (dateStr?: string | null) => {
                   ><span v-if="cnt.sealNumber" class="ml-1">/ {{ cnt.sealNumber }}</span>
                 </template>
               </div>
-              <div class="w-[10%] px-1.5 text-right text-[10px] leading-tight">
-                <div class="font-bold whitespace-nowrap">{{ containerQtyNumberText(cnt) }}</div>
-                <div v-if="containerQtyUnitText(cnt)" class="text-[9px] whitespace-nowrap">
-                  {{ containerQtyUnitText(cnt) }}
-                </div>
-              </div>
+              <div class="w-[10%] px-1.5 text-right text-[10px] leading-tight"></div>
               <div class="w-[3%] flex items-center justify-center text-[10px] leading-none">
                 {{ cnt.isHazardous ? "X" : "" }}
               </div>
-              <div class="w-[40%] px-3 font-mono text-[11px]">
-                {{
-                  isAir
-                    ? "SAID TO CONTAIN:"
-                    : isTrucking
-                      ? `1X${cnt.containerType?.name || cnt.containerType?.code || ""} S.T.C.:`
-                      : `1X${cnt.containerType?.code || ""} S.T.C.:`
-                }}
-              </div>
-              <div class="w-[12.5%] px-3 text-right text-[11px] leading-tight">
-                <div>
-                  GW
-                  {{
-                    figureText(
-                      cargoFigure(cnt, "grossWeight", ["totalGrossWeight", "grossWeight"]),
-                      "KGS",
-                    )
-                  }}
-                </div>
-                <div>
-                  NW
-                  {{
-                    figureText(
-                      cargoFigure(cnt, "netWeight", ["totalNetWeight", "netWeight"]),
-                      "KGS",
-                    )
-                  }}
-                </div>
-              </div>
-              <div class="w-[12.5%] px-3 text-right text-[11px]">
-                {{
-                  figureText(
-                    cargoFigure(cnt, "measurementCbm", ["totalMeasurementCbm", "measurement"]),
-                    "CBM",
-                    2,
-                  )
-                }}
-              </div>
+              <div class="w-[40%] px-3 font-mono text-[11px]"></div>
+              <div class="w-[12.5%] px-3 text-right text-[11px] leading-tight"></div>
+              <div class="w-[12.5%] px-3 text-right text-[11px]"></div>
             </div>
 
             <div
@@ -1176,10 +1171,32 @@ const formatDate = (dateStr?: string | null) => {
               :key="iIdx"
               class="flex w-full mb-1 tracking-tight"
             >
-              <div class="w-[22%] pl-3 text-[9px] uppercase leading-tight">
-                {{ page.pageIndex === 0 && cIdx === 0 && iIdx === 0 ? jobData?.shippingMark : "" }}
+              <div
+                class="w-[22%] pl-3 pr-6 text-[9px] uppercase leading-tight font-bold italic break-words whitespace-pre-wrap"
+              >
+                <template v-if="iIdx === 0 && cnt.isHeaderVisible && !item.isContinuationSegment">
+                  <template v-if="isAir"> </template>
+                  <template v-else-if="isTrucking">
+                    {{ cnt.vehicleNumber || "" }}
+                    <span v-if="cnt.driverName" class="ml-1">/ {{ cnt.driverName }}</span>
+                    <span v-if="cnt.driverContactNumber" class="ml-1"
+                      >({{ cnt.driverContactNumber }})</span
+                    >
+                  </template>
+                  <template v-else>
+                    {{ cnt.containerNumber || ""
+                    }}<span v-if="cnt.containerType?.code || cnt.containerType?.name" class="ml-1"
+                      >/ {{ cnt.containerType?.code || cnt.containerType?.name }}</span
+                    ><span v-if="cnt.sealNumber" class="ml-1">/ {{ cnt.sealNumber }}</span>
+                  </template>
+                </template>
               </div>
-              <div class="w-[10%] px-2 text-right text-[11px]"></div>
+              <div
+                class="w-[10%] px-1 text-right text-[9px] font-bold leading-tight whitespace-nowrap"
+                style="word-break: keep-all"
+              >
+                {{ item.isContinuationSegment ? "" : cargoItemQtyText(item) }}
+              </div>
               <div class="w-[3%] flex items-center justify-center text-[10px] leading-none">
                 {{ cnt.isHazardous ? "X" : "" }}
               </div>
@@ -1195,8 +1212,12 @@ const formatDate = (dateStr?: string | null) => {
                   (HS CODE: {{ item.hsCode }})
                 </div>
               </div>
-              <div class="w-[12.5%] px-3 text-right text-[11px] leading-tight"></div>
-              <div class="w-[12.5%] px-3 text-right text-[11px]"></div>
+              <div class="w-[12.5%] px-3 text-right text-[11px] leading-tight">
+                {{ item.isContinuationSegment ? "" : cargoItemGrossWeightText(item) }}
+              </div>
+              <div class="w-[12.5%] px-3 text-right text-[11px]">
+                {{ item.isContinuationSegment ? "" : cargoItemMeasurementText(item) }}
+              </div>
             </div>
 
             <div class="mb-1.5"></div>
@@ -1216,10 +1237,10 @@ const formatDate = (dateStr?: string | null) => {
                 {{ "NO CARGO DATA" }}
               </div>
               <div class="w-[12.5%] px-2 text-right text-black">
-                {{ formatNumber(totals.grossWeight) }}KGS
+                {{ formatNumber(totals.grossWeight) }} KGS
               </div>
               <div class="w-[12.5%] px-2 text-right text-black">
-                {{ formatNumber(totals.measurement) }}CBM
+                {{ formatNumber(totals.measurement) }} CBM
               </div>
             </div>
           </template>
@@ -1234,8 +1255,11 @@ const formatDate = (dateStr?: string | null) => {
           class="absolute left-0 right-0 bottom-0 z-[2] flex w-full border-t border-[#062c58] font-medium text-[8.5px] text-[#062c58] bg-white"
         >
           <div class="w-[22%] pl-3 py-1 text-[8px] font-semibold">TOTAL</div>
-          <div class="w-[10%] px-2 py-1 text-right text-[8px]">
-            {{ formatNumber(blGrandTotals.qty, 0) }} PKGS
+          <div
+            class="w-[10%] px-1 py-1 text-right text-[8px] whitespace-nowrap"
+            style="word-break: keep-all"
+          >
+            {{ formatNumber(blGrandTotals.qty, 0) }} {{ totalPackageUnit }}
           </div>
           <div class="w-[3%]"></div>
           <div class="w-[40%] px-3 py-1 text-[8px]">
