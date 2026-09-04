@@ -39,8 +39,8 @@ describe("hasMixedInvoiceCurrencyItems", () => {
 });
 
 describe("requiresInvoiceExchangeRate", () => {
-  it("requires exchange rate for a single-currency USD invoice", () => {
-    expect(requiresInvoiceExchangeRate("USD", [{ currency: "USD" }])).toBe(true);
+  it("does not require exchange rate for a single-currency USD invoice", () => {
+    expect(requiresInvoiceExchangeRate("USD", [{ currency: "USD" }])).toBe(false);
   });
 
   it("requires exchange rate when invoice items differ from invoice currency", () => {

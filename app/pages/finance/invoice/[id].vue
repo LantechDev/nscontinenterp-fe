@@ -604,6 +604,7 @@ watch(selectedTaxId, () => {
                 v-model.number="item.unitPrice"
                 type="number"
                 min="0"
+                step="0.01"
                 @input="updateItemAmount(index)"
                 class="w-full px-2 py-1.5 text-sm rounded border border-border focus:outline-none focus:ring-1 focus:ring-primary"
               />

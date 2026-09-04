@@ -25,8 +25,5 @@ export const requiresInvoiceExchangeRate = (
   invoiceCurrency: string | null | undefined,
   items: Array<{ currency?: string | null }> | null | undefined,
 ) => {
-  return (
-    normalizeInvoiceCurrency(invoiceCurrency) === "USD" ||
-    hasMixedInvoiceCurrencyItems(invoiceCurrency, items)
-  );
+  return hasMixedInvoiceCurrencyItems(invoiceCurrency, items);
 };
