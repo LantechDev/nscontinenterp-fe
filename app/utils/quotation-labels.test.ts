@@ -39,7 +39,7 @@ describe("quotation user-facing labels", () => {
     }
   });
 
-  it("does not create service items on the create quotation page", () => {
+  it("does not expose service item editing on the create quotation page", () => {
     const create = readFileSync(
       resolve(root, "app/pages/operational/quotations/create.vue"),
       "utf8",
@@ -48,7 +48,7 @@ describe("quotation user-facing labels", () => {
     expect(create).not.toContain("Service Items & Pricing");
     expect(create).not.toContain('id="pricing-info"');
     expect(create).not.toContain("formData.charges.map");
-    expect(create).toContain("charges: []");
+    expect(create).toContain("charges: copiedQuotationCharges.value");
   });
 
   it("keeps quotation revenue items away from the removed additional tab", () => {

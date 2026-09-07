@@ -390,11 +390,6 @@ const handleSubmit = async () => {
     return;
   }
 
-  if (needsExchangeRate.value && Number(form.value.exchangeRate || 0) <= 1) {
-    toast.error("Exchange rate must be greater than 1 for USD invoices");
-    return;
-  }
-
   // Send whichever tax is selected (incl. the rate-0 "NON PPN" row) so the choice is
   // persisted and reloads correctly on edit. A rate-0 tax simply yields 0 PPN.
   const taxesPayload = form.value.taxId
