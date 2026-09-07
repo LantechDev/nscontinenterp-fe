@@ -13,13 +13,20 @@ import {
   normalizeQuotationServiceMode,
 } from "~/utils/quotationRouteOptions";
 import { toast } from "vue-sonner";
+import {
+  mapCopiedQuotationCharges,
+  mapCopiedQuotationCosts,
+  mapCopiedQuotationInvoices,
+} from "~/utils/quotationCopy";
+import type { QuotationCharge, QuotationCost, QuotationInvoice } from "~/composables/useQuotations";
 
 definePageMeta({
   layout: "dashboard",
   title: "Create Quotation",
 });
 
-const { createQuotation, getQuotation, isLoading } = useQuotations();
+const { createQuotation, getQuotation, updateQuotationCosts, updateQuotationInvoices, isLoading } =
+  useQuotations();
 const router = useRouter();
 
 // Fetch Selector Option Lists
@@ -199,6 +206,9 @@ const formData = reactive({
   allowMultipleInvoices: false,
   notes: "",
 });
+const copiedQuotationCharges = ref<QuotationCharge[]>([]);
+const copiedQuotationCosts = ref<QuotationCost[]>([]);
+const copiedQuotationInvoices = ref<QuotationInvoice[]>([]);
 
 const route = useRoute();
 
@@ -246,6 +256,9 @@ watch(
         formData.exchangeRate = Number(q.exchangeRate || 1);
         formData.allowMultipleInvoices = Boolean(q.allowMultipleInvoices);
         formData.notes = q.notes || "";
+        copiedQuotationCharges.value = mapCopiedQuotationCharges(q.charges);
+        copiedQuotationCosts.value = mapCopiedQuotationCosts(q.costs);
+        copiedQuotationInvoices.value = mapCopiedQuotationInvoices(q.quotationInvoices);
 
         // Fetch and merge selected POL/POD to ensure they are available in dropdown options
         const portQueries = [];
@@ -473,11 +486,27 @@ async function handleSubmit() {
     taxAmount: 0,
     taxTotal: 0,
     total: 0,
-    charges: [],
+    charges: copiedQuotationCharges.value,
   };
 
   const res = await createQuotation(payload);
   if (res.success && res.data) {
+    if (copiedQuotationCosts.value.length > 0) {
+      const costsRes = await updateQuotationCosts(res.data.id, copiedQuotationCosts.value);
+      if (!costsRes.success) {
+        toast.error(costsRes.error || "Quotation dibuat, tapi costing gagal disalin.");
+        return;
+      }
+    }
+
+    if (copiedQuotationInvoices.value.length > 0) {
+      const invoicesRes = await updateQuotationInvoices(res.data.id, copiedQuotationInvoices.value);
+      if (!invoicesRes.success) {
+        toast.error(invoicesRes.error || "Quotation dibuat, tapi invoice draft gagal disalin.");
+        return;
+      }
+    }
+
     toast.success("Quotation berhasil dibuat.");
     router.push("/operational/quotations");
   } else {
