@@ -236,4 +236,32 @@ describe("quotation cost totals", () => {
     expect(contents).toContain("Estimate Net Profit (IDR eq.)");
     expect(contents).toContain("Net Profit (IDR eq.)");
   });
+
+  it("lets users write the estimated quotation profit rate back into quotation data", () => {
+    const contents = readFileSync(
+      join(root, "app/components/operational/QuotationCostingTab.vue"),
+      "utf8",
+    );
+
+    expect(contents).toContain("applyEstimatedExchangeRate");
+    expect(contents).toContain("updateQuotation(");
+    expect(contents).toContain("subTotal: Number(props.quotation.subTotal || 0)");
+    expect(contents).toContain(
+      "taxTotal: Number(props.quotation.taxTotal || props.quotation.taxAmount || 0)",
+    );
+    expect(contents).toContain("total: Number(props.quotation.total || 0)");
+    expect(contents).toContain("estimatedExchangeRateNotice");
+    expect(contents).toContain("Isi Kurs Estimasi");
+  });
+
+  it("renders quotation profit preview rows with the effective estimated rate", () => {
+    const contents = readFileSync(
+      join(root, "app/components/operational/QuotationCostingPreview.vue"),
+      "utf8",
+    );
+
+    expect(contents).toContain("effectiveExchangeRate");
+    expect(contents).toContain("profit.isEstimated");
+    expect(contents).toContain("estimated API rate");
+  });
 });

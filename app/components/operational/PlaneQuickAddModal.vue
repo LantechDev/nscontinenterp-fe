@@ -22,7 +22,6 @@ const error = ref<string | null>(null);
 // Form state
 const formData = ref({
   name: props.initialName,
-  code: "",
   description: "",
   isActive: true,
 });
@@ -40,7 +39,6 @@ watch(
 const resetForm = () => {
   formData.value = {
     name: props.initialName,
-    code: "",
     description: "",
     isActive: true,
   };
@@ -61,7 +59,7 @@ const handleSubmit = async () => {
   error.value = null;
   const result = await createPlane({
     name: formData.value.name.toUpperCase(),
-    code: formData.value.code.toUpperCase() || undefined,
+    code: undefined,
     description: formData.value.description.toUpperCase() || undefined,
     isActive: formData.value.isActive,
   });
@@ -106,18 +104,7 @@ const handleSubmit = async () => {
         />
       </div>
 
-      <div class="grid grid-cols-2 gap-4">
-        <div class="space-y-1.5">
-          <label class="text-sm font-semibold text-foreground">Plane Code</label>
-          <input
-            v-model="formData.code"
-            type="text"
-            placeholder="e.g. B744F"
-            class="w-full px-3 py-2 rounded-lg border border-border focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
-            v-uppercase
-          />
-        </div>
-
+      <div class="grid grid-cols-1 gap-4">
         <div class="space-y-1.5">
           <label class="text-sm font-semibold text-foreground">Status</label>
           <div class="flex items-center gap-4 h-[42px]">

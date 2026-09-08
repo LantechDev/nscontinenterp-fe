@@ -17,13 +17,12 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<{
   (e: "update:isOpen", value: boolean): void;
-  (e: "submit", data: { name: string; code: string; description: string; isActive: boolean }): void;
+  (e: "submit", data: { name: string; description: string; isActive: boolean }): void;
 }>();
 
 // Form state
 const formData = ref({
   name: "",
-  code: "",
   description: "",
   isActive: true,
 });
@@ -31,7 +30,6 @@ const formData = ref({
 const resetForm = () => {
   formData.value = {
     name: "",
-    code: "",
     description: "",
     isActive: true,
   };
@@ -41,7 +39,6 @@ const handleSubmit = () => {
   emit("submit", {
     ...formData.value,
     name: formData.value.name.toUpperCase(),
-    code: formData.value.code.toUpperCase(),
     description: formData.value.description.toUpperCase(),
   });
 };
@@ -58,7 +55,6 @@ watch(
     if (plane) {
       formData.value = {
         name: plane.name,
-        code: plane.code || "",
         description: plane.description || "",
         isActive: plane.isActive,
       };
@@ -98,17 +94,6 @@ defineExpose({ resetForm });
           placeholder="e.g. BOEING 747"
           class="w-full px-3 py-2 rounded-lg border border-border focus:outline-none focus:ring-1 focus:ring-primary"
           required
-        />
-      </div>
-
-      <div class="space-y-1.5">
-        <label class="text-sm font-medium text-foreground">Plane Code</label>
-        <input
-          v-model="formData.code"
-          v-uppercase
-          type="text"
-          placeholder="e.g. B744F"
-          class="w-full px-3 py-2 rounded-lg border border-border focus:outline-none focus:ring-1 focus:ring-primary"
         />
       </div>
 

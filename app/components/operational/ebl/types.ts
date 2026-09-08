@@ -217,6 +217,7 @@ export interface ProfitInvoice {
   invoiceNumber: string | null;
   notes?: string | null;
   total: number | string | null;
+  balanceDue?: number | string | null;
   currency?: string | null;
   exchangeRate?: number | string | null;
   items?: { description: string | null }[] | null;

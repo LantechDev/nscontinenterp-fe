@@ -5,7 +5,6 @@ import { cn } from "~/lib/utils";
 interface PlaneItem {
   id: string;
   name: string;
-  code: string;
   createdAt: string;
   status: string;
 }
@@ -32,19 +31,6 @@ const emit = defineEmits<{
     <table class="w-full min-w-[640px]">
       <thead>
         <tr class="border-b border-border bg-white text-left">
-          <th
-            class="py-3 px-4 text-sm font-medium text-foreground cursor-pointer hover:bg-muted/50"
-            @click="emit('toggle-sort', 'code')"
-          >
-            <div class="flex items-center gap-1">
-              Plane Code
-              <ChevronDown
-                v-if="sortField === 'code'"
-                class="w-4 h-4"
-                :class="{ 'rotate-180': sortDirection === 'desc' }"
-              />
-            </div>
-          </th>
           <th
             class="py-3 px-4 text-sm font-medium text-foreground cursor-pointer hover:bg-muted/50"
             @click="emit('toggle-sort', 'name')"
@@ -93,7 +79,6 @@ const emit = defineEmits<{
           :key="plane.id"
           class="border-b border-border last:border-0 hover:bg-muted/30 transition-colors"
         >
-          <td class="py-3 px-4 text-sm font-medium">{{ plane.code }}</td>
           <td class="py-3 px-4 text-sm font-medium">{{ plane.name }}</td>
           <td class="py-3 px-4 text-sm text-muted-foreground">{{ plane.createdAt }}</td>
           <td class="py-3 px-4">
@@ -137,7 +122,7 @@ const emit = defineEmits<{
           </td>
         </tr>
         <tr v-if="planes.length === 0">
-          <td :colspan="canManage ? 5 : 4" class="py-8 text-center text-muted-foreground">
+          <td :colspan="canManage ? 4 : 3" class="py-8 text-center text-muted-foreground">
             No planes found
           </td>
         </tr>

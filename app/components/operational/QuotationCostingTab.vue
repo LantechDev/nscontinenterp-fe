@@ -36,11 +36,13 @@ const props = defineProps<{
   editable: boolean;
 }>();
 
-const { updateQuotationCosts } = useQuotations();
+const { updateQuotation, updateQuotationCosts } = useQuotations();
 const { companies, fetchCompanies } = useCompanies();
 
 const costs = ref<QuotationCost[]>([]);
 const isSaving = ref(false);
+const isApplyingEstimatedRate = ref(false);
+const appliedQuotationExchangeRate = ref<number | null>(null);
 
 const showForm = ref(false);
 const editingCost = ref<QuotationCost | null>(null);
@@ -114,6 +116,13 @@ const loadFromQuotation = () => {
 
 watch(() => props.quotation.id, loadFromQuotation, { immediate: true });
 watch(() => props.quotation.costs, loadFromQuotation);
+watch(
+  () => props.quotation.id,
+  () => {
+    appliedQuotationExchangeRate.value = null;
+    fallbackExchangeRate.value = null;
+  },
+);
 
 onMounted(() => {
   fetchCompanies({ type: "VENDOR", limit: 500 });
@@ -149,8 +158,17 @@ const usdTotal = (cost: QuotationCost) => {
   return totals.USD?.total || 0;
 };
 
+const quotationExchangeRate = computed(() =>
+  Number(appliedQuotationExchangeRate.value || props.quotation.exchangeRate || 1),
+);
+
+const quotationForProfit = computed<Quotation>(() => ({
+  ...props.quotation,
+  exchangeRate: quotationExchangeRate.value,
+}));
+
 const needsEstimateExchangeRate = computed(() => {
-  if (Number(props.quotation.exchangeRate || 1) > 1) return false;
+  if (quotationExchangeRate.value > 1) return false;
   if (props.quotation.currency === "USD") return true;
   if (
     (props.quotation.charges || []).some((charge) => !charge.currency || charge.currency === "USD")
@@ -185,7 +203,7 @@ const previewCosts = computed<QuotationCost[]>(() =>
 
 // ---------- Profit analysis ----------
 const profitSummary = computed<ProfitSummary>(() =>
-  calculateQuotationProfitSummary(props.quotation, costs.value, {
+  calculateQuotationProfitSummary(quotationForProfit.value, costs.value, {
     fallbackExchangeRate: fallbackExchangeRate.value,
   }),
 );
@@ -206,6 +224,35 @@ const totalCostUSD = computed(() => {
 
 const usdRevenue = computed(() => {
   return profitSummary.value.byCurrency.USD?.revenue || 0;
+});
+
+const quotationNeedsEstimatedRate = computed(() => {
+  if (quotationExchangeRate.value > 1) return false;
+  if (props.quotation.currency === "USD") return true;
+  if (
+    (props.quotation.charges || []).some((charge) => !charge.currency || charge.currency === "USD")
+  )
+    return true;
+  return (props.quotation.quotationInvoices || []).some((invoice) =>
+    (invoice.items || []).some((item) => !item.currency || item.currency === "USD"),
+  );
+});
+
+const costsNeedEstimatedRate = computed(() =>
+  costs.value.some((cost) => hasUsdItem(cost) && Number(cost.exchangeRate || 1) <= 1),
+);
+
+const canApplyEstimatedExchangeRate = computed(
+  () =>
+    props.editable &&
+    profitSummary.value.isEstimated &&
+    Number(fallbackExchangeRate.value || 1) > 1 &&
+    (quotationNeedsEstimatedRate.value || costsNeedEstimatedRate.value),
+);
+
+const estimatedExchangeRateNotice = computed(() => {
+  if (!profitSummary.value.isEstimated || !fallbackExchangeRate.value) return "";
+  return `Estimated API rate: 1 USD = ${formatCurrency(fallbackExchangeRate.value, "IDR")}. Klik Isi Kurs Estimasi untuk menyimpan rate ini ke quotation/cost yang masih kosong.`;
 });
 
 // ---------- Persistence ----------
@@ -273,6 +320,47 @@ const handleDelete = async (idx: number) => {
   if (res.success) toast.success("Cost dihapus.");
   else toast.error(res.error || "Gagal menghapus costing.");
   showCostActions.value = false;
+};
+
+const applyEstimatedExchangeRate = async () => {
+  const rate = Number(fallbackExchangeRate.value || 1);
+  if (!canApplyEstimatedExchangeRate.value || rate <= 1) return;
+
+  isApplyingEstimatedRate.value = true;
+  try {
+    if (quotationNeedsEstimatedRate.value) {
+      const quotationRes = await updateQuotation(props.quotation.id, {
+        exchangeRate: rate,
+        subTotal: Number(props.quotation.subTotal || 0),
+        taxTotal: Number(props.quotation.taxTotal || props.quotation.taxAmount || 0),
+        total: Number(props.quotation.total || 0),
+      });
+      if (!quotationRes.success) {
+        toast.error(quotationRes.error || "Gagal mengisi kurs estimasi quotation.");
+        return;
+      }
+      appliedQuotationExchangeRate.value = rate;
+    }
+
+    if (costsNeedEstimatedRate.value) {
+      const nextCosts = costs.value.map((cost) =>
+        hasUsdItem(cost) && Number(cost.exchangeRate || 1) <= 1
+          ? { ...cost, exchangeRate: rate }
+          : cost,
+      );
+      const costRes = await persist(nextCosts);
+      if (!costRes.success) {
+        toast.error(costRes.error || "Gagal mengisi kurs estimasi cost.");
+        return;
+      }
+      costs.value = (costRes.data?.costs || nextCosts).map((cost) => ({ ...cost }));
+    }
+
+    fallbackExchangeRate.value = null;
+    toast.success("Kurs estimasi sudah diisi ke profit analysis quotation.");
+  } finally {
+    isApplyingEstimatedRate.value = false;
+  }
 };
 
 const handlePrint = async () => {
@@ -428,6 +516,25 @@ const handlePrint = async () => {
           </p>
         </div>
       </template>
+    </div>
+
+    <div
+      v-if="estimatedExchangeRateNotice"
+      class="flex flex-col md:flex-row md:items-center justify-between gap-3 border border-amber-200 bg-amber-50 px-4 py-3 rounded-lg"
+    >
+      <p class="text-xs text-amber-900 font-semibold leading-relaxed">
+        {{ estimatedExchangeRateNotice }}
+      </p>
+      <button
+        v-if="canApplyEstimatedExchangeRate"
+        @click="applyEstimatedExchangeRate"
+        :disabled="isApplyingEstimatedRate || isSaving"
+        class="inline-flex items-center justify-center px-3 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-md text-[11px] font-black uppercase tracking-wider gap-2 transition-colors disabled:opacity-50 shrink-0"
+      >
+        <Loader2 v-if="isApplyingEstimatedRate" class="w-3.5 h-3.5 animate-spin" />
+        <Download v-else class="w-3.5 h-3.5 rotate-180" />
+        {{ isApplyingEstimatedRate ? "Mengisi" : "Isi Kurs Estimasi" }}
+      </button>
     </div>
 
     <!-- Sub-tab Navigation -->
@@ -694,7 +801,7 @@ const handlePrint = async () => {
 
       <QuotationCostingPreview
         ref="previewRef"
-        :quotation="quotation"
+        :quotation="quotationForProfit"
         :costs="previewCosts"
         :profit="profitSummary"
       />

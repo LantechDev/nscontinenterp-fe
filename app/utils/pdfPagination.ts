@@ -14,6 +14,7 @@ interface PaginatePdfRowsOptions<T> {
   tableHeaderPx: number;
   lastPageReservePx: number;
   getRowHeightPx: (item: T) => number;
+  maxRowsPerPage?: (context: { isFirstPage: boolean; startIndex: number }) => number | null;
 }
 
 export function paginatePdfRows<T>({
@@ -24,6 +25,7 @@ export function paginatePdfRows<T>({
   tableHeaderPx,
   lastPageReservePx,
   getRowHeightPx,
+  maxRowsPerPage,
 }: PaginatePdfRowsOptions<T>): PdfRowPage<T>[] {
   const pages: Array<{ items: T[]; startIndex: number }> = [];
   let index = 0;
@@ -34,10 +36,12 @@ export function paginatePdfRows<T>({
     let budgetPx = mainHeightPx - headerPx - tableHeaderPx;
     const startIndex = index;
     const pageItems: T[] = [];
+    const pageRowLimit = maxRowsPerPage?.({ isFirstPage: isFirst, startIndex }) ?? null;
 
     while (index < items.length) {
       const item = items[index];
       if (!item) break;
+      if (pageRowLimit !== null && pageItems.length >= pageRowLimit && pageItems.length > 0) break;
       const rowHeightPx = getRowHeightPx(item);
       const reservePx = index === items.length - 1 ? lastPageReservePx : 0;
       if (budgetPx - rowHeightPx - reservePx < 0 && pageItems.length > 0) break;

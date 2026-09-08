@@ -728,7 +728,7 @@ const removeShipperRef = (index: number) => {
               class="p-5 bg-muted/5 border border-border/50 rounded-2xl relative transition-all hover:bg-white hover:shadow-sm"
             >
               <div class="grid grid-cols-1 md:grid-cols-12 gap-5 items-end">
-                <div class="md:col-span-5 space-y-2">
+                <div :class="[isAir ? 'md:col-span-8' : 'md:col-span-5', 'space-y-2']">
                   <label
                     class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1"
                     >{{ getVesselLabels(vIndex).header }}</label
@@ -744,17 +744,17 @@ const removeShipperRef = (index: number) => {
                     class="h-10"
                   />
                 </div>
-                <div class="md:col-span-3 space-y-2">
+                <div v-if="!isAir" class="md:col-span-3 space-y-2">
                   <label
                     class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1"
-                    >{{ isAir ? "Plane No" : "Voyage No" }}</label
+                    >Voyage No</label
                   >
                   <input
                     v-model="vessel.voyageNumber"
                     v-uppercase
                     type="text"
                     class="input-field h-10"
-                    :placeholder="isAir ? 'Plane No...' : 'Voyage...'"
+                    placeholder="Voyage..."
                   />
                 </div>
                 <div class="md:col-span-2 space-y-2">
