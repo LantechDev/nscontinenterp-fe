@@ -49,7 +49,6 @@ const planes = computed(() => {
   let filtered = planesList.value.map((p: Plane) => ({
     id: p.id,
     name: p.name,
-    code: p.code || "-",
     createdAt: new Date(p.createdAt).toLocaleDateString("id-ID", {
       day: "numeric",
       month: "short",
@@ -61,9 +60,7 @@ const planes = computed(() => {
   // Apply search filter
   if (searchQuery.value) {
     const query = searchQuery.value.toLowerCase();
-    filtered = filtered.filter(
-      (p) => p.name.toLowerCase().includes(query) || p.code.toLowerCase().includes(query),
-    );
+    filtered = filtered.filter((p) => p.name.toLowerCase().includes(query));
   }
 
   if (selectedStatus.value !== "all") {
@@ -84,9 +81,6 @@ const sortedPlanes = computed(() => {
     switch (sortField.value) {
       case "name":
         comparison = a.name.localeCompare(b.name);
-        break;
-      case "code":
-        comparison = a.code.localeCompare(b.code);
         break;
       case "createdAt":
         comparison = a.createdAt.localeCompare(b.createdAt);
@@ -129,12 +123,7 @@ const openEditModal = (id: string) => {
   isModalOpen.value = true;
 };
 
-const handleSubmit = async (formData: {
-  name: string;
-  code: string;
-  description: string;
-  isActive: boolean;
-}) => {
+const handleSubmit = async (formData: { name: string; description: string; isActive: boolean }) => {
   if (!formData.name) {
     formError.value = "Plane name is required";
     return;
@@ -145,7 +134,7 @@ const handleSubmit = async (formData: {
 
   const planeData = {
     name: formData.name,
-    code: formData.code || undefined,
+    code: undefined,
     description: formData.description || undefined,
     isActive: formData.isActive,
   };
@@ -288,9 +277,6 @@ const handleDelete = async () => {
       >
         <div class="flex items-start justify-between gap-3">
           <div class="min-w-0">
-            <p class="text-xs font-bold text-muted-foreground uppercase tracking-widest">
-              {{ plane.code }}
-            </p>
             <h3 class="font-semibold text-foreground truncate">{{ plane.name }}</h3>
             <div class="flex items-center gap-2 mt-2">
               <span

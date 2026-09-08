@@ -17,6 +17,8 @@ interface CurrencyBucket {
 interface ProfitSummary {
   byCurrency: Record<string, CurrencyBucket>;
   combined: { revenueIDR: number; costIDR: number; profitIDR: number; marginIDR: number };
+  isEstimated?: boolean;
+  effectiveExchangeRate?: number;
 }
 
 const props = defineProps<{
@@ -47,8 +49,13 @@ const formatCurrency = (val: number | string | null | undefined, currency = "IDR
 
 const customerName = computed(() => props.quotation?.customerName || "-");
 const quotationExchangeRate = computed(() => Number(props.quotation?.exchangeRate || 1));
+const effectiveExchangeRate = computed(() =>
+  props.profit.isEstimated
+    ? Number(props.profit.effectiveExchangeRate || quotationExchangeRate.value || 1)
+    : quotationExchangeRate.value,
+);
 const exchangeRateDisplay = computed(() =>
-  formatExchangeRateLabel(quotationExchangeRate.value, {
+  formatExchangeRateLabel(effectiveExchangeRate.value, {
     idrPosition: "prefix",
     defaultLabel: "1 USD = USD 1",
   }),
@@ -84,7 +91,9 @@ interface CostRow {
 const costRows = computed<CostRow[]>(() => {
   const rows: CostRow[] = [];
   (props.costs || []).forEach((c) => {
-    const rate = toNumber(c.exchangeRate || 1);
+    const savedRate = toNumber(c.exchangeRate || 1);
+    const rate =
+      props.profit.isEstimated && savedRate <= 1 ? effectiveExchangeRate.value : savedRate;
     (c.items || []).forEach((it) => {
       rows.push({
         vendorName: c.vendorName || null,
@@ -102,6 +111,11 @@ const totalRevenueIDR = computed(() => props.profit.combined.revenueIDR);
 const totalCostIDR = computed(() => props.profit.combined.costIDR);
 const profitIDR = computed(() => props.profit.combined.profitIDR);
 const marginIDR = computed(() => props.profit.combined.marginIDR);
+const revenueExchangeRate = computed(() =>
+  props.profit.isEstimated && quotationExchangeRate.value <= 1
+    ? effectiveExchangeRate.value
+    : quotationExchangeRate.value,
+);
 
 const chargeAmount = (ch: QuotationCharge) => toNumber(ch.quantity) * toNumber(ch.unitPrice);
 
@@ -398,7 +412,7 @@ defineExpose({ generatePDF, isGeneratingPDF });
                       <CurrencyStack
                         :amount="chargeAmount(ch)"
                         :currency="ch.currency || 'IDR'"
-                        :exchange-rate="quotation?.exchangeRate"
+                        :exchange-rate="revenueExchangeRate"
                         primary-class="font-bold text-[#062c58] whitespace-nowrap"
                         secondary-class="text-[0.5rem] text-muted-foreground italic whitespace-nowrap"
                         align="right"
@@ -465,7 +479,9 @@ defineExpose({ generatePDF, isGeneratingPDF });
               <div class="w-1/2 p-3 text-[0.55rem] italic text-muted-foreground leading-tight">
                 Laporan internal untuk analisa manajemen. Data berdasarkan pricing & biaya vendor
                 pada quotation ini. Profit = Total Revenue − Total Cost. Nilai USD dikonversi ke IDR
-                memakai kurs tercatat.
+                memakai kurs tercatat<span v-if="profit.isEstimated">
+                  atau estimated API rate jika rate dokumen belum diisi</span
+                >.
               </div>
               <div class="w-1/2 flex flex-col border-l border-[#062c58]">
                 <div class="flex-1 flex border-b border-[#062c58]/10 items-center">

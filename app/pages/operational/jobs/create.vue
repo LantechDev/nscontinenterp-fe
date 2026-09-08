@@ -2447,7 +2447,12 @@ async function populateFormFromExistingJob(jobInput: unknown) {
                           {{ vIndex + 1 }}
                         </div>
                       </div>
-                      <div class="md:col-span-4 space-y-2">
+                      <div
+                        :class="[
+                          formData.shipmentType === 'AIR' ? 'md:col-span-6' : 'md:col-span-4',
+                          'space-y-2',
+                        ]"
+                      >
                         <label
                           class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1 opacity-70"
                           >{{ getVesselLabels(vIndex).header }}</label
@@ -2463,19 +2468,17 @@ async function populateFormFromExistingJob(jobInput: unknown) {
                           class="h-10"
                         />
                       </div>
-                      <div class="md:col-span-2 space-y-2">
+                      <div v-if="formData.shipmentType !== 'AIR'" class="md:col-span-2 space-y-2">
                         <label
                           class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1 opacity-70"
-                          >{{ formData.shipmentType === "AIR" ? "Plane No" : "Voyage No" }}</label
+                          >Voyage No</label
                         >
                         <input
                           v-model="vessel.voyageNumber"
                           v-uppercase
                           type="text"
                           class="input-field h-10"
-                          :placeholder="
-                            formData.shipmentType === 'AIR' ? 'Plane No...' : 'Voyage...'
-                          "
+                          placeholder="Voyage..."
                         />
                       </div>
                       <div class="md:col-span-2 space-y-2">

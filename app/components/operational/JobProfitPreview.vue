@@ -1,11 +1,16 @@
 <script setup lang="ts">
-import { ref, computed, nextTick, onMounted } from "vue";
+import { ref, computed, nextTick, onMounted, watch } from "vue";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import { toast } from "vue-sonner";
 import { cn, toNumber } from "~/lib/utils";
-import { formatCurrencyCode, normalizeCurrencyCode } from "~/utils/currency";
+import { formatCurrencyCode } from "~/utils/currency";
 import { getTransportLocationDisplay } from "~/utils/airFreightJob";
+import {
+  hasProfitReportUsdConversion,
+  needsProfitReportFallbackExchangeRate,
+  toProfitReportBaseAmount,
+} from "~/utils/jobProfitReport";
 import type { ActiveJobData, ProfitInvoice, ProfitExpense, ProfitJob } from "./ebl/types";
 
 const props = defineProps<{
@@ -47,14 +52,6 @@ const jobPodDisplay = computed(() =>
   }),
 );
 
-const toBaseAmount = (
-  amount: number | string | null | undefined,
-  exchangeRate: number | string | null | undefined,
-) => (toNumber(amount) || 0) * (toNumber(exchangeRate) || 1);
-
-const hasUsdConversion = (currency?: string | null, exchangeRate?: number | string | null) =>
-  normalizeCurrencyCode(currency) === "USD" && (toNumber(exchangeRate) || 1) > 1;
-
 const formatDate = (dateStr?: string | null) => {
   if (!dateStr) return "";
   try {
@@ -83,11 +80,40 @@ const allInvoices = computed(() => props.job?.invoices || []);
 const allVendorInvoices = computed(() => props.job?.expenses || []);
 const invoices = computed(() => allInvoices.value.filter((inv) => !isVoided(inv)));
 const vendorInvoices = computed(() => allVendorInvoices.value.filter((exp) => !isVoided(exp)));
+const fallbackExchangeRate = ref<number | null>(null);
+const needsFallbackExchangeRate = computed(() =>
+  needsProfitReportFallbackExchangeRate([...invoices.value, ...vendorInvoices.value]),
+);
+const isUsingEstimatedExchangeRate = computed(
+  () => needsFallbackExchangeRate.value && Number(fallbackExchangeRate.value || 1) > 1,
+);
+
+const loadFallbackExchangeRate = async () => {
+  if (!needsFallbackExchangeRate.value || fallbackExchangeRate.value) return;
+  try {
+    const res = await $fetch<{ success: boolean; rate?: number }>(
+      "/api/finance/invoice/exchange-rate",
+    );
+    if (res?.success && res.rate) fallbackExchangeRate.value = res.rate;
+  } catch {
+    // Silent fallback: report still shows saved values if the rate API is unavailable.
+  }
+};
+
+watch(needsFallbackExchangeRate, loadFallbackExchangeRate, { immediate: true });
 
 const totalRevenue = computed(() => {
   if (allInvoices.value.length > 0) {
     return invoices.value.reduce((sum: number, inv: ProfitInvoice) => {
-      return sum + toBaseAmount(inv.total, inv.exchangeRate);
+      return (
+        sum +
+        toProfitReportBaseAmount(
+          inv.total,
+          inv.currency,
+          inv.exchangeRate,
+          fallbackExchangeRate.value,
+        )
+      );
     }, 0);
   }
   return toNumber(props.job?.revenue) || 0;
@@ -104,7 +130,15 @@ const getItemDescriptions = (items: { description: string | null }[] | null | un
 const totalCost = computed(() => {
   if (allVendorInvoices.value.length > 0) {
     return vendorInvoices.value.reduce((sum: number, exp: ProfitExpense) => {
-      return sum + toBaseAmount(exp.amount, exp.exchangeRate);
+      return (
+        sum +
+        toProfitReportBaseAmount(
+          exp.amount,
+          exp.currency,
+          exp.exchangeRate,
+          fallbackExchangeRate.value,
+        )
+      );
     }, 0);
   }
   return toNumber(props.job?.cogs || props.job?.cost) || 0;
@@ -152,11 +186,24 @@ const linesFor = (text: string | null | undefined, charsPerLine: number) =>
   Math.max(1, Math.ceil((text?.length || 0) / charsPerLine));
 
 const revenueRowPx = (inv: ProfitInvoice) =>
-  ROW_BASE_PX + Math.max(1, hasUsdConversion(inv.currency, inv.exchangeRate) ? 2 : 1) * LINE_PX;
+  ROW_BASE_PX +
+  Math.max(
+    1,
+    hasProfitReportUsdConversion(inv.currency, inv.exchangeRate, fallbackExchangeRate.value)
+      ? 2
+      : 1,
+  ) *
+    LINE_PX;
 
 const costRowPx = (exp: ProfitExpense) => {
   const vendorLines = linesFor(exp.vendor?.name, VENDOR_CHARS_PER_LINE);
-  const amountLines = hasUsdConversion(exp.currency, exp.exchangeRate) ? 2 : 1;
+  const amountLines = hasProfitReportUsdConversion(
+    exp.currency,
+    exp.exchangeRate,
+    fallbackExchangeRate.value,
+  )
+    ? 2
+    : 1;
   return ROW_BASE_PX + Math.max(vendorLines, amountLines) * LINE_PX;
 };
 
@@ -325,6 +372,12 @@ defineExpose({
             >
               JOB PROFIT ANALYSIS
             </span>
+            <span
+              v-if="isUsingEstimatedExchangeRate"
+              class="text-[0.48rem] font-bold uppercase tracking-wider text-amber-700 mt-1"
+            >
+              estimated API rate
+            </span>
           </div>
           <div class="w-[35%] text-right pb-1 flex flex-col items-end justify-end h-full">
             <div class="text-[0.6rem] font-mono mb-1 text-black">
@@ -471,9 +524,27 @@ defineExpose({
                       </td>
                       <td class="px-3 py-2 text-right">
                         <div class="flex flex-col items-end">
-                          <template v-if="hasUsdConversion(inv.currency, inv.exchangeRate)">
+                          <template
+                            v-if="
+                              hasProfitReportUsdConversion(
+                                inv.currency,
+                                inv.exchangeRate,
+                                fallbackExchangeRate,
+                              )
+                            "
+                          >
                             <span class="font-bold">
-                              {{ formatCurrency(toBaseAmount(inv.total, inv.exchangeRate), "IDR") }}
+                              {{
+                                formatCurrency(
+                                  toProfitReportBaseAmount(
+                                    inv.total,
+                                    inv.currency,
+                                    inv.exchangeRate,
+                                    fallbackExchangeRate,
+                                  ),
+                                  "IDR",
+                                )
+                              }}
                             </span>
                             <span class="text-[0.5rem] text-muted-foreground italic">
                               {{ formatCurrency(inv.total, "USD") }}
@@ -537,10 +608,26 @@ defineExpose({
                       </td>
                       <td class="px-3 py-2 text-right">
                         <div class="flex flex-col items-end">
-                          <template v-if="hasUsdConversion(exp.currency, exp.exchangeRate)">
+                          <template
+                            v-if="
+                              hasProfitReportUsdConversion(
+                                exp.currency,
+                                exp.exchangeRate,
+                                fallbackExchangeRate,
+                              )
+                            "
+                          >
                             <span class="font-bold">
                               {{
-                                formatCurrency(toBaseAmount(exp.amount, exp.exchangeRate), "IDR")
+                                formatCurrency(
+                                  toProfitReportBaseAmount(
+                                    exp.amount,
+                                    exp.currency,
+                                    exp.exchangeRate,
+                                    fallbackExchangeRate,
+                                  ),
+                                  "IDR",
+                                )
                               }}
                             </span>
                             <span class="text-[0.5rem] text-muted-foreground italic">
@@ -573,7 +660,9 @@ defineExpose({
                 This report is generated for internal management analysis purposes. Data shown is
                 based on recorded invoices and expenses linked to the job. Profit calculation: Total
                 Revenue - Total Cost (COGS), with USD amounts converted to IDR using each recorded
-                exchange rate.
+                exchange rate<span v-if="isUsingEstimatedExchangeRate">
+                  or estimated API rate where a USD document rate is still empty</span
+                >.
               </div>
               <div class="w-1/2 flex flex-col border-l border-[#062c58]">
                 <div class="flex-1 flex border-b border-[#062c58]/10 items-center">

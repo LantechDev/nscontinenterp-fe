@@ -841,7 +841,7 @@ const onAddressSave = async (payload: {
             >
               <div class="grid grid-cols-1 md:grid-cols-12 gap-5 items-end">
                 <!-- Vessel Selection -->
-                <div class="md:col-span-5 space-y-2">
+                <div :class="[isAir ? 'md:col-span-8' : 'md:col-span-5', 'space-y-2']">
                   <label
                     class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1"
                   >
@@ -860,17 +860,17 @@ const onAddressSave = async (payload: {
                 </div>
 
                 <!-- Voyage Number -->
-                <div class="md:col-span-3 space-y-2">
+                <div v-if="!isAir" class="md:col-span-3 space-y-2">
                   <label
                     class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1"
-                    >{{ isAir ? "Plane No" : "Voyage No" }}</label
+                    >Voyage No</label
                   >
                   <input
                     v-model="vessel.voyageNumber"
                     v-uppercase
                     type="text"
                     class="input-field h-10"
-                    :placeholder="isAir ? 'Plane No...' : 'Voyage...'"
+                    placeholder="Voyage..."
                   />
                 </div>
 

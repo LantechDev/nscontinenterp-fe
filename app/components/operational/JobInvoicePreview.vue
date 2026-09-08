@@ -8,6 +8,7 @@ import type { InvoiceDetail } from "~/composables/useInvoices";
 import { useBankAccounts, type BankAccount } from "~/composables/useBankAccounts";
 import { useServices, type Service } from "~/composables/useServices";
 import { getTransportLocationDisplay } from "~/utils/airFreightJob";
+import { paginatePdfRows, type PdfRowPage } from "~/utils/pdfPagination";
 import { sortInvoiceItemsForDisplay } from "~/utils/quotationInvoice";
 
 const props = defineProps<{
@@ -396,15 +397,10 @@ const formatDate = (dateStr?: string | null) => {
 
 type InvoicePreviewItem = InvoiceDetail["items"][number];
 
-interface InvoicePreviewPage {
-  items: InvoicePreviewItem[];
-  pageNumber: number;
-  startIndex: number;
-  isFirstPage: boolean;
-  isLastPage: boolean;
-}
-
 const FIRST_PAGE_ITEM_SLOTS = 10;
+const JOB_INVOICE_SINGLE_PAGE_MAX_ROWS = 12;
+const JOB_INVOICE_FIRST_PAGE_MAX_ROWS = 10;
+const JOB_INVOICE_CONT_PAGE_MAX_ROWS = 21;
 
 const MAIN_PX = 1009;
 const FIRST_HEADER_PX = 250;
@@ -424,55 +420,31 @@ const itemRowPx = (item?: InvoicePreviewItem | null) => {
     Math.ceil((item?.description || "").length / DESC_CHARS_PER_LINE),
   );
   const itemCurrency = item?.currency || props.invoice?.currency || "IDR";
-  const amountLines = itemCurrency === "USD" ? 2 : 1;
+  const amountLines = itemCurrency === "USD" && invoiceExchangeRate.value > 1 ? 2 : 1;
   return Math.max(
     ITEM_ROW_MIN_PX,
     Math.max(descriptionLines, amountLines) * ITEM_LINE_PX + ITEM_ROW_PADDING_PX,
   );
 };
 
-const paginatedInvoicePages = computed<InvoicePreviewPage[]>(() => {
-  const items = sortInvoiceItemsForDisplay(props.invoice?.items || []);
-  const pages: Array<{ items: InvoicePreviewItem[]; startIndex: number }> = [];
+const paginatedInvoicePages = computed<PdfRowPage<InvoicePreviewItem>[]>(() =>
+  paginatePdfRows({
+    items: sortInvoiceItemsForDisplay(props.invoice?.items || []),
+    mainHeightPx: MAIN_PX,
+    firstHeaderPx: FIRST_HEADER_PX,
+    continuationHeaderPx: CONT_HEADER_PX,
+    tableHeaderPx: TABLE_HEADER_PX,
+    lastPageReservePx: LAST_PAGE_RESERVE_PX,
+    getRowHeightPx: itemRowPx,
+    maxRowsPerPage: ({ isFirstPage }) => {
+      const itemCount = props.invoice?.items?.length || 0;
+      if (itemCount <= JOB_INVOICE_SINGLE_PAGE_MAX_ROWS) return null;
+      return isFirstPage ? JOB_INVOICE_FIRST_PAGE_MAX_ROWS : JOB_INVOICE_CONT_PAGE_MAX_ROWS;
+    },
+  }),
+);
 
-  let i = 0;
-  let first = true;
-
-  while (i < items.length) {
-    const header = first ? FIRST_HEADER_PX : CONT_HEADER_PX;
-    let budget = MAIN_PX - header - TABLE_HEADER_PX;
-
-    const startIndex = i;
-    const pageItems: InvoicePreviewItem[] = [];
-
-    while (i < items.length) {
-      const item = items[i];
-      if (!item) break;
-      const h = itemRowPx(item);
-      const reserve = i === items.length - 1 ? LAST_PAGE_RESERVE_PX : 0;
-      if (budget - h - reserve < 0 && pageItems.length > 0) break;
-      pageItems.push(item);
-      i++;
-      budget -= h;
-    }
-
-    pages.push({ items: pageItems, startIndex });
-    first = false;
-  }
-
-  if (pages.length === 0) {
-    pages.push({ items: [], startIndex: 0 });
-  }
-
-  return pages.map((page, index) => ({
-    ...page,
-    pageNumber: index + 1,
-    isFirstPage: index === 0,
-    isLastPage: index === pages.length - 1,
-  }));
-});
-
-const previewPages = computed<InvoicePreviewPage[]>(() => {
+const previewPages = computed<PdfRowPage<InvoicePreviewItem>[]>(() => {
   if (mode.value === "receipt") {
     return [
       {
@@ -594,7 +566,7 @@ defineExpose({
 
         <!-- Main Content Bordered Container -->
         <div
-          class="main-border-container border border-[#062c58] flex-1 flex flex-col text-[0.7rem] relative overflow-hidden h-full"
+          class="main-border-container border border-[#062c58] flex-1 min-h-0 flex flex-col text-[0.7rem] relative overflow-hidden"
         >
           <!-- Receipt Header / Metadata (Matches Invoice Info Grid Style!) -->
           <div
