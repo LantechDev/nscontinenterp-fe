@@ -9,12 +9,14 @@ import { getTransportLocationDisplay } from "~/utils/airFreightJob";
 import {
   hasProfitReportUsdConversion,
   needsProfitReportFallbackExchangeRate,
+  resolveProfitReportEditableExchangeRate,
   toProfitReportBaseAmount,
 } from "~/utils/jobProfitReport";
 import type { ActiveJobData, ProfitInvoice, ProfitExpense, ProfitJob } from "./ebl/types";
 
 const props = defineProps<{
   job: ProfitJob | null;
+  fallbackExchangeRate?: number | null;
 }>();
 
 const logoUrl = ref("/images/transparentnscontinenttebal.png");
@@ -84,12 +86,15 @@ const fallbackExchangeRate = ref<number | null>(null);
 const needsFallbackExchangeRate = computed(() =>
   needsProfitReportFallbackExchangeRate([...invoices.value, ...vendorInvoices.value]),
 );
+const effectiveFallbackExchangeRate = computed(() =>
+  resolveProfitReportEditableExchangeRate(props.fallbackExchangeRate, fallbackExchangeRate.value),
+);
 const isUsingEstimatedExchangeRate = computed(
-  () => needsFallbackExchangeRate.value && Number(fallbackExchangeRate.value || 1) > 1,
+  () => needsFallbackExchangeRate.value && Number(effectiveFallbackExchangeRate.value || 1) > 1,
 );
 
 const loadFallbackExchangeRate = async () => {
-  if (!needsFallbackExchangeRate.value || fallbackExchangeRate.value) return;
+  if (!needsFallbackExchangeRate.value || effectiveFallbackExchangeRate.value) return;
   try {
     const res = await $fetch<{ success: boolean; rate?: number }>(
       "/api/finance/invoice/exchange-rate",
@@ -111,7 +116,7 @@ const totalRevenue = computed(() => {
           inv.total,
           inv.currency,
           inv.exchangeRate,
-          fallbackExchangeRate.value,
+          effectiveFallbackExchangeRate.value,
         )
       );
     }, 0);
@@ -136,7 +141,7 @@ const totalCost = computed(() => {
           exp.amount,
           exp.currency,
           exp.exchangeRate,
-          fallbackExchangeRate.value,
+          effectiveFallbackExchangeRate.value,
         )
       );
     }, 0);
@@ -189,7 +194,11 @@ const revenueRowPx = (inv: ProfitInvoice) =>
   ROW_BASE_PX +
   Math.max(
     1,
-    hasProfitReportUsdConversion(inv.currency, inv.exchangeRate, fallbackExchangeRate.value)
+    hasProfitReportUsdConversion(
+      inv.currency,
+      inv.exchangeRate,
+      effectiveFallbackExchangeRate.value,
+    )
       ? 2
       : 1,
   ) *
@@ -200,7 +209,7 @@ const costRowPx = (exp: ProfitExpense) => {
   const amountLines = hasProfitReportUsdConversion(
     exp.currency,
     exp.exchangeRate,
-    fallbackExchangeRate.value,
+    effectiveFallbackExchangeRate.value,
   )
     ? 2
     : 1;
@@ -529,7 +538,7 @@ defineExpose({
                               hasProfitReportUsdConversion(
                                 inv.currency,
                                 inv.exchangeRate,
-                                fallbackExchangeRate,
+                                effectiveFallbackExchangeRate,
                               )
                             "
                           >
@@ -540,7 +549,7 @@ defineExpose({
                                     inv.total,
                                     inv.currency,
                                     inv.exchangeRate,
-                                    fallbackExchangeRate,
+                                    effectiveFallbackExchangeRate,
                                   ),
                                   "IDR",
                                 )
@@ -613,7 +622,7 @@ defineExpose({
                               hasProfitReportUsdConversion(
                                 exp.currency,
                                 exp.exchangeRate,
-                                fallbackExchangeRate,
+                                effectiveFallbackExchangeRate,
                               )
                             "
                           >
@@ -624,7 +633,7 @@ defineExpose({
                                     exp.amount,
                                     exp.currency,
                                     exp.exchangeRate,
-                                    fallbackExchangeRate,
+                                    effectiveFallbackExchangeRate,
                                   ),
                                   "IDR",
                                 )

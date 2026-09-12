@@ -4,8 +4,10 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   needsProfitReportFallbackExchangeRate,
+  resolveProfitReportEditableExchangeRate,
   resolveProfitReportExchangeRate,
   toProfitReportBaseAmount,
+  parseProfitReportExchangeRateInput,
 } from "./jobProfitReport";
 
 describe("job profit report currency conversion", () => {
@@ -19,6 +21,20 @@ describe("job profit report currency conversion", () => {
 
   it("keeps explicit invoice rates ahead of fallback rates", () => {
     expect(resolveProfitReportExchangeRate("USD", 16_000, 17_417)).toBe(16_000);
+  });
+
+  it("uses a manual profit analysis rate ahead of the estimated API rate", () => {
+    expect(resolveProfitReportEditableExchangeRate(16_250, 17_603)).toBe(16_250);
+  });
+
+  it("falls back to the estimated API rate when the manual profit analysis rate is empty", () => {
+    expect(resolveProfitReportEditableExchangeRate(1, 17_603)).toBe(17_603);
+  });
+
+  it("parses Indonesian formatted profit analysis exchange rates as whole IDR amounts", () => {
+    expect(parseProfitReportExchangeRateInput("17.603")).toBe(17_603);
+    expect(parseProfitReportExchangeRateInput("17,603")).toBe(17_603);
+    expect(parseProfitReportExchangeRateInput("Rp 17.603")).toBe(17_603);
   });
 
   it("requests a fallback rate only for USD rows with no usable saved rate", () => {
@@ -54,6 +70,14 @@ describe("job profit report currency conversion", () => {
     expect(source).toContain("balanceDue: Number(invoice.balanceDue ?? invoice.total ?? 0)");
     expect(source).toContain("updateExpense(");
     expect(source).toContain("Isi Kurs Estimasi");
+    expect(source).toContain("Tarik API");
+    expect(source).toContain("showProfitRateInput");
+    expect(source).toContain('v-if="showProfitRateInput"');
+    expect(source).toContain("invoiceRowsUsingProfitRate");
+    expect(source).toContain("expenseRowsUsingProfitRate");
+    expect(source).toContain("estimatedProfitExchangeRate.value = rate;");
+    expect(source).toContain("savedProfitExchangeRates");
+    expect(source).toContain("Kurs USD tersimpan");
   });
 
   it("labels job profit PDFs when fallback API rates are still estimated", () => {
