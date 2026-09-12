@@ -5,11 +5,12 @@ import JobInvoiceTab from "./JobInvoiceTab.vue";
 import JobVendorInvoiceTab from "./JobVendorInvoiceTab.vue";
 import JobProfitPreview from "./JobProfitPreview.vue";
 import { useJobs } from "~/composables/useJobs";
-import { Download, Loader2, Save, TrendingUp } from "lucide-vue-next";
+import { Download, Loader2, RefreshCw, Save, TrendingUp } from "lucide-vue-next";
 import { toast } from "vue-sonner";
 import { useInvoices } from "~/composables/useInvoices";
 import { useFinanceExpense } from "~/composables/useFinanceExpense";
 import { formatCurrencyAmount } from "~/utils/currency";
+import { parseProfitReportExchangeRateInput } from "~/utils/jobProfitReport";
 import type { EblParty } from "./ebl/types";
 import type { ProfitExpense, ProfitInvoice } from "./ebl/types";
 
@@ -19,7 +20,9 @@ const { updateExpense } = useFinanceExpense();
 const profitPreviewRef = ref<InstanceType<typeof JobProfitPreview> | null>(null);
 const isGeneratingPDF = ref(false);
 const estimatedProfitExchangeRate = ref<number | null>(null);
+const showProfitRateInput = ref(false);
 const isApplyingProfitRate = ref(false);
+const isFetchingProfitRate = ref(false);
 
 const props = defineProps<{
   jobId: string;
@@ -51,16 +54,30 @@ const needsEstimatedRate = (item: {
   exchangeRate?: string | number | null;
 }) => (item.currency || "IDR") === "USD" && Number(item.exchangeRate || 1) <= 1;
 
-const invoiceRowsNeedingEstimatedRate = computed<ProfitInvoice[]>(() =>
+const usesUsdRate = (item: { currency?: string | null }) => (item.currency || "IDR") === "USD";
+
+const invoiceRowsUsingProfitRate = computed<ProfitInvoice[]>(() =>
   (currentJob.value?.invoices || []).filter(
-    (invoice) => !isVoided(invoice) && needsEstimatedRate(invoice),
+    (invoice) => !isVoided(invoice) && usesUsdRate(invoice),
   ),
 );
 
-const expenseRowsNeedingEstimatedRate = computed<ProfitExpense[]>(() =>
+const expenseRowsUsingProfitRate = computed<ProfitExpense[]>(() =>
   (currentJob.value?.expenses || []).filter(
-    (expense) => !isVoided(expense) && needsEstimatedRate(expense),
+    (expense) => !isVoided(expense) && usesUsdRate(expense),
   ),
+);
+
+const invoiceRowsNeedingEstimatedRate = computed<ProfitInvoice[]>(() =>
+  invoiceRowsUsingProfitRate.value.filter((invoice) => needsEstimatedRate(invoice)),
+);
+
+const expenseRowsNeedingEstimatedRate = computed<ProfitExpense[]>(() =>
+  expenseRowsUsingProfitRate.value.filter((expense) => needsEstimatedRate(expense)),
+);
+
+const hasProfitRateRows = computed(
+  () => invoiceRowsUsingProfitRate.value.length > 0 || expenseRowsUsingProfitRate.value.length > 0,
 );
 
 const needsEstimatedProfitRate = computed(
@@ -69,33 +86,95 @@ const needsEstimatedProfitRate = computed(
     expenseRowsNeedingEstimatedRate.value.length > 0,
 );
 
+const savedProfitExchangeRates = computed(() => {
+  const allRows = [...invoiceRowsUsingProfitRate.value, ...expenseRowsUsingProfitRate.value];
+  const rates = allRows
+    .map((row) => Number(row.exchangeRate || 1))
+    .filter((rate) => Number.isFinite(rate) && rate > 1);
+  return Array.from(new Set(rates));
+});
+
 const canApplyEstimatedProfitRate = computed(
   () =>
     !props.isCompleted &&
-    needsEstimatedProfitRate.value &&
+    hasProfitRateRows.value &&
     Number(estimatedProfitExchangeRate.value || 1) > 1,
 );
 
 const estimatedProfitRateNotice = computed(() => {
-  if (!needsEstimatedProfitRate.value || !estimatedProfitExchangeRate.value) return "";
-  return `Estimated API rate: 1 USD = ${formatCurrencyAmount(estimatedProfitExchangeRate.value, "IDR")}. Klik Isi Kurs Estimasi untuk menyimpan rate ini ke invoice/vendor invoice USD yang masih kosong.`;
+  if (showProfitRateInput.value && estimatedProfitExchangeRate.value) {
+    return `1 USD = ${formatCurrencyAmount(estimatedProfitExchangeRate.value, "IDR")}`;
+  }
+  if (showProfitRateInput.value) {
+    return "Masukkan kurs untuk preview profit. Tarik API kalau ingin pakai kurs terbaru.";
+  }
+  if (!hasProfitRateRows.value) return "Tidak ada invoice/vendor invoice USD di job ini.";
+  if (savedProfitExchangeRates.value.length === 1) {
+    const [savedRate] = savedProfitExchangeRates.value;
+    if (savedRate) {
+      return `Kurs USD tersimpan: 1 USD = ${formatCurrencyAmount(savedRate, "IDR")}. Kamu tetap bisa edit.`;
+    }
+  }
+  if (savedProfitExchangeRates.value.length > 1) {
+    return `${savedProfitExchangeRates.value.length} kurs USD berbeda tersimpan. Edit kurs untuk menyamakan.`;
+  }
+  return "Invoice/vendor invoice USD masih ada yang belum punya kurs.";
 });
 
-const loadEstimatedProfitRate = async () => {
+const effectiveProfitExchangeRate = computed(() =>
+  Number(estimatedProfitExchangeRate.value || 1) > 1
+    ? Number(estimatedProfitExchangeRate.value)
+    : null,
+);
+
+const parseRateInput = (val: string) => {
+  return parseProfitReportExchangeRateInput(val);
+};
+
+const formatRateInput = (val: number | string | null) => {
+  if (val === undefined || val === null || val === "") return "";
+  const numericVal = typeof val === "string" ? parseRateInput(val) : val;
+  if (!numericVal || !Number.isFinite(numericVal)) return "";
+  return new Intl.NumberFormat("id-ID", {
+    maximumFractionDigits: 0,
+    minimumFractionDigits: 0,
+  }).format(numericVal);
+};
+
+const getSavedProfitExchangeRate = () => {
+  return savedProfitExchangeRates.value[0] ?? null;
+};
+
+const loadEstimatedProfitRate = async (force = false) => {
   if (
     subTab.value !== "profit" ||
-    !needsEstimatedProfitRate.value ||
-    estimatedProfitExchangeRate.value
+    (!hasProfitRateRows.value && !showProfitRateInput.value) ||
+    (!force && estimatedProfitExchangeRate.value)
   )
     return;
+  isFetchingProfitRate.value = true;
   try {
     const res = await $fetch<{ success: boolean; rate?: number }>(
       "/api/finance/invoice/exchange-rate",
     );
     if (res?.success && res.rate) estimatedProfitExchangeRate.value = res.rate;
   } catch {
-    // Preview can still render the saved document values if the rate API is unavailable.
+    toast.error("Gagal tarik kurs dari API.");
+  } finally {
+    isFetchingProfitRate.value = false;
   }
+};
+
+const openProfitRateInput = async () => {
+  showProfitRateInput.value = true;
+  estimatedProfitExchangeRate.value =
+    estimatedProfitExchangeRate.value || getSavedProfitExchangeRate();
+  await loadEstimatedProfitRate();
+};
+
+const refreshProfitRateFromApi = async () => {
+  showProfitRateInput.value = true;
+  await loadEstimatedProfitRate(true);
 };
 
 const applyEstimatedProfitRate = async () => {
@@ -105,13 +184,13 @@ const applyEstimatedProfitRate = async () => {
   isApplyingProfitRate.value = true;
   try {
     const results = await Promise.all([
-      ...invoiceRowsNeedingEstimatedRate.value.map((invoice) =>
+      ...invoiceRowsUsingProfitRate.value.map((invoice) =>
         updateInvoice(invoice.id, {
           exchangeRate: rate,
           balanceDue: Number(invoice.balanceDue ?? invoice.total ?? 0),
         }),
       ),
-      ...expenseRowsNeedingEstimatedRate.value.map((expense) =>
+      ...expenseRowsUsingProfitRate.value.map((expense) =>
         updateExpense(expense.id, { exchangeRate: rate }),
       ),
     ]);
@@ -121,9 +200,9 @@ const applyEstimatedProfitRate = async () => {
       return;
     }
 
-    estimatedProfitExchangeRate.value = null;
     await handleRefresh();
-    toast.success("Kurs estimasi sudah diisi ke invoice dan vendor invoice.");
+    estimatedProfitExchangeRate.value = rate;
+    toast.success("Kurs sudah disimpan ke invoice dan vendor invoice USD.");
   } catch (error: unknown) {
     toast.error((error as Error).message || "Gagal mengisi kurs estimasi profit analysis.");
   } finally {
@@ -150,6 +229,8 @@ onMounted(async () => {
 watch(
   [() => props.jobId, () => props.initialSubTab],
   ([newJobId, newSubTab]) => {
+    showProfitRateInput.value = false;
+    estimatedProfitExchangeRate.value = null;
     if (newSubTab) {
       subTab.value = newSubTab;
     } else {
@@ -165,8 +246,6 @@ watch(subTab, async (newVal) => {
     await loadEstimatedProfitRate();
   }
 });
-
-watch([subTab, needsEstimatedProfitRate], loadEstimatedProfitRate, { immediate: true });
 
 const handleRefresh = async () => {
   if (props.jobId) {
@@ -221,29 +300,75 @@ const handleRefresh = async () => {
     <div class="pt-2">
       <div
         v-if="subTab === 'profit'"
-        class="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4"
+        class="mb-4 flex flex-col gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm lg:flex-row lg:items-center lg:justify-between"
       >
-        <p
-          v-if="estimatedProfitRateNotice"
-          class="text-xs text-amber-900 font-semibold leading-relaxed bg-amber-50 border border-amber-200 rounded-lg px-3 py-2"
-        >
-          {{ estimatedProfitRateNotice }}
-        </p>
-        <div class="flex items-center justify-end gap-2 ml-auto">
+        <div class="min-w-0">
+          <p class="text-[10px] font-black uppercase tracking-widest text-slate-500">
+            Kurs Profit Analysis
+          </p>
+          <p
+            v-if="estimatedProfitRateNotice"
+            class="mt-0.5 text-xs font-semibold leading-relaxed text-slate-700"
+          >
+            {{ estimatedProfitRateNotice }}
+          </p>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2 lg:justify-end">
+          <div
+            v-if="showProfitRateInput"
+            class="flex h-10 items-center overflow-hidden rounded-md border border-slate-200 bg-slate-50"
+          >
+            <span
+              class="flex h-full items-center border-r border-slate-200 px-3 text-[10px] font-black uppercase tracking-widest text-slate-500"
+            >
+              USD
+            </span>
+            <input
+              type="text"
+              :value="formatRateInput(estimatedProfitExchangeRate)"
+              @input="
+                (e) =>
+                  (estimatedProfitExchangeRate = parseRateInput(
+                    (e.target as HTMLInputElement).value,
+                  ))
+              "
+              class="h-full w-28 bg-transparent px-3 text-right text-sm font-black text-[#062c58] outline-none"
+              placeholder="17.603"
+            />
+          </div>
           <button
-            v-if="canApplyEstimatedProfitRate"
+            v-if="hasProfitRateRows && !showProfitRateInput"
+            @click="openProfitRateInput"
+            class="inline-flex h-10 items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 text-[11px] font-black uppercase tracking-wider text-amber-800 transition-colors hover:bg-amber-100"
+          >
+            <Save class="w-4 h-4" />
+            {{ needsEstimatedProfitRate ? "Isi Kurs Estimasi" : "Edit Kurs" }}
+          </button>
+          <button
+            v-if="showProfitRateInput"
+            @click="refreshProfitRateFromApi"
+            :disabled="isFetchingProfitRate"
+            class="inline-flex h-10 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-[11px] font-black uppercase tracking-wider text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50"
+          >
+            <Loader2 v-if="isFetchingProfitRate" class="w-4 h-4 animate-spin" />
+            <RefreshCw v-else class="w-4 h-4" />
+            Tarik API
+          </button>
+          <button
+            v-if="showProfitRateInput && canApplyEstimatedProfitRate"
             @click="applyEstimatedProfitRate"
             :disabled="isApplyingProfitRate"
-            class="inline-flex items-center px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg shadow-md text-[11px] font-black uppercase tracking-wider gap-2 transition-all disabled:opacity-50"
+            class="inline-flex h-10 items-center gap-2 rounded-md bg-amber-600 px-3 text-[11px] font-black uppercase tracking-wider text-white transition-colors hover:bg-amber-700 disabled:opacity-50"
           >
             <Loader2 v-if="isApplyingProfitRate" class="w-4 h-4 animate-spin" />
             <Save v-else class="w-4 h-4" />
-            {{ isApplyingProfitRate ? "Mengisi" : "Isi Kurs Estimasi" }}
+            {{ isApplyingProfitRate ? "Menyimpan" : "Simpan Kurs" }}
           </button>
           <button
             @click="handleDownloadProfit"
             :disabled="isGeneratingPDF"
-            class="inline-flex items-center px-4 py-2 bg-[#062c58] hover:bg-[#062c58]/90 text-white rounded-lg shadow-md text-[11px] font-black uppercase tracking-wider gap-2 transition-all disabled:opacity-50"
+            class="inline-flex h-10 items-center gap-2 rounded-md bg-[#062c58] px-3 text-[11px] font-black uppercase tracking-wider text-white transition-colors hover:bg-[#062c58]/90 disabled:opacity-50"
           >
             <Loader2 v-if="isGeneratingPDF" class="w-4 h-4 animate-spin" />
             <Download v-else class="w-4 h-4" />
@@ -280,7 +405,11 @@ const handleRefresh = async () => {
 
       <!-- Profit Analysis -->
       <div v-else-if="subTab === 'profit'" class="animate-fade-in">
-        <JobProfitPreview ref="profitPreviewRef" :job="currentJob" />
+        <JobProfitPreview
+          ref="profitPreviewRef"
+          :job="currentJob"
+          :fallback-exchange-rate="effectiveProfitExchangeRate"
+        />
       </div>
     </div>
   </div>

@@ -19,6 +19,25 @@ export function resolveProfitReportExchangeRate(
   return fallbackRate > 1 ? fallbackRate : rate;
 }
 
+export function resolveProfitReportEditableExchangeRate(
+  manualExchangeRate?: number | string | null,
+  estimatedExchangeRate?: number | string | null,
+) {
+  const manualRate = toNumber(manualExchangeRate) || 1;
+  if (manualRate > 1) return manualRate;
+
+  const estimatedRate = toNumber(estimatedExchangeRate) || 1;
+  return estimatedRate > 1 ? estimatedRate : null;
+}
+
+export function parseProfitReportExchangeRateInput(value: string) {
+  const digits = value.replace(/\D/g, "");
+  if (!digits) return null;
+
+  const numeric = Number(digits);
+  return Number.isFinite(numeric) && numeric > 0 ? numeric : null;
+}
+
 export function toProfitReportBaseAmount(
   amount: number | string | null | undefined,
   currency?: string | null,
