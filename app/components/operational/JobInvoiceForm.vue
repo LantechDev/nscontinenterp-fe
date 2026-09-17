@@ -228,6 +228,11 @@ watch(
     if (newCurrency === "IDR" && !needsExchangeRate.value) {
       form.value.exchangeRate = 1;
     }
+    // Invoice diganti ke USD / mixed tapi kurs masih 1 (kasus screenshot $1 = Rp 1):
+    // langsung ambil kurs terkini agar tidak ke-save dengan kurs 1.
+    if (needsExchangeRate.value && Number(form.value.exchangeRate || 0) <= 1) {
+      loadExchangeRate();
+    }
   },
 );
 
