@@ -16,6 +16,7 @@ import {
   FileText,
   ChevronRight,
   History,
+  Wallet,
 } from "lucide-vue-next";
 import JobInvoiceForm from "./JobInvoiceForm.vue";
 import JobInvoicePreview from "./JobInvoicePreview.vue";
@@ -51,6 +52,7 @@ const {
   fetchInvoiceById,
   voidInvoice,
   deleteInvoice,
+  applyCredit,
   fetchSuggestedExchangeRate: getSuggestedExchangeRate,
 } = useInvoices();
 const { fetchQuotations } = useQuotations();
@@ -81,6 +83,13 @@ const isVoiding = ref(false);
 const showVoidConfirm = ref(false);
 const isDeleting = ref(false);
 const showDeleteConfirm = ref(false);
+const showApplyCreditConfirm = ref(false);
+const pendingCreditInvoice = ref<{
+  id: string;
+  invoiceNumber: string;
+  currency: string;
+  overpayment: number;
+} | null>(null);
 const showHistoryModal = ref(false);
 const isLoadingHistory = ref(false);
 const historyLogs = ref<ActivityLog[]>([]);
@@ -427,6 +436,43 @@ const handleDeleteInvoice = async () => {
     toast.error(result.error || "Failed to delete invoice");
   }
   isDeleting.value = false;
+};
+
+const isApplyingCredit = ref(false);
+
+const openApplyCreditConfirm = (invoice: {
+  id: string;
+  invoiceNumber: string;
+  currency: string;
+}) => {
+  if (!requireManage("You only have view access for invoices.")) return;
+  pendingCreditInvoice.value = {
+    ...invoice,
+    overpayment: getOverpayment(invoice as { creditBalance?: number; balanceDue?: number }),
+  };
+  showApplyCreditConfirm.value = true;
+};
+
+const handleApplyCredit = async () => {
+  if (!pendingCreditInvoice.value) return;
+
+  const invoice = pendingCreditInvoice.value;
+  isApplyingCredit.value = true;
+  const result = await applyCredit(invoice.id);
+  if (result.success && result.data) {
+    showApplyCreditConfirm.value = false;
+    pendingCreditInvoice.value = null;
+    await loadInvoices();
+    paymentTabRef.value?.refresh();
+    emit("refresh-job");
+    const count = result.data.applications.length;
+    toast.success(
+      `Applied ${formatCurrency(result.data.appliedTotal, invoice.currency || "IDR")} from ${result.data.sourceInvoiceNumber} to ${count} invoice${count === 1 ? "" : "s"}.`,
+    );
+  } else {
+    toast.error(result.error || "Failed to apply credit");
+  }
+  isApplyingCredit.value = false;
 };
 
 onMounted(async () => {
@@ -1834,6 +1880,14 @@ const handlePaymentVoided = async () => {
                       +{{ formatCurrency(getOverpayment(invoice), invoice.currency) }} overpaid
                     </p>
                   </template>
+                  <button
+                    type="button"
+                    @click="openApplyCreditConfirm(invoice)"
+                    class="mt-1.5 inline-flex items-center justify-center gap-1.5 px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold rounded-md shadow-sm transition-colors whitespace-nowrap"
+                  >
+                    <Wallet class="w-3 h-3" />
+                    Apply credit
+                  </button>
                 </template>
               </template>
             </div>
@@ -1900,6 +1954,50 @@ const handlePaymentVoided = async () => {
           >
             <Loader2 v-if="isVoiding" class="w-3.5 h-3.5 animate-spin" />
             {{ isVoiding ? "Voiding..." : "Confirm Void" }}
+          </button>
+        </div>
+      </div>
+    </Modal>
+
+    <!-- Apply Credit Confirmation Modal -->
+    <Modal
+      v-model="showApplyCreditConfirm"
+      title="Apply Credit"
+      description="Apply the overpayment from this invoice to other unpaid invoices."
+      width="max-w-sm"
+    >
+      <div class="space-y-4 pt-2">
+        <div class="p-3 bg-emerald-50 border border-emerald-100 rounded-lg flex items-start gap-3">
+          <Wallet class="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+          <p class="text-xs text-emerald-800 leading-relaxed font-medium">
+            Apply
+            <span class="font-bold">{{
+              pendingCreditInvoice
+                ? formatCurrency(
+                    pendingCreditInvoice.overpayment,
+                    pendingCreditInvoice.currency || "IDR",
+                  )
+                : ""
+            }}</span>
+            overpaid credit from
+            <span class="font-bold">{{ pendingCreditInvoice?.invoiceNumber }}</span>
+            to other unpaid invoices from the same customer?
+          </p>
+        </div>
+        <div class="flex justify-end gap-3 pt-2">
+          <button
+            @click="showApplyCreditConfirm = false"
+            class="px-4 py-2 text-xs font-bold text-muted-foreground hover:bg-muted rounded-md transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            @click="handleApplyCredit"
+            :disabled="isApplyingCredit"
+            class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-md shadow-sm transition-colors flex items-center gap-2 disabled:opacity-50"
+          >
+            <Loader2 v-if="isApplyingCredit" class="w-3.5 h-3.5 animate-spin" />
+            {{ isApplyingCredit ? "Applying..." : "Confirm Apply" }}
           </button>
         </div>
       </div>
