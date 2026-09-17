@@ -167,6 +167,21 @@ type ErrorResponse = {
   error?: string;
 };
 
+export interface ApplyCreditApplication {
+  targetInvoiceId: string;
+  invoiceNumber: string;
+  paymentId: string;
+  amount: number;
+}
+
+export interface ApplyCreditResult {
+  sourceInvoiceId: string;
+  sourceInvoiceNumber: string;
+  appliedTotal: number;
+  remainingCredit: number;
+  applications: ApplyCreditApplication[];
+}
+
 function getErrorMessage(error: unknown): string {
   if (error && typeof error === "object" && "data" in error) {
     const errorData = (error as { data?: ErrorResponse }).data;
@@ -373,6 +388,27 @@ export function useInvoices() {
     }
   }
 
+  async function applyCredit(
+    id: string,
+    targetInvoiceIds?: string[],
+  ): Promise<{ success: boolean; data?: ApplyCreditResult; error?: string }> {
+    isLoading.value = true;
+    try {
+      const responseData = await $fetch<ApplyCreditResult>(
+        `/api/finance/invoice/${id}/apply-credit`,
+        {
+          method: "POST",
+          body: { targetInvoiceIds },
+        },
+      );
+      return { success: true, data: responseData };
+    } catch (error) {
+      return { success: false, error: getErrorMessage(error) };
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
   return {
     isLoading,
     fetchInvoices,
@@ -381,6 +417,7 @@ export function useInvoices() {
     updateInvoice,
     deleteInvoice,
     voidInvoice,
+    applyCredit,
     getNextInvoiceNumber,
     fetchSuggestedExchangeRate,
   };
