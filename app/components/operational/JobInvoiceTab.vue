@@ -373,7 +373,25 @@ const handleGeneratePDF = async (
   await nextTick(); // Ensure mode is applied to preview
   isGeneratingPDF.value = true;
   try {
-    await previewRef.value.generatePDF();
+    if (mode === "receipt") {
+      // Combined receipt + PAID invoice copy, but only when fully paid.
+      const inv = activeInvoice.value;
+      const isFullyPaid =
+        !!inv &&
+        inv.status?.code !== "VOIDED" &&
+        (inv.status?.code === "PAID" || Number(inv.balanceDue || 0) <= 0);
+      const preview = previewRef.value as unknown as {
+        generatePDF: () => Promise<boolean>;
+        generateCombinedPdf?: () => Promise<boolean>;
+      } | null;
+      if (isFullyPaid && preview?.generateCombinedPdf) {
+        await preview.generateCombinedPdf();
+      } else {
+        await previewRef.value.generatePDF();
+      }
+    } else {
+      await previewRef.value.generatePDF();
+    }
   } finally {
     isGeneratingPDF.value = false;
     printMode.value = "invoice";

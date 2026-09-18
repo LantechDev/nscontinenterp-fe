@@ -596,7 +596,8 @@ async function onCompanyCreated(company: Company) {
                   <input
                     type="number"
                     v-model.number="item.quantity"
-                    min="1"
+                    min="0"
+                    step="any"
                     @input="updateItemAmount(index)"
                     class="w-full h-9 px-2 py-2 bg-white border border-border rounded-md text-sm focus:ring-2 focus:ring-[#012D5A]/10 focus:border-[#012D5A] outline-none transition-all text-center shadow-sm"
                     v-uppercase
