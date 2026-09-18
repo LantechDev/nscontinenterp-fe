@@ -19,7 +19,10 @@ const props = defineProps<{
   receiptDate?: string;
 }>();
 
-const mode = computed(() => props.mode || "invoice");
+// During combined export phase 2 this flips to invoice so the same template
+// renders the full invoice copy (preview itself stays receipt-only).
+const exportPaidCopy = ref(false);
+const mode = computed(() => (exportPaidCopy.value ? "invoice" : props.mode || "invoice"));
 const invoiceCurrency = computed(() => props.invoice?.currency || "IDR");
 const invoiceExchangeRate = computed(() => Number(props.invoice?.exchangeRate || 1));
 const isUsdWithExchangeRate = computed(
@@ -445,6 +448,7 @@ const paginatedInvoicePages = computed<PdfRowPage<InvoicePreviewItem>[]>(() =>
 );
 
 const previewPages = computed<PdfRowPage<InvoicePreviewItem>[]>(() => {
+  if (exportPaidCopy.value) return paginatedInvoicePages.value;
   if (mode.value === "receipt") {
     return [
       {
@@ -458,6 +462,83 @@ const previewPages = computed<PdfRowPage<InvoicePreviewItem>[]>(() => {
   }
   return paginatedInvoicePages.value;
 });
+
+// --- Combined receipt + PAID invoice export state (preview stays receipt-only) ---
+const combinedPageOffset = ref(0);
+const combinedTotalOverride = ref<number | null>(null);
+
+const displayPageNumber = (page: PdfRowPage<InvoicePreviewItem>): number =>
+  page.pageNumber + combinedPageOffset.value;
+const displayTotalPages = computed(() => combinedTotalOverride.value ?? previewPages.value.length);
+
+/** Draw a blue diagonal "PAID" watermark on the captured canvas (eBL pattern). */
+const drawPaidWatermark = (canvas: HTMLCanvasElement): void => {
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  const scale = canvas.width / 794;
+  const centerX = canvas.width / 2;
+  const centerY = canvas.height / 2 - 0.08 * canvas.height;
+  ctx.translate(centerX, centerY);
+  ctx.rotate((-30 * Math.PI) / 180);
+  const text = "PAID";
+  const fontSize = 120 * scale;
+  ctx.font = `900 ${fontSize}px Impact, Haettenschweiler, "Arial Narrow Bold", sans-serif`;
+  ctx.textBaseline = "middle";
+  ctx.textAlign = "center";
+  const letterSpacing = 10 * scale;
+  if ("letterSpacing" in ctx) {
+    (ctx as unknown as { letterSpacing: string }).letterSpacing = `${letterSpacing}px`;
+  }
+  const textMetrics = ctx.measureText(text);
+  const textWidth = textMetrics.width;
+  const textHeight = fontSize * 0.8;
+  const padY = 24 * scale;
+  const padX = 70 * scale;
+  const boxWidth = textWidth + padX * 2;
+  const boxHeight = textHeight + padY * 2;
+  ctx.strokeStyle = "#062c58";
+  ctx.fillStyle = "#062c58";
+  ctx.lineWidth = 8 * scale;
+  ctx.globalAlpha = 0.18;
+  const x = -boxWidth / 2;
+  const y = -boxHeight / 2;
+  ctx.beginPath();
+  if (typeof ctx.roundRect === "function") {
+    ctx.roundRect(x, y, boxWidth, boxHeight, 4 * scale);
+  } else {
+    ctx.rect(x, y, boxWidth, boxHeight);
+  }
+  ctx.stroke();
+  ctx.fillText(text, 0, 0);
+  ctx.restore();
+};
+
+const captureCurrentPagesToPdf = async (
+  pdf: jsPDF,
+  opts: { isFirstBatch: boolean; withPaidWatermark: boolean },
+): Promise<void> => {
+  if (!printContainerRef.value) return;
+  const pages = printContainerRef.value.querySelectorAll(".a4-page-wrapper");
+  for (let i = 0; i < pages.length; i++) {
+    if (!opts.isFirstBatch || i > 0) pdf.addPage();
+    const canvas = await html2canvas(pages[i] as HTMLElement, {
+      scale: 3,
+      useCORS: true,
+      logging: false,
+      backgroundColor: "#ffffff",
+      scrollY: 0,
+      scrollX: 0,
+    });
+    const hasPaidMarker =
+      opts.withPaidWatermark &&
+      (pages[i] as HTMLElement).querySelector(".watermark-container.paid-watermark") !== null;
+    if (hasPaidMarker) drawPaidWatermark(canvas);
+    const imgData = canvas.toDataURL("image/jpeg", 0.95);
+    pdf.addImage(imgData, "JPEG", 0, 0, 210, 297, undefined, "FAST");
+  }
+};
 
 const generatePDF = async () => {
   if (!printContainerRef.value || !props.invoice) return false;
@@ -505,8 +586,57 @@ const generatePDF = async () => {
   }
 };
 
+/**
+ * Combined download: page 1 = receipt, following pages = full invoice + PAID watermark.
+ * Preview stays receipt-only; the invoice copy is rendered temporarily during export.
+ */
+const generateCombinedPdf = async (): Promise<boolean> => {
+  if (!printContainerRef.value || !props.invoice) return false;
+
+  try {
+    isGeneratingPDF.value = true;
+
+    const totalPages = 1 + paginatedInvoicePages.value.length;
+
+    const pdf = new jsPDF({
+      orientation: "portrait",
+      unit: "mm",
+      format: "a4",
+    });
+
+    // Phase 1: receipt pages (as currently previewed)
+    exportPaidCopy.value = false;
+    combinedPageOffset.value = 0;
+    combinedTotalOverride.value = totalPages;
+    await nextTick();
+    await captureCurrentPagesToPdf(pdf, { isFirstBatch: true, withPaidWatermark: false });
+
+    // Phase 2: full invoice copy with PAID watermark
+    exportPaidCopy.value = true;
+    combinedPageOffset.value = 1;
+    combinedTotalOverride.value = totalPages;
+    await nextTick();
+    await captureCurrentPagesToPdf(pdf, { isFirstBatch: false, withPaidWatermark: true });
+
+    const filename = `RECEIPT_${props.invoice.invoiceNumber || "DRAFT"}.pdf`;
+    pdf.save(filename);
+    return true;
+  } catch (error) {
+    console.error(error);
+    toast.error("Gagal membuat PDF. Cek console.");
+    return false;
+  } finally {
+    exportPaidCopy.value = false;
+    combinedPageOffset.value = 0;
+    combinedTotalOverride.value = null;
+    isGeneratingPDF.value = false;
+    await nextTick();
+  }
+};
+
 defineExpose({
   generatePDF,
+  generateCombinedPdf,
   isGeneratingPDF,
 });
 </script>
@@ -518,7 +648,7 @@ defineExpose({
     <div class="relative group flex flex-col gap-10" ref="printContainerRef">
       <div
         v-for="page in previewPages"
-        :key="page.pageNumber"
+        :key="`${exportPaidCopy ? 'paid' : mode}-${page.pageNumber}`"
         class="a4-page-wrapper bg-white shadow-xl shrink-0 flex flex-col text-[#062c58] border"
         style="
           width: 794px;
@@ -528,6 +658,12 @@ defineExpose({
           position: relative;
         "
       >
+        <!-- Marker for the manual PAID canvas watermark (skipped by html2canvas) -->
+        <div
+          v-if="exportPaidCopy"
+          class="watermark-container paid-watermark"
+          data-html2canvas-ignore="true"
+        ></div>
         <!-- Header Section -->
         <div
           class="header-section flex justify-between items-end mb-1 relative z-[1] bg-white"
@@ -548,7 +684,7 @@ defineExpose({
           </div>
           <div class="w-[35%] text-right pb-1 flex flex-col items-end justify-end h-full">
             <div class="text-[0.6rem] font-mono mb-1 text-black">
-              PAGE: {{ page.pageNumber }} OF {{ previewPages.length }}
+              PAGE: {{ displayPageNumber(page) }} OF {{ displayTotalPages }}
             </div>
             <h1 class="text-xl font-bold tracking-widest uppercase leading-none text-[#062c58]">
               {{ invoiceTitle }}
