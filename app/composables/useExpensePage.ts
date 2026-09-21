@@ -12,6 +12,7 @@ import { useServices } from "./useServices";
 import { useChartOfAccounts, type ChartOfAccount } from "./useChartOfAccounts";
 import { toast } from "vue-sonner";
 import type { Company } from "./useMasterData";
+import { formatCurrencyAmount, normalizeCurrencyCode } from "~/utils/currency";
 
 // Pure helper functions outside composable
 export const formatDate = (dateStr: string) => {
@@ -29,12 +30,8 @@ export const formatDateForInput = (dateStr: string) => {
   return date.toISOString().split("T")[0] || "";
 };
 
-export const formatCurrency = (value: number) => {
-  return new Intl.NumberFormat("id-ID", {
-    style: "currency",
-    currency: "IDR",
-    minimumFractionDigits: 0,
-  }).format(value);
+export const formatCurrency = (value: number, currency?: string | null) => {
+  return formatCurrencyAmount(value, normalizeCurrencyCode(currency));
 };
 
 // Navigation handler

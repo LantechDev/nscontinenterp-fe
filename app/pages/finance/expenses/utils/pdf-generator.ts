@@ -1,13 +1,10 @@
 import { jsPDF } from "jspdf";
 import { toast } from "vue-sonner";
 import type { Expense } from "~/composables/useFinanceExpense";
+import { formatCurrencyAmount } from "~/utils/currency";
 
-const formatCurrency = (value: number) => {
-  return new Intl.NumberFormat("id-ID", {
-    style: "currency",
-    currency: "IDR",
-    minimumFractionDigits: 0,
-  }).format(value);
+const formatCurrency = (value: number, currency?: string | null) => {
+  return formatCurrencyAmount(value, currency || "IDR");
 };
 
 const formatDate = (dateStr: string) => {
@@ -111,7 +108,7 @@ export async function generateExpensePdf(
     doc.setTextColor(...primaryColor);
     doc.setFontSize(24);
     doc.setFont("helvetica", "bold");
-    doc.text(formatCurrency(Number(e.amount) || 0), pageWidth / 2, yPos + 25, {
+    doc.text(formatCurrency(Number(e.amount) || 0, e.currency), pageWidth / 2, yPos + 25, {
       align: "center",
     });
 

@@ -21,6 +21,7 @@ import { ExpenseEditModal } from "./components";
 import { generateExpensePdf } from "./utils/pdf-generator";
 import { useConfirm } from "~/composables/useConfirm";
 import { cn } from "~/lib/utils";
+import { formatCurrencyAmount } from "~/utils/currency";
 import { toast } from "vue-sonner";
 import CompanyCreateModal from "~/pages/master/company/components/CompanyCreateModal.vue";
 
@@ -119,12 +120,8 @@ async function handleDelete() {
   }
 }
 
-const formatCurrency = (value: number) => {
-  return new Intl.NumberFormat("id-ID", {
-    style: "currency",
-    currency: "IDR",
-    minimumFractionDigits: 0,
-  }).format(value);
+const formatCurrency = (value: number, currency?: string | null) => {
+  return formatCurrencyAmount(value, currency || expense.value?.currency || "IDR");
 };
 
 const formatDate = (dateStr: string | undefined | null) => {
@@ -294,7 +291,7 @@ onMounted(() => {
                   <p class="text-muted-foreground font-medium">Currency & Rate</p>
                   <p class="font-bold text-slate-900">
                     {{ expense.currency || "IDR" }} ({{
-                      formatCurrency(Number(expense.exchangeRate || 1))
+                      formatCurrency(Number(expense.exchangeRate || 1), "IDR")
                     }})
                   </p>
                 </div>

@@ -545,11 +545,11 @@ const isPageLoading = computed(() => isLoading.value || isBootstrapping.value);
                     )
                   "
                 >
-                  {{ formatCurrency(Number(expense.amount)) }}
+                  {{ formatCurrency(Number(expense.amount), expense.currency) }}
                 </td>
                 <td class="py-3 px-4 text-sm font-medium">
                   <span v-if="getOverpayment(expense) > 0" class="text-emerald-600">
-                    {{ formatCurrency(getOverpayment(expense)) }}
+                    {{ formatCurrency(getOverpayment(expense), expense.currency) }}
                   </span>
                   <span v-else class="text-muted-foreground">-</span>
                 </td>
@@ -704,7 +704,7 @@ const isPageLoading = computed(() => isLoading.value || isBootstrapping.value);
                   )
                 "
               >
-                {{ formatCurrency(Number(expense.amount)) }}
+                {{ formatCurrency(Number(expense.amount), expense.currency) }}
               </p>
             </div>
           </div>
