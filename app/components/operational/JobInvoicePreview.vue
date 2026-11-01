@@ -72,6 +72,27 @@ const taxDisplayAmount = computed(() =>
   Number(firstTax.value?.taxAmount ?? props.invoice?.taxAmount ?? 0),
 );
 
+// Payment status: total dibayar (alokasi non-void) vs sisa. Dipakai di receipt
+// maupun footer invoice agar partially paid kelihatan "USD 123 dikurangi total".
+const activePaymentAllocations = computed(() =>
+  (props.invoice?.paymentAllocations || []).filter(
+    (alloc) =>
+      !String(alloc.payment?.status || "")
+        .toUpperCase()
+        .includes("VOID"),
+  ),
+);
+const totalPaidAmount = computed(() =>
+  activePaymentAllocations.value.reduce((sum, alloc) => sum + Number(alloc.amount || 0), 0),
+);
+const balanceDueAmount = computed(() => {
+  const raw = Number(props.invoice?.balanceDue);
+  if (!Number.isNaN(raw) && props.invoice?.balanceDue !== undefined) return Math.max(0, raw);
+  return Math.max(0, Number(props.invoice?.total || 0) - totalPaidAmount.value);
+});
+const hasAnyPayment = computed(() => totalPaidAmount.value > 0);
+const isPartiallyPaid = computed(() => hasAnyPayment.value && balanceDueAmount.value > 0);
+
 const headerTitle = computed(() => {
   if (mode.value === "receipt") return "";
   return props.invoice?.status?.code === "draft" ? "PROFORMA INVOICE" : "COMMERCIAL INVOICE";
@@ -812,6 +833,47 @@ defineExpose({
                   {{ invoice?.notes || "Services Rendered" }}
                 </span>
               </div>
+
+              <!-- Payment Status (Total vs Paid vs Remaining) -->
+              <div class="grid grid-cols-3 gap-2 pt-1">
+                <div class="border border-[#062c58]/20 rounded p-2 text-center">
+                  <p class="text-[0.55rem] font-bold text-[#062c58]/60 uppercase tracking-wider">
+                    Invoice Total
+                  </p>
+                  <p class="font-mono text-[0.75rem] font-bold text-black mt-1">
+                    {{ formatCurrency(invoice?.total) }}
+                  </p>
+                </div>
+                <div class="border border-[#062c58]/20 rounded p-2 text-center">
+                  <p class="text-[0.55rem] font-bold text-[#062c58]/60 uppercase tracking-wider">
+                    Paid To Date
+                  </p>
+                  <p class="font-mono text-[0.75rem] font-bold text-black mt-1">
+                    {{ formatCurrency(totalPaidAmount) }}
+                  </p>
+                </div>
+                <div
+                  class="rounded p-2 text-center border"
+                  :class="
+                    balanceDueAmount > 0
+                      ? 'bg-red-50 border-red-200'
+                      : 'bg-emerald-50 border-emerald-200'
+                  "
+                >
+                  <p
+                    class="text-[0.55rem] font-bold uppercase tracking-wider"
+                    :class="balanceDueAmount > 0 ? 'text-red-600' : 'text-emerald-600'"
+                  >
+                    {{ balanceDueAmount > 0 ? "Remaining" : "Paid In Full" }}
+                  </p>
+                  <p
+                    class="font-mono text-[0.75rem] font-bold mt-1"
+                    :class="balanceDueAmount > 0 ? 'text-red-700' : 'text-emerald-700'"
+                  >
+                    {{ formatCurrency(balanceDueAmount) }}
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -1204,6 +1266,33 @@ defineExpose({
                       class="flex-1 px-3 text-right font-mono text-[0.75rem] font-medium text-black"
                     >
                       {{ isWithholdingTax ? "- " : "" }}{{ formatCurrency(taxDisplayAmount) }}
+                    </div>
+                  </div>
+                  <div
+                    v-if="hasAnyPayment"
+                    class="flex border-b border-[#062c58]/20 h-[35px] items-center shrink-0"
+                  >
+                    <div class="w-1/2 px-3 font-bold text-[0.65rem] text-emerald-700">
+                      PAID TO DATE
+                    </div>
+                    <div
+                      class="flex-1 px-3 text-right font-mono text-[0.75rem] font-medium text-emerald-700"
+                    >
+                      - {{ formatCurrency(totalPaidAmount) }}
+                    </div>
+                  </div>
+                  <div
+                    v-if="hasAnyPayment"
+                    class="flex border-b border-[#062c58]/20 h-[35px] items-center shrink-0"
+                  >
+                    <div class="w-1/2 px-3 font-bold text-[0.65rem] text-[#062c58]">
+                      {{ isPartiallyPaid ? "BALANCE DUE" : "STATUS" }}
+                    </div>
+                    <div
+                      class="flex-1 px-3 text-right font-mono text-[0.75rem] font-bold"
+                      :class="isPartiallyPaid ? 'text-red-600' : 'text-emerald-600'"
+                    >
+                      {{ isPartiallyPaid ? formatCurrency(balanceDueAmount) : "PAID IN FULL" }}
                     </div>
                   </div>
                   <div class="flex bg-[#062c58] text-white flex-1 items-center">
