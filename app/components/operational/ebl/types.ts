@@ -210,6 +210,19 @@ export interface EditFormType {
   showShipperReferencesOnBl: boolean;
 }
 
+export interface ProfitLineItem {
+  id?: string | number | null;
+  description: string | null;
+  quantity?: number | string | null;
+  unitPrice?: number | string | null;
+  amount?: number | string | null;
+  currency?: string | null;
+  service?: {
+    name?: string | null;
+    category?: { name?: string | null; code?: string | null } | null;
+  } | null;
+}
+
 export interface ProfitInvoice {
   id: string;
   issuedDate?: string | null;
@@ -220,7 +233,7 @@ export interface ProfitInvoice {
   balanceDue?: number | string | null;
   currency?: string | null;
   exchangeRate?: number | string | null;
-  items?: { description: string | null }[] | null;
+  items?: ProfitLineItem[] | null;
   status?: string | { code?: string; name?: string } | null;
 }
 
@@ -234,7 +247,7 @@ export interface ProfitExpense {
   amount: number | string | null;
   currency?: string | null;
   exchangeRate?: number | string | null;
-  items?: { description: string | null }[] | null;
+  items?: ProfitLineItem[] | null;
   status?: string | { code?: string; name?: string } | null;
 }
 
