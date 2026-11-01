@@ -14,6 +14,7 @@ import { formatAmountInWords } from "~/utils/numberWords";
 import { paginatePdfRows, type PdfRowPage } from "~/utils/pdfPagination";
 import { renderA4Pdf } from "~/utils/pdfRender";
 import { formatQuotationDate } from "~/utils/quotation-display";
+import { sortLogisticsItemsForDisplay } from "~/utils/quotationInvoice";
 
 const props = defineProps<{
   quotation: Quotation | null;
@@ -40,7 +41,7 @@ const destinationDisplay = computed(() =>
       }),
 );
 
-const invoiceItems = computed(() => props.invoice?.items || []);
+const invoiceItems = computed(() => sortLogisticsItemsForDisplay(props.invoice?.items || []));
 const documentCurrency = computed(() => {
   if (props.invoice?.currency) return props.invoice.currency;
   const itemCurrencies = [

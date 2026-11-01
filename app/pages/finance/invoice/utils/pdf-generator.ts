@@ -1,5 +1,6 @@
 import { jsPDF } from "jspdf";
 import { toNumber, formatFullRupiah } from "~/lib/utils";
+import { sortLogisticsItemsForDisplay } from "~/utils/quotationInvoice";
 import type { InvoiceDetail } from "~/composables/useInvoices";
 
 /**
@@ -168,7 +169,10 @@ export async function generateInvoicePdf(invoice: InvoiceDetail): Promise<void> 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8);
 
-  invoice.items.forEach((item, idx) => {
+  // Items Table Body — urutan baku: Freight → Local → Document → Trucking → Clearance → Warehouse → Others
+  const sortedItems = sortLogisticsItemsForDisplay(invoice.items || []);
+
+  sortedItems.forEach((item, idx) => {
     if (yPos > pageHeight - 40) {
       doc.addPage();
       doc.setDrawColor(...primaryColor);

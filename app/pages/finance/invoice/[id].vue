@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ArrowLeft, Edit, Download, Receipt, Loader2, Save, Plus, Trash2 } from "lucide-vue-next";
 import { useInvoices, type InvoiceDetail } from "~/composables/useInvoices";
+import { sortLogisticsItemsForDisplay } from "~/utils/quotationInvoice";
 import { toNumber, formatRupiah } from "~/lib/utils";
 import { generateInvoicePdf } from "./utils/pdf-generator";
 import type { Company } from "~/composables/useMasterData";
@@ -38,6 +39,7 @@ const {
 );
 
 const invoice = computed(() => invoiceData.value);
+const sortedInvoiceItems = computed(() => sortLogisticsItemsForDisplay(invoice.value?.items || []));
 const isLoading = computed(() => loading.value);
 
 // Edit modal state
@@ -396,7 +398,7 @@ watch(selectedTaxId, () => {
         <h3 class="font-semibold mb-4">Detail Item</h3>
         <div class="space-y-2">
           <div
-            v-for="(item, index) in invoice.items"
+            v-for="(item, index) in sortedInvoiceItems"
             :key="index"
             class="flex justify-between py-2 border-b border-border last:border-0"
           >
