@@ -87,6 +87,11 @@ onMounted(() => {
   loadData();
 });
 
+const isVoidedPaymentStatus = (status: unknown): boolean =>
+  String(status || "")
+    .toUpperCase()
+    .includes("VOID");
+
 const allPayments = computed(() => {
   const payments: JobPaymentInfo[] = [];
   const items = props.mode === "out" ? expenses.value : invoices.value;
@@ -127,14 +132,14 @@ const allPayments = computed(() => {
 
 const totalPaidInIdr = computed(() => {
   return allPayments.value
-    .filter((p) => (p.status || "").toUpperCase() !== "VOIDED")
+    .filter((p) => !isVoidedPaymentStatus(p.status))
     .reduce((sum, p) => sum + (p.amountInIdr || 0), 0);
 });
 
 const totalPaidByCurrency = computed(() => {
   const totals: Record<string, number> = {};
   allPayments.value
-    .filter((p) => (p.status || "").toUpperCase() !== "VOIDED")
+    .filter((p) => !isVoidedPaymentStatus(p.status))
     .forEach((p) => {
       const cur = p.currency || "IDR";
       totals[cur] = (totals[cur] || 0) + Number(p.amount);
@@ -144,8 +149,27 @@ const totalPaidByCurrency = computed(() => {
 
 const hasForeignCurrency = computed(() => {
   return allPayments.value
-    .filter((p) => (p.status || "").toUpperCase() !== "VOIDED")
+    .filter((p) => !isVoidedPaymentStatus(p.status))
     .some((p) => p.currency && p.currency !== "IDR");
+});
+
+/**
+ * Header utama jangan selalu IDR: kalau semua payment non-void dalam 1 mata uang
+ * asing (mis. USD) dan tidak ada IDR, tampilkan total dalam mata uang aslinya.
+ * Ini yang bikin user bingung "masukin USD kok jadi Rp".
+ */
+const headerTotal = computed(() => {
+  const entries = Object.entries(totalPaidByCurrency.value);
+  if (entries.length === 1 && entries[0] && entries[0][0] !== "IDR") {
+    return { amount: entries[0][1] || 0, currency: entries[0][0] };
+  }
+  return { amount: totalPaidInIdr.value, currency: "IDR" };
+});
+
+const hasMissingExchangeRate = computed(() => {
+  return allPayments.value
+    .filter((p) => !isVoidedPaymentStatus(p.status))
+    .some((p) => p.currency && p.currency !== "IDR" && Number(p.exchangeRate || 1) <= 1);
 });
 
 const formatCurrency = (amount: number, currency: string = "IDR") => {
@@ -236,9 +260,11 @@ defineExpose({
           <p class="text-xs font-bold uppercase tracking-widest opacity-70 mb-1">
             {{ mode === "out" ? "Total Payments Out" : "Total Payments Received" }}
           </p>
-          <h3 class="text-3xl font-black">{{ formatCurrency(totalPaidInIdr, "IDR") }}</h3>
+          <h3 class="text-3xl font-black">
+            {{ formatCurrency(headerTotal.amount, headerTotal.currency) }}
+          </h3>
           <div
-            v-if="hasForeignCurrency"
+            v-if="hasForeignCurrency && headerTotal.currency === 'IDR'"
             class="mt-1.5 flex flex-wrap items-center gap-1.5 text-[10px] font-bold text-white/80"
           >
             <span class="uppercase tracking-wider opacity-60">Breakdown:</span>
@@ -249,6 +275,9 @@ defineExpose({
             >
               {{ formatCurrency(amount, cur) }}
             </span>
+          </div>
+          <div v-if="hasMissingExchangeRate" class="mt-2 text-[10px] font-semibold text-amber-200">
+            Ada payment USD tanpa kurs — konversi IDR dihitung kurs 1. Set kurs di Finance.
           </div>
           <div
             class="mt-4 flex items-center gap-2 text-xs font-medium bg-white/10 w-fit px-3 py-1.5 rounded-full border border-white/10"
@@ -281,19 +310,19 @@ defineExpose({
                 <div
                   :class="[
                     'w-10 h-10 rounded-full flex items-center justify-center shrink-0 border',
-                    payment.status === 'VOIDED'
+                    isVoidedPaymentStatus(payment.status)
                       ? 'bg-gray-50 border-gray-200 text-gray-400'
                       : 'bg-emerald-50 border-emerald-100 text-emerald-600',
                   ]"
                 >
-                  <Ban v-if="payment.status === 'VOIDED'" class="w-5 h-5" />
+                  <Ban v-if="isVoidedPaymentStatus(payment.status)" class="w-5 h-5" />
                   <CreditCard v-else class="w-5 h-5" />
                 </div>
                 <div class="space-y-0.5">
                   <p
                     :class="[
                       'font-bold text-sm',
-                      (payment.status || '').toUpperCase() === 'VOIDED'
+                      isVoidedPaymentStatus(payment.status)
                         ? 'text-gray-400 line-through'
                         : 'text-foreground',
                     ]"
@@ -301,13 +330,23 @@ defineExpose({
                     {{ formatCurrency(payment.amount, payment.currency) }}
                   </p>
                   <p
-                    v-if="payment.currency && payment.currency !== 'IDR'"
+                    v-if="
+                      payment.currency &&
+                      payment.currency !== 'IDR' &&
+                      Number(payment.exchangeRate || 1) > 1
+                    "
                     :class="[
                       'text-[10px] font-semibold text-muted-foreground',
-                      (payment.status || '').toUpperCase() === 'VOIDED' ? 'line-through' : '',
+                      isVoidedPaymentStatus(payment.status) ? 'line-through' : '',
                     ]"
                   >
                     ≈ {{ formatCurrency(payment.amountInIdr || 0, "IDR") }}
+                  </p>
+                  <p
+                    v-else-if="payment.currency && payment.currency !== 'IDR'"
+                    class="text-[10px] font-semibold text-amber-600"
+                  >
+                    Kurs belum diatur — set kurs di Finance agar konversi IDR akurat
                   </p>
                   <div
                     class="flex items-center gap-2 text-[10px] text-muted-foreground font-medium"
@@ -315,7 +354,7 @@ defineExpose({
                     <Calendar class="w-3 h-3" />
                     {{ formatDate(payment.paymentDate) }}
                     <span
-                      v-if="(payment.status || '').toUpperCase() === 'VOIDED'"
+                      v-if="isVoidedPaymentStatus(payment.status)"
                       class="ml-2 px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded text-[8px] font-bold uppercase tracking-wider"
                       >Voided</span
                     >
@@ -347,7 +386,7 @@ defineExpose({
             <div
               :class="[
                 'grid grid-cols-2 gap-4 border-t border-border/50 pt-3 mt-3',
-                payment.status === 'VOIDED' ? 'opacity-50' : '',
+                isVoidedPaymentStatus(payment.status) ? 'opacity-50' : '',
               ]"
             >
               <div>
