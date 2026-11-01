@@ -86,8 +86,8 @@ describe("quotation invoice totals", () => {
       "freight",
       "local",
       "docs",
-      "clearance",
       "trucking",
+      "clearance",
       "warehouse",
       "other",
     ]);

@@ -10,6 +10,7 @@ type InvoiceItemDraft = {
 
 type InvoiceDisplayItem = {
   description?: string | null;
+  serviceName?: string | null;
   service?: {
     name?: string | null;
     category?: {
@@ -83,30 +84,41 @@ export function findServiceIdForInvoiceDescription(
   return service?.id || "";
 }
 
+/**
+ * Urutan baku tampilan dokumen logistik (diminta Mas Naufal):
+ * 1. Freight, 2. Local Charges, 3. Document, 4. Trucking,
+ * 5. Custom Clearance, 6. Warehouse, 7. Others, sisanya paling bawah.
+ * Dipakai di quotation, invoice customer, dan invoice vendor (AP voucher).
+ */
+export function getLogisticsCategoryRank(haystackNormalized: string): number {
+  const haystack = haystackNormalized || "";
+  if (!haystack) return 99;
+  if (haystack.includes("freight")) return 0;
+  if (haystack.includes("local charge") || haystack.includes("local charges")) return 1;
+  if (haystack.includes("documentation") || haystack.includes("document")) return 2;
+  if (haystack.includes("trucking") || haystack.includes("truck")) return 3;
+  if (
+    haystack.includes("custom clearance") ||
+    haystack.includes("customs clearance") ||
+    haystack.includes("clearance")
+  ) {
+    return 4;
+  }
+  if (haystack.includes("warehouse")) return 5;
+  if (haystack.includes("other")) return 6;
+  return 99;
+}
+
 function getInvoiceServiceCategoryRank(item: InvoiceDisplayItem): number {
   const service = item.service;
   const parts = [
     service?.category?.name,
     service?.category?.code,
     service?.name,
+    item.serviceName,
     item.description,
   ].map(normalizeInvoiceServiceText);
-  const haystack = parts.filter(Boolean).join(" ");
-
-  if (!haystack) return 99;
-  if (haystack.includes("freight")) return 0;
-  if (haystack.includes("local charge") || haystack.includes("local charges")) return 1;
-  if (haystack.includes("documentation") || haystack.includes("document")) return 2;
-  if (
-    haystack.includes("custom clearance") ||
-    haystack.includes("customs clearance") ||
-    haystack.includes("clearance")
-  ) {
-    return 3;
-  }
-  if (haystack.includes("trucking") || haystack.includes("truck")) return 4;
-  if (haystack.includes("warehouse") || haystack.includes("other")) return 5;
-  return 99;
+  return getLogisticsCategoryRank(parts.filter(Boolean).join(" "));
 }
 
 export function sortInvoiceItemsForDisplay<T extends InvoiceDisplayItem>(items: T[]): T[] {
@@ -114,6 +126,20 @@ export function sortInvoiceItemsForDisplay<T extends InvoiceDisplayItem>(items: 
     .map((item, index) => ({ item, index, rank: getInvoiceServiceCategoryRank(item) }))
     .toSorted((left, right) => left.rank - right.rank || left.index - right.index)
     .map(({ item }) => item);
+}
+
+/** Alias generik agar quotation charges / vendor items bisa pakai aturan urutan yang sama. */
+export function sortLogisticsItemsForDisplay<
+  T extends {
+    description?: string | null;
+    serviceName?: string | null;
+    service?: {
+      name?: string | null;
+      category?: { name?: string | null; code?: string | null } | null;
+    } | null;
+  },
+>(items: T[]): T[] {
+  return sortInvoiceItemsForDisplay(items);
 }
 
 export function isWithholdingInvoiceTax(tax: InvoiceTaxDraft | null | undefined): boolean {

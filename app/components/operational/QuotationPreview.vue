@@ -16,6 +16,7 @@ import {
   getQuotationRouteDisplay,
   getQuotationServiceLabels,
 } from "~/utils/quotation-display";
+import { sortLogisticsItemsForDisplay } from "~/utils/quotationInvoice";
 import { renderA4Pdf } from "~/utils/pdfRender";
 
 const props = defineProps<{
@@ -188,7 +189,7 @@ const itemRowPx = (item?: QuotationCharge | null) => {
 
 const previewPages = computed<PdfRowPage<QuotationCharge>[]>(() =>
   paginatePdfRows({
-    items: props.quotation?.charges || [],
+    items: sortLogisticsItemsForDisplay(props.quotation?.charges || []),
     mainHeightPx: MAIN_PX,
     firstHeaderPx: FIRST_HEADER_PX,
     continuationHeaderPx: CONT_HEADER_PX,

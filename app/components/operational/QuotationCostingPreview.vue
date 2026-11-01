@@ -7,6 +7,7 @@ import { formatCurrencyCode, formatExchangeRateLabel } from "~/utils/currency";
 import { getTransportLocationDisplay } from "~/utils/airFreightJob";
 import { renderA4Pdf } from "~/utils/pdfRender";
 import { formatQuotationDate } from "~/utils/quotation-display";
+import { sortLogisticsItemsForDisplay } from "~/utils/quotationInvoice";
 
 interface CurrencyBucket {
   revenue: number;
@@ -78,7 +79,7 @@ const routeText = computed(() => {
 
 // Revenue rows = pricing charges (exclude AT COST); Cost rows = vendor costs
 const revenueRows = computed<QuotationCharge[]>(() =>
-  (props.quotation?.charges || []).filter((ch) => !ch.atCost),
+  sortLogisticsItemsForDisplay((props.quotation?.charges || []).filter((ch) => !ch.atCost)),
 );
 
 interface CostRow {
@@ -104,7 +105,7 @@ const costRows = computed<CostRow[]>(() => {
       });
     });
   });
-  return rows;
+  return sortLogisticsItemsForDisplay(rows);
 });
 
 const totalRevenueIDR = computed(() => props.profit.combined.revenueIDR);
@@ -128,12 +129,16 @@ const FOOTER_PX = 108;
 const ROW_BASE_PX = 24;
 const LINE_PX = 14;
 const VENDOR_CHARS_PER_LINE = 20;
+/** Kolom SERVICE ~30% lebar page mono font — konservatif biar wrap nggak overflow di PDF. */
+const SERVICE_CHARS_PER_LINE = 22;
 
 const linesFor = (text: string | null | undefined, cpl: number) =>
   Math.max(1, Math.ceil((text?.length || 0) / cpl));
 
 const revenueRowPx = (ch: QuotationCharge) =>
-  ROW_BASE_PX + Math.max(1, ch.currency === "USD" ? 2 : 1) * LINE_PX;
+  ROW_BASE_PX +
+  Math.max(1, linesFor(ch.serviceName, SERVICE_CHARS_PER_LINE), ch.currency === "USD" ? 2 : 1) *
+    LINE_PX;
 
 const costRowPx = (c: CostRow) => {
   const vendorLines = linesFor(c.vendorName, VENDOR_CHARS_PER_LINE);
@@ -404,7 +409,7 @@ defineExpose({ generatePDF, isGeneratingPDF });
                     class="border-b border-[#062c58]/5"
                   >
                     <td class="px-3 py-2">{{ i + 1 }}</td>
-                    <td class="px-3 py-2 font-bold uppercase">{{ ch.serviceName || "SERVICE" }}</td>
+                    <td class="px-3 py-2 font-bold uppercase">{{ ch.serviceName || "—" }}</td>
                     <td class="px-3 py-2 truncate max-w-xs uppercase">
                       {{ ch.description || "-" }}
                     </td>

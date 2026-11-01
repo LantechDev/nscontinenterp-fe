@@ -22,6 +22,7 @@ import { generateExpensePdf } from "./utils/pdf-generator";
 import { useConfirm } from "~/composables/useConfirm";
 import { cn } from "~/lib/utils";
 import { formatCurrencyAmount } from "~/utils/currency";
+import { sortLogisticsItemsForDisplay } from "~/utils/quotationInvoice";
 import { toast } from "vue-sonner";
 import CompanyCreateModal from "~/pages/master/company/components/CompanyCreateModal.vue";
 
@@ -46,6 +47,7 @@ const {
 });
 
 const expense = computed(() => expenseData.value);
+const sortedExpenseItems = computed(() => sortLogisticsItemsForDisplay(expense.value?.items || []));
 const isLoading = computed(() => loading.value);
 const isOrphanExpense = computed(() => Boolean(expense.value?.isOrphaned));
 const orphanLabel = computed(() => {
@@ -356,7 +358,7 @@ onMounted(() => {
                 </thead>
                 <tbody class="divide-y divide-border text-sm">
                   <tr
-                    v-for="item in expense.items"
+                    v-for="item in sortedExpenseItems"
                     :key="item.id"
                     class="hover:bg-slate-50/30 transition-colors"
                   >

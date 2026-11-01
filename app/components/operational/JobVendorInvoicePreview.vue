@@ -4,6 +4,7 @@ import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import { toast } from "vue-sonner";
 import CurrencyStack from "~/components/ui/CurrencyStack.vue";
+import { sortLogisticsItemsForDisplay } from "~/utils/quotationInvoice";
 import type { Expense } from "~/composables/useFinanceExpense";
 
 const props = defineProps<{
@@ -124,7 +125,8 @@ const itemRowPx = (description?: string | null) => {
 };
 
 const displayItems = computed<VendorInvoicePreviewItem[]>(() => {
-  if (props.expense?.items && props.expense.items.length > 0) return props.expense.items;
+  if (props.expense?.items && props.expense.items.length > 0)
+    return sortLogisticsItemsForDisplay(props.expense.items);
 
   return [
     {
