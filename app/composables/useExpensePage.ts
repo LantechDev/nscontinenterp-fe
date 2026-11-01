@@ -480,9 +480,13 @@ export function useExpensePage() {
       } else {
         throw new Error("Failed to save expense");
       }
-    } catch (e) {
+    } catch (e: unknown) {
       console.error("Failed to save expense:", e);
-      editError.value = "Failed to save expense";
+      // Tampilkan pesan asli dari backend (mis. mapping COA kategori belum ada)
+      // agar user tahu penyebabnya, bukan cuma pesan generik.
+      const err = e as { data?: { message?: string; error?: string }; message?: string };
+      editError.value =
+        err.data?.message || err.data?.error || err.message || "Failed to save expense";
     } finally {
       isSubmitting.value = false;
     }
