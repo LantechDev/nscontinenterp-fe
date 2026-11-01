@@ -53,12 +53,17 @@ const handleDownloadProfit = async (job: JobCostItem) => {
       $fetch<{ items: unknown[] }>(`/api/finance/expense`, { query: { jobId: job.id } }),
     ]);
 
-    // Combine them for the preview
+    // Prefer job detail invoices/expenses (sudah include items + service untuk breakdown);
+    // fallback ke list API kalau job detail tidak membawa field tersebut.
+    const detailInvoices = Array.isArray(jobDetail.invoices) ? jobDetail.invoices : null;
+    const detailExpenses = Array.isArray(jobDetail.expenses) ? jobDetail.expenses : null;
+
     activeJobForPdf.value = {
       ...job,
       ...jobDetail,
-      invoices: invoicesRes || [],
-      expenses: expensesRes?.items || [],
+      invoices: detailInvoices && detailInvoices.length > 0 ? detailInvoices : invoicesRes || [],
+      expenses:
+        detailExpenses && detailExpenses.length > 0 ? detailExpenses : expensesRes?.items || [],
       revenue: job.revenue,
       cogs: job.cogs,
       profit: job.profit,
