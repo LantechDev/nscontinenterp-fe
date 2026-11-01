@@ -12,7 +12,8 @@ import {
   resolveProfitReportEditableExchangeRate,
   toProfitReportBaseAmount,
 } from "~/utils/jobProfitReport";
-import type { ActiveJobData, ProfitInvoice, ProfitExpense, ProfitJob } from "./ebl/types";
+import { sortLogisticsItemsForDisplay } from "~/utils/quotationInvoice";
+import type { ProfitInvoice, ProfitExpense, ProfitJob, ProfitLineItem } from "./ebl/types";
 
 const props = defineProps<{
   job: ProfitJob | null;
@@ -124,13 +125,221 @@ const totalRevenue = computed(() => {
   return toNumber(props.job?.revenue) || 0;
 });
 
-const getItemDescriptions = (items: { description: string | null }[] | null | undefined) => {
-  if (!items || items.length === 0) return "";
-  return items
-    .map((it) => it.description)
-    .filter(Boolean)
-    .join(", ");
+/** Satu baris revenue/cost setelah di-breakdown per item/service (kayak quotation costing). */
+interface ProfitBreakdownRow {
+  key: string;
+  serviceName: string | null;
+  categoryName: string | null;
+  vendorName: string | null;
+  description: string;
+  refLabel: string;
+  amount: number;
+  currency: string;
+  exchangeRate: number;
+  isAdjustment?: boolean;
+}
+
+const roundMoney = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
+
+const itemLineAmount = (it: {
+  amount?: number | string | null;
+  quantity?: number | string | null;
+  unitPrice?: number | string | null;
+}) => {
+  const raw = it.amount;
+  if (raw !== null && raw !== undefined && raw !== "") return toNumber(raw);
+  return toNumber(it.quantity) * toNumber(it.unitPrice);
 };
+
+const serviceLabel = (it: ProfitLineItem | null | undefined) => {
+  const svc = it?.service;
+  return svc?.name || svc?.category?.name || null;
+};
+
+const categoryLabel = (it: ProfitLineItem | null | undefined) =>
+  it?.service?.category?.name || it?.service?.category?.code || null;
+
+/** Sort key: pakai category + serviceName + description supaya FSC/CCC (cat FREIGHT) ikut rank Freight. */
+const sortBreakdownRows = <
+  T extends {
+    serviceName: string | null;
+    categoryName: string | null;
+    description: string;
+    isAdjustment?: boolean;
+  },
+>(
+  rows: T[],
+): T[] => {
+  const lineRows = rows.filter((r) => !r.isAdjustment);
+  const adjRows = rows.filter((r) => r.isAdjustment);
+  const sorted = sortLogisticsItemsForDisplay(
+    lineRows.map((r) => ({
+      ...r,
+      service: {
+        name: r.serviceName,
+        category: { name: r.categoryName, code: null },
+      },
+    })),
+  );
+  // ADJUSTMENT / TAX selalu di bawah, biar tidak nyampur baris service.
+  return [...sorted, ...adjRows];
+};
+
+const invoiceBreakdownRows = (inv: ProfitInvoice): ProfitBreakdownRow[] => {
+  const items = inv.items || [];
+  const parentCurrency = inv.currency || "IDR";
+  const parentRate = toNumber(inv.exchangeRate) || 1;
+
+  if (items.length === 0) {
+    return [
+      {
+        key: inv.id,
+        serviceName: null,
+        categoryName: null,
+        vendorName: null,
+        description: inv.notes || "SALES REVENUE",
+        refLabel: inv.invoiceNumber || "",
+        amount: toNumber(inv.total),
+        currency: parentCurrency,
+        exchangeRate: parentRate,
+      },
+    ];
+  }
+
+  const rows: ProfitBreakdownRow[] = items.map((it, idx) => ({
+    key: `${inv.id}-item-${it.id || idx}`,
+    serviceName: serviceLabel(it),
+    categoryName: categoryLabel(it),
+    vendorName: null,
+    description: it.description || inv.notes || "SALES REVENUE",
+    refLabel: inv.invoiceNumber || "",
+    amount: itemLineAmount(it),
+    currency: it.currency || parentCurrency,
+    exchangeRate: parentRate,
+  }));
+
+  const itemsBase = rows.reduce(
+    (sum, r) =>
+      sum +
+      toProfitReportBaseAmount(
+        r.amount,
+        r.currency,
+        r.exchangeRate,
+        effectiveFallbackExchangeRate.value,
+      ),
+    0,
+  );
+  const totalBase = toProfitReportBaseAmount(
+    inv.total,
+    inv.currency,
+    inv.exchangeRate,
+    effectiveFallbackExchangeRate.value,
+  );
+  const residualBase = totalBase - itemsBase;
+  if (Math.abs(residualBase) >= 0.01) {
+    const sameCurrency = rows.every((r) => r.currency === parentCurrency);
+    const residualAmount = sameCurrency
+      ? roundMoney(toNumber(inv.total) - rows.reduce((s, r) => s + r.amount, 0))
+      : roundMoney(residualBase);
+    rows.push({
+      key: `${inv.id}-tax-discount`,
+      serviceName: "TAX & DISCOUNT",
+      categoryName: null,
+      vendorName: null,
+      description: "TAX & DISCOUNT (HEADER − ITEMS)",
+      refLabel: inv.invoiceNumber || "",
+      amount: residualAmount,
+      currency: sameCurrency ? parentCurrency : "IDR",
+      exchangeRate: sameCurrency ? parentRate : 1,
+      isAdjustment: true,
+    });
+  }
+
+  return rows;
+};
+
+const expenseBreakdownRows = (exp: ProfitExpense): ProfitBreakdownRow[] => {
+  const items = exp.items || [];
+  const parentCurrency = exp.currency || "IDR";
+  const parentRate = toNumber(exp.exchangeRate) || 1;
+  const vendorName = exp.vendor?.name || null;
+  const headerDesc = exp.description || exp.category?.name || "VENDOR EXPENSE";
+
+  if (items.length === 0) {
+    return [
+      {
+        key: exp.id,
+        serviceName: exp.category?.name || null,
+        categoryName: exp.category?.name || null,
+        vendorName,
+        description: headerDesc,
+        refLabel: "",
+        amount: toNumber(exp.amount),
+        currency: parentCurrency,
+        exchangeRate: parentRate,
+      },
+    ];
+  }
+
+  const rows: ProfitBreakdownRow[] = items.map((it, idx) => ({
+    key: `${exp.id}-item-${it.id || idx}`,
+    serviceName: serviceLabel(it) || exp.category?.name || null,
+    categoryName: categoryLabel(it) || exp.category?.name || null,
+    vendorName,
+    description: it.description || headerDesc,
+    refLabel: "",
+    amount: itemLineAmount(it),
+    currency: it.currency || parentCurrency,
+    exchangeRate: parentRate,
+  }));
+
+  const itemsBase = rows.reduce(
+    (sum, r) =>
+      sum +
+      toProfitReportBaseAmount(
+        r.amount,
+        r.currency,
+        r.exchangeRate,
+        effectiveFallbackExchangeRate.value,
+      ),
+    0,
+  );
+  const totalBase = toProfitReportBaseAmount(
+    exp.amount,
+    exp.currency,
+    exp.exchangeRate,
+    effectiveFallbackExchangeRate.value,
+  );
+  const residualBase = totalBase - itemsBase;
+  if (Math.abs(residualBase) >= 0.01) {
+    const sameCurrency = rows.every((r) => r.currency === parentCurrency);
+    const residualAmount = sameCurrency
+      ? roundMoney(toNumber(exp.amount) - rows.reduce((s, r) => s + r.amount, 0))
+      : roundMoney(residualBase);
+    rows.push({
+      key: `${exp.id}-adjustment`,
+      serviceName: "ADJUSTMENT",
+      categoryName: null,
+      vendorName,
+      description: residualAmount >= 0 ? "TAX / FEE (HEADER − ITEMS)" : "DISCOUNT / OVER-ITEMS",
+      refLabel: "",
+      amount: residualAmount,
+      currency: sameCurrency ? parentCurrency : "IDR",
+      exchangeRate: sameCurrency ? parentRate : 1,
+      isAdjustment: true,
+    });
+  }
+
+  return rows;
+};
+
+const revenueRows = computed<ProfitBreakdownRow[]>(() =>
+  sortBreakdownRows(invoices.value.flatMap(invoiceBreakdownRows)),
+);
+
+const costRows = computed<ProfitBreakdownRow[]>(() =>
+  sortBreakdownRows(vendorInvoices.value.flatMap(expenseBreakdownRows)),
+);
 
 const totalCost = computed(() => {
   if (allVendorInvoices.value.length > 0) {
@@ -186,17 +395,20 @@ const FOOTER_PX = 108;
 const ROW_BASE_PX = 24;
 const LINE_PX = 14;
 const VENDOR_CHARS_PER_LINE = 20;
+/** Kolom SERVICE ~22% lebar page mono font — konservatif biar wrap nggak overflow di PDF. */
+const SERVICE_CHARS_PER_LINE = 18;
 
 const linesFor = (text: string | null | undefined, charsPerLine: number) =>
   Math.max(1, Math.ceil((text?.length || 0) / charsPerLine));
 
-const revenueRowPx = (inv: ProfitInvoice) =>
+const revenueRowPx = (row: ProfitBreakdownRow) =>
   ROW_BASE_PX +
   Math.max(
     1,
+    linesFor(row.serviceName, SERVICE_CHARS_PER_LINE),
     hasProfitReportUsdConversion(
-      inv.currency,
-      inv.exchangeRate,
+      row.currency,
+      row.exchangeRate,
       effectiveFallbackExchangeRate.value,
     )
       ? 2
@@ -204,32 +416,33 @@ const revenueRowPx = (inv: ProfitInvoice) =>
   ) *
     LINE_PX;
 
-const costRowPx = (exp: ProfitExpense) => {
-  const vendorLines = linesFor(exp.vendor?.name, VENDOR_CHARS_PER_LINE);
+const costRowPx = (row: ProfitBreakdownRow) => {
+  const vendorLines = linesFor(row.vendorName, VENDOR_CHARS_PER_LINE);
+  const serviceLines = linesFor(row.serviceName, SERVICE_CHARS_PER_LINE);
   const amountLines = hasProfitReportUsdConversion(
-    exp.currency,
-    exp.exchangeRate,
+    row.currency,
+    row.exchangeRate,
     effectiveFallbackExchangeRate.value,
   )
     ? 2
     : 1;
-  return ROW_BASE_PX + Math.max(vendorLines, amountLines) * LINE_PX;
+  return ROW_BASE_PX + Math.max(vendorLines, serviceLines, amountLines) * LINE_PX;
 };
 
 interface ReportPage {
   isFirst: boolean;
   isLast: boolean;
   showRevenue: boolean;
-  revenueRows: ProfitInvoice[];
+  revenueRows: ProfitBreakdownRow[];
   revenueContinued: boolean;
   showCost: boolean;
-  costRows: ProfitExpense[];
+  costRows: ProfitBreakdownRow[];
   costContinued: boolean;
 }
 
 const reportPages = computed<ReportPage[]>(() => {
-  const revs = invoices.value;
-  const costs = vendorInvoices.value;
+  const revs = revenueRows.value;
+  const costs = costRows.value;
 
   const pages: ReportPage[] = [];
   let ri = 0;
@@ -502,7 +715,7 @@ defineExpose({
                 class="bg-[#062c58]/5 px-3 py-1.5 border-b border-[#062c58] flex justify-between"
               >
                 <span class="font-bold text-[0.65rem] text-[#062c58]"
-                  >REVENUE (INVOICES){{ page.revenueContinued ? " — CONTINUED" : "" }}</span
+                  >REVENUE (PRICING){{ page.revenueContinued ? " — CONTINUED" : "" }}</span
                 >
                 <span class="font-bold text-[0.65rem] text-[#062c58]"
                   >TOTAL: {{ formatCurrency(totalRevenue) }}</span
@@ -514,30 +727,32 @@ defineExpose({
                     class="text-[0.55rem] font-bold border-b border-[#062c58]/20 bg-gray-50/50"
                   >
                     <tr>
-                      <th class="px-3 py-1 w-[20%]">DATE</th>
-                      <th class="px-3 py-1 w-[25%]">INV NO.</th>
+                      <th class="px-3 py-1 w-[22%]">SERVICE</th>
+                      <th class="px-3 py-1 w-[23%]">REF</th>
                       <th class="px-3 py-1 flex-1">DESCRIPTION</th>
-                      <th class="px-3 py-1 w-[20%] text-right">AMOUNT</th>
+                      <th class="px-3 py-1 w-[22%] text-right">AMOUNT</th>
                     </tr>
                   </thead>
                   <tbody class="text-[0.65rem]">
                     <tr
-                      v-for="inv in page.revenueRows"
-                      :key="inv.id"
+                      v-for="row in page.revenueRows"
+                      :key="row.key"
                       class="border-b border-[#062c58]/5"
                     >
-                      <td class="px-3 py-2">{{ formatDate(inv.issuedDate || inv.createdAt) }}</td>
-                      <td class="px-3 py-2 font-bold">{{ inv.invoiceNumber }}</td>
-                      <td class="px-3 py-2 truncate max-w-xs">
-                        {{ getItemDescriptions(inv.items) || inv.notes || "SALES REVENUE" }}
+                      <td class="px-3 py-2 font-bold uppercase">
+                        {{ row.serviceName || "—" }}
+                      </td>
+                      <td class="px-3 py-2">{{ row.refLabel || "-" }}</td>
+                      <td class="px-3 py-2 truncate max-w-xs uppercase">
+                        {{ row.description }}
                       </td>
                       <td class="px-3 py-2 text-right">
                         <div class="flex flex-col items-end">
                           <template
                             v-if="
                               hasProfitReportUsdConversion(
-                                inv.currency,
-                                inv.exchangeRate,
+                                row.currency,
+                                row.exchangeRate,
                                 effectiveFallbackExchangeRate,
                               )
                             "
@@ -546,9 +761,9 @@ defineExpose({
                               {{
                                 formatCurrency(
                                   toProfitReportBaseAmount(
-                                    inv.total,
-                                    inv.currency,
-                                    inv.exchangeRate,
+                                    row.amount,
+                                    row.currency,
+                                    row.exchangeRate,
                                     effectiveFallbackExchangeRate,
                                   ),
                                   "IDR",
@@ -556,12 +771,12 @@ defineExpose({
                               }}
                             </span>
                             <span class="text-[0.5rem] text-muted-foreground italic">
-                              {{ formatCurrency(inv.total, "USD") }}
+                              {{ formatCurrency(row.amount, row.currency || "IDR") }}
                             </span>
                           </template>
                           <template v-else>
                             <span class="font-bold">
-                              {{ formatCurrency(inv.total, inv.currency || "IDR") }}
+                              {{ formatCurrency(row.amount, row.currency || "IDR") }}
                             </span>
                           </template>
                         </div>
@@ -581,7 +796,7 @@ defineExpose({
             <div v-if="page.showCost" class="flex flex-col">
               <div class="bg-red-50/50 px-3 py-1.5 border-b border-[#062c58] flex justify-between">
                 <span class="font-bold text-[0.65rem] text-red-700"
-                  >COSTS (VENDOR INVOICES){{ page.costContinued ? " — CONTINUED" : "" }}</span
+                  >COSTS (VENDOR){{ page.costContinued ? " — CONTINUED" : "" }}</span
                 >
                 <span class="font-bold text-[0.65rem] text-red-700"
                   >TOTAL: {{ formatCurrency(totalCost) }}</span
@@ -593,35 +808,30 @@ defineExpose({
                     class="text-[0.55rem] font-bold border-b border-[#062c58]/20 bg-gray-50/50"
                   >
                     <tr>
-                      <th class="px-3 py-1 w-[20%]">DATE</th>
-                      <th class="px-3 py-1 w-[25%]">VENDOR</th>
+                      <th class="px-3 py-1 w-[22%]">VENDOR</th>
+                      <th class="px-3 py-1 w-[23%]">SERVICE</th>
                       <th class="px-3 py-1 flex-1">DESCRIPTION</th>
-                      <th class="px-3 py-1 w-[20%] text-right">AMOUNT</th>
+                      <th class="px-3 py-1 w-[22%] text-right">AMOUNT</th>
                     </tr>
                   </thead>
                   <tbody class="text-[0.65rem]">
                     <tr
-                      v-for="exp in page.costRows"
-                      :key="exp.id"
+                      v-for="row in page.costRows"
+                      :key="row.key"
                       class="border-b border-[#062c58]/5"
                     >
-                      <td class="px-3 py-2">{{ formatDate(exp.date || exp.createdAt) }}</td>
-                      <td class="px-3 py-2 font-bold">{{ exp.vendor?.name || "-" }}</td>
-                      <td class="px-3 py-2 truncate max-w-xs">
-                        {{
-                          getItemDescriptions(exp.items) ||
-                          exp.description ||
-                          exp.category?.name ||
-                          "VENDOR EXPENSE"
-                        }}
+                      <td class="px-3 py-2 font-bold">{{ row.vendorName || "-" }}</td>
+                      <td class="px-3 py-2 uppercase">{{ row.serviceName || "—" }}</td>
+                      <td class="px-3 py-2 truncate max-w-xs uppercase">
+                        {{ row.description }}
                       </td>
                       <td class="px-3 py-2 text-right">
                         <div class="flex flex-col items-end">
                           <template
                             v-if="
                               hasProfitReportUsdConversion(
-                                exp.currency,
-                                exp.exchangeRate,
+                                row.currency,
+                                row.exchangeRate,
                                 effectiveFallbackExchangeRate,
                               )
                             "
@@ -630,9 +840,9 @@ defineExpose({
                               {{
                                 formatCurrency(
                                   toProfitReportBaseAmount(
-                                    exp.amount,
-                                    exp.currency,
-                                    exp.exchangeRate,
+                                    row.amount,
+                                    row.currency,
+                                    row.exchangeRate,
                                     effectiveFallbackExchangeRate,
                                   ),
                                   "IDR",
@@ -640,12 +850,12 @@ defineExpose({
                               }}
                             </span>
                             <span class="text-[0.5rem] text-muted-foreground italic">
-                              {{ formatCurrency(exp.amount, "USD") }}
+                              {{ formatCurrency(row.amount, row.currency || "IDR") }}
                             </span>
                           </template>
                           <template v-else>
                             <span class="font-bold">
-                              {{ formatCurrency(exp.amount, exp.currency || "IDR") }}
+                              {{ formatCurrency(row.amount, row.currency || "IDR") }}
                             </span>
                           </template>
                         </div>
